@@ -1958,6 +1958,7 @@ body {
     <div class="welcome-buttons">
         <button class="start-button" onclick="startGame()">Start Game</button>
         <button class="start-button custom-lists-button" onclick="showCustomListsManager()">Custom Practice</button>
+        <button class="auth-skip-button" onclick="handleLogout()">Logout</button>
     </div>
 </div>
 
@@ -2331,41 +2332,86 @@ function initializeGame() {
 }
 
 // Progress Management
-function saveProgress() {
-    localStorage.setItem('simploxCustomCoins', gameState.coins.toString());
-    localStorage.setItem('simploxProgress', JSON.stringify({
-        unlockedSets: Object.fromEntries(
-            Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
-        ),
-        unlockedLevels: Object.fromEntries(
-            Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
-        ),
-        perfectLevels: Array.from(gameState.perfectLevels),
-        completedLevels: Array.from(gameState.completedLevels),
-        coins: gameState.coins,
-        perks: gameState.perks
-    }));
+async function saveProgress() {
+    const session = await checkAuth();
+    if (!session) return; // Don't save if not authenticated
+    
+    try {
+        // Save to Supabase
+        const { error } = await supabase
+            .from('user_progress')
+            .upsert({
+                user_id: session.user.id,
+                game_state: {
+                    unlockedSets: Object.fromEntries(
+                        Object.entries(gameState.unlockedSets)
+                            .map(([k, v]) => [k, Array.from(v)])
+                    ),
+                    unlockedLevels: Object.fromEntries(
+                        Object.entries(gameState.unlockedLevels)
+                            .map(([k, v]) => [k, Array.from(v)])
+                    ),
+                    perfectLevels: Array.from(gameState.perfectLevels),
+                    completedLevels: Array.from(gameState.completedLevels),
+                    coins: gameState.coins,
+                    perks: gameState.perks
+                }
+            });
+
+        if (error) throw error;
+        
+        // Also save to localStorage as backup
+        localStorage.setItem('simploxProgress', JSON.stringify({
+            unlockedSets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets)
+                    .map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlockedLevels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels)
+                    .map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfectLevels: Array.from(gameState.perfectLevels),
+            completedLevels: Array.from(gameState.completedLevels),
+            coins: gameState.coins,
+            perks: gameState.perks
+        }));
+
+    } catch (error) {
+        console.error('Error saving progress:', error);
+    }
 }
 
-function loadProgress() {
+async function loadProgress() {
+    const session = await checkAuth();
+    
+    if (session) {
+        try {
+            // Try to load from Supabase first
+            const { data, error } = await supabase
+                .from('user_progress')
+                .select('game_state')
+                .eq('user_id', session.user.id)
+                .single();
+
+            if (error) throw error;
+
+            if (data) {
+                const gameState = data.game_state;
+                // Convert arrays back to Sets
+                return gameState;
+            }
+        } catch (error) {
+            console.error('Error loading from Supabase:', error);
+        }
+    }
+
+    // Fall back to localStorage
     const saved = localStorage.getItem('simploxProgress');
     if (saved) {
-        const data = JSON.parse(saved);
-        gameState.unlockedSets = Object.fromEntries(
-            Object.entries(data.unlockedSets).map(([k, v]) => [k, new Set(v)])
-        );
-        gameState.unlockedLevels = Object.fromEntries(
-            Object.entries(data.unlockedLevels).map(([k, v]) => [k, new Set(v)])
-        );
-        gameState.perfectLevels = new Set(data.perfectLevels);
-        gameState.completedLevels = new Set(data.completedLevels || []);
-        gameState.coins = data.coins;
-        gameState.perks = data.perks || {timeFreeze: 0, skip: 0, clue: 0, reveal: 0};
+        return JSON.parse(saved);
     }
-    const savedCustomCoins = localStorage.getItem('simploxCustomCoins');
-if (savedCustomCoins) {
-    gameState.coins = parseInt(savedCustomCoins);
-}
+    
+    return null;
 }
 
 function resetProgress() {
@@ -5047,21 +5093,21 @@ function handleSkipAuth() {
     showScreen('welcome-screen');
 }
 
-window.onload = () => {
-    console.log('Page loaded'); // Debug log
+window.onload = async () => {
+    console.log('Page loaded');
     
     initializeGame();
     updatePerkCounts();
     initializeParticles();
     
-    // Check if user is logged in
-    const session = localStorage.getItem('simploxSession');
+    // Check authentication status
+    const isAuthenticated = await checkAuth();
     
-    if (session) {
-        console.log('Session found, showing welcome screen'); // Debug log
+    if (isAuthenticated) {
+        console.log('User is authenticated');
         showScreen('welcome-screen');
     } else {
-        console.log('No session, showing auth screen'); // Debug log
+        console.log('User needs to authenticate');
         showScreen('auth-screen');
     }
 };
@@ -5089,6 +5135,95 @@ function showScreen(screenId) {
     }
 }
 
+// Right after your supabase initialization
+async function handleLogin() {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+        
+        if (error) throw error;
+
+        // Store session
+        localStorage.setItem('simploxSession', JSON.stringify(data.session));
+        
+        // Successful login
+        showScreen('welcome-screen');
+        
+    } catch (error) {
+        alert('Error logging in: ' + error.message);
+    }
+}
+
+async function handleSignup() {
+    const email = document.getElementById('signup-email').value;
+    const password = document.getElementById('signup-password').value;
+    const role = document.getElementById('signup-role').value;
+    
+    if (!role) {
+        alert('Please select a role (Student/Teacher)');
+        return;
+    }
+    
+    try {
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    role: role
+                }
+            }
+        });
+        
+        if (error) throw error;
+
+        // Show success message and switch to login
+        alert('Please check your email to confirm your account!');
+        toggleAuthForm('login');
+        
+    } catch (error) {
+        alert('Error signing up: ' + error.message);
+    }
+}
+
+async function checkAuth() {
+    try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
+
+        if (session) {
+            // User is logged in
+            return true;
+        }
+        
+        return false;
+    } catch (error) {
+        console.error('Auth check error:', error);
+        return false;
+    }
+}
+
+async function handleLogout() {
+    try {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+        
+        // Clear session
+        localStorage.removeItem('simploxSession');
+        
+        // Return to auth screen
+        showScreen('auth-screen');
+        
+    } catch (error) {
+        console.error('Error logging out:', error);
+    }
+}
 
 </script>
 </body>
