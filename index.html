@@ -1990,8 +1990,11 @@ body {
     <div class="welcome-buttons">
         <button class="start-button" onclick="startGame()">Start Game</button>
         <button class="start-button custom-lists-button" onclick="showCustomListsManager()">Custom Practice</button>
-        <button id="login-btn" onclick="login()" class="start-button">Login</button>
+        <button id="login-btn" onclick="login()" class="start-button">Log In</button>
         <button id="logout-btn" onclick="logout()" class="start-button" style="display: none;">Log Out</button>
+        <button id="login-btn" class="start-button" onclick="login()">
+    Login with Google
+</button>
         <div id="user-info"></div>
     </div>
 </div>
@@ -5138,26 +5141,20 @@ async function initializeAuth0() {
             domain: 'dev-3yn6os8dd1j31itp.us.auth0.com',
             clientId: 'VqLcosfGNHBvyTKXsHbE8Nbd91R39Hi2',
             authorizationParams: {
-                redirect_uri: 'https://simplos.netlify.app'
+                redirect_uri: window.location.origin
             }
         });
-
-        // Add click handlers for auth buttons
-        document.getElementById('login-btn')?.addEventListener('click', login);
-        document.getElementById('logout-btn')?.addEventListener('click', logout);
 
         // Handle redirect from Auth0
         if (location.search.includes("code=") && location.search.includes("state=")) {
             await auth0Client.handleRedirectCallback();
-            window.history.replaceState({}, document.title, 'https://simplos.netlify.app');
+            window.history.replaceState({}, document.title, window.location.pathname);
             await updateUI();
         }
 
         await updateUI();
-        console.log("Auth0 initialized successfully");
     } catch (err) {
         console.error("Error initializing Auth0:", err);
-        console.log("Error details:", err.message);
     }
 }
 
@@ -5189,13 +5186,6 @@ async function updateUI() {
 // Login function
 async function login() {
     try {
-        console.log("Login attempted");
-        if (!auth0Client) {
-            console.error("Auth0 client not initialized");
-            return;
-        }
-        
-        console.log("Starting login redirect...");
         await auth0Client.loginWithRedirect({
             authorizationParams: {
                 redirect_uri: window.location.origin
