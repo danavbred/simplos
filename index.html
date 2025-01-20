@@ -6,14 +6,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script>
-        // Initialize Supabase client
-        const supabase = createClient(
-          'https://mczfgzffyyyacisrccqb.supabase.co',
-          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo'
-        );
-      </script>
-      <script src="auth.js"></script>
+    
     <style>
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
 
@@ -1849,25 +1842,51 @@ body {
     50% { transform: translateY(-20px); }
 }
 
+/* Remove any existing .auth-form styles */
+
+.auth-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
 .auth-form {
     display: flex;
     flex-direction: column;
     gap: 1rem;
     width: 100%;
-    max-width: 300px;
     padding: 2rem;
     background: var(--glass);
     border-radius: 20px;
     backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-subtitle {
+    color: var(--gold);
+    text-align: center;
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .auth-input {
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 50px;
-    background: rgba(255, 255, 255, 0.1);
+    padding: 1rem;
+    border: 2px solid rgba(255, 215, 0, 0.3);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.2);
     color: var(--text);
     font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.auth-input:focus {
+    border-color: var(--gold);
+    outline: none;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
 }
 
 .auth-input::placeholder {
@@ -1877,13 +1896,46 @@ body {
 .auth-switch {
     text-align: center;
     color: var(--text);
-    margin-top: 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
 }
 
 .auth-switch span {
     color: var(--gold);
     cursor: pointer;
     text-decoration: underline;
+    transition: color 0.3s ease;
+}
+
+.auth-switch span:hover {
+    color: var(--accent);
+}
+
+.auth-skip-button {
+    margin-top: 2rem;
+    padding: 0.75rem 1.5rem;
+    background: transparent;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    color: var(--text);
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.auth-skip-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 768px) {
+    .auth-container {
+        padding: 0 1rem;
+    }
+    
+    .auth-form {
+        padding: 1.5rem;
+    }
 }
 
     </style>
@@ -1909,30 +1961,46 @@ body {
     </div>
 </div>
 
+<!-- Add this after your other screen divs -->
 <div id="auth-screen" class="screen">
-    <h1 class="welcome-title">Welcome to Simplos</h1>
+    <h1 class="welcome-title">Simplos</h1>
     
-    <!-- Login Form -->
-    <div id="login-form" class="auth-form">
-        <h2>Login</h2>
-        <input type="email" id="login-email" placeholder="Email" class="auth-input">
-        <input type="password" id="login-password" placeholder="Password" class="auth-input">
-        <button onclick="handleLogin()" class="start-button">Login</button>
-        <p class="auth-switch">Don't have an account? <span onclick="toggleAuthForm('signup')">Sign up</span></p>
+    <!-- Forms Container -->
+    <div class="auth-container">
+        <!-- Login Form -->
+        <div id="login-form" class="auth-form">
+            <h2 class="auth-subtitle">Login</h2>
+            <input type="email" id="login-email" placeholder="Email" class="auth-input">
+            <input type="password" id="login-password" placeholder="Password" class="auth-input">
+            <button class="start-button" onclick="handleLogin()">Login</button>
+            <div class="auth-switch">
+                Don't have an account? 
+                <span onclick="toggleAuthForm('signup')">Sign Up</span>
+            </div>
+        </div>
+
+        <!-- Signup Form -->
+        <div id="signup-form" class="auth-form" style="display: none;">
+            <h2 class="auth-subtitle">Sign Up</h2>
+            <input type="email" id="signup-email" placeholder="Email" class="auth-input">
+            <input type="password" id="signup-password" placeholder="Password" class="auth-input">
+            <select id="signup-role" class="auth-input">
+                <option value="" disabled selected>Select Role</option>
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+            </select>
+            <button class="start-button" onclick="handleSignup()">Sign Up</button>
+            <div class="auth-switch">
+                Already have an account? 
+                <span onclick="toggleAuthForm('login')">Login</span>
+            </div>
+        </div>
     </div>
 
-    <!-- Signup Form -->
-    <div id="signup-form" class="auth-form" style="display: none;">
-        <h2>Sign Up</h2>
-        <input type="email" id="signup-email" placeholder="Email" class="auth-input">
-        <input type="password" id="signup-password" placeholder="Password" class="auth-input">
-        <select id="user-type" class="auth-input">
-            <option value="student">Student</option>
-            <option value="teacher">Teacher</option>
-        </select>
-        <button onclick="handleSignup()" class="start-button">Sign Up</button>
-        <p class="auth-switch">Already have an account? <span onclick="toggleAuthForm('login')">Login</span></p>
-    </div>
+    <!-- Skip Auth Button -->
+    <button class="auth-skip-button" onclick="handleSkipAuth()">
+        Continue as Guest
+    </button>
 </div>
 
 <div id="stage-screen" class="screen">
@@ -2113,7 +2181,16 @@ body {
             </div>
         </div>
 
-
+        <script type="module">
+            import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+            
+            const supabase = createClient(
+              'https://mczfgzffyyyacisrccqb.supabase.co',
+              'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo'
+            );
+          
+            window.supabase = supabase; // Make it available globally
+          </script>
 
 <script>
 
@@ -3482,12 +3559,7 @@ function initializeParticles(container = document.body) {
 }
 
 // Modify the existing window.onload
-window.onload = () => {
-    initializeGame();
-    updatePerkCounts();
-    initializeParticles();
-    checkUser(); // This will show either auth-screen or welcome-screen
-};
+
 
 function stopLevelAndGoBack() {
     clearTimer();
@@ -4939,10 +5011,6 @@ function saveListName(listId, newName, originalElement) {
     }
 }
 
-const supabase = createClient(
-    'https://mczfgzffyyyacisrccqb.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo'
-);
 
 function findFurthestProgression() {
     // Look through all stages
@@ -4981,6 +5049,42 @@ function findFurthestProgression() {
     // If no incomplete level found, return stage 1, set 1, level 1
     return { stage: 1, set: 1, level: 1 };
 }
+
+function toggleAuthForm(type) {
+    const loginForm = document.getElementById('login-form');
+    const signupForm = document.getElementById('signup-form');
+    
+    if (type === 'login') {
+        loginForm.style.display = 'flex';
+        signupForm.style.display = 'none';
+    } else {
+        loginForm.style.display = 'none';
+        signupForm.style.display = 'flex';
+    }
+}
+
+function handleSkipAuth() {
+    // Set user as guest in game state
+    gameState.userType = 'guest';
+    showScreen('welcome-screen');
+}
+
+// Add this to your initialization code
+window.onload = () => {
+    initializeGame();
+    updatePerkCounts();
+    initializeParticles();
+    checkUser(); // This will show either auth-screen or welcome-screen
+    
+    // Check if user is already logged in
+    const session = localStorage.getItem('simploxSession');
+    if (session) {
+        showScreen('welcome-screen');
+    } else {
+        showScreen('auth-screen');
+    }
+};
+
 
 </script>
 </body>
