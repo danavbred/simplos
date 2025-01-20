@@ -5,8 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">    <title>Simplos</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
- 
- <style>
+    <script src="https://cdn.auth0.com/js/auth0-spa-js/2.0/auth0-spa-js.production.js"></script>
+
+    
+    
+    <style>
+
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
 
 :root {
@@ -1986,6 +1990,12 @@ body {
     <div class="welcome-buttons">
         <button class="start-button" onclick="startGame()">Start Game</button>
         <button class="start-button custom-lists-button" onclick="showCustomListsManager()">Custom Practice</button>
+        <button id="login-btn" onclick="login()" class="start-button">Log In</button>
+        <button id="logout-btn" onclick="logout()" class="start-button" style="display: none;">Log Out</button>
+        <button id="login-btn" class="start-button" onclick="login()">
+            Login with Google
+        </button>
+        <div id="user-info"></div>
     </div>
 </div>
 
@@ -2173,6 +2183,15 @@ body {
 
 
 <script>
+
+window.onload = function() {
+    if (!window.createAuth0Client) {
+        console.error("Auth0 library not loaded!");
+        return;
+    }
+    console.log("Auth0 library loaded successfully");
+}
+
 
 const vocabularySets = {
 
@@ -5111,6 +5130,100 @@ function updateListCategory(listId, newCategory) {
     list.category = newCategory.trim();
     saveCustomLists();
 }
+
+
+let auth0Client = null;
+
+// Initialize Auth0
+async function initializeAuth0() {
+    try {
+        auth0Client = await createAuth0Client({
+            domain: 'dev-3yn6os8dd1j31itp.us.auth0.com',
+            clientId: 'VqLcosfGNHBvyTKXsHbE8Nbd91R39Hi2',
+            authorizationParams: {
+                redirect_uri: window.location.origin
+            }
+        });
+
+        // Handle redirect from Auth0
+        if (location.search.includes("code=") && location.search.includes("state=")) {
+            await auth0Client.handleRedirectCallback();
+            window.history.replaceState({}, document.title, window.location.pathname);
+            await updateUI();
+        }
+
+        await updateUI();
+    } catch (err) {
+        console.error("Error initializing Auth0:", err);
+    }
+}
+
+// Update UI based on auth state
+async function updateUI() {
+    try {
+        const isAuthenticated = await auth0Client.isAuthenticated();
+        
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userInfo = document.getElementById('user-info');
+        
+        if (loginBtn) loginBtn.style.display = isAuthenticated ? 'none' : 'block';
+        if (logoutBtn) logoutBtn.style.display = isAuthenticated ? 'block' : 'none';
+
+        if (isAuthenticated) {
+            const user = await auth0Client.getUser();
+            localStorage.setItem('user_email', user.email);
+            
+            if (userInfo) {
+                userInfo.innerHTML = `Welcome, ${user.name || user.email}!`;
+            }
+        }
+    } catch (err) {
+        console.error("Error updating UI:", err);
+    }
+}
+
+// Login function
+async function login() {
+    try {
+        console.log("Login attempted");
+        if (!auth0Client) {
+            console.error("Auth0 client not initialized");
+            return;
+        }
+        
+        console.log("Starting login redirect...");
+        await auth0Client.loginWithRedirect({
+            authorizationParams: {
+                redirect_uri: window.location.origin
+            }
+        });
+    } catch (err) {
+        console.error("Error during login:", err);
+    }
+}
+
+// Logout function
+async function logout() {
+    try {
+        await auth0Client.logout({
+            logoutParams: {
+                returnTo: window.location.origin
+            }
+        });
+    } catch (err) {
+        console.error("Error during logout:", err);
+    }
+}
+
+// Initialize when page loads
+window.addEventListener('load', () => {
+    initializeGame();
+    updatePerkCounts();
+    initializeParticles();
+    initializeAuth0();
+    showScreen('welcome-screen');
+});
 
 
 </script>
