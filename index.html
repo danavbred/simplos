@@ -1963,10 +1963,10 @@ body {
 </div>
 
 <!-- Add this after your other screen divs -->
-<div id="auth-screen" class="screen" style="display: none;">
+<div id="auth-screen" class="screen">
+    <div class="particle-container"></div>
     <h1 class="welcome-title">Simplos</h1>
     
-    <!-- Forms Container -->
     <div class="auth-container">
         <!-- Login Form -->
         <div id="login-form" class="auth-form">
@@ -1981,7 +1981,7 @@ body {
         </div>
 
         <!-- Signup Form -->
-        <div id="signup-form" class="auth-form" style="display: none;">
+        <div id="signup-form" class="auth-form">
             <h2 class="auth-subtitle">Sign Up</h2>
             <input type="email" id="signup-email" placeholder="Email" class="auth-input">
             <input type="password" id="signup-password" placeholder="Password" class="auth-input">
@@ -2623,28 +2623,28 @@ function handleTimeUp() {
 function showScreen(screenId) {
     console.log('Showing screen:', screenId); // Debug log
     
-    // First, hide all screens
+    // First, hide all screens and cleanup
     document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.remove('visible');
-        screen.style.display = 'none';  // Explicitly hide
-        
-        // Remove existing particle containers
-        const existingParticleContainer = screen.querySelector('.particle-container');
-        if (existingParticleContainer) {
-            existingParticleContainer.remove();
-        }
+        screen.style.display = 'none';
     });
 
-    // Then show the target screen
+    // Show the requested screen
     const screenElement = document.getElementById(screenId);
     if (screenElement) {
-        screenElement.style.display = 'flex';  // First make it visible
-        screenElement.classList.add('visible'); // Then add the visible class
+        screenElement.style.display = 'flex';
+        screenElement.classList.add('visible');
         
-        // Add particles to the current screen
-        initializeParticles(screenElement);
-    } else {
-        console.error('Screen not found:', screenId); // Debug log
+        if (screenId === 'auth-screen') {
+            // Make sure login form is visible initially in auth screen
+            document.getElementById('login-form').style.display = 'flex';
+            document.getElementById('signup-form').style.display = 'none';
+        }
+        
+        // Initialize particles for non-auth screens
+        if (screenId !== 'auth-screen') {
+            initializeParticles(screenElement);
+        }
     }
 }
 
@@ -3173,6 +3173,7 @@ function handleAnswer(isCorrect, fromPerk = false) {
     
     updateProgressCircle();
     saveProgress();
+    
    
     // Use a promise-based delay for better timing control
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -3504,7 +3505,7 @@ function handleLevelCompletion() {
 }
 
 
-function activatePerk(perkType, cost) {
+async function activatePerk(perkType, cost) {
     if (gameState.coins >= cost) {
         gameState.coins -= cost;
         gameState.perks[perkType]++;
@@ -5098,18 +5099,12 @@ window.onload = async () => {
     
     initializeGame();
     updatePerkCounts();
-    initializeParticles();
     
-    // Check authentication status
-    const isAuthenticated = await checkAuth();
+    // Remove any existing session
+    localStorage.removeItem('simploxSession');
     
-    if (isAuthenticated) {
-        console.log('User is authenticated');
-        showScreen('welcome-screen');
-    } else {
-        console.log('User needs to authenticate');
-        showScreen('auth-screen');
-    }
+    // Show auth screen
+    showScreen('auth-screen');
 };
 
 // And modify your showScreen function to ensure it can handle the auth screen
@@ -5222,6 +5217,275 @@ async function handleLogout() {
         
     } catch (error) {
         console.error('Error logging out:', error);
+    }
+}
+
+// Right at the top of your script section
+const supabaseUrl = 'https://mczfgzffyyyacisrccqb.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo';
+
+// Initialize the Supabase client
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Authentication Functions
+async function handleSignup() {
+    const email = document.getElementById('signup-email').value;
+    const password = document.getElementById('signup-password').value;
+    const role = document.getElementById('signup-role').value;
+
+    if (!email || !password || !role) {
+        alert('Please fill in all fields');
+        return;
+    }
+
+    try {
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    role: role
+                }
+            }
+        });
+
+        if (error) throw error;
+
+        // Show success message
+        alert('Please check your email to confirm your account!');
+        toggleAuthForm('login');
+
+    } catch (error) {
+        console.error('Error signing up:', error.message);
+        alert(error.message);
+    }
+}
+
+async function handleLogin() {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+
+    if (!email || !password) {
+        alert('Please fill in all fields');
+        return;
+    }
+
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error) throw error;
+
+        // Store session
+        localStorage.setItem('simploxSession', JSON.stringify(data.session));
+        
+        // Load user data
+        await loadUserData(data.user.id);
+        
+        // Redirect to welcome screen
+        showScreen('welcome-screen');
+
+    } catch (error) {
+        console.error('Error logging in:', error.message);
+        alert(error.message);
+    }
+}
+
+async function handleLogout() {
+    try {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+
+        // Clear local storage
+        localStorage.removeItem('simploxSession');
+        localStorage.removeItem('simploxProgress');
+
+        // Reset game state
+        initializeGame();
+        
+        // Return to auth screen
+        showScreen('auth-screen');
+
+    } catch (error) {
+        console.error('Error logging out:', error.message);
+        alert(error.message);
+    }
+}
+
+async function loadUserData(userId) {
+    try {
+        // Fetch user's game progress
+        const { data, error } = await supabase
+            .from('user_progress')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+
+        if (error) throw error;
+
+        if (data) {
+            // Update game state with user's progress
+            gameState.coins = data.coins || 0;
+            gameState.unlockedSets = data.unlocked_sets || {};
+            gameState.unlockedLevels = data.unlocked_levels || {};
+            gameState.perfectLevels = new Set(data.perfect_levels || []);
+            gameState.completedLevels = new Set(data.completed_levels || []);
+            gameState.perks = data.perks || {
+                timeFreeze: 0,
+                skip: 0,
+                clue: 0,
+                reveal: 0
+            };
+        }
+
+        // Update UI
+        updateAllCoinDisplays();
+        updatePerkCounts();
+
+    } catch (error) {
+        console.error('Error loading user data:', error.message);
+        // If error loading data, initialize new game state
+        initializeGame();
+    }
+}
+
+async function saveUserProgress() {
+    const session = await supabase.auth.getSession();
+    if (!session.data.session) return;
+
+    try {
+        const { error } = await supabase
+            .from('user_progress')
+            .upsert({
+                user_id: session.data.session.user.id,
+                coins: gameState.coins,
+                unlocked_sets: gameState.unlockedSets,
+                unlocked_levels: gameState.unlockedLevels,
+                perfect_levels: Array.from(gameState.perfectLevels),
+                completed_levels: Array.from(gameState.completedLevels),
+                perks: gameState.perks,
+                updated_at: new Date()
+            });
+
+        if (error) throw error;
+
+    } catch (error) {
+        console.error('Error saving progress:', error.message);
+    }
+}
+
+let currentUser = null;
+
+async function setupAuthListener() {
+    supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN') {
+            currentUser = session.user;
+            await loadUserData(session.user.id);
+            showScreen('welcome-screen');
+        } else if (event === 'SIGNED_OUT') {
+            currentUser = null;
+            showScreen('auth-screen');
+        }
+    });
+}
+
+async function createTeacherList(name, description, words, translations) {
+    try {
+        const { data, error } = await supabase
+            .from('teacher_lists')
+            .insert([
+                {
+                    teacher_id: currentUser.id,
+                    name,
+                    description,
+                    words,
+                    translations
+                }
+            ]);
+
+        if (error) throw error;
+        return data;
+    } catch (error) {
+        console.error('Error creating teacher list:', error);
+        throw error;
+    }
+}
+
+async function assignListToStudents(listId, studentIds, dueDate) {
+    try {
+        const { data, error } = await supabase
+            .from('class_assignments')
+            .insert([
+                {
+                    teacher_id: currentUser.id,
+                    list_id: listId,
+                    student_ids: studentIds,
+                    due_date: dueDate
+                }
+            ]);
+
+        if (error) throw error;
+        return data;
+    } catch (error) {
+        console.error('Error assigning list:', error);
+        throw error;
+    }
+}
+
+async function trackStudentProgress(assignmentId, score) {
+    try {
+        const { data, error } = await supabase
+            .from('student_progress')
+            .upsert([
+                {
+                    student_id: currentUser.id,
+                    assignment_id: assignmentId,
+                    completed: true,
+                    score: score,
+                    completed_at: new Date()
+                }
+            ]);
+
+        if (error) throw error;
+        return data;
+    } catch (error) {
+        console.error('Error tracking progress:', error);
+        throw error;
+    }
+}
+
+async function syncCustomLists() {
+    if (!currentUser) return;
+
+    try {
+        // First, get all lists from Supabase
+        const { data: remoteLists, error } = await supabase
+            .from('teacher_lists')
+            .select('*')
+            .eq('teacher_id', currentUser.id);
+
+        if (error) throw error;
+
+        // Merge with local lists
+        const localLists = JSON.parse(localStorage.getItem('simploxCustomLists') || '[]');
+        
+        // Create a map for quick lookup
+        const remoteListMap = new Map(remoteLists.map(list => [list.id, list]));
+        const localListMap = new Map(localLists.map(list => [list.id, list]));
+        
+        // Merge lists, preferring remote versions if they exist
+        const mergedLists = [...new Set([...remoteListMap.keys(), ...localListMap.keys()])]
+            .map(id => remoteListMap.get(id) || localListMap.get(id));
+
+        // Update local storage
+        localStorage.setItem('simploxCustomLists', JSON.stringify(mergedLists));
+        
+        return mergedLists;
+    } catch (error) {
+        console.error('Error syncing lists:', error);
+        throw error;
     }
 }
 
