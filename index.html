@@ -1962,7 +1962,7 @@ body {
 </div>
 
 <!-- Add this after your other screen divs -->
-<div id="auth-screen" class="screen">
+<div id="auth-screen" class="screen" style="display: none;">
     <h1 class="welcome-title">Simplos</h1>
     
     <!-- Forms Container -->
@@ -2575,20 +2575,12 @@ function handleTimeUp() {
 
 // Screen Management
 function showScreen(screenId) {
-    if (screenId === 'question-screen' || screenId === 'custom-practice-screen') {
-        enforceFullscreen();
-    }
-
-    // Clear any running timer when leaving question screen
-    const currentVisibleScreen = document.querySelector('.screen.visible');
-    if (currentVisibleScreen && currentVisibleScreen.id === 'question-screen') {
-        clearTimer();
-        isFrozen = false; // Reset freeze state
-    }
-
-    // Remove visible class from all screens
+    console.log('Showing screen:', screenId); // Debug log
+    
+    // First, hide all screens
     document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.remove('visible');
+        screen.style.display = 'none';  // Explicitly hide
         
         // Remove existing particle containers
         const existingParticleContainer = screen.querySelector('.particle-container');
@@ -2597,31 +2589,17 @@ function showScreen(screenId) {
         }
     });
 
-    // Get the target screen
+    // Then show the target screen
     const screenElement = document.getElementById(screenId);
-    screenElement.classList.add('visible');
-    
-    // Add particles to the current screen
-    initializeParticles(screenElement);
-    
-    // Update coin displays
-    updateAllCoinDisplays();
-    
-    // Specific screen logic
-    switch(screenId) {
-        case 'question-screen':
-            updatePerkCounts();
-            break;
-        case 'welcome-screen':
-            // Any additional welcome screen initialization
-            break;
-        case 'stage-screen':
-            // Any stage screen specific logic
-            break;
+    if (screenElement) {
+        screenElement.style.display = 'flex';  // First make it visible
+        screenElement.classList.add('visible'); // Then add the visible class
+        
+        // Add particles to the current screen
+        initializeParticles(screenElement);
+    } else {
+        console.error('Screen not found:', screenId); // Debug log
     }
-
-    // Navigation icon logic
-    
 }
 
 // Add full-screen event listener
@@ -5069,21 +5047,47 @@ function handleSkipAuth() {
     showScreen('welcome-screen');
 }
 
-// Add this to your initialization code
 window.onload = () => {
+    console.log('Page loaded'); // Debug log
+    
     initializeGame();
     updatePerkCounts();
     initializeParticles();
-    checkUser(); // This will show either auth-screen or welcome-screen
     
-    // Check if user is already logged in
+    // Check if user is logged in
     const session = localStorage.getItem('simploxSession');
+    
     if (session) {
+        console.log('Session found, showing welcome screen'); // Debug log
         showScreen('welcome-screen');
     } else {
+        console.log('No session, showing auth screen'); // Debug log
         showScreen('auth-screen');
     }
 };
+
+// And modify your showScreen function to ensure it can handle the auth screen
+function showScreen(screenId) {
+    // Remove visible class from all screens
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('visible');
+        
+        // Remove existing particle containers
+        const existingParticleContainer = screen.querySelector('.particle-container');
+        if (existingParticleContainer) {
+            existingParticleContainer.remove();
+        }
+    });
+
+    // Get the target screen
+    const screenElement = document.getElementById(screenId);
+    if (screenElement) {
+        screenElement.classList.add('visible');
+        
+        // Add particles to the current screen
+        initializeParticles(screenElement);
+    }
+}
 
 
 </script>
