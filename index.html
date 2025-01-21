@@ -1949,7 +1949,7 @@ body {
     </div>
   </div>
 
-  <div id="welcome-screen" class="screen">
+  <div id="welcome-screen" class="screen visible">
     <div class="particle-container" id="particleContainer"></div>    
     <button class="menu-button" onclick="showStagesFromMenu()">
         <i class="fas fa-bars navigation-icon"></i>
@@ -1963,7 +1963,7 @@ body {
 </div>
 
 <!-- Add this after your other screen divs -->
-<div id="auth-screen" class="screen visible">
+<div id="auth-screen" class="screen">
     <div class="particle-container"></div>
     <h1 class="welcome-title">Simplos</h1>
     
@@ -2193,6 +2193,7 @@ body {
             window.supabase = supabase; // Make it available globally
           </script>
 
+
 <script>
 
 const vocabularySets = {
@@ -2333,7 +2334,7 @@ function initializeGame() {
 
 // Progress Management
 async function saveProgress() {
-    const session = await checkAuth();
+    const { data: { session } } = await supabase.auth.getSession();
     if (!session) return; // Don't save if not authenticated
     
     try {
@@ -2382,7 +2383,7 @@ async function saveProgress() {
 }
 
 async function loadProgress() {
-    const session = await checkAuth();
+    const { data: { session } } = await supabase.auth.getSession();
     
     if (session) {
         try {
@@ -2412,6 +2413,14 @@ async function loadProgress() {
     }
     
     return null;
+}
+
+function convertArraysToSets(obj) {
+    const result = {};
+    for (const [key, value] of Object.entries(obj)) {
+        result[key] = new Set(value);
+    }
+    return result;
 }
 
 function resetProgress() {
@@ -5100,11 +5109,29 @@ window.onload = async () => {
     initializeGame();
     updatePerkCounts();
     
-    // Remove any existing session
-    localStorage.removeItem('simploxSession');
+    // Check for existing session
+    const { data: { session }, error } = await supabase.auth.getSession();
     
-    // Show auth screen
-    showScreen('auth-screen');
+    if (session) {
+        // User is already logged in
+        await loadUserData(session.user.id);
+        showScreen('welcome-screen');
+    } else {
+        // Show auth screen
+        showScreen('auth-screen');
+    }
+
+    // Set up auth state listener
+    supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN') {
+            await loadUserData(session.user.id);
+            showScreen('welcome-screen');
+        } else if (event === 'SIGNED_OUT') {
+            // Reset game state
+            initializeGame();
+            showScreen('auth-screen');
+        }
+    });
 };
 
 // And modify your showScreen function to ensure it can handle the auth screen
@@ -5146,9 +5173,12 @@ async function handleLogin() {
         // Store session
         localStorage.setItem('simploxSession', JSON.stringify(data.session));
         
-        // Successful login
-        showScreen('welcome-screen');
+        // Load user data
+        await loadUserData(data.user.id);
         
+        // Redirect to welcome screen
+        showScreen('welcome-screen');
+
     } catch (error) {
         alert('Error logging in: ' + error.message);
     }
@@ -5159,30 +5189,31 @@ async function handleSignup() {
     const password = document.getElementById('signup-password').value;
     const role = document.getElementById('signup-role').value;
     
-    if (!role) {
-        alert('Please select a role (Student/Teacher)');
+    if (!email || !password || !role) {
+        alert('Please fill in all fields');
         return;
     }
-    
+
     try {
         const { data, error } = await supabase.auth.signUp({
             email,
-            password,
-            options: {
-                data: {
-                    role: role
-                }
-            }
+            password
         });
-        
+
         if (error) throw error;
 
-        // Show success message and switch to login
+        // Create profile after successful signup
+        if (data.user) {
+            await createUserProfile(data.user.id, role);
+        }
+
+        // Show success message
         alert('Please check your email to confirm your account!');
         toggleAuthForm('login');
-        
+
     } catch (error) {
-        alert('Error signing up: ' + error.message);
+        console.error('Error signing up:', error.message);
+        alert(error.message);
     }
 }
 
@@ -5209,14 +5240,19 @@ async function handleLogout() {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
         
-        // Clear session
+        // Clear local storage
         localStorage.removeItem('simploxSession');
+        localStorage.removeItem('simploxProgress');
+        
+        // Reset game state
+        initializeGame();
         
         // Return to auth screen
         showScreen('auth-screen');
         
     } catch (error) {
         console.error('Error logging out:', error);
+        alert('Error logging out: ' + error.message);
     }
 }
 
@@ -5321,17 +5357,12 @@ async function loadUserData(userId) {
 
         if (data) {
             // Update game state with user's progress
-            gameState.coins = data.coins || 0;
-            gameState.unlockedSets = data.unlocked_sets || {};
-            gameState.unlockedLevels = data.unlocked_levels || {};
-            gameState.perfectLevels = new Set(data.perfect_levels || []);
-            gameState.completedLevels = new Set(data.completed_levels || []);
-            gameState.perks = data.perks || {
-                timeFreeze: 0,
-                skip: 0,
-                clue: 0,
-                reveal: 0
-            };
+            gameState.coins = data.game_state.coins;
+            gameState.unlockedSets = convertArraysToSets(data.game_state.unlockedSets);
+            gameState.unlockedLevels = convertArraysToSets(data.game_state.unlockedLevels);
+            gameState.perfectLevels = new Set(data.game_state.perfectLevels);
+            gameState.completedLevels = new Set(data.game_state.completedLevels);
+            gameState.perks = data.game_state.perks;
         }
 
         // Update UI
@@ -5339,7 +5370,7 @@ async function loadUserData(userId) {
         updatePerkCounts();
 
     } catch (error) {
-        console.error('Error loading user data:', error.message);
+        console.error('Error loading user data:', error);
         // If error loading data, initialize new game state
         initializeGame();
     }
@@ -5479,6 +5510,24 @@ async function syncCustomLists() {
         return mergedLists;
     } catch (error) {
         console.error('Error syncing lists:', error);
+        throw error;
+    }
+}
+
+async function createUserProfile(userId, userType) {
+    try {
+        const { error } = await supabase
+            .from('profiles')
+            .insert({
+                id: userId,
+                user_type: userType,
+                created_at: new Date(),
+                updated_at: new Date()
+            });
+
+        if (error) throw error;
+    } catch (error) {
+        console.error('Error creating profile:', error);
         throw error;
     }
 }
