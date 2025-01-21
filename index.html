@@ -1938,6 +1938,29 @@ body {
     }
 }
 
+.user-info {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 25px;
+    padding: 0.75rem 1rem;
+    z-index: 10;
+}
+
+.user-info-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text);
+}
+
+.user-info-container i {
+    color: var(--gold);
+    font-size: 1.5rem;
+}
+
     </style>
 </head>
 <body>
@@ -5203,9 +5226,7 @@ async function handleSignup() {
                 data: { 
                     role: role,
                     user_type: role
-                },
-                // Optional: redirect after email confirmation
-                emailRedirectTo: window.location.origin
+                }
             }
         });
 
@@ -5596,35 +5617,26 @@ async function createUserProfile(userId, userType) {
 }
 
 function updateWelcomeScreen() {
-    // Select the menu button or main navigation area
-    const menuButton = document.querySelector('.menu-button');
+    const welcomeScreen = document.getElementById('welcome-screen');
     
     // Remove any existing user info
-    const existingUserInfo = document.querySelector('.user-info');
+    const existingUserInfo = welcomeScreen.querySelector('.user-info');
     if (existingUserInfo) {
         existingUserInfo.remove();
     }
 
     // Create and add user info if logged in
     if (currentUser && currentUser.email) {
-        const userInfoElement = document.createElement('div');
-        userInfoElement.className = 'user-info';
-        userInfoElement.style.cssText = `
-            position: fixed;
-            top: 1rem;
-            right: calc(50px + 2rem); /* Position next to menu button */
-            color: var(--text);
-            background: var(--glass);
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            font-size: 0.9rem;
-            z-index: 100;
+        const userInfo = document.createElement('div');
+        userInfo.className = 'user-info';
+        userInfo.innerHTML = `
+            <div class="user-info-container">
+                <i class="fas fa-user-circle"></i>
+                <span>${currentUser.email}</span>
+            </div>
         `;
-        userInfoElement.textContent = currentUser.email;
         
-        // Insert the user info next to the menu button
-        menuButton.parentNode.insertBefore(userInfoElement, menuButton);
+        welcomeScreen.insertBefore(userInfo, welcomeScreen.firstChild);
     }
 }
 
