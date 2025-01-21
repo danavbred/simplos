@@ -2399,34 +2399,50 @@ function initializeGame() {
 // Progress Management
 async function saveProgress() {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return; // Don't save if not authenticated
+    if (!session) {
+        console.log('No active session, progress not saved');
+        return;
+    }
     
     try {
-        // Save to Supabase
+        // Convert Sets to Arrays for storage
+        const gameStateForStorage = {
+            unlockedSets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets)
+                    .map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlockedLevels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels)
+                    .map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfectLevels: Array.from(gameState.perfectLevels),
+            completedLevels: Array.from(gameState.completedLevels),
+            coins: gameState.coins,
+            perks: gameState.perks,
+            statistics: {
+                totalPlayed: gameState.statistics?.totalPlayed || 0,
+                perfectScores: gameState.statistics?.perfectScores || 0,
+                totalCoinsEarned: gameState.statistics?.totalCoinsEarned || 0,
+                streakDays: gameState.statistics?.streakDays || 0,
+                lastPlayedAt: new Date().toISOString()
+            }
+        };
+
         const { error } = await supabase
             .from('user_progress')
             .upsert({
                 user_id: session.user.id,
-                game_state: {
-                    unlockedSets: Object.fromEntries(
-                        Object.entries(gameState.unlockedSets)
-                            .map(([k, v]) => [k, Array.from(v)])
-                    ),
-                    unlockedLevels: Object.fromEntries(
-                        Object.entries(gameState.unlockedLevels)
-                            .map(([k, v]) => [k, Array.from(v)])
-                    ),
-                    perfectLevels: Array.from(gameState.perfectLevels),
-                    completedLevels: Array.from(gameState.completedLevels),
-                    coins: gameState.coins,
-                    perks: gameState.perks
-                }
+                game_state: gameStateForStorage,
+                updated_at: new Date().toISOString()
             });
 
         if (error) throw error;
+        console.log('Progress saved successfully');
 
     } catch (error) {
         console.error('Error saving progress:', error);
+        // Optionally show user feedback
+        alert('Failed to save progress. Please check your connection.');
     }
 }
 
@@ -3430,6 +3446,33 @@ function handleLevelCompletion() {
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     const isLevelCompleted = gameState.perfectLevels.has(levelKey);
     
+    // Handle custom practice mode
+    if (currentGame.isCustomPractice) {
+        if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
+            gameState.coins += 5;
+            pulseCoins(5);
+            
+            const nextLevel = currentGame.practiceState.currentLevel + 1;
+            if (nextLevel <= currentGame.practiceState.maxLevel) {
+                currentGame.practiceState.unlockedLevels.add(nextLevel);
+                currentGame.practiceState.progress[currentGame.currentCustomLevel] = true;
+                setTimeout(() => {
+                    startCustomLevel(nextLevel, currentGame.practiceState);
+                }, 1500);
+            } else {
+                setTimeout(() => {
+                    showScreen('custom-practice-screen');
+                    alert('Congratulations! You have completed this practice set!');
+                }, 1500);
+            }
+        } else {
+            setTimeout(() => {
+                startCustomLevel(currentGame.currentCustomLevel, currentGame.practiceState);
+            }, 1500);
+        }
+        return;
+    }
+    
     // Disable buttons
     const buttons = document.querySelectorAll('.buttons button');
     buttons.forEach(btn => {
@@ -3437,57 +3480,8 @@ function handleLevelCompletion() {
         btn.style.opacity = '0.5';
     });
 
-    // Handle custom practice mode
-    if (currentGame.isCustomPractice) {
-        if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
-            // Award completion bonus
-            gameState.coins += 5;
-            pulseCoins(5);
-            
-            // Create completion particles
-            const questionScreen = document.getElementById('question-screen');
-            const rect = questionScreen.getBoundingClientRect();
-            const viewportX = rect.left + (rect.width / 2);
-            const viewportY = rect.top + (rect.height / 2);
-            
-            for (let i = 0; i < 5; i++) {
-                setTimeout(() => createParticles(viewportX, viewportY), i * 300);
-            }
-
-            const nextLevel = currentGame.practiceState.currentLevel + 1;
-            
-            // Update practice state
-            currentGame.practiceState.unlockedLevels.add(nextLevel);
-            currentGame.practiceState.progress[currentGame.practiceState.currentLevel] = true;
-            
-            // Save progress and update UI
-            saveProgress();
-            updateAllCoinDisplays();
-
-            // Check if practice set is complete
-            if (nextLevel <= currentGame.practiceState.maxLevel) {
-                // Progress to next level
-                setTimeout(() => {
-                    currentGame.practiceState.currentLevel = nextLevel;
-                    startCustomLevel(nextLevel, currentGame.practiceState);
-                }, 1500);
-            } else {
-                // Return to custom practice screen
-                setTimeout(() => {
-                    showScreen('custom-practice-screen');
-                }, 1500);
-            }
-        } else {
-            // Retry current level if not perfect
-            setTimeout(() => {
-                startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
-            }, 1500);
-        }
-        return;
-    }
-
-    // Regular game mode handling
     if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
+        // Perfect streak bonus
         gameState.coins += 5;
         pulseCoins(5);
         gameState.perfectLevels.add(levelKey);
@@ -3502,21 +3496,23 @@ function handleLevelCompletion() {
             setTimeout(() => createParticles(viewportX, viewportY), i * 300);
         }
 
-        // Handle regular game progression
+        // Ensure current level is marked as unlocked
         const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
         if (!gameState.unlockedLevels[setKey]) {
             gameState.unlockedLevels[setKey] = new Set();
         }
         gameState.unlockedLevels[setKey].add(gameState.currentLevel);
 
+        // Only unlock next level if current level is completed perfectly
         const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
         const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
         const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
 
-        // Handle progression unlocks
         if (!isLastLevelInSet) {
+            // Unlock next level in current set
             gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
         } else if (!isLastSetInStage) {
+            // Unlock first level of next set
             const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
             if (!gameState.unlockedSets[gameState.currentStage]) {
                 gameState.unlockedSets[gameState.currentStage] = new Set();
@@ -3526,6 +3522,7 @@ function handleLevelCompletion() {
                 gameState.unlockedLevels[nextSetKey] = new Set([1]);
             }
         } else if (gameState.currentStage < 5) {
+            // Unlock first set of next stage
             const nextStage = gameState.currentStage + 1;
             if (!gameState.unlockedSets[nextStage]) {
                 gameState.unlockedSets[nextStage] = new Set([1]);
@@ -3533,10 +3530,32 @@ function handleLevelCompletion() {
             gameState.unlockedLevels[`${nextStage}_1`] = new Set([1]);
         }
 
+        // Save progress and update displays
         saveProgress();
         updateAllCoinDisplays();
 
-        // Handle level transitions
+        // Animate completion
+        requestAnimationFrame(() => {
+            const levelElements = document.querySelectorAll('.level');
+            const currentLevelElement = levelElements[gameState.currentLevel - 1];
+            const nextLevelElement = levelElements[gameState.currentLevel];
+
+            if (currentLevelElement) {
+                currentLevelElement.classList.add('completing');
+                setTimeout(() => {
+                    currentLevelElement.classList.add('green');
+                }, 500);
+            }
+
+            if (nextLevelElement && !isLastLevelInSet) {
+                setTimeout(() => {
+                    nextLevelElement.classList.add('unlocking', 'blue');
+                    nextLevelElement.onclick = () => startLevel(gameState.currentLevel + 1);
+                }, 1000);
+            }
+        });
+
+        // Add progress check and level transition
         setTimeout(() => {
             if (isLastLevelInSet) {
                 if (!isLastSetInStage) {
@@ -3554,13 +3573,9 @@ function handleLevelCompletion() {
             }
         }, 1500);
     } else {
-        // Retry level if not perfect
+        // If level wasn't completed perfectly, restart the same level
         setTimeout(() => {
-            if (currentGame.isCustomPractice) {
-                startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
-            } else {
-                startLevel(gameState.currentLevel);
-            }
+            startLevel(gameState.currentLevel);
         }, 1500);
     }
 }
@@ -5813,6 +5828,38 @@ function updateWelcomeScreen() {
     }
 }
 
+function unlockNextLevel(isLastLevelInSet, isLastSetInStage) {
+    if (!isLastLevelInSet) {
+        const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+        gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
+    } else if (!isLastSetInStage) {
+        const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
+        if (!gameState.unlockedSets[gameState.currentStage]) {
+            gameState.unlockedSets[gameState.currentStage] = new Set();
+        }
+        gameState.unlockedSets[gameState.currentStage].add(gameState.currentSet + 1);
+        gameState.unlockedLevels[nextSetKey] = new Set([1]);
+    } else if (gameState.currentStage < 5) {
+        const nextStage = gameState.currentStage + 1;
+        if (!gameState.unlockedSets[nextStage]) {
+            gameState.unlockedSets[nextStage] = new Set([1]);
+        }
+        gameState.unlockedLevels[`${nextStage}_1`] = new Set([1]);
+    }
+}
+
+function handleSetCompletion(isLastSetInStage) {
+    if (!isLastSetInStage) {
+        gameState.currentSet++;
+        startLevel(1);
+    } else if (gameState.currentStage < 5) {
+        gameState.currentStage++;
+        gameState.currentSet = 1;
+        startLevel(1);
+    } else {
+        showScreen('stage-screen');
+    }
+}
 
 </script>
 </body>
