@@ -5195,25 +5195,41 @@ async function handleSignup() {
     }
 
     try {
+        // Sign up with auto-confirm enabled
         const { data, error } = await supabase.auth.signUp({
             email,
-            password
+            password,
+            options: {
+                data: { role: role },
+                emailRedirectTo: window.location.origin,
+                // This will auto-confirm the user
+                emailConfirm: true
+            }
         });
 
         if (error) throw error;
 
-        // Create profile after successful signup
         if (data.user) {
             await createUserProfile(data.user.id, role);
+            
+            // Proceed directly to login
+            const { error: loginError } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+
+            if (loginError) throw loginError;
+
+            // Initialize game data
+            await saveProgress();
+            
+            // Direct to game
+            showScreen('welcome-screen');
         }
 
-        // Show success message
-        alert('Please check your email to confirm your account!');
-        toggleAuthForm('login');
-
     } catch (error) {
-        console.error('Error signing up:', error.message);
-        alert(error.message);
+        console.error('Error signing up:', error);
+        alert('Signup error: ' + error.message);
     }
 }
 
