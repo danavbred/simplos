@@ -2057,6 +2057,59 @@ body {
     }
 }
 
+.auth-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    background: var(--glass);
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.auth-tabs {
+    display: flex;
+    width: 100%;
+    margin-bottom: 1.5rem;
+}
+
+.auth-tab {
+    flex: 1;
+    padding: 0.75rem;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    opacity: 0.6;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border-bottom: 2px solid transparent;
+}
+
+.auth-tab.active {
+    opacity: 1;
+    border-bottom-color: var(--gold);
+}
+
+.auth-form {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.auth-form.active {
+    display: flex;
+}
+
+.error-message {
+    color: var(--error);
+    text-align: center;
+    margin-top: 0.5rem;
+}
+
     </style>
 </head>
 <body>
@@ -2077,6 +2130,42 @@ body {
     <div class="welcome-buttons">
         <button class="start-button" onclick="startGame()">Start Game</button>
         <button class="start-button custom-lists-button" onclick="showCustomListsManager()">Custom Practice</button>
+    </div>
+</div>
+
+<div id="auth-screen" class="screen visible">
+    <div class="particle-container"></div>
+    <h1 class="welcome-title">Simplos</h1>
+    
+    <div class="auth-container">
+        <div class="auth-tabs">
+            <button id="login-tab" class="auth-tab active">Login</button>
+            <button id="signup-tab" class="auth-tab">Sign Up</button>
+        </div>
+
+        <!-- Login Form -->
+        <div id="login-form" class="auth-form active">
+            <h2 class="auth-subtitle">Welcome Back</h2>
+            <input type="email" id="login-email" placeholder="Email" required>
+            <input type="password" id="login-password" placeholder="Password" required>
+            <button onclick="handleLogin()" class="start-button">Login</button>
+            <p id="login-error" class="error-message"></p>
+        </div>
+
+        <!-- Signup Form -->
+        <div id="signup-form" class="auth-form">
+            <h2 class="auth-subtitle">Create Account</h2>
+            <input type="email" id="signup-email" placeholder="Email" required>
+            <input type="password" id="signup-password" placeholder="Password" required>
+            <select id="signup-role" required>
+                <option value="" disabled selected>Select User Role</option>
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+                <option value="admin">Admin</option>
+            </select>
+            <button onclick="handleSignup()" class="start-button">Sign Up</button>
+            <p id="signup-error" class="error-message"></p>
+        </div>
     </div>
 </div>
 
@@ -4838,6 +4927,71 @@ function saveListChanges(listId, wordList, listItem, shouldCollapse = true) {
             <span>${list.words.length} words</span>
             <p class="word-preview">${list.words.join(', ')}</p>
         `;
+    }
+}
+
+document.getElementById('login-tab').addEventListener('click', () => {
+    document.getElementById('login-tab').classList.add('active');
+    document.getElementById('signup-tab').classList.remove('active');
+    document.getElementById('login-form').classList.add('active');
+    document.getElementById('signup-form').classList.remove('active');
+});
+
+document.getElementById('signup-tab').addEventListener('click', () => {
+    document.getElementById('signup-tab').classList.add('active');
+    document.getElementById('login-tab').classList.remove('active');
+    document.getElementById('signup-form').classList.add('active');
+    document.getElementById('login-form').classList.remove('active');
+});
+
+export async function handleSignup(email, password, role) {
+    try {
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    role: role,
+                    approved: true  // Unconditional approval
+                }
+            }
+        });
+
+        if (error) throw error;
+
+        // Create user profile with approved status
+        await createUserProfile(data.user.id, role, true);
+        
+        return { 
+            success: true, 
+            message: 'Signup successful',
+            user: data.user 
+        };
+    } catch (error) {
+        console.error('Signup error:', error);
+        return { 
+            success: false, 
+            error: error.message 
+        };
+    }
+}
+
+// Update profile creation function
+async function createUserProfile(userId, role, approved = false) {
+    try {
+        const { error } = await supabase
+            .from('profiles')
+            .insert({
+                id: userId,
+                user_type: role,
+                approved: approved,
+                created_at: new Date(),
+                updated_at: new Date()
+            });
+
+        if (error) throw error;
+    } catch (error) {
+        console.error('Profile creation error:', error);
     }
 }
 
