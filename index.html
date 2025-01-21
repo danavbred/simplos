@@ -2424,22 +2424,6 @@ async function saveProgress() {
             });
 
         if (error) throw error;
-        
-        // Also save to localStorage as backup
-        localStorage.setItem('simploxProgress', JSON.stringify({
-            unlockedSets: Object.fromEntries(
-                Object.entries(gameState.unlockedSets)
-                    .map(([k, v]) => [k, Array.from(v)])
-            ),
-            unlockedLevels: Object.fromEntries(
-                Object.entries(gameState.unlockedLevels)
-                    .map(([k, v]) => [k, Array.from(v)])
-            ),
-            perfectLevels: Array.from(gameState.perfectLevels),
-            completedLevels: Array.from(gameState.completedLevels),
-            coins: gameState.coins,
-            perks: gameState.perks
-        }));
 
     } catch (error) {
         console.error('Error saving progress:', error);
@@ -4271,17 +4255,78 @@ async function loadCustomLists() {
         const { data, error } = await supabase
             .from('custom_lists')
             .select('*')
-            .eq('created_by', session.data.session.user.id)  // Changed from user_id to created_by
-            .order('created_at');
+            .eq('created_by', session.data.session.user.id)
+            .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        customPracticeLists.lists = data || [];
+        // Clear existing lists before setting new ones
+        customPracticeLists.lists = [];
+        
+        // Add new lists with no duplicates
+        if (data) {
+            const uniqueLists = [...new Map(data.map(item => [item.id, item])).values()];
+            customPracticeLists.lists = uniqueLists;
+        }
         
     } catch (error) {
         console.error('Error loading lists:', error);
         customPracticeLists.lists = [];
     }
+}
+
+async function initializeGame() {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (session) {
+        try {
+            const { data, error } = await supabase
+                .from('user_progress')
+                .select('game_state')
+                .eq('user_id', session.user.id)
+                .single();
+
+            if (error) throw error;
+
+            if (data?.game_state) {
+                // Convert arrays back to Sets
+                gameState.unlockedSets = Object.fromEntries(
+                    Object.entries(data.game_state.unlockedSets)
+                        .map(([k, v]) => [k, new Set(v)])
+                );
+                gameState.unlockedLevels = Object.fromEntries(
+                    Object.entries(data.game_state.unlockedLevels)
+                        .map(([k, v]) => [k, new Set(v)])
+                );
+                gameState.perfectLevels = new Set(data.game_state.perfectLevels);
+                gameState.completedLevels = new Set(data.game_state.completedLevels);
+                gameState.coins = data.game_state.coins;
+                gameState.perks = data.game_state.perks;
+            } else {
+                // Initialize new user state
+                gameState.unlockedSets = { 1: new Set([1]) };
+                gameState.unlockedLevels = { '1_1': new Set([1]) };
+                gameState.perfectLevels = new Set();
+                gameState.completedLevels = new Set();
+                gameState.coins = 0;
+                gameState.perks = {
+                    timeFreeze: 0,
+                    skip: 0,
+                    clue: 0,
+                    reveal: 0
+                };
+                // Save initial state
+                await saveProgress();
+            }
+        } catch (error) {
+            console.error('Error loading game state:', error);
+            // Initialize default state on error
+            gameState.unlockedSets = { 1: new Set([1]) };
+            gameState.unlockedLevels = { '1_1': new Set([1]) };
+        }
+    }
+    
+    updateAllCoinDisplays();
 }
 
 function processCustomWords() {
@@ -5275,7 +5320,12 @@ async function handleLogin() {
         
         // Load user data before showing welcome screen
         await loadUserData();
-        showScreen('welcome-screen');
+
+        if (!error) {
+            await initializeGame(); // Load game state after login
+            await loadCustomLists(); // Load custom lists after login
+            showScreen('welcome-screen');
+        }
 
     } catch (error) {
         alert('Error logging in: ' + error.message);
@@ -5368,6 +5418,25 @@ async function handleLogout() {
     try {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
+
+        // Clear all state
+        gameState = { 
+            currentStage: null, 
+            currentSet: null, 
+            currentLevel: null, 
+            unlockedSets: {}, 
+            unlockedLevels: {}, 
+            levelScores: {}, 
+            completedLevels: new Set(), 
+            perfectLevels: new Set(), 
+            coins: 0, 
+            perks: { 
+                timeFreeze: 0, 
+                skip: 0, 
+                clue: 0, 
+                reveal: 0 
+            } 
+        };
 
         // Clear local state
         customPracticeLists.lists = [];
