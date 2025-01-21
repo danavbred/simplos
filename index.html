@@ -3465,18 +3465,19 @@ function startCustomListPractice(listId) {
         firstAttempt: true,
         isCustomPractice: true,
         startingCoins: gameState.coins,
-        startingPerks: { ...gameState.perks }
+        startingPerks: { ...gameState.perks },
+        practiceState: {
+            currentLevel: 1,
+            words: list.words,
+            translations: list.translations,
+            unlockedLevels: new Set([1]),
+            progress: {},
+            maxLevel: 10,
+            listId: listId
+        }
     };
 
-    startCustomLevel(1, {
-        currentLevel: 1,
-        words: list.words,
-        translations: list.translations,
-        unlockedLevels: new Set([1]),
-        progress: {},
-        maxLevel: 10,
-        listId: listId  // Store the list ID for reference
-    });
+    startCustomLevel(1, currentGame.practiceState);
 }
 
 function handleLevelCompletion() {
@@ -4415,7 +4416,11 @@ async function deleteCustomList(listId) {
 
         if (error) throw error;
 
-        await loadCustomLists(); // Reload after deletion
+        // Remove from local lists
+        customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
+        
+        // Refresh the display
+        updateListsDisplay();
         
     } catch (error) {
         console.error('Error deleting list:', error);
@@ -4723,11 +4728,6 @@ function showCustomListsManager() {
     container.appendChild(listSelectionContainer);
 }
 
-function hideMobileBlock() {
-    const mobileBlockOverlay = document.getElementById('mobile-block-overlay');
-    mobileBlockOverlay.style.display = 'none';
-}
-
 let selectedListId = null;
 
 function selectList(listId) {
@@ -4837,15 +4837,8 @@ function editCustomList(listId) {
     const listNameInput = document.getElementById('custom-list-name');
     listNameInput.value = list.name;
     
-    // Clear word input and translation results
-    const wordInput = document.getElementById('custom-word-input');
-    wordInput.value = '';
-    
-    // Show translation results section
-    const translationResults = document.getElementById('translation-results');
-    const wordList = document.getElementById('word-translation-list');
-    
     // Clear previous translations
+    const wordList = document.getElementById('word-translation-list');
     wordList.innerHTML = '';
     
     // Create translation items for each word
@@ -4866,10 +4859,10 @@ function editCustomList(listId) {
         wordList.appendChild(wordItem);
     });
     
-    translationResults.style.display = 'block';
+    // Store the current list for later reference
     customPracticeLists.currentList = list;
     
-    // Initialize drag functionality after adding all items
+    // Initialize drag functionality
     makeWordListDraggable();
 }
 
@@ -5348,15 +5341,44 @@ window.onload = async () => {
     }
 
     supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN') {
-        await initializeGame();
-        showScreen('welcome-screen');
-    } else if (event === 'SIGNED_OUT') {
-        // Clear state on sign out
-        gameState = initializeDefaultGameState();
-        showScreen('auth-screen');
-    }
-});
+        if (event === 'SIGNED_IN') {
+            try {
+                await initializeGame();
+                await loadCustomLists(); // Added this to load custom lists
+                await loadUserData();   // Added this to update user data
+                showScreen('welcome-screen');
+                
+                // Update email display
+                if (session.user.email) {
+                    const emailDisplays = document.querySelectorAll('.user-email-display');
+                    emailDisplays.forEach(display => display.remove());
+                    
+                    const emailDisplay = document.createElement('div');
+                    emailDisplay.className = 'user-email-display';
+                    emailDisplay.textContent = session.user.email;
+                    
+                    const welcomeScreen = document.getElementById('welcome-screen');
+                    if (welcomeScreen) {
+                        const welcomeTitle = welcomeScreen.querySelector('.welcome-title');
+                        if (welcomeTitle) {
+                            welcomeTitle.parentNode.insertBefore(emailDisplay, welcomeTitle);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error during sign in:', error);
+            }
+        } else if (event === 'SIGNED_OUT') {
+            // Clear state on sign out
+            gameState = initializeDefaultGameState();
+            customPracticeLists.lists = []; // Clear custom lists
+            showScreen('auth-screen');
+            
+            // Remove email display
+            const emailDisplays = document.querySelectorAll('.user-email-display');
+            emailDisplays.forEach(display => display.remove());
+        }
+    });
 };
 
 // And modify your showScreen function to ensure it can handle the auth screen
@@ -5704,7 +5726,7 @@ async function saveUserProgress() {
 
 let currentUser = null;
 
-async function setupAuthListener() {
+function setupAuthListener() {
     supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('Auth state change:', event);
         
@@ -5712,18 +5734,31 @@ async function setupAuthListener() {
             try {
                 await initializeGame(); // Load game state first
                 await loadCustomLists(); // Load custom lists
+                await loadUserData();   // Load user-specific data
+                
+                // Directly show welcome screen without needing a refresh
                 showScreen('welcome-screen');
+                
+                // Update email display
+                updateEmailDisplay(session.user.email);
             } catch (error) {
                 console.error('Error during sign in:', error);
             }
         } else if (event === 'SIGNED_OUT') {
-            // Reset game state instead of reassigning gameState
-            Object.assign(gameState, initializeDefaultGameState());
+            // Reset game state and custom lists
+            gameState = initializeDefaultGameState();
             customPracticeLists.lists = [];
+            
+            // Clear email display
+            clearEmailDisplay();
+            
+            // Directly show auth screen without needing a refresh
             showScreen('auth-screen');
         }
     });
 }
+
+
 
 async function createTeacherList(name, description, words, translations) {
     try {
@@ -5745,6 +5780,31 @@ async function createTeacherList(name, description, words, translations) {
         console.error('Error creating teacher list:', error);
         throw error;
     }
+}
+
+function updateEmailDisplay(email) {
+    // Remove any existing email displays
+    const existingDisplays = document.querySelectorAll('.user-email-display');
+    existingDisplays.forEach(display => display.remove());
+
+    // Create new email display
+    const emailDisplay = document.createElement('div');
+    emailDisplay.className = 'user-email-display';
+    emailDisplay.textContent = email;
+
+    // Add to welcome screen
+    const welcomeScreen = document.getElementById('welcome-screen');
+    if (welcomeScreen) {
+        const welcomeTitle = welcomeScreen.querySelector('.welcome-title');
+        if (welcomeTitle) {
+            welcomeTitle.parentNode.insertBefore(emailDisplay, welcomeTitle);
+        }
+    }
+}
+
+function clearEmailDisplay() {
+    const existingDisplays = document.querySelectorAll('.user-email-display');
+    existingDisplays.forEach(display => display.remove());
 }
 
 async function assignListToStudents(listId, studentIds, dueDate) {
