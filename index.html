@@ -2459,7 +2459,7 @@ async function loadProgress() {
         const { data, error } = await supabase
             .from('user_progress')
             .select('game_state')
-            .eq('user_id', session.user.id)  // Matches SQL schema
+            .eq('user_id', session.user.id)
             .single();
 
         if (error) throw error;
@@ -2506,6 +2506,13 @@ function initializeDefaultGameState() {
             skip: 0,
             clue: 0,
             reveal: 0
+        },
+        statistics: {
+            totalPlayed: 0,
+            perfectScores: 0,
+            totalCoinsEarned: 0,
+            streakDays: 0,
+            lastPlayedAt: null
         }
     };
 }
@@ -4281,7 +4288,7 @@ async function saveCustomList() {
     }
 
     try {
-        console.log('Saving list with data:', { name, words, translations }); // Debug log
+        console.log('Saving list with data:', { name, words, translations });
 
         const { data, error } = await supabase
             .from('custom_lists')
@@ -4295,7 +4302,7 @@ async function saveCustomList() {
 
         if (error) throw error;
 
-        console.log('List saved successfully:', data); // Debug log
+        console.log('List saved successfully:', data);
         
         await loadCustomLists();
         showCustomListsManager();
@@ -5421,7 +5428,6 @@ async function checkAuth() {
         if (error) throw error;
 
         if (session) {
-            // User is logged in
             return true;
         }
         
