@@ -5196,16 +5196,15 @@ async function handleSignup() {
     }
 
     try {
-        console.log('Attempting signup with:', { email, role });
-
         const { data, error: signupError } = await supabase.auth.signUp({
             email,
             password,
             options: {
                 data: { 
                     role: role,
-                    user_type: role  // Add this to match the profiles table
+                    user_type: role
                 },
+                // Optional: redirect after email confirmation
                 emailRedirectTo: window.location.origin
             }
         });
@@ -5217,12 +5216,10 @@ async function handleSignup() {
         }
 
         if (data.user) {
-            console.log('User created:', data.user);
-
-            // Create profile with more robust error handling
+            // Create profile
             const { error: profileError } = await supabase
                 .from('profiles')
-                .insert({
+                .upsert({
                     id: data.user.id,
                     user_type: role
                 });
@@ -5230,19 +5227,6 @@ async function handleSignup() {
             if (profileError) {
                 console.error('Profile Creation Error:', profileError);
                 alert(`Profile creation failed: ${profileError.message}`);
-                return;
-            }
-
-            // Create initial user progress
-            const { error: progressError } = await supabase
-                .from('user_progress')
-                .insert({
-                    user_id: data.user.id
-                });
-
-            if (progressError) {
-                console.error('User Progress Creation Error:', progressError);
-                alert(`User progress setup failed: ${progressError.message}`);
                 return;
             }
 
@@ -5258,10 +5242,9 @@ async function handleSignup() {
                 return;
             }
 
-            // Success
+            // Success: navigate to welcome screen
             showScreen('welcome-screen');
         }
-
     } catch (error) {
         console.error('Unexpected Signup Error:', error);
         alert('An unexpected error occurred during signup');
@@ -5613,10 +5596,11 @@ async function createUserProfile(userId, userType) {
 }
 
 function updateWelcomeScreen() {
-    const welcomeScreen = document.getElementById('welcome-screen');
+    // Select the menu button or main navigation area
+    const menuButton = document.querySelector('.menu-button');
     
     // Remove any existing user info
-    const existingUserInfo = welcomeScreen.querySelector('.user-info');
+    const existingUserInfo = document.querySelector('.user-info');
     if (existingUserInfo) {
         existingUserInfo.remove();
     }
@@ -5626,19 +5610,21 @@ function updateWelcomeScreen() {
         const userInfoElement = document.createElement('div');
         userInfoElement.className = 'user-info';
         userInfoElement.style.cssText = `
-            position: absolute;
+            position: fixed;
             top: 1rem;
-            left: 1rem;
+            right: calc(50px + 2rem); /* Position next to menu button */
             color: var(--text);
             background: var(--glass);
             padding: 0.5rem 1rem;
             border-radius: 20px;
             backdrop-filter: blur(10px);
             font-size: 0.9rem;
+            z-index: 100;
         `;
-        userInfoElement.textContent = `Logged in: ${currentUser.email}`;
+        userInfoElement.textContent = currentUser.email;
         
-        welcomeScreen.appendChild(userInfoElement);
+        // Insert the user info next to the menu button
+        menuButton.parentNode.insertBefore(userInfoElement, menuButton);
     }
 }
 
