@@ -3660,7 +3660,6 @@ function initializeParticles(container = document.body) {
     particleContainer.dataset.intervalId = particleInterval;
 }
 
-// Modify the existing window.onload
 
 
 function stopLevelAndGoBack() {
@@ -4109,19 +4108,6 @@ function addCustomWordList(name = null) {
     return newList;
 }
 
-// Function to save custom lists to localStorage
-function saveCustomLists() {
-    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-}
-
-// Function to load custom lists from localStorage
-function loadCustomLists() {
-    const savedLists = localStorage.getItem('simploxCustomLists');
-    if (savedLists) {
-        customPracticeLists.lists = JSON.parse(savedLists);
-    }
-}
-
 // Function to translate a single word using MyMemory Translation API
 function translateWord(word) {
     const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|he`;
@@ -4257,7 +4243,7 @@ async function saveCustomList() {
             .from('custom_lists')
             .upsert({
                 id: customPracticeLists.currentList?.id || undefined,
-                user_id: userId,
+                created_by: userId,  // Changed from user_id to created_by
                 name: name,
                 words: words,
                 translations: translations,
@@ -4285,7 +4271,7 @@ async function loadCustomLists() {
         const { data, error } = await supabase
             .from('custom_lists')
             .select('*')
-            .eq('user_id', session.data.session.user.id)
+            .eq('created_by', session.data.session.user.id)  // Changed from user_id to created_by
             .order('created_at');
 
         if (error) throw error;
