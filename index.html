@@ -5279,77 +5279,61 @@ async function handleSignup() {
     const password = document.getElementById('signup-password').value;
     const role = document.getElementById('signup-role').value;
     
-    if (!email || !password || !role) {
-        alert('Please fill in all fields');
-        return;
-    }
-
     try {
-        const { data, error } = await supabase.auth.signUp({
+        const { data } = await supabase.auth.signUp({
             email,
             password,
             options: {
                 data: { role: role },
-                emailRedirectTo: window.location.origin
+                emailRedirectTo: window.location.origin,
+                // Skip email confirmation
+                emailConfirm: true
             }
         });
 
-        if (error) throw error;
-
-        // Create profile immediately
         if (data.user) {
-            await createUserProfile(data.user.id, role);
-            
-            // Automatically log them in
-            const { error: loginError } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
+            // Create their profile
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .insert({
+                    id: data.user.id,
+                    user_type: role
+                });
 
-            if (loginError) throw loginError;
+            if (!profileError) {
+                // Log them in immediately
+                const { error: loginError } = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                });
 
-            // Initialize their game data
-            await saveProgress();
-            
-            // Show welcome screen
-            showScreen('welcome-screen');
+                if (!loginError) {
+                    showScreen('welcome-screen');
+                }
+            }
         }
 
     } catch (error) {
-        console.error('Error signing up:', error.message);
-        alert(error.message);
+        console.error('Signup error:', error);
     }
 }
 
 async function handleLogin() {
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-
-    if (!email || !password) {
-        alert('Please fill in all fields');
-        return;
-    }
-
+    
     try {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
             email,
             password
         });
-
-        if (error) throw error;
-
-        // Store session
-        localStorage.setItem('simploxSession', JSON.stringify(data.session));
         
-        // Load user data
-        await loadUserData(data.user.id);
-        
-        // Redirect to welcome screen
-        showScreen('welcome-screen');
+        if (!error) {
+            showScreen('welcome-screen');
+        }
 
     } catch (error) {
-        console.error('Error logging in:', error.message);
-        alert(error.message);
+        console.error('Login error:', error);
     }
 }
 
