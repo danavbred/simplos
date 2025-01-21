@@ -5262,7 +5262,7 @@ async function handleSignup() {
     const email = document.getElementById('signup-email').value;
     const password = document.getElementById('signup-password').value;
     const role = document.getElementById('signup-role').value;
-
+    
     if (!email || !password || !role) {
         alert('Please fill in all fields');
         return;
@@ -5273,17 +5273,31 @@ async function handleSignup() {
             email,
             password,
             options: {
-                data: {
-                    role: role
-                }
+                data: { role: role },
+                emailRedirectTo: window.location.origin
             }
         });
 
         if (error) throw error;
 
-        // Show success message
-        alert('Please check your email to confirm your account!');
-        toggleAuthForm('login');
+        // Create profile immediately
+        if (data.user) {
+            await createUserProfile(data.user.id, role);
+            
+            // Automatically log them in
+            const { error: loginError } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+
+            if (loginError) throw loginError;
+
+            // Initialize their game data
+            await saveProgress();
+            
+            // Show welcome screen
+            showScreen('welcome-screen');
+        }
 
     } catch (error) {
         console.error('Error signing up:', error.message);
