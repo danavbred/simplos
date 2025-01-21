@@ -117,8 +117,25 @@ export async function handleLogout() {
 
         currentUser = null;
         
+        // Clear all game state
+        gameState.coins = 0;
+        gameState.unlockedSets = {};
+        gameState.unlockedLevels = {};
+        gameState.perfectLevels = new Set();
+        gameState.completedLevels = new Set();
+        gameState.perks = {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        };
+        
         // Notify listeners of logout
         notifyAuthStateChange('SIGNED_OUT', null);
+        
+        // Force UI update
+        updateAllCoinDisplays();
+        showScreen('auth-screen');
         
         return { success: true };
         
@@ -221,3 +238,145 @@ export function initializeAuth() {
 
 // Export Supabase instance if needed elsewhere
 export { supabase };
+
+async function getUserType() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+    
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('user_type')
+        .eq('id', session.user.id)
+        .single();
+        
+    return profile?.user_type;
+}
+
+async function initializeApplication() {
+    await initializeAuth();
+    await loadUserData();
+    updatePerkCounts();
+    
+    const userType = await getUserType();
+    if (userType) {
+        showScreen('welcome-screen');
+    } else {
+        showScreen('auth-screen');
+    }
+}
+
+async function saveCustomList() {
+    console.log('Saving custom list...'); // Debug log
+    
+    const session = await supabase.auth.getSession();
+    if (!session.data.session) {
+        alert('Please log in to save lists');
+        return;
+    }
+
+    const userId = session.data.session.user.id;
+    const listNameInput = document.getElementById('custom-list-name');
+    const name = listNameInput.value.trim();
+    
+    if (!name) {
+        alert('Please enter a list name');
+        return;
+    }
+
+    const wordItems = document.querySelectorAll('.word-translation-item');
+    const words = [];
+    const translations = [];
+    
+    wordItems.forEach(item => {
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
+        }
+    });
+
+    if (words.length === 0) {
+        alert('Please add at least one word');
+        return;
+    }
+
+    try {
+        console.log('Saving list with data:', { name, words, translations });
+
+        const { data, error } = await supabase
+            .from('custom_lists')
+            .upsert({
+                id: customPracticeLists.currentList?.id || undefined,
+                created_by: userId,
+                name: name,
+                words: words,
+                translations: translations
+            });
+
+        if (error) throw error;
+
+        console.log('List saved successfully:', data);
+        
+        await loadCustomLists();
+        showCustomListsManager();
+        alert('List saved successfully!');
+
+    } catch (error) {
+        console.error('Error saving list:', error);
+        alert('Failed to save list: ' + error.message);
+    }
+}
+
+async function loadCustomLists() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        customPracticeLists.lists = [];
+        updateListsDisplay();
+        return;
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('custom_lists')
+            .select('*')
+            .eq('created_by', session.user.id)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        customPracticeLists.lists = data || [];
+        updateListsDisplay();
+        
+    } catch (error) {
+        console.error('Error loading lists:', error);
+        customPracticeLists.lists = [];
+        updateListsDisplay();
+    }
+}
+
+async function deleteCustomList(listId) {
+    if (!confirm('Are you sure you want to delete this list permanently?')) return;
+
+    try {
+        // First, remove from Supabase
+        const { error } = await supabase
+            .from('custom_lists')
+            .delete()
+            .eq('id', listId);
+
+        if (error) throw error;
+
+        // Remove from local lists
+        customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
+        
+        // Update UI
+        updateListsDisplay();
+        
+        // Optional: Provide feedback
+        alert('List deleted successfully');
+    } catch (error) {
+        console.error('Error deleting list:', error);
+        alert('Failed to delete list. Please try again.');
+    }
+}
