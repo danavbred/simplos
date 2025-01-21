@@ -1985,6 +1985,24 @@ body {
     letter-spacing: 1px;
 }
 
+.user-email-display {
+    color: var(--gold);
+    font-size: 1.2rem;
+    text-align: center;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    font-weight: 600;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 25px;
+    position: absolute;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+}
+
     </style>
 </head>
 <body>
@@ -2001,6 +2019,7 @@ body {
     <button class="menu-button" onclick="showStagesFromMenu()">
         <i class="fas fa-bars navigation-icon"></i>
     </button>
+    <div class="user-email-display"></div>  <!-- Add this line -->
     <h1 class="welcome-title">Simplos</h1>
     <div class="welcome-buttons">
         <button class="start-button" onclick="startGame()">Start Game</button>
@@ -5158,27 +5177,24 @@ window.onload = async () => {
     
     // Check for existing session
     const { data: { session } } = await supabase.auth.getSession();
+    console.log('Initial session check:', session);
     
     if (session) {
-        // User is already logged in
         await loadUserData(session.user.id);
         showScreen('welcome-screen');
-        updateWelcomeScreen(); // Ensure user info is displayed
     } else {
-        // Show auth screen
         showScreen('auth-screen');
     }
 
-    // Set up auth state listener
     supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('Auth state changed:', event);
         if (event === 'SIGNED_IN') {
             await loadUserData(session.user.id);
             showScreen('welcome-screen');
-            updateWelcomeScreen(); // Update user info on sign in
         } else if (event === 'SIGNED_OUT') {
-            currentUser = null;
-            resetLogoutState();
+            const emailDisplay = document.querySelector('.user-email-display');
+            if (emailDisplay) emailDisplay.remove();
+            showScreen('auth-screen');
         }
     });
 };
@@ -5244,8 +5260,7 @@ async function handleSignup() {
     }
 
     try {
-        // First, sign up the user
-        const { data: { user }, error: signupError } = await supabase.auth.signUp({
+        const { data, error: signupError } = await supabase.auth.signUp({
             email,
             password,
             options: {
@@ -5256,47 +5271,45 @@ async function handleSignup() {
             }
         });
 
-        if (signupError) throw signupError;
+        if (signupError) {
+            console.error('Signup Error:', signupError);
+            alert(`Signup failed: ${signupError.message}`);
+            return;
+        }
 
-        if (user) {
-            // Create initial profile
+        if (data.user) {
+            // Create profile
             const { error: profileError } = await supabase
                 .from('profiles')
-                .insert({
-                    id: user.id,
-                    user_type: role,
-                    username: email.split('@')[0],
-                    created_at: new Date(),
-                    updated_at: new Date()
+                .upsert({
+                    id: data.user.id,
+                    user_type: role
                 });
 
-            if (profileError) throw profileError;
+            if (profileError) {
+                console.error('Profile Creation Error:', profileError);
+                alert(`Profile creation failed: ${profileError.message}`);
+                return;
+            }
 
-            // Create initial progress
-            const { error: progressError } = await supabase
-                .from('user_progress')
-                .insert({
-                    user_id: user.id,
-                    created_at: new Date(),
-                    updated_at: new Date()
-                });
-
-            if (progressError) throw progressError;
-
-            // Log them in immediately
+            // Attempt immediate login
             const { error: loginError } = await supabase.auth.signInWithPassword({
                 email,
                 password
             });
 
-            if (loginError) throw loginError;
+            if (loginError) {
+                console.error('Login Error:', loginError);
+                alert(`Login failed: ${loginError.message}`);
+                return;
+            }
 
-            // Navigate to welcome screen on success
+            // Success: navigate to welcome screen
             showScreen('welcome-screen');
         }
     } catch (error) {
-        console.error('Error in signup process:', error);
-        alert(error.message);
+        console.error('Unexpected Signup Error:', error);
+        alert('An unexpected error occurred during signup');
     }
 }
 
@@ -5369,42 +5382,62 @@ async function handleSignup() {
     const password = document.getElementById('signup-password').value;
     const role = document.getElementById('signup-role').value;
     
+    if (!email || !password || !role) {
+        alert('Please fill in all fields');
+        return;
+    }
+
     try {
-        const { data } = await supabase.auth.signUp({
+        const { data, error: signupError } = await supabase.auth.signUp({
             email,
             password,
             options: {
-                data: { role: role },
-                emailRedirectTo: window.location.origin,
-                // Skip email confirmation
-                emailConfirm: true
+                data: { 
+                    role: role,
+                    user_type: role
+                }
             }
         });
 
+        if (signupError) {
+            console.error('Signup Error:', signupError);
+            alert(`Signup failed: ${signupError.message}`);
+            return;
+        }
+
         if (data.user) {
-            // Create their profile
+            // Create profile
             const { error: profileError } = await supabase
                 .from('profiles')
-                .insert({
+                .upsert({
                     id: data.user.id,
                     user_type: role
                 });
 
-            if (!profileError) {
-                // Log them in immediately
-                const { error: loginError } = await supabase.auth.signInWithPassword({
-                    email,
-                    password
-                });
-
-                if (!loginError) {
-                    showScreen('welcome-screen');
-                }
+            if (profileError) {
+                console.error('Profile Creation Error:', profileError);
+                alert(`Profile creation failed: ${profileError.message}`);
+                return;
             }
-        }
 
+            // Attempt immediate login
+            const { error: loginError } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+
+            if (loginError) {
+                console.error('Login Error:', loginError);
+                alert(`Login failed: ${loginError.message}`);
+                return;
+            }
+
+            // Success: navigate to welcome screen
+            showScreen('welcome-screen');
+        }
     } catch (error) {
-        console.error('Signup error:', error);
+        console.error('Unexpected Signup Error:', error);
+        alert('An unexpected error occurred during signup');
     }
 }
 
@@ -5449,36 +5482,33 @@ async function handleLogout() {
 }
 
 async function loadUserData(userId) {
+    console.log('loadUserData called with userId:', userId);
     try {
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('Session data:', session);
         
-        if (session) {
-            currentUser = {
-                id: userId,
-                email: session.user.email
-            };
-
-            // Load user progress
-            const { data: progress, error: progressError } = await supabase
-                .from('user_progress')
-                .select('*')
-                .eq('user_id', userId)
-                .single();
-
-            if (progressError && progressError.code !== 'PGRST116') {
-                console.error('Error loading progress:', progressError);
+        if (session && session.user.email) {
+            console.log('User email found:', session.user.email);
+            const emailDisplay = document.querySelector('.user-email-display');
+            console.log('Email display element:', emailDisplay);
+            
+            if (emailDisplay) {
+                emailDisplay.textContent = session.user.email;
+                console.log('Email display updated');
+            } else {
+                // If element doesn't exist, create it
+                const welcomeTitle = document.querySelector('.welcome-title');
+                if (welcomeTitle) {
+                    const newEmailDisplay = document.createElement('div');
+                    newEmailDisplay.className = 'user-email-display';
+                    newEmailDisplay.textContent = session.user.email;
+                    welcomeTitle.parentNode.insertBefore(newEmailDisplay, welcomeTitle);
+                    console.log('Email display created and inserted');
+                }
             }
-
-            if (progress) {
-                // Update game state with loaded progress
-                Object.assign(gameState, progress.game_state);
-            }
-
-            updateWelcomeScreen();
-            updateAllCoinDisplays();
         }
     } catch (error) {
-        console.error('Error in loadUserData:', error);
+        console.error('Error loading user data:', error);
     }
 }
 
