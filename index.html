@@ -4458,14 +4458,47 @@ function initializeDragAndDrop(item) {
 
 
 async function saveCurrentList() {
-    // ... previous validation code ...
+    console.log('Saving custom list...'); // Debug log
+    
+    const { data: session } = await supabase.auth.getSession();
+    if (!session?.session) {
+        alert('Please log in to save lists');
+        return;
+    }
+
+    const listNameInput = document.getElementById('custom-list-name');
+    const name = listNameInput.value.trim();
+    
+    if (!name) {
+        alert('Please enter a list name');
+        return;
+    }
+
+    const wordItems = document.querySelectorAll('.word-translation-item');
+    const words = [];
+    const translations = [];
+    
+    wordItems.forEach(item => {
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
+        
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
+        }
+    });
+
+    if (words.length === 0) {
+        alert('Please add at least one word');
+        return;
+    }
 
     try {
         // First, check if a list with the same name already exists
         const { data: existingLists, error: checkError } = await supabase
             .from('custom_lists')
             .select('id')
-            .eq('created_by', session.user.id)
+            .eq('created_by', session.session.user.id)
             .eq('name', name);
 
         if (checkError) throw checkError;
@@ -4479,7 +4512,7 @@ async function saveCurrentList() {
             const { error: deleteError } = await supabase
                 .from('custom_lists')
                 .delete()
-                .eq('created_by', session.user.id)
+                .eq('created_by', session.session.user.id)
                 .eq('name', name);
 
             if (deleteError) throw deleteError;
@@ -4489,7 +4522,7 @@ async function saveCurrentList() {
         const { data, error } = await supabase
             .from('custom_lists')
             .insert({
-                created_by: session.user.id,
+                created_by: session.session.user.id,
                 name: name,
                 words: words,
                 translations: translations,
@@ -4498,7 +4531,17 @@ async function saveCurrentList() {
 
         if (error) throw error;
 
-        // ... rest of the success handling code ...
+        console.log('List saved successfully:', data);
+        
+        // Reload and display custom lists
+        await loadCustomLists();
+        showCustomListsManager();
+        
+        // Clear the current form
+        listNameInput.value = '';
+        document.getElementById('word-translation-list').innerHTML = '';
+        
+        alert('List saved successfully!');
 
     } catch (error) {
         console.error('Error saving list:', error);
