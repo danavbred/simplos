@@ -2405,7 +2405,6 @@ async function saveProgress() {
     }
     
     try {
-        // Convert Sets to Arrays for storage
         const gameStateForStorage = {
             unlockedSets: Object.fromEntries(
                 Object.entries(gameState.unlockedSets)
@@ -2431,9 +2430,10 @@ async function saveProgress() {
         const { error } = await supabase
             .from('user_progress')
             .upsert({
-                user_id: session.user.id,
-                game_state: gameStateForStorage,
-                updated_at: new Date().toISOString()
+                user_id: session.user.id,  // Matches SQL schema
+                game_state: gameStateForStorage
+            }, {
+                onConflict: 'user_id'  // Matches unique constraint in SQL
             });
 
         if (error) throw error;
@@ -2441,42 +2441,73 @@ async function saveProgress() {
 
     } catch (error) {
         console.error('Error saving progress:', error);
-        // Optionally show user feedback
-        alert('Failed to save progress. Please check your connection.');
+        if (error.code === 'NETWORK_ERROR') {
+            alert('Failed to save progress. Please check your connection.');
+        }
     }
 }
 
 async function loadProgress() {
     const { data: { session } } = await supabase.auth.getSession();
     
-    if (session) {
-        try {
-            // Try to load from Supabase first
-            const { data, error } = await supabase
-                .from('user_progress')
-                .select('game_state')
-                .eq('user_id', session.user.id)
-                .single();
-
-            if (error) throw error;
-
-            if (data) {
-                const gameState = data.game_state;
-                // Convert arrays back to Sets
-                return gameState;
-            }
-        } catch (error) {
-            console.error('Error loading from Supabase:', error);
-        }
-    }
-
-    // Fall back to localStorage
-    const saved = localStorage.getItem('simploxProgress');
-    if (saved) {
-        return JSON.parse(saved);
+    if (!session) {
+        console.log('No active session, using default state');
+        return initializeDefaultGameState();
     }
     
-    return null;
+    try {
+        const { data, error } = await supabase
+            .from('user_progress')
+            .select('game_state')
+            .eq('user_id', session.user.id)  // Matches SQL schema
+            .single();
+
+        if (error) throw error;
+
+        if (data?.game_state) {
+            return {
+                unlockedSets: Object.fromEntries(
+                    Object.entries(data.game_state.unlockedSets)
+                        .map(([k, v]) => [k, new Set(v)])
+                ),
+                unlockedLevels: Object.fromEntries(
+                    Object.entries(data.game_state.unlockedLevels)
+                        .map(([k, v]) => [k, new Set(v)])
+                ),
+                perfectLevels: new Set(data.game_state.perfectLevels),
+                completedLevels: new Set(data.game_state.completedLevels),
+                coins: data.game_state.coins,
+                perks: data.game_state.perks,
+                statistics: data.game_state.statistics || {
+                    totalPlayed: 0,
+                    perfectScores: 0,
+                    totalCoinsEarned: 0,
+                    streakDays: 0,
+                    lastPlayedAt: null
+                }
+            };
+        }
+    } catch (error) {
+        console.error('Error loading progress:', error);
+    }
+    
+    return initializeDefaultGameState();
+}
+
+function initializeDefaultGameState() {
+    return {
+        unlockedSets: { 1: new Set([1]) },
+        unlockedLevels: { '1_1': new Set([1]) },
+        perfectLevels: new Set(),
+        completedLevels: new Set(),
+        coins: 0,
+        perks: {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        }
+    };
 }
 
 function convertArraysToSets(obj) {
@@ -4242,15 +4273,15 @@ async function saveCustomList() {
             .from('custom_lists')
             .upsert({
                 id: customPracticeLists.currentList?.id || undefined,
-                created_by: userId,  // Changed from user_id to created_by
+                created_by: userId,  // Matches SQL schema
                 name: name,
                 words: words,
                 translations: translations,
-                updated_at: new Date()
+                updated_at: new Date().toISOString()
             });
 
         if (error) throw error;
-        await loadCustomLists(); // Reload lists after saving
+        await loadCustomLists();
         showCustomListsManager();
 
     } catch (error) {
@@ -4270,15 +4301,12 @@ async function loadCustomLists() {
         const { data, error } = await supabase
             .from('custom_lists')
             .select('*')
-            .eq('created_by', session.data.session.user.id)
+            .eq('created_by', session.data.session.user.id)  // Matches SQL schema
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        // Clear existing lists before setting new ones
         customPracticeLists.lists = [];
-        
-        // Add new lists with no duplicates
         if (data) {
             const uniqueLists = [...new Map(data.map(item => [item.id, item])).values()];
             customPracticeLists.lists = uniqueLists;
@@ -4291,53 +4319,20 @@ async function loadCustomLists() {
 }
 
 async function initializeGame() {
+    // Clear any existing state first
+    gameState = initializeDefaultGameState();
+    
     const { data: { session } } = await supabase.auth.getSession();
     
     if (session) {
         try {
-            const { data, error } = await supabase
-                .from('user_progress')
-                .select('game_state')
-                .eq('user_id', session.user.id)
-                .single();
-
-            if (error) throw error;
-
-            if (data?.game_state) {
-                // Convert arrays back to Sets
-                gameState.unlockedSets = Object.fromEntries(
-                    Object.entries(data.game_state.unlockedSets)
-                        .map(([k, v]) => [k, new Set(v)])
-                );
-                gameState.unlockedLevels = Object.fromEntries(
-                    Object.entries(data.game_state.unlockedLevels)
-                        .map(([k, v]) => [k, new Set(v)])
-                );
-                gameState.perfectLevels = new Set(data.game_state.perfectLevels);
-                gameState.completedLevels = new Set(data.game_state.completedLevels);
-                gameState.coins = data.game_state.coins;
-                gameState.perks = data.game_state.perks;
-            } else {
-                // Initialize new user state
-                gameState.unlockedSets = { 1: new Set([1]) };
-                gameState.unlockedLevels = { '1_1': new Set([1]) };
-                gameState.perfectLevels = new Set();
-                gameState.completedLevels = new Set();
-                gameState.coins = 0;
-                gameState.perks = {
-                    timeFreeze: 0,
-                    skip: 0,
-                    clue: 0,
-                    reveal: 0
-                };
-                // Save initial state
-                await saveProgress();
+            const loadedState = await loadProgress();
+            // Only update state if we successfully loaded
+            if (loadedState) {
+                gameState = loadedState;
             }
         } catch (error) {
-            console.error('Error loading game state:', error);
-            // Initialize default state on error
-            gameState.unlockedSets = { 1: new Set([1]) };
-            gameState.unlockedLevels = { '1_1': new Set([1]) };
+            console.error('Error initializing game:', error);
         }
     }
     
@@ -5282,16 +5277,15 @@ window.onload = async () => {
     }
 
     supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('Auth state changed:', event); // Debug log
-        if (event === 'SIGNED_IN') {
-            await loadUserData();
-            showScreen('welcome-screen');
-        } else if (event === 'SIGNED_OUT') {
-            const emailDisplay = document.querySelector('.user-email-display');
-            if (emailDisplay) emailDisplay.remove();
-            showScreen('auth-screen');
-        }
-    });
+    if (event === 'SIGNED_IN') {
+        await initializeGame();
+        showScreen('welcome-screen');
+    } else if (event === 'SIGNED_OUT') {
+        // Clear state on sign out
+        gameState = initializeDefaultGameState();
+        showScreen('auth-screen');
+    }
+});
 };
 
 // And modify your showScreen function to ensure it can handle the auth screen
