@@ -2469,12 +2469,6 @@ async function loadProgress() {
             console.error('Error loading from Supabase:', error);
         }
     }
-
-    // Fall back to localStorage
-    const saved = localStorage.getItem('simploxProgress');
-    if (saved) {
-        return JSON.parse(saved);
-    }
     
     return null;
 }
@@ -4109,19 +4103,6 @@ function addCustomWordList(name = null) {
     return newList;
 }
 
-// Function to save custom lists to localStorage
-function saveCustomLists() {
-    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-}
-
-// Function to load custom lists from localStorage
-function loadCustomLists() {
-    const savedLists = localStorage.getItem('simploxCustomLists');
-    if (savedLists) {
-        customPracticeLists.lists = JSON.parse(savedLists);
-    }
-}
-
 // Function to translate a single word using MyMemory Translation API
 function translateWord(word) {
     const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|he`;
@@ -4228,45 +4209,74 @@ function createWordTranslationItem(word = '', translation = '', isEditable = fal
 }
 
 
-function saveCustomList() {
+async function saveCustomList() {
+    const session = await supabase.auth.getSession();
+    if (!session.data.session) {
+        console.error('No active session');
+        return;
+    }
+
+    const userId = session.data.session.user.id;
     const listNameInput = document.getElementById('custom-list-name');
-    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+    const name = listNameInput.value.trim() || `List ${Date.now()}`;
     
     const wordItems = document.querySelectorAll('.word-translation-item');
     const words = [];
     const translations = [];
     
     wordItems.forEach(item => {
-        const sourceWord = item.querySelector('.source-word').textContent.trim();
-        const targetWord = item.querySelector('.target-word').value.trim();
-        
-        if (sourceWord && targetWord) {
-            words.push(sourceWord);
-            translations.push(targetWord);
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
         }
     });
 
-    const newList = {
-        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
-        name: name,
-        words: words,
-        translations: translations
-    };
+    try {
+        const { data, error } = await supabase
+            .from('custom_lists')
+            .upsert({
+                id: customPracticeLists.currentList?.id || undefined,
+                user_id: userId,
+                name: name,
+                words: words,
+                translations: translations,
+                updated_at: new Date()
+            });
 
-    if (customPracticeLists.currentList) {
-        const index = customPracticeLists.lists.findIndex(l => l.id === customPracticeLists.currentList.id);
-        if (index !== -1) {
-            customPracticeLists.lists[index] = newList;
-        } else {
-            customPracticeLists.lists.push(newList);
-        }
-    } else {
-        customPracticeLists.lists.push(newList);
+        if (error) throw error;
+        await loadCustomLists(); // Reload lists after saving
+        showCustomListsManager();
+
+    } catch (error) {
+        console.error('Error saving list:', error);
+        alert('Failed to save list');
     }
-    
-    saveCustomLists();
-    customPracticeLists.currentList = null;
-    showCustomListsManager();
+}
+
+async function loadCustomLists() {
+    const session = await supabase.auth.getSession();
+    if (!session.data.session) {
+        customPracticeLists.lists = [];
+        return;
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('custom_lists')
+            .select('*')
+            .eq('user_id', session.data.session.user.id)
+            .order('created_at');
+
+        if (error) throw error;
+
+        customPracticeLists.lists = data || [];
+        
+    } catch (error) {
+        console.error('Error loading lists:', error);
+        customPracticeLists.lists = [];
+    }
 }
 
 function processCustomWords() {
@@ -4309,6 +4319,26 @@ function processCustomWords() {
     
     translationResults.style.display = 'block';
     makeWordListDraggable();
+}
+
+async function deleteCustomList(listId) {
+    if (!confirm('Are you sure you want to delete this list?')) return;
+
+    try {
+        const { error } = await supabase
+            .from('custom_lists')
+            .delete()
+            .eq('id', listId);
+
+        if (error) throw error;
+
+        await loadCustomLists(); // Reload after deletion
+        showCustomListsManager();
+        
+    } catch (error) {
+        console.error('Error deleting list:', error);
+        alert('Failed to delete list');
+    }
 }
 
 function initializeDragAndDrop(item) {
@@ -5234,9 +5264,6 @@ async function handleLogin() {
         });
         
         if (error) throw error;
-
-        // Store session
-        localStorage.setItem('simploxSession', JSON.stringify(data.session));
         
         // Load user data before showing welcome screen
         await loadUserData();
@@ -5331,29 +5358,19 @@ async function checkAuth() {
 
 async function handleLogout() {
     try {
-        // First, check if there's an active session
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-            // If no session, just reset and go to auth screen
-            resetLogoutState();
-            return;
-        }
-
-        // Proceed with logout
         const { error } = await supabase.auth.signOut();
+        if (error) throw error;
         
-        if (error) {
-            console.error('Logout error:', error);
-            resetLogoutState();
-            return;
-        }
-
-        // Reset state after successful logout
-        resetLogoutState();
-
+        // Clear local state
+        customPracticeLists.lists = [];
+        customPracticeLists.currentList = null;
+        
+        // Other logout operations...
+        showScreen('auth-screen');
     } catch (error) {
-        console.error('Unexpected logout error:', error);
+        console.error('Error logging out:', error);
+        
+        // Optional: Fallback reset state even if logout fails
         resetLogoutState();
     }
 }
@@ -5632,9 +5649,6 @@ async function syncCustomLists() {
             .eq('teacher_id', currentUser.id);
 
         if (error) throw error;
-
-        // Merge with local lists
-        const localLists = JSON.parse(localStorage.getItem('simploxCustomLists') || '[]');
         
         // Create a map for quick lookup
         const remoteListMap = new Map(remoteLists.map(list => [list.id, list]));
@@ -5643,9 +5657,6 @@ async function syncCustomLists() {
         // Merge lists, preferring remote versions if they exist
         const mergedLists = [...new Set([...remoteListMap.keys(), ...localListMap.keys()])]
             .map(id => remoteListMap.get(id) || localListMap.get(id));
-
-        // Update local storage
-        localStorage.setItem('simploxCustomLists', JSON.stringify(mergedLists));
         
         return mergedLists;
     } catch (error) {
