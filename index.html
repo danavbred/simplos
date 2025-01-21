@@ -2289,14 +2289,43 @@ body {
         </div>
 
         <script type="module">
-            import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-            
-            const supabase = createClient(
-              'https://mczfgzffyyyacisrccqb.supabase.co',
-              'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo'
-            );
+            // Import auth functions
+            import { 
+              initializeAuth,
+              handleLogin,
+              handleSignup,
+              handleLogout,
+              handleSkipAuth,
+              checkAuth,
+              onAuthStateChange,
+              loadUserData
+            } from './auth.js';
           
-            window.supabase = supabase; // Make it available globally
+            // Make auth functions available globally
+            window.handleLogin = handleLogin;
+            window.handleSignup = handleSignup;  
+            window.handleLogout = handleLogout;
+            window.handleSkipAuth = handleSkipAuth;
+          
+            // Initialize auth on page load
+            window.onload = async () => {
+              await initializeAuth();
+              
+              // Set up auth state listener
+              onAuthStateChange(async (event, session) => {
+                if (event === 'SIGNED_IN') {
+                  await initializeGame();
+                  await loadCustomLists();
+                  await loadUserData();
+                  showScreen('welcome-screen');
+                } else if (event === 'SIGNED_OUT') {
+                  // Reset state
+                  gameState = initializeDefaultGameState();
+                  customPracticeLists.lists = [];
+                  showScreen('auth-screen');
+                }
+              });
+            };
           </script>
 
 
@@ -2472,10 +2501,10 @@ async function saveProgress() {
         const { error } = await supabase
             .from('user_progress')
             .upsert({
-                user_id: session.user.id,  // Matches SQL schema
+                user_id: session.user.id,
                 game_state: gameStateForStorage
             }, {
-                onConflict: 'user_id'  // Matches unique constraint in SQL
+                onConflict: 'user_id'
             });
 
         if (error) throw error;
@@ -5473,11 +5502,7 @@ function toggleAuthForm(type) {
     }
 }
 
-function handleSkipAuth() {
-    // Set user as guest in game state
-    gameState.userType = 'guest';
-    showScreen('welcome-screen');
-}
+
 
 window.onload = async () => {
     console.log('Page loaded'); // Debug log
@@ -5560,148 +5585,6 @@ function showScreen(screenId) {
     }
 }
 
-// Right after your supabase initialization
-async function handleLogin() {
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    
-    try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password
-        });
-        
-        if (error) throw error;
-        
-        // Let the auth state listener handle the navigation
-        // Do not call showScreen here
-        
-    } catch (error) {
-        console.error('Login error:', error);
-        alert('Error logging in: ' + error.message);
-    }
-}
-
-async function handleSignup() {
-    const email = document.getElementById('signup-email').value;
-    const password = document.getElementById('signup-password').value;
-    const role = document.getElementById('signup-role').value;
-    
-    if (!email || !password || !role) {
-        alert('Please fill in all fields');
-        return;
-    }
-
-    try {
-        const { data, error: signupError } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: { 
-                    role: role,
-                    user_type: role
-                }
-            }
-        });
-
-        if (signupError) {
-            console.error('Signup Error:', signupError);
-            alert(`Signup failed: ${signupError.message}`);
-            return;
-        }
-
-        if (data.user) {
-            // Create profile
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: data.user.id,
-                    user_type: role
-                });
-
-            if (profileError) {
-                console.error('Profile Creation Error:', profileError);
-                alert(`Profile creation failed: ${profileError.message}`);
-                return;
-            }
-
-            // Attempt immediate login
-            const { error: loginError } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
-
-            if (loginError) {
-                console.error('Login Error:', loginError);
-                alert(`Login failed: ${loginError.message}`);
-                return;
-            }
-
-            // Success: navigate to welcome screen
-            showScreen('welcome-screen');
-        }
-    } catch (error) {
-        console.error('Unexpected Signup Error:', error);
-        alert('An unexpected error occurred during signup');
-    }
-}
-
-async function checkAuth() {
-    try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) throw error;
-
-        if (session) {
-            return true;
-        }
-        
-        return false;
-    } catch (error) {
-        console.error('Auth check error:', error);
-        return false;
-    }
-}
-
-async function handleLogout() {
-    try {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-
-        // Reset gameState by modifying existing object properties
-        Object.keys(gameState).forEach(key => {
-            if (key === 'perks') {
-                gameState.perks = {
-                    timeFreeze: 0,
-                    skip: 0,
-                    clue: 0,
-                    reveal: 0
-                };
-            } else if (key === 'perfectLevels' || key === 'completedLevels') {
-                gameState[key] = new Set();
-            } else if (key === 'unlockedSets' || key === 'unlockedLevels') {
-                gameState[key] = {};
-            } else {
-                gameState[key] = null;
-            }
-        });
-
-        // Reset to initial state
-        gameState.unlockedSets[1] = new Set([1]);
-        gameState.unlockedLevels['1_1'] = new Set([1]);
-        gameState.coins = 0;
-
-        // Clear custom lists state
-        customPracticeLists.lists = [];
-        customPracticeLists.currentList = null;
-
-        // Show auth screen
-        showScreen('auth-screen');
-
-    } catch (error) {
-        console.error('Error logging out:', error);
-    }
-}
 
 function resetLogoutState() {
     // Clear local storage
@@ -5718,142 +5601,6 @@ function resetLogoutState() {
     showScreen('auth-screen');
 }
 
-
-// Authentication Functions
-async function handleSignup() {
-    const email = document.getElementById('signup-email').value;
-    const password = document.getElementById('signup-password').value;
-    const role = document.getElementById('signup-role').value;
-    
-    if (!email || !password || !role) {
-        alert('Please fill in all fields');
-        return;
-    }
-
-    try {
-        const { data, error: signupError } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-                data: { 
-                    role: role,
-                    user_type: role
-                }
-            }
-        });
-
-        if (signupError) {
-            console.error('Signup Error:', signupError);
-            alert(`Signup failed: ${signupError.message}`);
-            return;
-        }
-
-        if (data.user) {
-            // Create profile
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: data.user.id,
-                    user_type: role
-                });
-
-            if (profileError) {
-                console.error('Profile Creation Error:', profileError);
-                alert(`Profile creation failed: ${profileError.message}`);
-                return;
-            }
-
-            // Attempt immediate login
-            const { error: loginError } = await supabase.auth.signInWithPassword({
-                email,
-                password
-            });
-
-            if (loginError) {
-                console.error('Login Error:', loginError);
-                alert(`Login failed: ${loginError.message}`);
-                return;
-            }
-
-            // Success: navigate to welcome screen
-            showScreen('welcome-screen');
-        }
-    } catch (error) {
-        console.error('Unexpected Signup Error:', error);
-        alert('An unexpected error occurred during signup');
-    }
-}
-
-async function handleLogin() {
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    
-    try {
-        const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password
-        });
-        
-        if (!error) {
-            showScreen('welcome-screen');
-        }
-
-    } catch (error) {
-        console.error('Login error:', error);
-    }
-}
-
-async function handleLogout() {
-    try {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-
-        // Clear local storage
-        localStorage.removeItem('simploxSession');
-        localStorage.removeItem('simploxProgress');
-
-        // Reset game state
-        initializeGame();
-        
-        // Return to auth screen
-        showScreen('auth-screen');
-
-    } catch (error) {
-        console.error('Error logging out:', error.message);
-        alert(error.message);
-    }
-}
-
-async function loadUserData() {
-    try {
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log('Session data:', session); // Debug log
-        
-        if (session && session.user.email) {
-            console.log('User email found:', session.user.email); // Debug log
-            const emailDisplays = document.querySelectorAll('.user-email-display');
-            emailDisplays.forEach(display => display.remove()); // Clear existing displays
-            
-            const emailDisplay = document.createElement('div');
-            emailDisplay.className = 'user-email-display';
-            emailDisplay.textContent = session.user.email;
-            
-            // Add to welcome screen
-            const welcomeScreen = document.getElementById('welcome-screen');
-            if (welcomeScreen) {
-                const welcomeTitle = welcomeScreen.querySelector('.welcome-title');
-                if (welcomeTitle) {
-                    welcomeTitle.parentNode.insertBefore(emailDisplay, welcomeTitle);
-                    console.log('Email display added to welcome screen'); // Debug log
-                }
-            }
-        } else {
-            console.log('No user email found in session'); // Debug log
-        }
-    } catch (error) {
-        console.error('Error loading user data:', error);
-    }
-}
 
 async function saveUserProgress() {
     const session = await supabase.auth.getSession();
@@ -5881,40 +5628,6 @@ async function saveUserProgress() {
 }
 
 let currentUser = null;
-
-function setupAuthListener() {
-    supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('Auth state change:', event);
-        
-        if (event === 'SIGNED_IN') {
-            try {
-                await initializeGame(); // Load game state first
-                await loadCustomLists(); // Load custom lists
-                await loadUserData();   // Load user-specific data
-                
-                // Directly show welcome screen without needing a refresh
-                showScreen('welcome-screen');
-                
-                // Update email display
-                updateEmailDisplay(session.user.email);
-            } catch (error) {
-                console.error('Error during sign in:', error);
-            }
-        } else if (event === 'SIGNED_OUT') {
-            // Reset game state and custom lists
-            gameState = initializeDefaultGameState();
-            customPracticeLists.lists = [];
-            
-            // Clear email display
-            clearEmailDisplay();
-            
-            // Directly show auth screen without needing a refresh
-            showScreen('auth-screen');
-        }
-    });
-}
-
-
 
 async function createTeacherList(name, description, words, translations) {
     try {
@@ -6039,23 +5752,6 @@ async function syncCustomLists() {
     }
 }
 
-async function createUserProfile(userId, userType) {
-    try {
-        const { error } = await supabase
-            .from('profiles')
-            .insert({
-                id: userId,
-                user_type: userType,
-                created_at: new Date(),
-                updated_at: new Date()
-            });
-
-        if (error) throw error;
-    } catch (error) {
-        console.error('Error creating profile:', error);
-        throw error;
-    }
-}
 
 function updateWelcomeScreen() {
     console.log('Updating welcome screen');  // Debug log
