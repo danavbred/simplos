@@ -4315,9 +4315,10 @@ async function saveCustomList() {
 }
 
 async function loadCustomLists() {
-    const session = await supabase.auth.getSession();
-    if (!session.data.session) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
         customPracticeLists.lists = [];
+        updateListsDisplay();
         return;
     }
 
@@ -4325,20 +4326,18 @@ async function loadCustomLists() {
         const { data, error } = await supabase
             .from('custom_lists')
             .select('*')
-            .eq('created_by', session.data.session.user.id)  // Matches SQL schema
+            .eq('created_by', session.user.id)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        customPracticeLists.lists = [];
-        if (data) {
-            const uniqueLists = [...new Map(data.map(item => [item.id, item])).values()];
-            customPracticeLists.lists = uniqueLists;
-        }
+        customPracticeLists.lists = data || [];
+        updateListsDisplay();
         
     } catch (error) {
         console.error('Error loading lists:', error);
         customPracticeLists.lists = [];
+        updateListsDisplay();
     }
 }
 
@@ -4417,7 +4416,6 @@ async function deleteCustomList(listId) {
         if (error) throw error;
 
         await loadCustomLists(); // Reload after deletion
-        showCustomListsManager();
         
     } catch (error) {
         console.error('Error deleting list:', error);
@@ -4459,47 +4457,75 @@ function initializeDragAndDrop(item) {
 }
 
 
-function saveCurrentList() {
-    const listNameInput = document.getElementById('custom-list-name');
-    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+async function saveCurrentList() {
+    console.log('Saving custom list...'); // Debug log
     
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        alert('Please log in to save lists');
+        return;
+    }
+
+    const listNameInput = document.getElementById('custom-list-name');
+    const name = listNameInput.value.trim();
+    
+    if (!name) {
+        alert('Please enter a list name');
+        return;
+    }
+
     const wordItems = document.querySelectorAll('.word-translation-item');
     const words = [];
     const translations = [];
     
     wordItems.forEach(item => {
-        const englishWord = item.querySelector('.source-word').textContent.trim();
-        const hebrewTranslation = item.querySelector('.target-word').value.trim();
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
         
-        if (englishWord && hebrewTranslation) {
-            words.push(englishWord);
-            translations.push(hebrewTranslation);
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
         }
     });
 
-    const newList = {
-        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
-        name: name,
-        words: words,
-        translations: translations
-    };
-
-    // If we're editing an existing list, replace it
-    if (customPracticeLists.currentList) {
-        const index = customPracticeLists.lists.findIndex(l => l.id === customPracticeLists.currentList.id);
-        if (index !== -1) {
-            customPracticeLists.lists[index] = newList;
-        }
-    } else {
-        customPracticeLists.lists.push(newList);
+    if (words.length === 0) {
+        alert('Please add at least one word');
+        return;
     }
-    
-    // Reset current list
-    customPracticeLists.currentList = null;
-    
-    // Save and show lists
-    saveCustomLists();
-    showCustomListsManager();
+
+    try {
+        // Upsert the list - this will either insert a new list or update an existing one
+        const { data, error } = await supabase
+            .from('custom_lists')
+            .upsert({
+                created_by: session.user.id,
+                name: name,
+                words: words,
+                translations: translations,
+                is_public: false  // Default to private
+            }, {
+                onConflict: 'created_by,name'  // Update if list with same name by same user exists
+            })
+            .select();  // Return the inserted/updated record
+
+        if (error) throw error;
+
+        console.log('List saved successfully:', data);
+        
+        // Reload and display custom lists
+        await loadCustomLists();
+        showCustomListsManager();
+        
+        // Clear the current form
+        listNameInput.value = '';
+        document.getElementById('word-translation-list').innerHTML = '';
+        
+        alert('List saved successfully!');
+
+    } catch (error) {
+        console.error('Error saving list:', error);
+        alert('Failed to save list: ' + error.message);
+    }
 }
 
 function updateListsDisplay() {
@@ -4509,7 +4535,7 @@ function updateListsDisplay() {
     container.innerHTML = '';
 
     if (customPracticeLists.lists.length === 0) {
-        container.innerHTML = '<p>No custom lists created yet. Create your first list!</p>';
+        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
         return;
     }
 
