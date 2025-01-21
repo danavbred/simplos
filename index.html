@@ -2001,6 +2001,48 @@ body {
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
+.toast {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    padding: 1rem;
+    border-radius: 8px;
+    z-index: 1000;
+    transform: translateX(120%);
+    transition: transform 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.toast.show {
+    transform: translateX(0);
+}
+
+.toast-content {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text);
+}
+
+.toast-success {
+    border-left: 4px solid var(--success);
+}
+
+.toast-error {
+    border-left: 4px solid var(--error);
+}
+
+.toast-info {
+    border-left: 4px solid var(--accent);
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-10px); }
+}
+
     </style>
 </head>
 <body>
@@ -4583,31 +4625,61 @@ function updateListsDisplay() {
     });
 }
 
-function startCustomListPractice(listId) {
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
+async function startCustomListPractice(listId) {
+    try {
+        // First, verify the list exists and user has access
+        const { data: list, error } = await supabase
+            .from('custom_lists')
+            .select('*')
+            .eq('id', listId)
+            .single();
 
-    currentGame = {
-        words: list.words,
-        translations: list.translations,
-        currentIndex: 0,
-        correctAnswers: 0,
-        firstAttempt: true,
-        isCustomPractice: true,
-        startingCoins: gameState.coins,
-        startingPerks: { ...gameState.perks },
-        practiceState: {
-            currentLevel: 1,
+        if (error) throw error;
+        if (!list) {
+            alert('List not found');
+            return;
+        }
+
+        currentGame = {
             words: list.words,
             translations: list.translations,
-            unlockedLevels: new Set([1]),
-            progress: {},
-            maxLevel: 10,
-            listId: listId
-        }
-    };
+            currentIndex: 0,
+            correctAnswers: 0,
+            firstAttempt: true,
+            isCustomPractice: true,
+            startingCoins: gameState.coins,
+            startingPerks: { ...gameState.perks },
+            practiceState: {
+                currentLevel: 1,
+                words: list.words,
+                translations: list.translations,
+                unlockedLevels: new Set([1]),
+                progress: {},
+                maxLevel: 10,
+                listId: listId
+            }
+        };
 
-    startCustomLevel(1, currentGame.practiceState);
+        // Add loading state feedback
+        const practiceButton = document.querySelector(`[data-list-id="${listId}"] .practice-btn`);
+        if (practiceButton) {
+            practiceButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            practiceButton.disabled = true;
+        }
+
+        await startCustomLevel(1, currentGame.practiceState);
+
+    } catch (error) {
+        console.error('Error starting practice:', error);
+        alert('Failed to start practice. Please try again.');
+        
+        // Reset button state on error
+        const practiceButton = document.querySelector(`[data-list-id="${listId}"] .practice-btn`);
+        if (practiceButton) {
+            practiceButton.innerHTML = 'Practice';
+            practiceButton.disabled = false;
+        }
+    }
 }
 
 
@@ -4830,8 +4902,14 @@ function toggleEditMode(listId) {
 
 async function editCustomList(listId) {
     try {
-        // Fetch the specific list from Supabase
-        const { data, error } = await supabase
+        // Show loading state
+        const editButton = document.querySelector(`[data-list-id="${listId}"] .edit-btn`);
+        if (editButton) {
+            editButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            editButton.disabled = true;
+        }
+
+        const { data: list, error } = await supabase
             .from('custom_lists')
             .select('*')
             .eq('id', listId)
@@ -4839,46 +4917,46 @@ async function editCustomList(listId) {
 
         if (error) throw error;
 
-        if (!data) {
-            alert('List not found');
-            return;
+        if (!list) {
+            throw new Error('List not found');
         }
 
-        // Switch to custom practice screen
+        // Switch to edit mode
         showScreen('custom-practice-screen');
-    
-        // Set the list name
+        
+        // Update form fields
         const listNameInput = document.getElementById('custom-list-name');
-        listNameInput.value = data.name;
-    
-        // Clear previous translations
+        listNameInput.value = list.name;
+        
+        // Clear and populate word list
         const wordList = document.getElementById('word-translation-list');
         wordList.innerHTML = '';
-    
-        // Create translation items for each word
-        data.words.forEach((word, index) => {
-            createWordTranslationItem(word, data.translations[index], true);
+        
+        list.words.forEach((word, index) => {
+            createWordTranslationItem(word, list.translations[index], true);
         });
 
-        // Set current list for saving
+        // Store current list for reference
         customPracticeLists.currentList = {
-            id: data.id,
-            name: data.name,
-            words: data.words,
-            translations: data.translations
+            id: list.id,
+            name: list.name,
+            words: list.words,
+            translations: list.translations
         };
-    
-        // Optional: Add button to update list
-        const updateButton = document.createElement('button');
-        updateButton.textContent = 'Update List';
-        updateButton.onclick = saveCurrentList;
-        
-        const buttonsContainer = document.querySelector('.custom-practice-buttons');
-        buttonsContainer.appendChild(updateButton);
+
+        // Add success feedback
+        showToast('List loaded successfully', 'success');
 
     } catch (error) {
         console.error('Error editing list:', error);
-        alert('Failed to load list for editing. Please try again.');
+        showToast('Failed to load list', 'error');
+        
+        // Reset button state
+        const editButton = document.querySelector(`[data-list-id="${listId}"] .edit-btn`);
+        if (editButton) {
+            editButton.innerHTML = 'Edit';
+            editButton.disabled = false;
+        }
     }
 }
 
@@ -4904,18 +4982,72 @@ function loadCustomList(listId) {
     showScreen('custom-practice-screen');
 }
 
-function deleteCustomList(listId) {
-    // Confirmation before deletion
-    if (!confirm('Are you sure you want to delete this list?')) return;
+async function deleteCustomList(listId) {
+    if (!confirm('Are you sure you want to delete this list permanently?')) return;
 
-    // Immediately remove the list
-    customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
+    try {
+        // Show loading state
+        const deleteButton = document.querySelector(`[data-list-id="${listId}"] .delete-btn`);
+        if (deleteButton) {
+            deleteButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            deleteButton.disabled = true;
+        }
+
+        const { error } = await supabase
+            .from('custom_lists')
+            .delete()
+            .eq('id', listId);
+
+        if (error) throw error;
+
+        // Remove from local state
+        customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
+        
+        // Update UI
+        const listElement = document.querySelector(`[data-list-id="${listId}"]`);
+        if (listElement) {
+            listElement.style.animation = 'fadeOut 0.3s ease';
+            setTimeout(() => {
+                listElement.remove();
+                updateListsDisplay();
+            }, 300);
+        }
+
+        showToast('List deleted successfully', 'success');
+
+    } catch (error) {
+        console.error('Error deleting list:', error);
+        showToast('Failed to delete list', 'error');
+        
+        // Reset button state
+        const deleteButton = document.querySelector(`[data-list-id="${listId}"] .delete-btn`);
+        if (deleteButton) {
+            deleteButton.innerHTML = 'Delete';
+            deleteButton.disabled = false;
+        }
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+        <div class="toast-content">
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+            <span>${message}</span>
+        </div>
+    `;
     
-    // Save updated lists
-    saveCustomLists();
+    document.body.appendChild(toast);
     
-    // Refresh the lists view
-    showCustomListsManager();
+    // Trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    });
 }
 
 // Initialize custom lists on page load
