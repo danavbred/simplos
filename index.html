@@ -5196,17 +5196,22 @@ async function handleSignup() {
     }
 
     try {
+        console.log('Attempting signup with:', { email, role });
+
         const { data, error: signupError } = await supabase.auth.signUp({
             email,
             password,
             options: {
-                data: { role: role },
+                data: { 
+                    role: role,
+                    user_type: role  // Add this to match the profiles table
+                },
                 emailRedirectTo: window.location.origin
             }
         });
 
         if (signupError) {
-            console.error('Signup error:', signupError);
+            console.error('Signup Error:', signupError);
             alert(`Signup failed: ${signupError.message}`);
             return;
         }
@@ -5214,7 +5219,7 @@ async function handleSignup() {
         if (data.user) {
             console.log('User created:', data.user);
 
-            // Create profile
+            // Create profile with more robust error handling
             const { error: profileError } = await supabase
                 .from('profiles')
                 .insert({
@@ -5223,8 +5228,21 @@ async function handleSignup() {
                 });
 
             if (profileError) {
-                console.error('Profile creation error:', profileError);
+                console.error('Profile Creation Error:', profileError);
                 alert(`Profile creation failed: ${profileError.message}`);
+                return;
+            }
+
+            // Create initial user progress
+            const { error: progressError } = await supabase
+                .from('user_progress')
+                .insert({
+                    user_id: data.user.id
+                });
+
+            if (progressError) {
+                console.error('User Progress Creation Error:', progressError);
+                alert(`User progress setup failed: ${progressError.message}`);
                 return;
             }
 
@@ -5235,7 +5253,7 @@ async function handleSignup() {
             });
 
             if (loginError) {
-                console.error('Login error:', loginError);
+                console.error('Login Error:', loginError);
                 alert(`Login failed: ${loginError.message}`);
                 return;
             }
@@ -5245,7 +5263,7 @@ async function handleSignup() {
         }
 
     } catch (error) {
-        console.error('Unexpected signup error:', error);
+        console.error('Unexpected Signup Error:', error);
         alert('An unexpected error occurred during signup');
     }
 }
@@ -5399,38 +5417,32 @@ async function handleLogout() {
 }
 
 async function loadUserData(userId) {
+    console.log('Loading user data for:', userId);
+    
     try {
-        // Get the current session to access user email
         const { data: { session } } = await supabase.auth.getSession();
         
-        // Store the user's email in the global state or localStorage
         currentUser = {
             id: userId,
             email: session?.user?.email || 'Unknown'
         };
 
-        // Rest of the existing loadUserData logic...
+        console.log('Current User:', currentUser);
+
         const { data, error } = await supabase
             .from('user_progress')
             .select('*')
             .eq('user_id', userId)
             .single();
 
-        if (error) throw error;
-
-        if (data) {
-            // Update game state with user's progress
-            gameState.coins = data.game_state.coins;
-            gameState.unlockedSets = convertArraysToSets(data.game_state.unlockedSets);
-            gameState.unlockedLevels = convertArraysToSets(data.game_state.unlockedLevels);
-            gameState.perfectLevels = new Set(data.game_state.perfectLevels);
-            gameState.completedLevels = new Set(data.game_state.completedLevels);
-            gameState.perks = data.game_state.perks;
+        if (error) {
+            console.error('Error fetching user progress:', error);
+            throw error;
         }
 
-        // Update UI
-        updateAllCoinDisplays();
-        updatePerkCounts();
+        console.log('User Progress:', data);
+
+        updateWelcomeScreen();
 
     } catch (error) {
         console.error('Error loading user data:', error);
@@ -5467,15 +5479,21 @@ let currentUser = null;
 
 async function setupAuthListener() {
     supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN') {
-            currentUser = session.user;
+    console.log('Auth State Change:', { event, session });
+
+    if (event === 'SIGNED_IN') {
+        try {
             await loadUserData(session.user.id);
             showScreen('welcome-screen');
-        } else if (event === 'SIGNED_OUT') {
-            currentUser = null;
-            showScreen('auth-screen');
+        } catch (error) {
+            console.error('Error loading user data:', error);
+            alert('Error loading user data: ' + error.message);
         }
-    });
+    } else if (event === 'SIGNED_OUT') {
+        console.log('User signed out');
+        resetLogoutState();
+    }
+});
 }
 
 async function createTeacherList(name, description, words, translations) {
