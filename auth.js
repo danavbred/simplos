@@ -112,38 +112,57 @@ async function createUserProfile(userId, userType) {
 // Handle user logout
 export async function handleLogout() {
     try {
+        console.log('Attempting to log out');
         const { error } = await supabase.auth.signOut();
-        if (error) throw error;
+        
+        if (error) {
+            console.error('Logout error details:', error);
+            throw error;
+        }
 
-        currentUser = null;
+        console.log('Logout successful');
         
-        // Clear all game state
-        gameState.coins = 0;
-        gameState.unlockedSets = {};
-        gameState.unlockedLevels = {};
-        gameState.perfectLevels = new Set();
-        gameState.completedLevels = new Set();
-        gameState.perks = {
-            timeFreeze: 0,
-            skip: 0,
-            clue: 0,
-            reveal: 0
-        };
+        // Reset game state
+        if (window.gameState) {
+            window.gameState = initializeDefaultGameState();
+        }
         
-        // Notify listeners of logout
-        notifyAuthStateChange('SIGNED_OUT', null);
-        
-        // Force UI update
-        updateAllCoinDisplays();
-        showScreen('auth-screen');
+        // Show auth screen
+        if (typeof showScreen === 'function') {
+            showScreen('auth-screen');
+        } else {
+            console.error('showScreen function not found');
+        }
         
         return { success: true };
         
     } catch (error) {
-        console.error('Logout error:', error);
+        console.error('Comprehensive logout error:', {
+            message: error.message,
+            name: error.name,
+            stack: error.stack
+        });
+        
+        // Fallback UI update
+        document.getElementById('auth-screen').style.display = 'block';
+        
         return { success: false, error: error.message };
     }
 }
+
+window.handleLogout = async () => {
+    try {
+        const result = await handleLogout();
+        if (result.success) {
+            // Additional UI cleanup if needed
+            document.querySelector('.user-email-display')?.remove();
+        } else {
+            console.error('Logout failed', result.error);
+        }
+    } catch (error) {
+        console.error('Logout process error', error);
+    }
+};
 
 // Check current user session
 export async function checkUser() {
