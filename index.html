@@ -1938,7 +1938,7 @@ body {
     }
 }
 
-.user-info {
+.user-sign-in-marker {
     position: absolute;
     top: 1rem;
     left: 1rem;
@@ -1947,18 +1947,42 @@ body {
     border-radius: 25px;
     padding: 0.75rem 1rem;
     z-index: 10;
-}
-
-.user-info-container {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    color: var(--text);
 }
 
-.user-info-container i {
+.user-sign-in-marker .user-info-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.user-sign-in-marker .user-icon {
+    font-size: 2rem;
     color: var(--gold);
-    font-size: 1.5rem;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.user-sign-in-marker .user-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.user-sign-in-marker .user-email {
+    font-size: 0.9rem;
+    color: var(--text);
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-sign-in-marker .user-status {
+    font-size: 0.7rem;
+    color: var(--success);
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
     </style>
@@ -5133,7 +5157,7 @@ window.onload = async () => {
     updatePerkCounts();
     
     // Check for existing session
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     
     if (session) {
         // User is already logged in
@@ -5147,12 +5171,13 @@ window.onload = async () => {
 
     // Set up auth state listener
     supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('Auth state changed:', event);
         if (event === 'SIGNED_IN') {
             await loadUserData(session.user.id);
             showScreen('welcome-screen');
             updateWelcomeScreen(); // Update user info on sign in
         } else if (event === 'SIGNED_OUT') {
-            // Reset game state
+            currentUser = null;
             resetLogoutState();
         }
     });
@@ -5219,7 +5244,8 @@ async function handleSignup() {
     }
 
     try {
-        const { data, error: signupError } = await supabase.auth.signUp({
+        // First, sign up the user
+        const { data: { user }, error: signupError } = await supabase.auth.signUp({
             email,
             password,
             options: {
@@ -5230,45 +5256,47 @@ async function handleSignup() {
             }
         });
 
-        if (signupError) {
-            console.error('Signup Error:', signupError);
-            alert(`Signup failed: ${signupError.message}`);
-            return;
-        }
+        if (signupError) throw signupError;
 
-        if (data.user) {
-            // Create profile
+        if (user) {
+            // Create initial profile
             const { error: profileError } = await supabase
                 .from('profiles')
-                .upsert({
-                    id: data.user.id,
-                    user_type: role
+                .insert({
+                    id: user.id,
+                    user_type: role,
+                    username: email.split('@')[0],
+                    created_at: new Date(),
+                    updated_at: new Date()
                 });
 
-            if (profileError) {
-                console.error('Profile Creation Error:', profileError);
-                alert(`Profile creation failed: ${profileError.message}`);
-                return;
-            }
+            if (profileError) throw profileError;
 
-            // Attempt immediate login
+            // Create initial progress
+            const { error: progressError } = await supabase
+                .from('user_progress')
+                .insert({
+                    user_id: user.id,
+                    created_at: new Date(),
+                    updated_at: new Date()
+                });
+
+            if (progressError) throw progressError;
+
+            // Log them in immediately
             const { error: loginError } = await supabase.auth.signInWithPassword({
                 email,
                 password
             });
 
-            if (loginError) {
-                console.error('Login Error:', loginError);
-                alert(`Login failed: ${loginError.message}`);
-                return;
-            }
+            if (loginError) throw loginError;
 
-            // Success: navigate to welcome screen
+            // Navigate to welcome screen on success
             showScreen('welcome-screen');
         }
     } catch (error) {
-        console.error('Unexpected Signup Error:', error);
-        alert('An unexpected error occurred during signup');
+        console.error('Error in signup process:', error);
+        alert(error.message);
     }
 }
 
@@ -5421,36 +5449,36 @@ async function handleLogout() {
 }
 
 async function loadUserData(userId) {
-    console.log('Loading user data for:', userId);
-    
     try {
         const { data: { session } } = await supabase.auth.getSession();
         
-        currentUser = {
-            id: userId,
-            email: session?.user?.email || 'Unknown'
-        };
+        if (session) {
+            currentUser = {
+                id: userId,
+                email: session.user.email
+            };
 
-        console.log('Current User:', currentUser);
+            // Load user progress
+            const { data: progress, error: progressError } = await supabase
+                .from('user_progress')
+                .select('*')
+                .eq('user_id', userId)
+                .single();
 
-        const { data, error } = await supabase
-            .from('user_progress')
-            .select('*')
-            .eq('user_id', userId)
-            .single();
+            if (progressError && progressError.code !== 'PGRST116') {
+                console.error('Error loading progress:', progressError);
+            }
 
-        if (error) {
-            console.error('Error fetching user progress:', error);
-            throw error;
+            if (progress) {
+                // Update game state with loaded progress
+                Object.assign(gameState, progress.game_state);
+            }
+
+            updateWelcomeScreen();
+            updateAllCoinDisplays();
         }
-
-        console.log('User Progress:', data);
-
-        updateWelcomeScreen();
-
     } catch (error) {
-        console.error('Error loading user data:', error);
-        initializeGame();
+        console.error('Error in loadUserData:', error);
     }
 }
 
@@ -5617,26 +5645,51 @@ async function createUserProfile(userId, userType) {
 }
 
 function updateWelcomeScreen() {
+    console.log('Updating welcome screen');  // Debug log
     const welcomeScreen = document.getElementById('welcome-screen');
     
     // Remove any existing user info
-    const existingUserInfo = welcomeScreen.querySelector('.user-info');
+    const existingUserInfo = welcomeScreen.querySelector('.user-sign-in-marker');
     if (existingUserInfo) {
         existingUserInfo.remove();
     }
 
     // Create and add user info if logged in
     if (currentUser && currentUser.email) {
-        const userInfo = document.createElement('div');
-        userInfo.className = 'user-info';
-        userInfo.innerHTML = `
+        console.log('Current user found:', currentUser);  // Debug log
+        const userMarker = document.createElement('div');
+        userMarker.className = 'user-sign-in-marker';
+        userMarker.innerHTML = `
             <div class="user-info-container">
-                <i class="fas fa-user-circle"></i>
-                <span>${currentUser.email}</span>
+                <i class="fas fa-user-circle user-icon"></i>
+                <div class="user-details">
+                    <span class="user-email">${currentUser.email}</span>
+                    <span class="user-status">Signed In</span>
+                </div>
             </div>
         `;
         
-        welcomeScreen.insertBefore(userInfo, welcomeScreen.firstChild);
+        // Add basic styling to ensure visibility
+        userMarker.style.cssText = `
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border-radius: 25px;
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 10;
+            color: var(--text);
+        `;
+
+        welcomeScreen.appendChild(userMarker);
+        console.log('User marker added');  // Debug log
+    } else {
+        console.log('No current user found');  // Debug log
     }
 }
 
