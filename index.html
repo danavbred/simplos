@@ -4245,16 +4245,23 @@ function createWordTranslationItem(word = '', translation = '', isEditable = fal
 
 
 async function saveCustomList() {
+    console.log('Saving custom list...'); // Debug log
+    
     const session = await supabase.auth.getSession();
     if (!session.data.session) {
-        console.error('No active session');
+        alert('Please log in to save lists');
         return;
     }
 
     const userId = session.data.session.user.id;
     const listNameInput = document.getElementById('custom-list-name');
-    const name = listNameInput.value.trim() || `List ${Date.now()}`;
+    const name = listNameInput.value.trim();
     
+    if (!name) {
+        alert('Please enter a list name');
+        return;
+    }
+
     const wordItems = document.querySelectorAll('.word-translation-item');
     const words = [];
     const translations = [];
@@ -4268,25 +4275,35 @@ async function saveCustomList() {
         }
     });
 
+    if (words.length === 0) {
+        alert('Please add at least one word');
+        return;
+    }
+
     try {
+        console.log('Saving list with data:', { name, words, translations }); // Debug log
+
         const { data, error } = await supabase
             .from('custom_lists')
             .upsert({
                 id: customPracticeLists.currentList?.id || undefined,
-                created_by: userId,  // Matches SQL schema
+                created_by: userId,
                 name: name,
                 words: words,
-                translations: translations,
-                updated_at: new Date().toISOString()
+                translations: translations
             });
 
         if (error) throw error;
+
+        console.log('List saved successfully:', data); // Debug log
+        
         await loadCustomLists();
         showCustomListsManager();
+        alert('List saved successfully!');
 
     } catch (error) {
         console.error('Error saving list:', error);
-        alert('Failed to save list');
+        alert('Failed to save list: ' + error.message);
     }
 }
 
@@ -5323,20 +5340,12 @@ async function handleLogin() {
         });
         
         if (error) throw error;
-
-        // Store session
-        localStorage.setItem('simploxSession', JSON.stringify(data.session));
         
-        // Load user data before showing welcome screen
-        await loadUserData();
-
-        if (!error) {
-            await initializeGame(); // Load game state after login
-            await loadCustomLists(); // Load custom lists after login
-            showScreen('welcome-screen');
-        }
-
+        // Let the auth state listener handle the navigation
+        // Do not call showScreen here
+        
     } catch (error) {
+        console.error('Login error:', error);
         alert('Error logging in: ' + error.message);
     }
 }
@@ -5428,30 +5437,34 @@ async function handleLogout() {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
 
-        // Clear all state
-        gameState = { 
-            currentStage: null, 
-            currentSet: null, 
-            currentLevel: null, 
-            unlockedSets: {}, 
-            unlockedLevels: {}, 
-            levelScores: {}, 
-            completedLevels: new Set(), 
-            perfectLevels: new Set(), 
-            coins: 0, 
-            perks: { 
-                timeFreeze: 0, 
-                skip: 0, 
-                clue: 0, 
-                reveal: 0 
-            } 
-        };
+        // Reset gameState by modifying existing object properties
+        Object.keys(gameState).forEach(key => {
+            if (key === 'perks') {
+                gameState.perks = {
+                    timeFreeze: 0,
+                    skip: 0,
+                    clue: 0,
+                    reveal: 0
+                };
+            } else if (key === 'perfectLevels' || key === 'completedLevels') {
+                gameState[key] = new Set();
+            } else if (key === 'unlockedSets' || key === 'unlockedLevels') {
+                gameState[key] = {};
+            } else {
+                gameState[key] = null;
+            }
+        });
 
-        // Clear local state
+        // Reset to initial state
+        gameState.unlockedSets[1] = new Set([1]);
+        gameState.unlockedLevels['1_1'] = new Set([1]);
+        gameState.coins = 0;
+
+        // Clear custom lists state
         customPracticeLists.lists = [];
         customPracticeLists.currentList = null;
-        
-        // Other logout operations...
+
+        // Show auth screen
         showScreen('auth-screen');
 
     } catch (error) {
@@ -5640,21 +5653,23 @@ let currentUser = null;
 
 async function setupAuthListener() {
     supabase.auth.onAuthStateChange(async (event, session) => {
-    console.log('Auth State Change:', { event, session });
-
-    if (event === 'SIGNED_IN') {
-        try {
-            await loadUserData(session.user.id);
-            showScreen('welcome-screen');
-        } catch (error) {
-            console.error('Error loading user data:', error);
-            alert('Error loading user data: ' + error.message);
+        console.log('Auth state change:', event);
+        
+        if (event === 'SIGNED_IN') {
+            try {
+                await initializeGame(); // Load game state first
+                await loadCustomLists(); // Load custom lists
+                showScreen('welcome-screen');
+            } catch (error) {
+                console.error('Error during sign in:', error);
+            }
+        } else if (event === 'SIGNED_OUT') {
+            // Reset game state instead of reassigning gameState
+            Object.assign(gameState, initializeDefaultGameState());
+            customPracticeLists.lists = [];
+            showScreen('auth-screen');
         }
-    } else if (event === 'SIGNED_OUT') {
-        console.log('User signed out');
-        resetLogoutState();
-    }
-});
+    });
 }
 
 async function createTeacherList(name, description, words, translations) {
