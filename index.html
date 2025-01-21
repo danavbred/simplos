@@ -1986,21 +1986,19 @@ body {
 }
 
 .user-email-display {
-    color: var(--gold);
-    font-size: 1.2rem;
-    text-align: center;
-    margin-bottom: 1rem;
-    padding: 0.5rem;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    font-weight: 600;
+    position: fixed; /* Change from absolute to fixed for consistent positioning */
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%); /* Center horizontally */
     background: var(--glass);
     backdrop-filter: blur(10px);
     border-radius: 25px;
-    position: absolute;
-    top: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 10;
+    padding: 0.75rem 1.5rem;
+    font-size: 1.2rem;
+    color: var(--gold);
+    text-align: center;
+    z-index: 100; /* Ensure it stays above other elements */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
     </style>
@@ -2714,6 +2712,10 @@ function showScreen(screenId) {
             // Make sure login form is visible initially in auth screen
             document.getElementById('login-form').style.display = 'flex';
             document.getElementById('signup-form').style.display = 'none';
+        }
+
+        if (['welcome-screen', 'stage-screen', 'set-screen', 'level-screen'].includes(screenId)) {
+            loadUserData();
         }
         
         // Initialize particles for non-auth screens
@@ -5238,10 +5240,8 @@ async function handleLogin() {
         // Store session
         localStorage.setItem('simploxSession', JSON.stringify(data.session));
         
-        // Load user data
-        await loadUserData(data.user.id);
-        
-        // Redirect to welcome screen
+        // Load user data before showing welcome screen
+        await loadUserData();
         showScreen('welcome-screen');
 
     } catch (error) {
@@ -5481,32 +5481,38 @@ async function handleLogout() {
     }
 }
 
-async function loadUserData(userId) {
-    console.log('loadUserData called with userId:', userId);
+async function loadUserData() {
     try {
         const { data: { session } } = await supabase.auth.getSession();
-        console.log('Session data:', session);
         
-        if (session && session.user.email) {
-            console.log('User email found:', session.user.email);
-            const emailDisplay = document.querySelector('.user-email-display');
-            console.log('Email display element:', emailDisplay);
+        // Add email display to each relevant screen
+        const relevantScreens = ['welcome-screen', 'stage-screen', 'set-screen', 'level-screen'];
+        
+        relevantScreens.forEach(screenId => {
+            const screen = document.getElementById(screenId);
+            if (!screen) return;
             
-            if (emailDisplay) {
+            // Remove any existing email display
+            const existingDisplay = screen.querySelector('.user-email-display');
+            if (existingDisplay) {
+                existingDisplay.remove();
+            }
+            
+            // Only add new display if user is logged in
+            if (session?.user?.email) {
+                const emailDisplay = document.createElement('div');
+                emailDisplay.className = 'user-email-display';
                 emailDisplay.textContent = session.user.email;
-                console.log('Email display updated');
-            } else {
-                // If element doesn't exist, create it
-                const welcomeTitle = document.querySelector('.welcome-title');
+                
+                // Insert before welcome-title if it exists, otherwise at top of screen
+                const welcomeTitle = screen.querySelector('.welcome-title');
                 if (welcomeTitle) {
-                    const newEmailDisplay = document.createElement('div');
-                    newEmailDisplay.className = 'user-email-display';
-                    newEmailDisplay.textContent = session.user.email;
-                    welcomeTitle.parentNode.insertBefore(newEmailDisplay, welcomeTitle);
-                    console.log('Email display created and inserted');
+                    welcomeTitle.parentNode.insertBefore(emailDisplay, welcomeTitle);
+                } else {
+                    screen.insertBefore(emailDisplay, screen.firstChild);
                 }
             }
-        }
+        });
     } catch (error) {
         console.error('Error loading user data:', error);
     }
