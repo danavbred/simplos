@@ -5116,6 +5116,7 @@ window.onload = async () => {
         // User is already logged in
         await loadUserData(session.user.id);
         showScreen('welcome-screen');
+        updateWelcomeScreen(); // Ensure user info is displayed
     } else {
         // Show auth screen
         showScreen('auth-screen');
@@ -5126,10 +5127,10 @@ window.onload = async () => {
         if (event === 'SIGNED_IN') {
             await loadUserData(session.user.id);
             showScreen('welcome-screen');
+            updateWelcomeScreen(); // Update user info on sign in
         } else if (event === 'SIGNED_OUT') {
             // Reset game state
-            initializeGame();
-            showScreen('auth-screen');
+            resetLogoutState();
         }
     });
 };
@@ -5195,41 +5196,57 @@ async function handleSignup() {
     }
 
     try {
-        // Sign up with auto-confirm enabled
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error: signupError } = await supabase.auth.signUp({
             email,
             password,
             options: {
                 data: { role: role },
-                emailRedirectTo: window.location.origin,
-                // This will auto-confirm the user
-                emailConfirm: true
+                emailRedirectTo: window.location.origin
             }
         });
 
-        if (error) throw error;
+        if (signupError) {
+            console.error('Signup error:', signupError);
+            alert(`Signup failed: ${signupError.message}`);
+            return;
+        }
 
         if (data.user) {
-            await createUserProfile(data.user.id, role);
-            
-            // Proceed directly to login
+            console.log('User created:', data.user);
+
+            // Create profile
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .insert({
+                    id: data.user.id,
+                    user_type: role
+                });
+
+            if (profileError) {
+                console.error('Profile creation error:', profileError);
+                alert(`Profile creation failed: ${profileError.message}`);
+                return;
+            }
+
+            // Attempt immediate login
             const { error: loginError } = await supabase.auth.signInWithPassword({
                 email,
                 password
             });
 
-            if (loginError) throw loginError;
+            if (loginError) {
+                console.error('Login error:', loginError);
+                alert(`Login failed: ${loginError.message}`);
+                return;
+            }
 
-            // Initialize game data
-            await saveProgress();
-            
-            // Direct to game
+            // Success
             showScreen('welcome-screen');
         }
 
     } catch (error) {
-        console.error('Error signing up:', error);
-        alert('Signup error: ' + error.message);
+        console.error('Unexpected signup error:', error);
+        alert('An unexpected error occurred during signup');
     }
 }
 
@@ -5253,23 +5270,46 @@ async function checkAuth() {
 
 async function handleLogout() {
     try {
+        // First, check if there's an active session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+            // If no session, just reset and go to auth screen
+            resetLogoutState();
+            return;
+        }
+
+        // Proceed with logout
         const { error } = await supabase.auth.signOut();
-        if (error) throw error;
         
-        // Clear local storage
-        localStorage.removeItem('simploxSession');
-        localStorage.removeItem('simploxProgress');
-        
-        // Reset game state
-        initializeGame();
-        
-        // Return to auth screen
-        showScreen('auth-screen');
-        
+        if (error) {
+            console.error('Logout error:', error);
+            resetLogoutState();
+            return;
+        }
+
+        // Reset state after successful logout
+        resetLogoutState();
+
     } catch (error) {
-        console.error('Error logging out:', error);
-        alert('Error logging out: ' + error.message);
+        console.error('Unexpected logout error:', error);
+        resetLogoutState();
     }
+}
+
+function resetLogoutState() {
+    // Clear local storage
+    localStorage.removeItem('simploxSession');
+    localStorage.removeItem('simploxProgress');
+    
+    // Reset current user
+    currentUser = null;
+    
+    // Reset game state
+    initializeGame();
+    
+    // Return to auth screen
+    showScreen('auth-screen');
 }
 
 
@@ -5360,7 +5400,16 @@ async function handleLogout() {
 
 async function loadUserData(userId) {
     try {
-        // Fetch user's game progress
+        // Get the current session to access user email
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        // Store the user's email in the global state or localStorage
+        currentUser = {
+            id: userId,
+            email: session?.user?.email || 'Unknown'
+        };
+
+        // Rest of the existing loadUserData logic...
         const { data, error } = await supabase
             .from('user_progress')
             .select('*')
@@ -5385,7 +5434,6 @@ async function loadUserData(userId) {
 
     } catch (error) {
         console.error('Error loading user data:', error);
-        // If error loading data, initialize new game state
         initializeGame();
     }
 }
@@ -5545,6 +5593,37 @@ async function createUserProfile(userId, userType) {
         throw error;
     }
 }
+
+function updateWelcomeScreen() {
+    const welcomeScreen = document.getElementById('welcome-screen');
+    
+    // Remove any existing user info
+    const existingUserInfo = welcomeScreen.querySelector('.user-info');
+    if (existingUserInfo) {
+        existingUserInfo.remove();
+    }
+
+    // Create and add user info if logged in
+    if (currentUser && currentUser.email) {
+        const userInfoElement = document.createElement('div');
+        userInfoElement.className = 'user-info';
+        userInfoElement.style.cssText = `
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            color: var(--text);
+            background: var(--glass);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            font-size: 0.9rem;
+        `;
+        userInfoElement.textContent = `Logged in: ${currentUser.email}`;
+        
+        welcomeScreen.appendChild(userInfoElement);
+    }
+}
+
 
 </script>
 </body>
