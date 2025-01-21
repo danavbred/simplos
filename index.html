@@ -4997,8 +4997,6 @@ function initializeListDragging() {
     });
 }
 
-Untitled
-
 function getDragAfterList(container, y) {
     const draggableElements = [...container.querySelectorAll('.custom-list-item:not(.dragging)')];
     
@@ -5172,26 +5170,26 @@ function handleSkipAuth() {
 }
 
 window.onload = async () => {
-    console.log('Page loaded');
+    console.log('Page loaded'); // Debug log
     
     initializeGame();
     updatePerkCounts();
     
     // Check for existing session
     const { data: { session } } = await supabase.auth.getSession();
-    console.log('Initial session check:', session);
+    console.log('Initial session check:', session); // Debug log
     
     if (session) {
-        await loadUserData(session.user.id);
+        await loadUserData();
         showScreen('welcome-screen');
     } else {
         showScreen('auth-screen');
     }
 
     supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('Auth state changed:', event);
+        console.log('Auth state changed:', event); // Debug log
         if (event === 'SIGNED_IN') {
-            await loadUserData(session.user.id);
+            await loadUserData();
             showScreen('welcome-screen');
         } else if (event === 'SIGNED_OUT') {
             const emailDisplay = document.querySelector('.user-email-display');
@@ -5484,35 +5482,29 @@ async function handleLogout() {
 async function loadUserData() {
     try {
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('Session data:', session); // Debug log
         
-        // Add email display to each relevant screen
-        const relevantScreens = ['welcome-screen', 'stage-screen', 'set-screen', 'level-screen'];
-        
-        relevantScreens.forEach(screenId => {
-            const screen = document.getElementById(screenId);
-            if (!screen) return;
+        if (session && session.user.email) {
+            console.log('User email found:', session.user.email); // Debug log
+            const emailDisplays = document.querySelectorAll('.user-email-display');
+            emailDisplays.forEach(display => display.remove()); // Clear existing displays
             
-            // Remove any existing email display
-            const existingDisplay = screen.querySelector('.user-email-display');
-            if (existingDisplay) {
-                existingDisplay.remove();
-            }
+            const emailDisplay = document.createElement('div');
+            emailDisplay.className = 'user-email-display';
+            emailDisplay.textContent = session.user.email;
             
-            // Only add new display if user is logged in
-            if (session?.user?.email) {
-                const emailDisplay = document.createElement('div');
-                emailDisplay.className = 'user-email-display';
-                emailDisplay.textContent = session.user.email;
-                
-                // Insert before welcome-title if it exists, otherwise at top of screen
-                const welcomeTitle = screen.querySelector('.welcome-title');
+            // Add to welcome screen
+            const welcomeScreen = document.getElementById('welcome-screen');
+            if (welcomeScreen) {
+                const welcomeTitle = welcomeScreen.querySelector('.welcome-title');
                 if (welcomeTitle) {
                     welcomeTitle.parentNode.insertBefore(emailDisplay, welcomeTitle);
-                } else {
-                    screen.insertBefore(emailDisplay, screen.firstChild);
+                    console.log('Email display added to welcome screen'); // Debug log
                 }
             }
-        });
+        } else {
+            console.log('No user email found in session'); // Debug log
+        }
     } catch (error) {
         console.error('Error loading user data:', error);
     }
