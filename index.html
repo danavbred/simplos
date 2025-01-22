@@ -2536,13 +2536,13 @@ async function handleSignup() {
         return;
     }
 
+    // Check for existing username in metadata
     const { data: existingUsers, error: checkError } = await supabaseClient
-        .from('auth.users')
-        .select('username')
-        .eq('username', username)
-        .single();
+        .from('users')
+        .select('raw_user_meta_data')
+        .contains({ username: username });
 
-    if (existingUsers) {
+    if (existingUsers?.length > 0) {
         alert('Username already taken');
         return;
     }
@@ -2552,7 +2552,8 @@ async function handleSignup() {
         password,
         options: {
             data: {
-                username: username
+                username: username,
+                display_name: username // This will show in the Users list
             }
         }
     });
