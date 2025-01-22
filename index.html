@@ -3955,25 +3955,26 @@ function startCustomListPractice(listId) {
     if (!list) return;
 
     currentGame = {
-        words: list.words,
-        translations: list.translations,
+        words: Array.isArray(list.words) ? list.words : [],
+        translations: Array.isArray(list.translations) ? list.translations : [],
         currentIndex: 0,
         correctAnswers: 0,
         firstAttempt: true,
         isCustomPractice: true,
         startingCoins: gameState.coins,
-        startingPerks: { ...gameState.perks }
+        startingPerks: { ...gameState.perks },
+        practiceState: {
+            currentLevel: 1,
+            words: Array.isArray(list.words) ? list.words : [],
+            translations: Array.isArray(list.translations) ? list.translations : [],
+            unlockedLevels: new Set([1]),
+            progress: {},
+            maxLevel: 10,
+            listId: listId
+        }
     };
 
-    startCustomLevel(1, {
-        currentLevel: 1,
-        words: list.words,
-        translations: list.translations,
-        unlockedLevels: new Set([1]),
-        progress: {},
-        maxLevel: 10,
-        listId: listId  // Store the list ID for reference
-    });
+    startCustomLevel(1, currentGame.practiceState);
 }
 
 function handleLevelCompletion() {
@@ -5049,7 +5050,7 @@ function showCustomListsManager() {
         const listItem = document.createElement('div');
         listItem.className = 'custom-list-item collapsed';
         listItem.innerHTML = `
-            <div class="list-header" onclick="toggleListCollapse(${list.id})">
+            <div class="list-header" onclick="toggleListCollapse('${list.id}')">
                 <h3>${list.name}</h3>
                 <div class="list-summary">
                     <span>${list.words.length} words</span>
@@ -5060,13 +5061,13 @@ function showCustomListsManager() {
                 <div class="word-translation-list" id="list-${list.id}"></div>
             </div>
             <div class="list-actions">
-                <button onclick="startCustomListPractice(${list.id})" class="start-button">Practice</button>
-                <button onclick="toggleEditMode(${list.id})" class="edit-button" data-list-id="${list.id}">Edit</button>
-                <button onclick="addWordToList(${list.id})" class="add-word-button">
+                <button onclick="startCustomListPractice('${list.id}')" class="start-button">Practice</button>
+                <button onclick="toggleEditMode('${list.id}')" class="edit-button" data-list-id="${list.id}">Edit</button>
+                <button onclick="addWordToList('${list.id}')" class="add-word-button">
                     <i class="fas fa-plus"></i>
                     Add Word
                 </button>
-                <button onclick="deleteCustomList(${list.id})" class="start-button">Delete</button>
+                <button onclick="deleteCustomList('${list.id}')" class="start-button">Delete</button>
             </div>
         `;
         container.appendChild(listItem);
@@ -5090,6 +5091,8 @@ function toggleEditMode(listId) {
     const editButton = listItem.querySelector('.edit-button');
     const wordList = document.getElementById(`list-${listId}`);
     
+    if (!listItem || !editButton || !wordList) return;
+    
     if (editButton.textContent === 'Edit') {
         // Enter edit mode
         editButton.textContent = 'Save';
@@ -5098,9 +5101,14 @@ function toggleEditMode(listId) {
         
         // Load editable word list
         const list = customPracticeLists.lists.find(l => l.id === listId);
+        if (!list) return;
+        
         wordList.innerHTML = '';
         
-        list.words.forEach((word, index) => {
+        const words = Array.isArray(list.words) ? list.words : [];
+        const translations = Array.isArray(list.translations) ? list.translations : [];
+        
+        words.forEach((word, index) => {
             const wordItem = document.createElement('div');
             wordItem.className = 'word-translation-item';
             wordItem.draggable = true;
@@ -5110,7 +5118,7 @@ function toggleEditMode(listId) {
                     <i class="fas fa-grip-vertical"></i>
                 </div>
                 <span class="source-word" contenteditable="true">${word}</span>
-                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
+                <input type="text" class="target-word" value="${translations[index] || ''}" placeholder="Hebrew translation">
                 <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
             `;
             
@@ -5121,7 +5129,6 @@ function toggleEditMode(listId) {
         makeWordListDraggable(listId);
     } else {
         // Save changes
-        listItem.removeAttribute('data-in-edit-mode');
         saveListChanges(listId, wordList, listItem);
     }
 }
@@ -5204,15 +5211,14 @@ async function deleteCustomList(listId) {
             console.error('Error deleting list:', error);
             return;
         }
-    } else {
-        // For guest users, delete from localStorage
-        const existingLists = JSON.parse(localStorage.getItem('simploxCustomLists') || '[]');
-        const updatedLists = existingLists.filter(list => list.id !== listId);
-        localStorage.setItem('simploxCustomLists', JSON.stringify(updatedLists));
-    }
 
-    await loadCustomLists();
-    showCustomListsManager();
+        // Remove from local array
+        customPracticeLists.lists = customPracticeLists.lists.filter(list => list.id !== listId);
+        
+        // Update UI
+        await loadCustomLists();
+        showCustomListsManager();
+    }
 }
 
 function addWordToList(listId) {
