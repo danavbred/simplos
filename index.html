@@ -5049,8 +5049,10 @@ function showCustomListsManager() {
     customPracticeLists.lists.forEach(list => {
         const listItem = document.createElement('div');
         listItem.className = 'custom-list-item collapsed';
+        
+        // Create the elements separately to avoid string interpolation issues
         listItem.innerHTML = `
-            <div class="list-header" onclick="toggleListCollapse('${list.id}')">
+            <div class="list-header">
                 <h3>${list.name}</h3>
                 <div class="list-summary">
                     <span>${list.words.length} words</span>
@@ -5061,15 +5063,32 @@ function showCustomListsManager() {
                 <div class="word-translation-list" id="list-${list.id}"></div>
             </div>
             <div class="list-actions">
-                <button onclick="startCustomListPractice('${list.id}')" class="start-button">Practice</button>
-                <button onclick="toggleEditMode('${list.id}')" class="edit-button" data-list-id="${list.id}">Edit</button>
-                <button onclick="addWordToList('${list.id}')" class="add-word-button">
+                <button class="start-button practice-button">Practice</button>
+                <button class="edit-button" data-list-id="${list.id}">Edit</button>
+                <button class="add-word-button">
                     <i class="fas fa-plus"></i>
                     Add Word
                 </button>
-                <button onclick="deleteCustomList('${list.id}')" class="start-button">Delete</button>
+                <button class="start-button delete-button">Delete</button>
             </div>
         `;
+
+        // Add event listeners after creating the elements
+        const header = listItem.querySelector('.list-header');
+        header.addEventListener('click', () => toggleListCollapse(list.id));
+
+        const practiceButton = listItem.querySelector('.practice-button');
+        practiceButton.addEventListener('click', () => startCustomListPractice(list.id));
+
+        const editButton = listItem.querySelector('.edit-button');
+        editButton.addEventListener('click', () => toggleEditMode(list.id));
+
+        const addWordButton = listItem.querySelector('.add-word-button');
+        addWordButton.addEventListener('click', () => addWordToList(list.id));
+
+        const deleteButton = listItem.querySelector('.delete-button');
+        deleteButton.addEventListener('click', () => deleteCustomList(list.id));
+
         container.appendChild(listItem);
     });
 }
