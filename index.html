@@ -2541,42 +2541,6 @@ async function handleSignup() {
     updateAuthUI();
 }
 
-async function initializeGameProgressForUser(userId) {
-    // Check if game progress already exists
-    const { data, error: fetchError } = await supabaseClient
-        .from('game_progress')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-    if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Error checking game progress:', fetchError);
-        return;
-    }
-
-    // If no existing progress, create initial game progress
-    if (!data) {
-        const { error } = await supabaseClient
-            .from('game_progress')
-            .insert({
-                user_id: userId,
-                stage: 1,
-                set_number: 1,
-                level: 1,
-                coins: 0,
-                perks: {},
-                unlocked_sets: { "1": [1] },
-                unlocked_levels: { "1_1": [1] },
-                perfect_levels: [],
-                completed_levels: []
-            });
-
-        if (error) {
-            console.error('Error initializing game progress:', error);
-        }
-    }
-}
-
 async function handleLogin() {
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
@@ -2665,70 +2629,136 @@ async function loadUserGameProgress(userId) {
 async function saveProgress() {
     if (!currentUser) return;
 
-    const progressToSave = {
-        user_id: currentUser.id, // Explicitly set user_id
-        stage: gameState.currentStage,
-        set_number: gameState.currentSet,
-        level: gameState.currentLevel,
-        coins: gameState.coins,
-        perks: gameState.perks,
-        unlocked_sets: Object.fromEntries(
-            Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
-        ),
-        unlocked_levels: Object.fromEntries(
-            Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
-        ),
-        perfect_levels: Array.from(gameState.perfectLevels),
-        completed_levels: Array.from(gameState.completedLevels)
-    };
+    try {
+        const progressToSave = {
+            user_id: currentUser.id,
+            stage: gameState.currentStage,
+            set_number: gameState.currentSet,
+            level: gameState.currentLevel,
+            coins: gameState.coins,
+            perks: gameState.perks,
+            unlocked_sets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlocked_levels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfect_levels: Array.from(gameState.perfectLevels),
+            completed_levels: Array.from(gameState.completedLevels)
+        };
 
-    const { error } = await supabaseClient
-        .from('game_progress')
-        .upsert(progressToSave, {
-            onConflict: 'user_id' // Ensure we update the correct user's record
-        });
+        const { data, error } = await supabaseClient
+            .from('game_progress')
+            .upsert(progressToSave, {
+                onConflict: 'user_id'
+            })
+            .select();
 
-    if (error) {
-        console.error('Error saving game progress:', error);
+        if (error) {
+            throw new Error(`Failed to save game progress: ${error.message}`);
+        }
+
+        console.log('Game progress saved successfully');
+    } catch (error) {
+        console.error('Error in saveProgress:', error);
+        
+        // Optional: Show user-friendly error notification
+        alert('Unable to save your game progress. Please check your internet connection.');
     }
 }
 
 async function loadUserGameProgress(userId) {
-    const { data, error } = await supabaseClient
-        .from('game_progress')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+    try {
+        const { data, error } = await supabaseClient
+            .from('game_progress')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
 
-    if (error) {
-        console.error('Error loading game progress:', error);
-        // Initialize default progress for new users
+        if (error) {
+            if (error.code === 'PGRST116') {
+                // No existing progress, initialize new progress
+                await initializeGameProgressForUser(userId);
+                return;
+            }
+            throw new Error(`Failed to load game progress: ${error.message}`);
+        }
+
+        // Reset local state before loading
+        gameState.currentStage = data.stage || 1;
+        gameState.currentSet = data.set_number || 1;
+        gameState.coins = data.coins || 0;
+        gameState.perks = data.perks || {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        };
+        
+        gameState.unlockedSets = Object.fromEntries(
+            Object.entries(data.unlocked_sets || { 1: [1] }).map(([k, v]) => [k, new Set(v)])
+        );
+        gameState.unlockedLevels = Object.fromEntries(
+            Object.entries(data.unlocked_levels || { '1_1': [1] }).map(([k, v]) => [k, new Set(v)])
+        );
+        gameState.perfectLevels = new Set(data.perfect_levels || []);
+        gameState.completedLevels = new Set(data.completed_levels || []);
+
+        updateAllCoinDisplays();
+    } catch (error) {
+        console.error('Error in loadUserGameProgress:', error);
+        
+        // Optional: Show user-friendly error notification
+        alert('Unable to load your game progress. Please try again later.');
+        
+        // Fallback to default initialization
         await initializeGameProgressForUser(userId);
-        return;
     }
+}
 
-    // Synchronize Supabase progress with local gameState
-    gameState.currentStage = data.stage;
-    gameState.currentSet = data.set_number;
-    gameState.coins = data.coins;
-    gameState.perks = data.perks || {
-        timeFreeze: 0,
-        skip: 0,
-        clue: 0,
-        reveal: 0
-    };
-    
-    // Convert jsonb to Sets and proper data structures
-    gameState.unlockedSets = Object.fromEntries(
-        Object.entries(data.unlocked_sets || {}).map(([k, v]) => [k, new Set(v)])
-    );
-    gameState.unlockedLevels = Object.fromEntries(
-        Object.entries(data.unlocked_levels || {}).map(([k, v]) => [k, new Set(v)])
-    );
-    gameState.perfectLevels = new Set(data.perfect_levels || []);
-    gameState.completedLevels = new Set(data.completed_levels || []);
+async function initializeGameProgressForUser(userId) {
+    try {
+        const { error } = await supabaseClient
+            .from('game_progress')
+            .upsert({
+                user_id: userId,
+                stage: 1,
+                set_number: 1,
+                level: 1,
+                coins: 0,
+                perks: {},
+                unlocked_sets: { "1": [1] },
+                unlocked_levels: { "1_1": [1] },
+                perfect_levels: [],
+                completed_levels: []
+            }, {
+                onConflict: 'user_id'
+            });
 
-    updateAllCoinDisplays();
+        if (error) {
+            throw new Error(`Failed to initialize game progress: ${error.message}`);
+        }
+
+        // Set default local state
+        gameState.currentStage = 1;
+        gameState.currentSet = 1;
+        gameState.coins = 0;
+        gameState.perks = {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        };
+        gameState.unlockedSets = { 1: new Set([1]) };
+        gameState.unlockedLevels = { '1_1': new Set([1]) };
+        gameState.perfectLevels = new Set();
+        gameState.completedLevels = new Set();
+
+        updateAllCoinDisplays();
+    } catch (error) {
+        console.error('Error in initializeGameProgressForUser:', error);
+        alert('Unable to initialize your game progress. Please try again.');
+    }
 }
 
 async function saveCustomLists() {
