@@ -2527,7 +2527,69 @@ const supabaseClient = createClient(
 // Modify the existing authentication functions
 
 async function handleSignup() {
+    const email = document.getElementById('signupEmail').value;
+    const username = document.getElementById('signupUsername').value;
+    const password = document.getElementById('signupPassword').value;
 
+    if (!username) {
+        alert('Username is required');
+        return;
+    }
+
+    // Check for existing username in metadata
+    const { data: existingUsers, error: checkError } = await supabaseClient
+        .from('users')
+        .select('raw_user_meta_data')
+        .contains({ username: username });
+
+    if (existingUsers?.length > 0) {
+        alert('Username already taken');
+        return;
+    }
+
+    const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+            data: {
+                username: username,
+                display_name: username
+            }
+        }
+    });
+
+    if (error) {
+        console.error('Error signing up:', error.message);
+        return;
+    }
+
+    // Initialize game progress for new user
+    await initializeGameProgressForUser(data.user.id);
+    
+    // Update current user state
+    currentUser = data.user;
+    
+    // Load user data
+    await loadCustomLists();
+    await loadUserGameProgress(currentUser.id);
+    
+    // Update UI to show logged-in state
+    const authBox = document.getElementById('authBox');
+    const userInfo = document.getElementById('userInfo');
+    const userEmailElement = document.getElementById('userEmail');
+    
+    authBox.classList.add('hidden');
+    userInfo.classList.remove('hidden');
+    userEmailElement.textContent = email;
+    
+    // Clear signup form
+    document.getElementById('signupEmail').value = '';
+    document.getElementById('signupUsername').value = '';
+    document.getElementById('signupPassword').value = '';
+    
+    // Save progress
+    saveProgress();
+}
 
 async function handleLogin() {
     const email = document.getElementById('loginEmail').value;
