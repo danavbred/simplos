@@ -2775,29 +2775,27 @@ function saveCustomList() {
     showCustomListsManager();
 }
 
-function loadCustomLists() {
+async function loadCustomLists() {
     if (currentUser) {
-        // Load from Supabase
-        supabaseClient
+        const { data, error } = await supabaseClient
             .from('custom_lists')
             .select('*')
             .eq('user_id', currentUser.id)
-            .then(({ data, error }) => {
-                if (error) {
-                    console.error('Error loading custom lists:', error);
-                    return;
-                }
-                customPracticeLists.lists = data || [];
-                updateListsDisplay();
-            });
-    } else {
-        // Load from localStorage
-        const savedLists = localStorage.getItem('simploxCustomLists');
-        if (savedLists) {
-            customPracticeLists.lists = JSON.parse(savedLists);
-            updateListsDisplay();
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error('Error loading lists:', error);
+            return;
         }
+
+        customPracticeLists.lists = data || [];
+    } else {
+        // Guest user - use localStorage
+        const savedLists = localStorage.getItem('simploxCustomLists');
+        customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
     }
+    
+    updateListsDisplay();
 }
 
 function switchAuthTab(tab) {
@@ -4771,14 +4769,86 @@ async function saveCustomListToSupabase(list) {
     }
 }
 
-function saveCustomLists() {
+async function saveCustomList() {
+    const listNameInput = document.getElementById('custom-list-name');
+    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+    
+    const wordItems = document.querySelectorAll('.word-translation-item');
+    const words = [];
+    const translations = [];
+    
+    wordItems.forEach(item => {
+        const englishWord = item.querySelector('.source-word').textContent.trim();
+        const hebrewTranslation = item.querySelector('.target-word').value.trim();
+        
+        if (englishWord && hebrewTranslation) {
+            words.push(englishWord);
+            translations.push(hebrewTranslation);
+        }
+    });
+
     if (currentUser) {
-        // Already handled by the Supabase functions
-        return;
+        // Save to Supabase for logged-in users
+        if (customPracticeLists.currentList) {
+            // Update existing list
+            const { error } = await supabaseClient
+                .from('custom_lists')
+                .update({
+                    name: name,
+                    words: words,
+                    translations: translations
+                })
+                .eq('id', customPracticeLists.currentList.id)
+                .eq('user_id', currentUser.id);
+
+            if (error) {
+                console.error('Error updating list:', error);
+                return;
+            }
+        } else {
+            // Insert new list
+            const { data, error } = await supabaseClient
+                .from('custom_lists')
+                .insert({
+                    user_id: currentUser.id,
+                    name: name,
+                    words: words,
+                    translations: translations
+                })
+                .select();
+
+            if (error) {
+                console.error('Error creating list:', error);
+                return;
+            }
+        }
+
+        // Reload lists from server
+        await loadCustomLists();
     } else {
-        // For guest users, save to localStorage
+        // Guest user - use localStorage
+        const newList = {
+            id: customPracticeLists.currentList?.id || Date.now().toString(),
+            name: name,
+            words: words,
+            translations: translations
+        };
+
+        if (customPracticeLists.currentList) {
+            const index = customPracticeLists.lists.findIndex(l => l.id === customPracticeLists.currentList.id);
+            if (index !== -1) {
+                customPracticeLists.lists[index] = newList;
+            }
+        } else {
+            customPracticeLists.lists.push(newList);
+        }
+        
         localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
     }
+
+    // Reset current list and show manager
+    customPracticeLists.currentList = null;
+    showCustomListsManager();
 }
 
 function processCustomWords() {
@@ -5111,7 +5181,7 @@ function toggleEditMode(listId) {
 function editCustomList(listId) {
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
-    
+
     // Switch to custom practice screen
     showScreen('custom-practice-screen');
     
@@ -5147,7 +5217,7 @@ function editCustomList(listId) {
     translationResults.style.display = 'block';
     customPracticeLists.currentList = list;
     
-    // Initialize drag functionality after adding all items
+    // Initialize drag functionality
     makeWordListDraggable();
 }
 
@@ -5172,27 +5242,29 @@ function loadCustomList(listId) {
     showScreen('custom-practice-screen');
 }
 
-function deleteCustomList(listId) {
+async function deleteCustomList(listId) {
     if (!confirm('Are you sure you want to delete this list?')) return;
 
-    customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
-
     if (currentUser) {
-        // Delete from Supabase
-        supabaseClient
+        const { error } = await supabaseClient
             .from('custom_lists')
             .delete()
             .eq('id', listId)
-            .eq('user_id', currentUser.id)
-            .then(({ error }) => {
-                if (error) console.error('Error deleting list:', error);
-            });
-    } else {
-        // Update localStorage
-        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    }
+            .eq('user_id', currentUser.id);
 
-    showCustomListsManager();
+        if (error) {
+            console.error('Error deleting list:', error);
+            return;
+        }
+
+        // Reload lists from server
+        await loadCustomLists();
+    } else {
+        // Guest user - use localStorage
+        customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
+        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+        updateListsDisplay();
+    }
 }
 
 function addWordToList(listId) {
