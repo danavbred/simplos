@@ -2724,60 +2724,81 @@ function saveProgress() {
     }
 }
 
-Copyasync function saveCustomList(list) {
-    if (currentUser) {
-        // Save to Supabase for logged-in users
-        const { error } = await supabaseClient
-            .from('custom_lists')
-            .upsert({
-                user_id: currentUser.id,
-                id: list.id || Date.now(), // Ensure we have an ID
-                name: list.name,
-                words: list.words,
-                translations: list.translations
-            });
-
-        if (error) {
-            console.error('Error saving custom list:', error);
-        }
-    } else {
-        // For guest users, save to localStorage
-        const existingLists = JSON.parse(localStorage.getItem('simploxCustomLists') || '[]');
-        const listIndex = existingLists.findIndex(l => l.id === list.id);
+function saveCustomList() {
+    const listNameInput = document.getElementById('custom-list-name');
+    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+    
+    const wordItems = document.querySelectorAll('.word-translation-item');
+    const words = [];
+    const translations = [];
+    
+    wordItems.forEach(item => {
+        const englishWord = item.querySelector('.source-word').textContent.trim();
+        const hebrewTranslation = item.querySelector('.target-word').value.trim();
         
-        if (listIndex !== -1) {
-            existingLists[listIndex] = list;
+        if (englishWord && hebrewTranslation) {
+            words.push(englishWord);
+            translations.push(hebrewTranslation);
+        }
+    });
+
+    const newList = {
+        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
+        name: name,
+        words: words,
+        translations: translations
+    };
+
+    // If we're editing an existing list, replace it
+    if (customPracticeLists.currentList) {
+        const index = customPracticeLists.lists.findIndex(l => l.id === customPracticeLists.currentList.id);
+        if (index !== -1) {
+            customPracticeLists.lists[index] = newList;
         } else {
-            list.id = Date.now(); // Ensure new lists have an ID
-            existingLists.push(list);
+            customPracticeLists.lists.push(newList);
         }
-        
-        localStorage.setItem('simploxCustomLists', JSON.stringify(existingLists));
-    }
-}
-
-async function loadCustomLists() {
-    if (currentUser) {
-        const { data, error } = await supabaseClient
-            .from('custom_lists')
-            .select('*')
-            .eq('user_id', currentUser.id);
-
-        if (error) {
-            console.error('Error loading custom lists:', error);
-            return;
-        }
-
-        customPracticeLists.lists = data || [];
     } else {
-        // For guest users, load from localStorage
-        const savedLists = localStorage.getItem('simploxCustomLists');
-        customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
+        customPracticeLists.lists.push(newList);
     }
     
-    updateListsDisplay();
+    // Reset current list
+    customPracticeLists.currentList = null;
+    
+    // Save and show lists
+    if (currentUser) {
+        // Save to Supabase
+        saveCustomListToSupabase(newList);
+    } else {
+        // Save to localStorage
+        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+    }
+    showCustomListsManager();
 }
 
+function loadCustomLists() {
+    if (currentUser) {
+        // Load from Supabase
+        supabaseClient
+            .from('custom_lists')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .then(({ data, error }) => {
+                if (error) {
+                    console.error('Error loading custom lists:', error);
+                    return;
+                }
+                customPracticeLists.lists = data || [];
+                updateListsDisplay();
+            });
+    } else {
+        // Load from localStorage
+        const savedLists = localStorage.getItem('simploxCustomLists');
+        if (savedLists) {
+            customPracticeLists.lists = JSON.parse(savedLists);
+            updateListsDisplay();
+        }
+    }
+}
 
 function switchAuthTab(tab) {
     const loginTab = document.querySelector('.auth-tab[onclick="switchAuthTab(\'login\')"]');
@@ -4732,6 +4753,23 @@ function createWordTranslationItem(word = '', translation = '', isEditable = fal
     wordList.appendChild(wordItem);
 }
 
+async function saveCustomListToSupabase(list) {
+    if (!currentUser) return;
+
+    const { error } = await supabaseClient
+        .from('custom_lists')
+        .upsert({
+            user_id: currentUser.id,
+            id: list.id,
+            name: list.name,
+            words: list.words,
+            translations: list.translations
+        });
+
+    if (error) {
+        console.error('Error saving custom list:', error);
+    }
+}
 
 function saveCustomLists() {
     if (currentUser) {
@@ -5134,28 +5172,26 @@ function loadCustomList(listId) {
     showScreen('custom-practice-screen');
 }
 
-async function deleteCustomList(listId) {
+function deleteCustomList(listId) {
     if (!confirm('Are you sure you want to delete this list?')) return;
 
+    customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
+
     if (currentUser) {
-        const { error } = await supabaseClient
+        // Delete from Supabase
+        supabaseClient
             .from('custom_lists')
             .delete()
             .eq('id', listId)
-            .eq('user_id', currentUser.id);
-
-        if (error) {
-            console.error('Error deleting list:', error);
-            return;
-        }
+            .eq('user_id', currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error('Error deleting list:', error);
+            });
     } else {
-        // For guest users, delete from localStorage
-        const existingLists = JSON.parse(localStorage.getItem('simploxCustomLists') || '[]');
-        const updatedLists = existingLists.filter(list => list.id !== listId);
-        localStorage.setItem('simploxCustomLists', JSON.stringify(updatedLists));
+        // Update localStorage
+        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
     }
 
-    await loadCustomLists(); // Reload lists after deletion
     showCustomListsManager();
 }
 
