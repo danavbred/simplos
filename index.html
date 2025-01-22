@@ -2553,7 +2553,7 @@ async function handleSignup() {
         options: {
             data: {
                 username: username,
-                display_name: username // This will show in the Users list
+                display_name: username
             }
         }
     });
@@ -2563,10 +2563,32 @@ async function handleSignup() {
         return;
     }
 
+    // Initialize game progress for new user
     await initializeGameProgressForUser(data.user.id);
+    
+    // Update current user state
     currentUser = data.user;
+    
+    // Load user data
     await loadCustomLists();
-    updateAuthUI();
+    await loadUserGameProgress(currentUser.id);
+    
+    // Update UI to show logged-in state
+    const authBox = document.getElementById('authBox');
+    const userInfo = document.getElementById('userInfo');
+    const userEmailElement = document.getElementById('userEmail');
+    
+    authBox.classList.add('hidden');
+    userInfo.classList.remove('hidden');
+    userEmailElement.textContent = email;
+    
+    // Clear signup form
+    document.getElementById('signupEmail').value = '';
+    document.getElementById('signupUsername').value = '';
+    document.getElementById('signupPassword').value = '';
+    
+    // Save progress
+    saveProgress();
 }
 
 async function handleLogin() {
