@@ -5087,6 +5087,52 @@ function getDragAfterElement(container, y) {
     }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
+function switchAuthTab(tab) {
+    const loginTab = document.querySelector('.auth-tab[onclick="switchAuthTab(\'login\')"]');
+    const signupTab = document.querySelector('.auth-tab[onclick="switchAuthTab(\'signup\')"]');
+    const loginForm = document.getElementById('loginForm');
+    const signupForm = document.getElementById('signupForm');
+
+    if (tab === 'login') {
+        loginTab.classList.add('active');
+        signupTab.classList.remove('active');
+        loginForm.classList.remove('hidden');
+        signupForm.classList.add('hidden');
+    } else {
+        loginTab.classList.remove('active');
+        signupTab.classList.add('active');
+        loginForm.classList.add('hidden');
+        signupForm.classList.remove('hidden');
+    }
+}
+
+function updateAuthUI() {
+    const authBox = document.getElementById('authBox');
+    const userInfo = document.getElementById('userInfo');
+    const userEmailElement = document.getElementById('userEmail');
+
+    if (currentUser) {
+        // User is logged in
+        authBox.classList.add('hidden');
+        userInfo.classList.remove('hidden');
+        userEmailElement.textContent = currentUser.email;
+    } else {
+        // User is logged out
+        authBox.classList.remove('hidden');
+        userInfo.classList.add('hidden');
+        userEmailElement.textContent = '';
+    }
+}
+
+async function checkExistingSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (session) {
+        currentUser = session.user;
+        await loadUserGameProgress(currentUser.id);
+        updateAuthUI();
+    }
+}
 
 function toggleEditMode(listId) {
     const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
