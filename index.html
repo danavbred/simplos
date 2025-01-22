@@ -2536,18 +2536,8 @@ async function handleSignup() {
         return;
     }
 
-    // Check for existing username in metadata
-    const { data: existingUsers, error: checkError } = await supabaseClient
-        .from('users')
-        .select('raw_user_meta_data')
-        .contains({ username: username });
-
-    if (existingUsers?.length > 0) {
-        alert('Username already taken');
-        return;
-    }
-
-    const { data, error } = await supabaseClient.auth.signUp({
+    // First signup
+    const { error: signupError } = await supabaseClient.auth.signUp({
         email,
         password,
         options: {
@@ -2558,37 +2548,30 @@ async function handleSignup() {
         }
     });
 
-    if (error) {
-        console.error('Error signing up:', error.message);
+    if (signupError) {
+        console.error('Error signing up:', signupError.message);
         return;
     }
 
-    // Initialize game progress for new user
-    await initializeGameProgressForUser(data.user.id);
-    
-    // Update current user state
+    // Then immediately login
+    const { data, error: loginError } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password
+    });
+
+    if (loginError) {
+        console.error('Error logging in:', loginError.message);
+        return;
+    }
+
     currentUser = data.user;
+    clearCustomPracticeUI();
     
-    // Load user data
+    await initializeGameProgressForUser(data.user.id);
     await loadCustomLists();
     await loadUserGameProgress(currentUser.id);
-    
-    // Update UI to show logged-in state
-    const authBox = document.getElementById('authBox');
-    const userInfo = document.getElementById('userInfo');
-    const userEmailElement = document.getElementById('userEmail');
-    
-    authBox.classList.add('hidden');
-    userInfo.classList.remove('hidden');
-    userEmailElement.textContent = email;
-    
-    // Clear signup form
-    document.getElementById('signupEmail').value = '';
-    document.getElementById('signupUsername').value = '';
-    document.getElementById('signupPassword').value = '';
-    
-    // Save progress
-    saveProgress();
+    updateAuthUI();
+    showScreen('welcome-screen');
 }
 
 async function handleLogin() {
