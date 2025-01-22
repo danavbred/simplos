@@ -4872,6 +4872,16 @@ function processCustomWords() {
 
     // Process each word
     words.forEach(word => {
+        // Search through all sets for the word
+        let foundTranslation = null;
+        for (const set in vocabularySets) {
+            const wordIndex = vocabularySets[set].words.indexOf(word.toLowerCase());
+            if (wordIndex !== -1) {
+                foundTranslation = vocabularySets[set].translations[wordIndex];
+                break;
+            }
+        }
+
         const wordItem = document.createElement('div');
         wordItem.className = 'word-translation-item';
         wordItem.draggable = true;
@@ -4881,7 +4891,7 @@ function processCustomWords() {
                 <i class="fas fa-grip-vertical"></i>
             </div>
             <span class="source-word" contenteditable="true">${word}</span>
-            <input type="text" class="target-word" placeholder="Hebrew translation">
+            <input type="text" class="target-word" value="${foundTranslation || ''}" placeholder="Hebrew translation">
             <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
         `;
         
