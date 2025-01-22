@@ -2527,36 +2527,7 @@ const supabaseClient = createClient(
 // Modify the existing authentication functions
 
 async function handleSignup() {
-    const email = document.getElementById('signupEmail').value;
-    const username = document.getElementById('signupUsername').value;
-    const password = document.getElementById('signupPassword').value;
 
-    if (!username) {
-        alert('Username is required');
-        return;
-    }
-
-    const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-            data: {
-                username: username,
-                display_name: username
-            }
-        }
-    });
-
-    if (error) {
-        console.error('Error signing up:', error.message);
-        return;
-    }
-
-    currentUser = data.user;
-    await initializeGameProgressForUser(data.user.id);
-    await loadCustomLists();
-    updateAuthUI();
-}
 
 async function handleLogin() {
     const email = document.getElementById('loginEmail').value;
