@@ -2619,6 +2619,40 @@ window.addEventListener('load', async () => {
     initializeParticles();
 });
 
+async function saveCustomList(list) {
+    if (!currentUser) {
+        // For guest users, save to localStorage
+        const savedLists = JSON.parse(localStorage.getItem('simploxCustomLists') || '[]');
+        const existingListIndex = savedLists.findIndex(l => l.id === list.id);
+        
+        if (existingListIndex !== -1) {
+            savedLists[existingListIndex] = list;
+        } else {
+            savedLists.push(list);
+        }
+        
+        localStorage.setItem('simploxCustomLists', JSON.stringify(savedLists));
+        return;
+    }
+
+    // For logged-in users, save to Supabase
+    const { data, error } = await supabaseClient
+        .from('custom_lists')
+        .upsert({
+            id: list.id,
+            user_id: currentUser.id,
+            name: list.name,
+            words: list.words,
+            translations: list.translations
+        })
+        .select();
+
+    if (error) {
+        console.error('Error saving custom list:', error);
+    }
+}
+
+
 
 async function loadUserGameProgress(userId) {
     const { data, error } = await supabaseClient
@@ -2724,59 +2758,10 @@ function saveProgress() {
     }
 }
 
-function saveCustomList() {
-    const listNameInput = document.getElementById('custom-list-name');
-    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
-    
-    const wordItems = document.querySelectorAll('.word-translation-item');
-    const words = [];
-    const translations = [];
-    
-    wordItems.forEach(item => {
-        const englishWord = item.querySelector('.source-word').textContent.trim();
-        const hebrewTranslation = item.querySelector('.target-word').value.trim();
-        
-        if (englishWord && hebrewTranslation) {
-            words.push(englishWord);
-            translations.push(hebrewTranslation);
-        }
-    });
-
-    const newList = {
-        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
-        name: name,
-        words: words,
-        translations: translations
-    };
-
-    // If we're editing an existing list, replace it
-    if (customPracticeLists.currentList) {
-        const index = customPracticeLists.lists.findIndex(l => l.id === customPracticeLists.currentList.id);
-        if (index !== -1) {
-            customPracticeLists.lists[index] = newList;
-        } else {
-            customPracticeLists.lists.push(newList);
-        }
-    } else {
-        customPracticeLists.lists.push(newList);
-    }
-    
-    // Reset current list
-    customPracticeLists.currentList = null;
-    
-    // Save and show lists
-    if (currentUser) {
-        // Save to Supabase
-        saveCustomListToSupabase(newList);
-    } else {
-        // Save to localStorage
-        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    }
-    showCustomListsManager();
-}
 
 async function loadCustomLists() {
     if (currentUser) {
+        // For logged-in users, load from Supabase
         const { data, error } = await supabaseClient
             .from('custom_lists')
             .select('*')
@@ -2793,7 +2778,7 @@ async function loadCustomLists() {
         const savedLists = localStorage.getItem('simploxCustomLists');
         customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
     }
-    
+
     updateListsDisplay();
 }
 
@@ -4751,34 +4736,6 @@ function createWordTranslationItem(word = '', translation = '', isEditable = fal
     wordList.appendChild(wordItem);
 }
 
-async function saveCustomListToSupabase(list) {
-    if (!currentUser) return;
-
-    const { error } = await supabaseClient
-        .from('custom_lists')
-        .upsert({
-            user_id: currentUser.id,
-            id: list.id,
-            name: list.name,
-            words: list.words,
-            translations: list.translations
-        });
-
-    if (error) {
-        console.error('Error saving custom list:', error);
-    }
-}
-
-function saveCustomLists() {
-    if (currentUser) {
-        // Already handled by the Supabase functions
-        return;
-    } else {
-        // For guest users, save to localStorage
-        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    }
-}
-
 function processCustomWords() {
     const wordInput = document.getElementById('custom-word-input');
     const translationResults = document.getElementById('translation-results');
@@ -4880,7 +4837,7 @@ function saveCurrentList() {
         translations: translations
     };
 
-    // Save list
+    // Save list and then reload
     saveCustomList(newList).then(() => {
         // Reset current list
         customPracticeLists.currentList = null;
@@ -5315,8 +5272,6 @@ function toggleEditMode(listId) {
 }
 
 async function saveListChanges(listId, wordList, listItem, shouldCollapse = true) {
-    if (!currentUser) return;
-
     const items = wordList.querySelectorAll('.word-translation-item');
     const editButton = listItem.querySelector('.edit-button');
     
@@ -5333,20 +5288,14 @@ async function saveListChanges(listId, wordList, listItem, shouldCollapse = true
         }
     });
 
-    // Save to Supabase
-    const { error } = await supabaseClient
-        .from('custom_lists')
-        .update({
-            words: words,
-            translations: translations
-        })
-        .eq('id', listId)
-        .eq('user_id', currentUser.id);
-
-    if (error) {
-        console.error('Error saving list changes:', error);
-        return;
+    const listToUpdate = customPracticeLists.lists.find(l => l.id === listId);
+    if (listToUpdate) {
+        listToUpdate.words = words;
+        listToUpdate.translations = translations;
     }
+
+    // Save the updated list
+    await saveCustomList(listToUpdate);
 
     // Update UI
     if (editButton) {
@@ -5367,7 +5316,8 @@ async function saveListChanges(listId, wordList, listItem, shouldCollapse = true
         `;
     }
 
-    await loadCustomLists(); // Reload all lists to ensure sync
+    // Reload lists to ensure sync
+    await loadCustomLists();
 }
 
 // Add to checkExistingSession()
