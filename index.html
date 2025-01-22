@@ -1449,7 +1449,6 @@ body {
     padding: 2rem;
 }
 
-/* Left side: Practice Section */
 .practice-section {
     flex: 1;
     background: var(--glass);
@@ -1459,7 +1458,6 @@ body {
     box-shadow: 0 10px 30px rgba(0,0,0,0.1);
 }
 
-/* Right side: Lists Section */
 .lists-section {
     flex: 1;
     background: var(--glass);
@@ -1523,7 +1521,6 @@ body {
     border-spacing: 0 0.75rem;
 }
 
-/* Word Translation Item Styles */
 .word-translation-item {
     display: table-row;
     background: rgba(255,255,255,0.05);
@@ -1556,25 +1553,51 @@ body {
     opacity: 1;
 }
 
-/* Word Input Fields */
-.word-translation-item .source-word,
+/* Split word input field styles */
+.word-translation-item .source-word {
+    padding: 0.5rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    margin: 0.5rem;
+    width: 200px;
+    min-height: 36px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: all 0.3s ease;
+    display: inline-block;
+    vertical-align: middle;
+}
+
 .word-translation-item .target-word {
     padding: 0.5rem;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.1);
     color: var(--text);
     margin: 0.5rem;
-    width: 200px; /* Fixed width for both */
-    min-height: 36px; /* Consistent height */
+    width: 200px;
+    min-height: 36px;
     text-align: center;
     border: 1px solid rgba(255,255,255,0.2);
     transition: all 0.3s ease;
-    display: inline-block; /* Ensure consistent display */
+    display: inline-block;
     vertical-align: middle;
 }
 
-.word-translation-item .source-word[contenteditable="true"],
-.word-translation-item .target-word[contenteditable="true"],
+.word-translation-item .source-word[contenteditable="true"] {
+    font-family: inherit;
+    font-size: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.word-translation-item .target-word[contenteditable="true"] {
+    font-family: inherit;
+    font-size: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
 .word-translation-item .target-word:not([readonly]) {
     font-family: inherit;
     font-size: inherit;
@@ -1582,7 +1605,6 @@ body {
     -webkit-appearance: none;
 }
 
-/* Button Styles */
 .word-input-actions {
     display: flex;
     gap: 1rem;
@@ -1591,9 +1613,8 @@ body {
     justify-content: flex-start;
 }
 
-.start-button, 
-.edit-mode-button, 
-.list-actions button {
+/* Split button styles */
+.start-button {
     padding: 0.5rem 1rem;
     border-radius: 50px;
     font-size: 0.9rem;
@@ -1606,10 +1627,88 @@ body {
     flex: 0 1 auto;
     min-width: 100px;
     max-width: 150px;
+    position: relative;
 }
 
-.start-button::before, 
-.edit-mode-button::before, 
+.edit-mode-button {
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: var(--accent);
+    color: var(--text);
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    flex: 0 1 auto;
+    min-width: 100px;
+    max-width: 150px;
+    position: relative;
+}
+
+.start-button::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
+    transform: rotate(45deg);
+    transition: all 0.3s ease;
+    opacity: 0;
+}
+
+.edit-mode-button::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
+    transform: rotate(45deg);
+    transition: all 0.3s ease;
+    opacity: 0;
+}
+
+.start-button:hover::before {
+    opacity: 1;
+}
+
+.edit-mode-button:hover::before {
+    opacity: 1;
+}
+
+.list-actions {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    background: inherit;
+    border-radius: 15px 15px 0 0;
+}
+
+.list-actions button {
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: var(--accent);
+    color: var(--text);
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    flex: 0 1 auto;
+    min-width: 100px;
+    max-width: 150px;
+    position: relative;
+}
+
 .list-actions button::before {
     content: '';
     position: absolute;
@@ -1623,26 +1722,9 @@ body {
     opacity: 0;
 }
 
-.start-button:hover::before, 
-.edit-mode-button:hover::before, 
-.list-actions button:hover::before {
-    opacity: 1;
-}
-
-.start-button:hover, 
-.edit-mode-button:hover, 
 .list-actions button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    background: var(--secondary);
-}
-
-/* List Actions */
-.list-actions {
-    display: flex;
-    gap: 0.75rem;
-    margin-top: 1rem;
-    justify-content: flex-start;
+    background-color: var(--secondary);
+    box-shadow: none;
 }
 
 .delete-word-btn {
@@ -1659,9 +1741,11 @@ body {
     opacity: 1;
 }
 
-/* Custom List Item */
 .custom-list-item {
-    padding: 1.5rem;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem;
     margin-bottom: 1.5rem;
     background: var(--glass);
     border-radius: 15px;
@@ -1679,16 +1763,97 @@ body {
     opacity: 0.8;
 }
 
-/* Responsive Design */
+.list-header {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    order: 1; /* Places header after buttons */
+}
+
+.list-summary {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.word-preview {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    margin-top: 0.25rem;
+}
+
+.list-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    order: 2; /* Places content last */
+}
+
+.add-word-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: var(--accent);
+    color: var(--text);
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    min-width: 100px;
+}
+
+.add-word-button i {
+    font-size: 1rem;
+}
+
+.add-word-button:hover {
+    background-color: var(--secondary);
+}
+
+.custom-list-item:not(.collapsed) .list-content {
+    max-height: 1000px;
+    margin-top: 1rem;
+}
+
+/* Media Queries */
+
+@media (max-width: 768px) {
+    .list-actions {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        width: 100%;
+    }
+    
+    .add-word-button {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
 @media (max-width: 768px) {
     .custom-practice-container {
         flex-direction: column;
-        gap: 1rem;
+        gap: 1.5rem;
         padding: 1rem;
     }
 
-    .practice-section,
+    .practice-section {
+        padding: 1rem;
+        width: 100%;
+    }
+
     .lists-section {
+        padding: 1rem;
+        width: 100%;
+    }
+
+    #custom-word-input {
+        min-height: 150px;
+        font-size: 16px;
         padding: 1rem;
     }
 
@@ -1699,33 +1864,107 @@ body {
     .word-translation-item {
         display: flex;
         flex-direction: column;
+        gap: 0.75rem;
         margin-bottom: 1rem;
-        padding: 0.5rem;
+        padding: 1rem;
         background: var(--glass);
-        border-radius: 10px;
+        border-radius: 12px;
     }
 
-    .word-translation-item > * {
+    .word-translation-item .source-word {
         width: 100%;
-        margin: 0.25rem 0;
+        min-height: 44px;
+        font-size: 16px;
+        padding: 0.75rem;
+        margin: 0;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+    }
+
+    .word-translation-item .target-word {
+        width: 100%;
+        min-height: 44px;
+        font-size: 16px;
+        padding: 0.75rem;
+        margin: 0;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
     }
 
     .word-input-actions {
-        justify-content: center;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        width: 100%;
+        margin: 1rem 0;
+    }
+
+    .word-input-actions button {
+        width: 100%;
+        min-height: 44px;
+        font-size: 1rem;
+        padding: 0.75rem;
+        margin: 0;
     }
 
     .list-actions {
-        flex-wrap: wrap;
-        justify-content: center;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+        margin-top: 1rem;
+        width: 100%;
     }
 
     .list-actions button {
-        flex: 1 1 auto;
-        min-width: 80px;
+        width: 100%;
+        min-height: 44px;
+        font-size: 1rem;
+        padding: 0.75rem;
+        margin: 0;
+    }
+
+    .custom-list-item {
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+    }
+
+    .custom-list-item h3 {
+        font-size: 1.25rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .list-info {
+        font-size: 0.9rem;
+        margin: 0.75rem 0;
+    }
+
+    .list-stats {
+        grid-column: 1 / -1;
+        text-align: center;
+        margin-top: 0.75rem;
+        font-size: 0.875rem;
+        opacity: 0.8;
     }
 
     .drag-handle {
         display: none;
+    }
+
+    .delete-word-btn {
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+    }
+
+    .word-preview {
+        font-size: 0.85rem;
+    }
+    
+    .custom-list-item:not(.collapsed) {
+        padding-bottom: 0.75rem;
     }
 }
 
@@ -1734,15 +1973,86 @@ body {
         padding: 0.5rem;
     }
 
-    .start-button, 
-    .edit-mode-button, 
+    .start-button {
+        width: 100%;
+        max-width: none;
+        font-size: 0.9rem;
+        padding: 0.6rem;
+    }
+
+    .edit-mode-button {
+        width: 100%;
+        max-width: none;
+        font-size: 0.9rem;
+        padding: 0.6rem;
+    }
+
     .list-actions button {
         width: 100%;
         max-width: none;
+        font-size: 0.9rem;
+        padding: 0.6rem;
     }
 
-    .word-input-actions {
-        flex-direction: column;
+    .list-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .custom-list-item h3 {
+        font-size: 1.1rem;
+    }
+
+    .list-info {
+        font-size: 0.85rem;
+    }
+
+    .word-translation-item {
+        padding: 0.75rem;
+    }
+
+    .word-translation-item .source-word {
+        font-size: 0.95rem;
+        padding: 0.6rem;
+    }
+
+    .word-translation-item .target-word {
+        font-size: 0.95rem;
+        padding: 0.6rem;
+    }
+}
+
+@media (max-width: 360px) {
+    .custom-practice-container {
+        padding: 0.25rem;
+    }
+
+    .practice-section {
+        padding: 0.75rem;
+    }
+
+    .lists-section {
+        padding: 0.75rem;
+    }
+
+    .word-input-actions button {
+        font-size: 0.85rem;
+        padding: 0.5rem;
+    }
+
+    @media (max-width: 360px) {
+    /* Previous styles remain... */
+
+    .list-actions button {
+        font-size: 0.85rem;
+        padding: 0.5rem;
+    }
+
+    .custom-list-item {
+        padding: 1rem;
+    }
+
+    .custom-list-item h3 {
+        font-size: 1rem;
     }
 }
 
@@ -1891,7 +2201,6 @@ body {
     </div>
 </div>
 
-<!-- Modify the custom practice screen structure -->
 <div id="custom-practice-screen" class="screen">
     <div class="navigation-container">
         <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
@@ -1900,56 +2209,51 @@ body {
     </div>
 
     <div class="custom-practice-container">
+        <div class="lists-section">
+            <h2 class="welcome-title">My Word Lists</h2>
+            <div id="custom-lists-container" class="custom-lists-container">
+                <!-- Lists will be dynamically populated here -->
+            </div>
+        </div>
+        
         <div class="practice-section">
-            <h2 class="welcome-title">Custom Word Practice</h2>
-            
+            <h2 class="welcome-title">Create Custom Word List</h2>
             <div class="list-name-section">
                 <input 
                     type="text" 
                     id="custom-list-name" 
-                    placeholder="List Name (Optional)" 
-                    class="list-name-input"
+                    class="list-name-input" 
+                    placeholder="List Name"
                 >
             </div>
-
-            <div class="word-input-section">
-                <textarea 
-                    id="custom-word-input" 
-                    placeholder="Enter words. No word limit."
-                    rows="4"
-                ></textarea>
-                <div class="word-input-actions">
-                    <button onclick="processCustomWords()" class="start-button">Translate Words</button>
-                    <button onclick="addNewWord()" class="start-button">Add Word</button>
-                    <button onclick="saveCustomList()" class="start-button" id="save-button">Save</button>
-                </div>            
+            <textarea 
+                id="custom-word-input" 
+                placeholder="Enter words, separated by commas or newlines"
+            ></textarea>
+            <div class="word-input-actions">
+                <button 
+                    onclick="processCustomWords()" 
+                    class="start-button"
+                >
+                    Process Words
+                </button>
             </div>
-            <div id="translation-results" class="translation-results" style="display:none;">
-                <h3>Translations</h3>
-                <div id="word-translation-list" class="word-translation-list"></div>
+            <div class="translation-results" id="translation-results">
+                <div class="word-translation-list" id="word-translation-list">
+                    <!-- Processed words will appear here -->
+                </div>
             </div>
-        </div>
-
-        <div class="lists-section">
-            <h2 class="welcome-title">My Word Lists</h2>
-            <div id="custom-lists-container" class="custom-lists-container"></div>
+            <div class="list-actions">
+                <button 
+                    onclick="saveCurrentList()" 
+                    class="start-button"
+                >
+                    Save List
+                </button>
+            </div>
         </div>
     </div>
 </div>
-
-<div id="custom-lists-screen" class="screen">
-    <div class="navigation-container">
-        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-            <i class="fas fa-home navigation-icon"></i>
-        </button>
-    </div>
-    <h2 class="welcome-title">My Word Lists</h2>
-    <div class="lists-grid" id="custom-lists-container"></div>
-    <div class="welcome-buttons">
-        <button class="start-button" onclick="showScreen('custom-practice-screen')">Create New List</button>
-    </div>
-</div>
-
 <script>
 
 const vocabularySets = {
@@ -3825,14 +4129,14 @@ function addNewWord() {
     initializeDragAndDrop(wordItem);
 }
 
-// Drag and drop functionality
-function makeWordListDraggable() {
-    const wordList = document.getElementById('word-translation-list');
+function makeWordListDraggable(listId) {
+    const wordList = document.getElementById(`list-${listId}`);
+    if (!wordList) return;
     
     // Add dragover event listener to the container
     wordList.addEventListener('dragover', e => {
         e.preventDefault();
-        const draggable = document.querySelector('.dragging');
+        const draggable = wordList.querySelector('.dragging');
         if (!draggable) return;
         
         const afterElement = getDragAfterElement(wordList, e.clientY);
@@ -3843,20 +4147,14 @@ function makeWordListDraggable() {
         }
     });
 
-    function getDragAfterElement(container, y) {
-        const draggableElements = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
-
-        return draggableElements.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = y - box.top - box.height / 2;
-            
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
-            }
-        }, { offset: Number.NEGATIVE_INFINITY }).element;
-    }
+    wordList.addEventListener('drop', e => {
+        e.preventDefault();
+        const draggingElement = document.querySelector('.dragging');
+        if (draggingElement) {
+            draggingElement.style.opacity = '1';
+            draggingElement.classList.remove('dragging');
+        }
+    });
 
     // Initialize drag events for all items
     const items = wordList.querySelectorAll('.word-translation-item');
@@ -3950,28 +4248,25 @@ function processCustomWords() {
     translationResults.style.display = 'none';
 
     // Process each word
-    Promise.all(words.map(word => translateWord(word)))
-        .then(translations => {
-            translations.forEach((translation, index) => {
-                const wordItem = document.createElement('div');
-                wordItem.className = 'word-translation-item';
-                wordItem.draggable = true;
-                
-                wordItem.innerHTML = `
-                    <div class="drag-handle">
-                        <i class="fas fa-grip-vertical"></i>
-                    </div>
-                    <span class="source-word" contenteditable="true">${words[index]}</span>
-                    <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
-                    <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-                `;
-                
-                wordList.appendChild(wordItem);
-            });
-            
-            translationResults.style.display = 'block';
-            makeWordListDraggable();
-        });
+    words.forEach(word => {
+        const wordItem = document.createElement('div');
+        wordItem.className = 'word-translation-item';
+        wordItem.draggable = true;
+        
+        wordItem.innerHTML = `
+            <div class="drag-handle">
+                <i class="fas fa-grip-vertical"></i>
+            </div>
+            <span class="source-word" contenteditable="true">${word}</span>
+            <input type="text" class="target-word" placeholder="Hebrew translation">
+            <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+        `;
+        
+        wordList.appendChild(wordItem);
+    });
+    
+    translationResults.style.display = 'block';
+    makeWordListDraggable();
 }
 
 function initializeDragAndDrop(item) {
@@ -3985,15 +4280,28 @@ function initializeDragAndDrop(item) {
         item.draggable = false;
     });
     
-    item.addEventListener('dragstart', (e) => {
+    item.addEventListener('dragstart', () => {
         item.classList.add('dragging');
+        item.style.opacity = '0.5';
     });
     
     item.addEventListener('dragend', () => {
         item.classList.remove('dragging');
+        item.style.opacity = '1';
         item.draggable = false;
+        
+        // Save the new order immediately
+        const listId = item.closest('.word-translation-list').id.split('-')[1];
+        const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+        const wordList = document.getElementById(`list-${listId}`);
+        
+        // Only save if in edit mode
+        if (listItem.getAttribute('data-in-edit-mode') === 'true') {
+            saveListChanges(listId, wordList, listItem, false);
+        }
     });
 }
+
 
 function saveCurrentList() {
     const listNameInput = document.getElementById('custom-list-name');
@@ -4164,7 +4472,6 @@ function showCustomListsManager() {
     if (!container) return;
     
     container.innerHTML = '';
-    
     loadCustomLists();
     
     if (customPracticeLists.lists.length === 0) {
@@ -4174,24 +4481,83 @@ function showCustomListsManager() {
 
     customPracticeLists.lists.forEach(list => {
         const listItem = document.createElement('div');
-        listItem.className = 'custom-list-item';
+        listItem.className = 'custom-list-item collapsed';
         listItem.innerHTML = `
-            <h3>${list.name}</h3>
-            <p>${list.words.length} words</p>
-            <div class="list-info">
-                <div>Words: ${list.words.slice(0, 5).join(', ')}${list.words.length > 5 ? '...' : ''}</div>
+            <div class="list-header" onclick="toggleListCollapse(${list.id})">
+                <h3>${list.name}</h3>
+                <div class="list-summary">
+                    <span>${list.words.length} words</span>
+                    <p class="word-preview">${list.words.join(', ')}</p>
+                </div>
+            </div>
+            <div class="list-content">
+                <div class="word-translation-list" id="list-${list.id}"></div>
             </div>
             <div class="list-actions">
                 <button onclick="startCustomListPractice(${list.id})" class="start-button">Practice</button>
-                <button onclick="editCustomList(${list.id})" class="start-button">Edit</button>
+                <button onclick="toggleEditMode(${list.id})" class="edit-button" data-list-id="${list.id}">Edit</button>
+                <button onclick="addWordToList(${list.id})" class="add-word-button">
+                    <i class="fas fa-plus"></i>
+                    Add Word
+                </button>
                 <button onclick="deleteCustomList(${list.id})" class="start-button">Delete</button>
-                <div class="list-stats">
-                    <span>Created: ${new Date(list.id).toLocaleDateString()}</span>
-                </div>
             </div>
         `;
         container.appendChild(listItem);
     });
+}
+
+function toggleListCollapse(listId) {
+    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+    const editButton = listItem.querySelector('.edit-button');
+    
+    if (editButton.textContent === 'Save') {
+        // Don't toggle if in edit mode
+        return;
+    }
+    
+    listItem.classList.toggle('collapsed');
+}
+
+function toggleEditMode(listId) {
+    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+    const editButton = listItem.querySelector('.edit-button');
+    const wordList = document.getElementById(`list-${listId}`);
+    
+    if (editButton.textContent === 'Edit') {
+        // Enter edit mode
+        editButton.textContent = 'Save';
+        listItem.classList.remove('collapsed');
+        listItem.setAttribute('data-in-edit-mode', 'true');
+        
+        // Load editable word list
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        wordList.innerHTML = '';
+        
+        list.words.forEach((word, index) => {
+            const wordItem = document.createElement('div');
+            wordItem.className = 'word-translation-item';
+            wordItem.draggable = true;
+            
+            wordItem.innerHTML = `
+                <div class="drag-handle">
+                    <i class="fas fa-grip-vertical"></i>
+                </div>
+                <span class="source-word" contenteditable="true">${word}</span>
+                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
+                <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+            `;
+            
+            wordList.appendChild(wordItem);
+        });
+        
+        // Initialize drag functionality
+        makeWordListDraggable(listId);
+    } else {
+        // Save changes
+        listItem.removeAttribute('data-in-edit-mode');
+        saveListChanges(listId, wordList, listItem);
+    }
 }
 
 function editCustomList(listId) {
@@ -4271,6 +4637,167 @@ function deleteCustomList(listId) {
 window.addEventListener('load', () => {
     loadCustomLists();
 });
+
+function addWordToList(listId) {
+    const listElement = document.getElementById(`list-${listId}`);
+    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+    const editButton = listItem.querySelector('.edit-button');
+    
+    // Only add word if in edit mode
+    if (editButton.textContent !== 'Save') return;
+
+    const wordItem = document.createElement('div');
+    wordItem.className = 'word-translation-item';
+    wordItem.draggable = true;
+    
+    wordItem.innerHTML = `
+        <div class="drag-handle">
+            <i class="fas fa-grip-vertical"></i>
+        </div>
+        <span class="source-word" contenteditable="true"></span>
+        <input type="text" class="target-word" placeholder="Hebrew translation">
+        <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+    `;
+    
+    // Add at the top of the list
+    if (listElement.firstChild) {
+        listElement.insertBefore(wordItem, listElement.firstChild);
+    } else {
+        listElement.appendChild(wordItem);
+    }
+    
+    // Make the new item draggable
+    initializeDragAndDrop(wordItem);
+    
+    // Focus on the new word input
+    const sourceWord = wordItem.querySelector('.source-word');
+    sourceWord.focus();
+}
+
+function makeWordListDraggable(listId) {
+    const wordList = document.getElementById(`list-${listId}`);
+    if (!wordList) return;
+    
+    // Clear existing listeners
+    wordList.replaceWith(wordList.cloneNode(true));
+    
+    // Get fresh reference after clone
+    const freshList = document.getElementById(`list-${listId}`);
+    
+    freshList.addEventListener('dragover', e => {
+        e.preventDefault();
+        const draggable = document.querySelector('.dragging');
+        if (!draggable) return;
+        
+        const afterElement = getDragAfterElement(freshList, e.clientY);
+        if (afterElement) {
+            freshList.insertBefore(draggable, afterElement);
+        } else {
+            freshList.appendChild(draggable);
+        }
+    });
+    
+    // Initialize drag events for all items
+    const items = freshList.querySelectorAll('.word-translation-item');
+    items.forEach(item => initializeDragAndDrop(item));
+}
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
+    
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+
+function toggleEditMode(listId) {
+    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+    const editButton = listItem.querySelector('.edit-button');
+    const wordList = document.getElementById(`list-${listId}`);
+    
+    if (editButton.textContent === 'Edit') {
+        // Enter edit mode
+        editButton.textContent = 'Save';
+        listItem.classList.remove('collapsed');
+        
+        // Load editable word list
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        wordList.innerHTML = '';
+        
+        list.words.forEach((word, index) => {
+            const wordItem = document.createElement('div');
+            wordItem.className = 'word-translation-item';
+            wordItem.draggable = true;
+            
+            wordItem.innerHTML = `
+                <div class="drag-handle">
+                    <i class="fas fa-grip-vertical"></i>
+                </div>
+                <span class="source-word" contenteditable="true">${word}</span>
+                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
+                <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+            `;
+            
+            wordList.appendChild(wordItem);
+        });
+        
+        // Initialize drag functionality
+        makeWordListDraggable(listId);
+    } else {
+        // Save changes
+        saveListChanges(listId, wordList, listItem);
+    }
+}
+
+function saveListChanges(listId, wordList, listItem, shouldCollapse = true) {
+    const list = customPracticeLists.lists.find(l => l.id === parseInt(listId));
+    if (!list) return;
+    
+    const items = wordList.querySelectorAll('.word-translation-item');
+    const editButton = listItem.querySelector('.edit-button');
+    
+    list.words = [];
+    list.translations = [];
+    
+    items.forEach(item => {
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
+        
+        // Only save if at least one field has content
+        if (word || translation) {
+            list.words.push(word || '');
+            list.translations.push(translation || '');
+        }
+    });
+    
+    saveCustomLists();
+    
+    if (editButton) {
+        editButton.textContent = 'Edit';
+        listItem.removeAttribute('data-in-edit-mode');
+        
+        if (shouldCollapse) {
+            listItem.classList.add('collapsed');
+        }
+    }
+    
+    // Update summary
+    const summary = listItem.querySelector('.list-summary');
+    if (summary) {
+        summary.innerHTML = `
+            <span>${list.words.length} words</span>
+            <p class="word-preview">${list.words.join(', ')}</p>
+        `;
+    }
+}
 
 </script>
 </body>
