@@ -2626,6 +2626,41 @@ async function loadUserGameProgress(userId) {
     updateAllCoinDisplays();
 }
 
+async function handleLogout() {
+    try {
+        const { error } = await supabaseClient.auth.signOut();
+        
+        if (error) {
+            console.error('Error logging out:', error.message);
+            return;
+        }
+
+        // Reset game state
+        gameState.coins = 0;
+        gameState.unlockedSets = {};
+        gameState.unlockedLevels = {};
+        gameState.perfectLevels = new Set();
+        gameState.completedLevels = new Set();
+        gameState.perks = {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        };
+
+        // Reset current user
+        currentUser = null;
+
+        // Update UI
+        updateAuthUI();
+
+        // Redirect to welcome screen
+        showScreen('welcome-screen');
+    } catch (error) {
+        console.error('Unexpected error during logout:', error);
+    }
+}
+
 async function saveProgress() {
     if (!currentUser) return;
 
