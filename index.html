@@ -2777,6 +2777,42 @@ async function loadCustomLists() {
     updateListsDisplay();
 }
 
+async function initializeGameProgressForUser(userId) {
+    // Check if game progress already exists
+    const { data, error: fetchError } = await supabaseClient
+        .from('game_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error checking game progress:', fetchError);
+        return;
+    }
+
+    // If no existing progress, create initial game progress
+    if (!data) {
+        const { error } = await supabaseClient
+            .from('game_progress')
+            .insert({
+                user_id: userId,
+                stage: 1,
+                set_number: 1,
+                level: 1,
+                coins: 0,
+                perks: {},
+                unlocked_sets: { "1": [1] },
+                unlocked_levels: { "1_1": [1] },
+                perfect_levels: [],
+                completed_levels: []
+            });
+
+        if (error) {
+            console.error('Error initializing game progress:', error);
+        }
+    }
+}
+
 function switchAuthTab(tab) {
     const loginTab = document.querySelector('.auth-tab[onclick="switchAuthTab(\'login\')"]');
     const signupTab = document.querySelector('.auth-tab[onclick="switchAuthTab(\'signup\')"]');
