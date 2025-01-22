@@ -2525,6 +2525,7 @@ const supabaseClient = createClient(
 
 // Auth UI functions
 // Modify the existing authentication functions
+
 async function handleSignup() {
     const email = document.getElementById('signupEmail').value;
     const password = document.getElementById('signupPassword').value;
@@ -2543,43 +2544,8 @@ async function handleSignup() {
     await initializeGameProgressForUser(data.user.id);
 
     currentUser = data.user;
+    await loadCustomLists(); // Add this line
     updateAuthUI();
-}
-
-async function initializeGameProgressForUser(userId) {
-    // Check if game progress already exists
-    const { data, error: fetchError } = await supabaseClient
-        .from('game_progress')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-    if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Error checking game progress:', fetchError);
-        return;
-    }
-
-    // If no existing progress, create initial game progress
-    if (!data) {
-        const { error } = await supabaseClient
-            .from('game_progress')
-            .insert({
-                user_id: userId,
-                stage: 1,
-                set_number: 1,
-                level: 1,
-                coins: 0,
-                perks: {},
-                unlocked_sets: { "1": [1] },
-                unlocked_levels: { "1_1": [1] },
-                perfect_levels: [],
-                completed_levels: []
-            });
-
-        if (error) {
-            console.error('Error initializing game progress:', error);
-        }
-    }
 }
 
 async function handleLogin() {
@@ -2597,10 +2563,24 @@ async function handleLogin() {
     }
 
     currentUser = data.user;
+    await loadCustomLists(); // Add this line
     await loadUserGameProgress(currentUser.id);
-    updateAuthUI(); // Make sure this is called
-    showScreen('welcome-screen'); // Optional: choose which screen to show after login
+    updateAuthUI();
+    showScreen('welcome-screen');
 }
+
+async function initializeGame() {
+    if (currentUser) {
+        // Load progress from Supabase for logged in users
+        await loadUserGameProgress(currentUser.id);
+    } else {
+        // Initialize first stage/set/level for guest users
+        gameState.unlockedSets[1] = new Set([1]);
+        gameState.unlockedLevels['1_1'] = new Set([1]);
+    }
+    updateAllCoinDisplays();
+}
+
 
 async function checkExistingSession() {
     try {
@@ -2626,13 +2606,13 @@ async function checkExistingSession() {
     }
 }
 
-// Call this on page load
 window.addEventListener('load', async () => {
     await checkExistingSession();
-    initializeGame();
+    await initializeGame();
     updatePerkCounts();
     initializeParticles();
 });
+
 
 async function loadUserGameProgress(userId) {
     const { data, error } = await supabaseClient
@@ -2667,7 +2647,6 @@ async function loadUserGameProgress(userId) {
 
 async function handleLogout() {
     try {
-        // First, try to sign out using Supabase
         const { error } = await supabaseClient.auth.signOut();
         
         if (error) {
@@ -2687,22 +2666,10 @@ async function handleLogout() {
             reveal: 0
         };
 
-        // Reset current user
         currentUser = null;
-
-        // Clear any local storage items related to authentication
-        localStorage.removeItem('supabase.auth.token');
-        localStorage.removeItem('simploxProgress');
-        localStorage.removeItem('simploxCustomCoins');
-
-        // Update UI
         updateAuthUI();
-
-        // Redirect to welcome screen
         showScreen('welcome-screen');
 
-        // Additional logging for debugging
-        console.log('Logout process completed');
     } catch (error) {
         console.error('Unexpected error during logout:', error);
     }
@@ -2740,6 +2707,7 @@ async function saveProgress() {
 async function saveCustomList(list) {
     if (!currentUser) return;
 
+    // If list has an id, update it. Otherwise insert new.
     const { error } = await supabaseClient
         .from('custom_lists')
         .upsert({
@@ -2767,51 +2735,10 @@ async function loadCustomLists() {
         return;
     }
 
-    customPracticeLists.lists = data.map(list => ({
-        id: list.id,
-        name: list.name,
-        words: list.words,
-        translations: list.translations
-    }));
-
+    customPracticeLists.lists = data;
     updateListsDisplay();
 }
 
-async function initializeGameProgressForUser(userId) {
-    // Check if game progress already exists
-    const { data, error: fetchError } = await supabaseClient
-        .from('game_progress')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-    if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Error checking game progress:', fetchError);
-        return;
-    }
-
-    // If no existing progress, create initial game progress
-    if (!data) {
-        const { error } = await supabaseClient
-            .from('game_progress')
-            .insert({
-                user_id: userId,
-                stage: 1,
-                set_number: 1,
-                level: 1,
-                coins: 0,
-                perks: {},
-                unlocked_sets: { "1": [1] },
-                unlocked_levels: { "1_1": [1] },
-                perfect_levels: [],
-                completed_levels: []
-            });
-
-        if (error) {
-            console.error('Error initializing game progress:', error);
-        }
-    }
-}
 
 function switchAuthTab(tab) {
     const loginTab = document.querySelector('.auth-tab[onclick="switchAuthTab(\'login\')"]');
@@ -2916,22 +2843,17 @@ let resetProgressTimeout = null;
 let isFirstResetAttempt = true;
 
 function initializeGame() {
-    const saved = localStorage.getItem('simploxProgress');
-    if (!saved) {
-        // Only initialize first stage/set/level if no saved progress
+    if (!currentUser) {
+        // Initialize first stage/set/level for guest users
         gameState.unlockedSets[1] = new Set([1]);
         gameState.unlockedLevels['1_1'] = new Set([1]);
-    } else {
-        loadProgress();
     }
     updateAllCoinDisplays();
 }
 
 // Progress Management
 function saveProgress() {
-    localStorage.setItem('simploxCustomCoins', gameState.coins.toString());
-    localStorage.setItem('simploxProgress', JSON.stringify({
-        unlockedSets: Object.fromEntries(
+            unlockedSets: Object.fromEntries(
             Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
         ),
         unlockedLevels: Object.fromEntries(
@@ -2945,7 +2867,6 @@ function saveProgress() {
 }
 
 function loadProgress() {
-    const saved = localStorage.getItem('simploxProgress');
     if (saved) {
         const data = JSON.parse(saved);
         gameState.unlockedSets = Object.fromEntries(
@@ -2959,34 +2880,54 @@ function loadProgress() {
         gameState.coins = data.coins;
         gameState.perks = data.perks || {timeFreeze: 0, skip: 0, clue: 0, reveal: 0};
     }
-    const savedCustomCoins = localStorage.getItem('simploxCustomCoins');
 if (savedCustomCoins) {
     gameState.coins = parseInt(savedCustomCoins);
 }
 }
 
-function resetProgress() {
-    if (confirm('Are you sure you want to reset all progress? This cannot be undone.')) {
-        localStorage.removeItem('simploxProgress');
-        gameState.coins = 0;
-        gameState.unlockedSets = {};
-        gameState.unlockedLevels = {};
-        gameState.perfectLevels = new Set();
-        gameState.completedLevels = new Set();
-        gameState.perks = {
-            timeFreeze: 0,
-            skip: 0,
-            clue: 0,
-            reveal: 0
-        };
-        
-        // Update UI
-        updatePerkCounts();
-        updateAllCoinDisplays();
-        
-        initializeGame();
-        showScreen('welcome-screen');
+async function resetProgress() {
+    if (!confirm('Are you sure you want to reset all progress? This cannot be undone.')) return;
+    
+    if (currentUser) {
+        // Reset progress in Supabase
+        const { error } = await supabaseClient
+            .from('game_progress')
+            .update({
+                stage: 1,
+                set_number: 1,
+                level: 1,
+                coins: 0,
+                perks: {},
+                unlocked_sets: { "1": [1] },
+                unlocked_levels: { "1_1": [1] },
+                perfect_levels: [],
+                completed_levels: []
+            })
+            .eq('user_id', currentUser.id);
+
+        if (error) {
+            console.error('Error resetting progress:', error);
+            return;
+        }
     }
+
+    // Reset local game state
+    gameState.coins = 0;
+    gameState.unlockedSets = { "1": new Set([1]) };
+    gameState.unlockedLevels = { "1_1": new Set([1]) };
+    gameState.perfectLevels = new Set();
+    gameState.completedLevels = new Set();
+    gameState.perks = {
+        timeFreeze: 0,
+        skip: 0,
+        clue: 0,
+        reveal: 0
+    };
+    
+    // Update UI
+    updatePerkCounts();
+    updateAllCoinDisplays();
+    showScreen('welcome-screen');
 }
 
 // Timer Functions
@@ -4278,7 +4219,6 @@ function handleResetProgress() {
         resetButton.classList.remove('warning');
         
         // Actual reset logic
-        localStorage.removeItem('simploxProgress');
         gameState.coins = 0;
         gameState.unlockedSets = {};
         gameState.unlockedLevels = {};
@@ -4598,18 +4538,6 @@ function addCustomWordList(name = null) {
     return newList;
 }
 
-// Function to save custom lists to localStorage
-function saveCustomLists() {
-    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-}
-
-// Function to load custom lists from localStorage
-function loadCustomLists() {
-    const savedLists = localStorage.getItem('simploxCustomLists');
-    if (savedLists) {
-        customPracticeLists.lists = JSON.parse(savedLists);
-    }
-}
 
 // Function to translate a single word using MyMemory Translation API
 function translateWord(word) {
@@ -5155,12 +5083,22 @@ function loadCustomList(listId) {
     showScreen('custom-practice-screen');
 }
 
-// Function to delete a custom list
-function deleteCustomList(listId) {
+async function deleteCustomList(listId) {
+    if (!currentUser) return;
     if (!confirm('Are you sure you want to delete this list?')) return;
 
-    customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
-    saveCustomLists();
+    const { error } = await supabaseClient
+        .from('custom_lists')
+        .delete()
+        .eq('id', listId)
+        .eq('user_id', currentUser.id); // Extra security
+
+    if (error) {
+        console.error('Error deleting list:', error);
+        return;
+    }
+
+    await loadCustomLists(); // Reload lists after deletion
     showCustomListsManager();
 }
 
@@ -5283,29 +5221,41 @@ function toggleEditMode(listId) {
     }
 }
 
-function saveListChanges(listId, wordList, listItem, shouldCollapse = true) {
-    const list = customPracticeLists.lists.find(l => l.id === parseInt(listId));
-    if (!list) return;
-    
+async function saveListChanges(listId, wordList, listItem, shouldCollapse = true) {
+    if (!currentUser) return;
+
     const items = wordList.querySelectorAll('.word-translation-item');
     const editButton = listItem.querySelector('.edit-button');
     
-    list.words = [];
-    list.translations = [];
+    const words = [];
+    const translations = [];
     
     items.forEach(item => {
         const word = item.querySelector('.source-word').textContent.trim();
         const translation = item.querySelector('.target-word').value.trim();
         
-        // Only save if at least one field has content
         if (word || translation) {
-            list.words.push(word || '');
-            list.translations.push(translation || '');
+            words.push(word || '');
+            translations.push(translation || '');
         }
     });
-    
-    saveCustomLists();
-    
+
+    // Save to Supabase
+    const { error } = await supabaseClient
+        .from('custom_lists')
+        .update({
+            words: words,
+            translations: translations
+        })
+        .eq('id', listId)
+        .eq('user_id', currentUser.id);
+
+    if (error) {
+        console.error('Error saving list changes:', error);
+        return;
+    }
+
+    // Update UI
     if (editButton) {
         editButton.textContent = 'Edit';
         listItem.removeAttribute('data-in-edit-mode');
@@ -5315,15 +5265,32 @@ function saveListChanges(listId, wordList, listItem, shouldCollapse = true) {
         }
     }
     
-    // Update summary
+    // Update summary display
     const summary = listItem.querySelector('.list-summary');
     if (summary) {
         summary.innerHTML = `
-            <span>${list.words.length} words</span>
-            <p class="word-preview">${list.words.join(', ')}</p>
+            <span>${words.length} words</span>
+            <p class="word-preview">${words.join(', ')}</p>
         `;
     }
+
+    await loadCustomLists(); // Reload all lists to ensure sync
 }
+
+// Add to checkExistingSession()
+async function checkExistingSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (session) {
+        currentUser = session.user;
+        await Promise.all([
+            loadUserGameProgress(currentUser.id),
+            loadCustomLists() // Add this
+        ]);
+        updateAuthUI();
+    }
+}
+
 
 </script>
 </body>
