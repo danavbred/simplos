@@ -2541,42 +2541,6 @@ async function handleSignup() {
     updateAuthUI();
 }
 
-async function initializeGameProgressForUser(userId) {
-    // Check if game progress already exists
-    const { data, error: fetchError } = await supabaseClient
-        .from('game_progress')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-    if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Error checking game progress:', fetchError);
-        return;
-    }
-
-    // If no existing progress, create initial game progress
-    if (!data) {
-        const { error } = await supabaseClient
-            .from('game_progress')
-            .insert({
-                user_id: userId,
-                stage: 1,
-                set_number: 1,
-                level: 1,
-                coins: 0,
-                perks: {},
-                unlocked_sets: { "1": [1] },
-                unlocked_levels: { "1_1": [1] },
-                perfect_levels: [],
-                completed_levels: []
-            });
-
-        if (error) {
-            console.error('Error initializing game progress:', error);
-        }
-    }
-}
-
 async function handleLogin() {
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
@@ -2797,51 +2761,7 @@ async function initializeGameProgressForUser(userId) {
     }
 }
 
-async function saveCustomLists() {
-    if (!currentUser) return;
 
-    // Filter and prepare lists to save
-    const listsToSave = customPracticeLists.lists.map(list => ({
-        user_id: currentUser.id, // Ensure user-specific lists
-        id: list.id,
-        name: list.name,
-        words: list.words,
-        translations: list.translations
-    }));
-
-    const { error } = await supabaseClient
-        .from('custom_lists')
-        .upsert(listsToSave, {
-            onConflict: 'id' // Update existing lists
-        });
-
-    if (error) {
-        console.error('Error saving custom lists:', error);
-    }
-}
-
-async function loadCustomLists() {
-    if (!currentUser) return;
-
-    const { data, error } = await supabaseClient
-        .from('custom_lists')
-        .select('*')
-        .eq('user_id', currentUser.id); // Fetch only current user's lists
-
-    if (error) {
-        console.error('Error loading custom lists:', error);
-        return;
-    }
-
-    customPracticeLists.lists = data.map(list => ({
-        id: list.id,
-        name: list.name,
-        words: list.words,
-        translations: list.translations
-    }));
-
-    updateListsDisplay();
-}
 
 // Modify existing functions to call these when appropriate
 async function handleLogin() {
