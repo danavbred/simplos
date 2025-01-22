@@ -2569,14 +2569,20 @@ async function handleLogin() {
     showScreen('welcome-screen');
 }
 
-async function initializeGame() {
+function initializeGame() {
     if (currentUser) {
         // Load progress from Supabase for logged in users
-        await loadUserGameProgress(currentUser.id);
+        loadUserGameProgress(currentUser.id);
     } else {
-        // Initialize first stage/set/level for guest users
-        gameState.unlockedSets[1] = new Set([1]);
-        gameState.unlockedLevels['1_1'] = new Set([1]);
+        // For guest users, use localStorage but don't remove it entirely
+        const saved = localStorage.getItem('simploxProgress');
+        if (!saved) {
+            // Initialize first stage/set/level if no saved progress
+            gameState.unlockedSets[1] = new Set([1]);
+            gameState.unlockedLevels['1_1'] = new Set([1]);
+        } else {
+            loadProgress();
+        }
     }
     updateAllCoinDisplays();
 }
@@ -2675,32 +2681,46 @@ async function handleLogout() {
     }
 }
 
-async function saveProgress() {
-    if (!currentUser) return;
+function saveProgress() {
+    if (currentUser) {
+        // Save to Supabase for logged in users
+        const progressToSave = {
+            stage: gameState.currentStage,
+            set_number: gameState.currentSet,
+            level: gameState.currentLevel,
+            coins: gameState.coins,
+            perks: gameState.perks,
+            unlocked_sets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlocked_levels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfect_levels: Array.from(gameState.perfectLevels),
+            completed_levels: Array.from(gameState.completedLevels)
+        };
 
-    const progressToSave = {
-        stage: gameState.currentStage,
-        set_number: gameState.currentSet,
-        level: gameState.currentLevel,
-        coins: gameState.coins,
-        perks: gameState.perks,
-        unlocked_sets: Object.fromEntries(
-            Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
-        ),
-        unlocked_levels: Object.fromEntries(
-            Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
-        ),
-        perfect_levels: Array.from(gameState.perfectLevels),
-        completed_levels: Array.from(gameState.completedLevels)
-    };
-
-    const { error } = await supabaseClient
-        .from('game_progress')
-        .update(progressToSave)
-        .eq('user_id', currentUser.id);
-
-    if (error) {
-        console.error('Error saving game progress:', error);
+        supabaseClient
+            .from('game_progress')
+            .update(progressToSave)
+            .eq('user_id', currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error('Error saving game progress:', error);
+            });
+    } else {
+        // For guest users, save to localStorage
+        localStorage.setItem('simploxProgress', JSON.stringify({
+            unlockedSets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlockedLevels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfectLevels: Array.from(gameState.perfectLevels),
+            completedLevels: Array.from(gameState.completedLevels),
+            coins: gameState.coins,
+            perks: gameState.perks
+        }));
     }
 }
 
@@ -2723,19 +2743,25 @@ async function saveCustomList(list) {
 }
 
 async function loadCustomLists() {
-    if (!currentUser) return;
+    if (currentUser) {
+        const { data, error } = await supabaseClient
+            .from('custom_lists')
+            .select('*')
+            .eq('user_id', currentUser.id);
 
-    const { data, error } = await supabaseClient
-        .from('custom_lists')
-        .select('*')
-        .eq('user_id', currentUser.id);
+        if (error) {
+            console.error('Error loading custom lists:', error);
+            return;
+        }
 
-    if (error) {
-        console.error('Error loading custom lists:', error);
-        return;
+        customPracticeLists.lists = data;
+    } else {
+        // For guest users, load from localStorage
+        const savedLists = localStorage.getItem('simploxCustomLists');
+        if (savedLists) {
+            customPracticeLists.lists = JSON.parse(savedLists);
+        }
     }
-
-    customPracticeLists.lists = data;
     updateListsDisplay();
 }
 
@@ -2843,30 +2869,71 @@ let resetProgressTimeout = null;
 let isFirstResetAttempt = true;
 
 function initializeGame() {
-    if (!currentUser) {
-        // Initialize first stage/set/level for guest users
-        gameState.unlockedSets[1] = new Set([1]);
-        gameState.unlockedLevels['1_1'] = new Set([1]);
+    if (currentUser) {
+        // Load progress from Supabase for logged in users
+        loadUserGameProgress(currentUser.id);
+    } else {
+        // For guest users, use localStorage but don't remove it entirely
+        const saved = localStorage.getItem('simploxProgress');
+        if (!saved) {
+            // Initialize first stage/set/level if no saved progress
+            gameState.unlockedSets[1] = new Set([1]);
+            gameState.unlockedLevels['1_1'] = new Set([1]);
+        } else {
+            loadProgress();
+        }
     }
     updateAllCoinDisplays();
 }
 
+
 // Progress Management
 function saveProgress() {
+    if (currentUser) {
+        // Save to Supabase for logged in users
+        const progressToSave = {
+            stage: gameState.currentStage,
+            set_number: gameState.currentSet,
+            level: gameState.currentLevel,
+            coins: gameState.coins,
+            perks: gameState.perks,
+            unlocked_sets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlocked_levels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfect_levels: Array.from(gameState.perfectLevels),
+            completed_levels: Array.from(gameState.completedLevels)
+        };
+
+        supabaseClient
+            .from('game_progress')
+            .update(progressToSave)
+            .eq('user_id', currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error('Error saving game progress:', error);
+            });
+    } else {
+        // For guest users, save to localStorage
+        localStorage.setItem('simploxProgress', JSON.stringify({
             unlockedSets: Object.fromEntries(
-            Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
-        ),
-        unlockedLevels: Object.fromEntries(
-            Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
-        ),
-        perfectLevels: Array.from(gameState.perfectLevels),
-        completedLevels: Array.from(gameState.completedLevels),
-        coins: gameState.coins,
-        perks: gameState.perks
-    }));
+                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlockedLevels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfectLevels: Array.from(gameState.perfectLevels),
+            completedLevels: Array.from(gameState.completedLevels),
+            coins: gameState.coins,
+            perks: gameState.perks
+        }));
+    }
 }
 
+
 function loadProgress() {
+    const saved = localStorage.getItem('simploxProgress');
     if (saved) {
         const data = JSON.parse(saved);
         gameState.unlockedSets = Object.fromEntries(
@@ -2880,9 +2947,10 @@ function loadProgress() {
         gameState.coins = data.coins;
         gameState.perks = data.perks || {timeFreeze: 0, skip: 0, clue: 0, reveal: 0};
     }
-if (savedCustomCoins) {
-    gameState.coins = parseInt(savedCustomCoins);
-}
+    const savedCustomCoins = localStorage.getItem('simploxCustomCoins');
+    if (savedCustomCoins) {
+        gameState.coins = parseInt(savedCustomCoins);
+    }
 }
 
 async function resetProgress() {
@@ -2909,6 +2977,10 @@ async function resetProgress() {
             console.error('Error resetting progress:', error);
             return;
         }
+    } else {
+        // Reset localStorage for guest users
+        localStorage.removeItem('simploxProgress');
+        localStorage.removeItem('simploxCustomCoins');
     }
 
     // Reset local game state
@@ -4098,6 +4170,9 @@ window.onload = async () => {
     initializeGame();
     updatePerkCounts();
     initializeParticles();
+    
+    // Load custom lists regardless of auth state
+    await loadCustomLists();
 };
 
 function stopLevelAndGoBack() {
@@ -4645,45 +4720,14 @@ function createWordTranslationItem(word = '', translation = '', isEditable = fal
 }
 
 
-function saveCustomList() {
-    const listNameInput = document.getElementById('custom-list-name');
-    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
-    
-    const wordItems = document.querySelectorAll('.word-translation-item');
-    const words = [];
-    const translations = [];
-    
-    wordItems.forEach(item => {
-        const sourceWord = item.querySelector('.source-word').textContent.trim();
-        const targetWord = item.querySelector('.target-word').value.trim();
-        
-        if (sourceWord && targetWord) {
-            words.push(sourceWord);
-            translations.push(targetWord);
-        }
-    });
-
-    const newList = {
-        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
-        name: name,
-        words: words,
-        translations: translations
-    };
-
-    if (customPracticeLists.currentList) {
-        const index = customPracticeLists.lists.findIndex(l => l.id === customPracticeLists.currentList.id);
-        if (index !== -1) {
-            customPracticeLists.lists[index] = newList;
-        } else {
-            customPracticeLists.lists.push(newList);
-        }
+function saveCustomLists() {
+    if (currentUser) {
+        // Already handled by the Supabase functions
+        return;
     } else {
-        customPracticeLists.lists.push(newList);
+        // For guest users, save to localStorage
+        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
     }
-    
-    saveCustomLists();
-    customPracticeLists.currentList = null;
-    showCustomListsManager();
 }
 
 function processCustomWords() {
