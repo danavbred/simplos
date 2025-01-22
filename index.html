@@ -2563,7 +2563,11 @@ async function handleLogin() {
     }
 
     currentUser = data.user;
-    await loadCustomLists(); // Add this line
+    
+    // Clear all input fields and UI state
+    clearCustomPracticeUI();
+    
+    await loadCustomLists();
     await loadUserGameProgress(currentUser.id);
     updateAuthUI();
     showScreen('welcome-screen');
@@ -2672,6 +2676,9 @@ async function handleLogout() {
             reveal: 0
         };
 
+        // Clear all input fields and UI state
+        clearCustomPracticeUI();
+
         currentUser = null;
         updateAuthUI();
         showScreen('welcome-screen');
@@ -2679,6 +2686,36 @@ async function handleLogout() {
     } catch (error) {
         console.error('Unexpected error during logout:', error);
     }
+}
+
+function clearCustomPracticeUI() {
+    // Clear list name input
+    const listNameInput = document.getElementById('custom-list-name');
+    if (listNameInput) {
+        listNameInput.value = '';
+    }
+
+    // Clear word input
+    const wordInput = document.getElementById('custom-word-input');
+    if (wordInput) {
+        wordInput.value = '';
+    }
+
+    // Clear translation results
+    const translationResults = document.getElementById('translation-results');
+    if (translationResults) {
+        translationResults.style.display = 'none';
+    }
+
+    // Clear word translation list
+    const wordList = document.getElementById('word-translation-list');
+    if (wordList) {
+        wordList.innerHTML = '';
+    }
+
+    // Reset current list
+    customPracticeLists.currentList = null;
+    customPracticeLists.lists = [];
 }
 
 function saveProgress() {
@@ -4892,6 +4929,7 @@ function initializeDragAndDrop(item) {
 
 async function saveCurrentList() {
     const listNameInput = document.getElementById('custom-list-name');
+    const wordInput = document.getElementById('custom-word-input');
     const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
     
     const wordItems = document.querySelectorAll('.word-translation-item');
@@ -4909,7 +4947,7 @@ async function saveCurrentList() {
     });
 
     const newList = {
-        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : null,
+        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
         name: name,
         words: words,
         translations: translations
@@ -4917,7 +4955,24 @@ async function saveCurrentList() {
 
     const success = await saveCustomListToSupabase(newList);
     if (success) {
+        // Clear all input fields and translation table
+        listNameInput.value = '';
+        wordInput.value = '';
+        
+        // Clear the translation results
+        const translationResults = document.getElementById('translation-results');
+        const wordList = document.getElementById('word-translation-list');
+        if (wordList) {
+            wordList.innerHTML = '';
+        }
+        if (translationResults) {
+            translationResults.style.display = 'none';
+        }
+
+        // Reset current list
         customPracticeLists.currentList = null;
+        
+        // Reload lists and update display
         await loadCustomLists();
         showCustomListsManager();
     }
@@ -5120,8 +5175,6 @@ function toggleEditMode(listId) {
     const editButton = listItem.querySelector('.edit-button');
     const wordList = document.getElementById(`list-${listId}`);
     
-    if (!listItem || !editButton || !wordList) return;
-    
     if (editButton.textContent === 'Edit') {
         // Enter edit mode
         editButton.textContent = 'Save';
@@ -5134,10 +5187,7 @@ function toggleEditMode(listId) {
         
         wordList.innerHTML = '';
         
-        const words = Array.isArray(list.words) ? list.words : [];
-        const translations = Array.isArray(list.translations) ? list.translations : [];
-        
-        words.forEach((word, index) => {
+        list.words.forEach((word, index) => {
             const wordItem = document.createElement('div');
             wordItem.className = 'word-translation-item';
             wordItem.draggable = true;
@@ -5147,7 +5197,7 @@ function toggleEditMode(listId) {
                     <i class="fas fa-grip-vertical"></i>
                 </div>
                 <span class="source-word" contenteditable="true">${word}</span>
-                <input type="text" class="target-word" value="${translations[index] || ''}" placeholder="Hebrew translation">
+                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
                 <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
             `;
             
@@ -5158,7 +5208,39 @@ function toggleEditMode(listId) {
         makeWordListDraggable(listId);
     } else {
         // Save changes
-        saveListChanges(listId, wordList, listItem);
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        const items = wordList.querySelectorAll('.word-translation-item');
+        
+        list.words = [];
+        list.translations = [];
+        
+        items.forEach(item => {
+            const word = item.querySelector('.source-word').textContent.trim();
+            const translation = item.querySelector('.target-word').value.trim();
+            
+            if (word && translation) {
+                list.words.push(word);
+                list.translations.push(translation);
+            }
+        });
+        
+        // Save to appropriate storage
+        if (currentUser) {
+            saveCustomListToSupabase(list);
+        } else {
+            saveCustomLists();
+        }
+        
+        editButton.textContent = 'Edit';
+        listItem.classList.add('collapsed');
+        listItem.removeAttribute('data-in-edit-mode');
+        
+        // Update summary
+        const summary = listItem.querySelector('.list-summary');
+        summary.innerHTML = `
+            <span>${list.words.length} words</span>
+            <p class="word-preview">${list.words.join(', ')}</p>
+        `;
     }
 }
 
