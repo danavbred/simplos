@@ -2592,7 +2592,18 @@ async function handleLogin() {
 
     currentUser = data.user;
     await loadUserGameProgress(currentUser.id);
-    updateAuthUI();
+    updateAuthUI(); // Make sure this is called
+    showScreen('welcome-screen'); // Optional: choose which screen to show after login
+}
+
+async function checkExistingSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (session) {
+        currentUser = session.user;
+        await loadUserGameProgress(currentUser.id);
+        updateAuthUI(); // Ensure this is called
+    }
 }
 
 async function loadUserGameProgress(userId) {
