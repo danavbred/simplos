@@ -2710,6 +2710,9 @@ function saveProgress() {
     } else {
         // For guest users, save to localStorage
         localStorage.setItem('simploxProgress', JSON.stringify({
+            currentStage: gameState.currentStage,
+            currentSet: gameState.currentSet,
+            currentLevel: gameState.currentLevel,
             unlockedSets: Object.fromEntries(
                 Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
             ),
@@ -2786,7 +2789,14 @@ async function loadCustomLists() {
             console.error('Error loading custom lists:', error);
             customPracticeLists.lists = [];
         } else {
-            customPracticeLists.lists = data || [];
+            // Convert Supabase data to local format
+            customPracticeLists.lists = data.map(item => ({
+                id: item.local_id || Date.now(),
+                supabaseId: item.id, // Store Supabase UUID
+                name: item.name,
+                words: item.words,
+                translations: item.translations
+            }));
         }
     } else {
         // For guest users, load from localStorage
@@ -4754,20 +4764,20 @@ function createWordTranslationItem(word = '', translation = '', isEditable = fal
 async function saveCustomListToSupabase(list) {
     if (!currentUser) return;
 
-    // Create a database-friendly object
     const listData = {
         user_id: currentUser.id,
         name: list.name,
         words: list.words,
-        translations: list.translations
+        translations: list.translations,
+        local_id: list.id // Using the timestamp ID as local_id
     };
 
-    if (list.id && typeof list.id === 'string' && list.id.length === 36) {
+    if (list.supabaseId) {
         // Update existing list
         const { error } = await supabaseClient
             .from('custom_lists')
             .update(listData)
-            .eq('id', list.id)
+            .eq('id', list.supabaseId)
             .eq('user_id', currentUser.id);
 
         if (error) {
@@ -4787,7 +4797,7 @@ async function saveCustomListToSupabase(list) {
         }
         
         if (data && data[0]) {
-            list.id = data[0].id; // Update the list with the new UUID
+            list.supabaseId = data[0].id; // Store Supabase UUID
         }
     }
     return true;
@@ -4796,7 +4806,7 @@ async function saveCustomListToSupabase(list) {
 
 function saveCustomLists() {
     if (currentUser) {
-        // Already handled by the Supabase functions
+        // Lists are saved individually via saveCustomListToSupabase
         return;
     } else {
         // For guest users, save to localStorage
@@ -5219,25 +5229,32 @@ function loadCustomList(listId) {
 async function deleteCustomList(listId) {
     if (!confirm('Are you sure you want to delete this list?')) return;
 
-    if (currentUser) {
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
+
+    if (currentUser && list.supabaseId) {
         const { error } = await supabaseClient
             .from('custom_lists')
             .delete()
-            .eq('id', listId)
+            .eq('id', list.supabaseId)
             .eq('user_id', currentUser.id);
 
         if (error) {
             console.error('Error deleting list:', error);
             return;
         }
-
-        // Remove from local array
-        customPracticeLists.lists = customPracticeLists.lists.filter(list => list.id !== listId);
-        
-        // Update UI
-        await loadCustomLists();
-        showCustomListsManager();
     }
+
+    // Remove from local array
+    customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
+    
+    // Update localStorage for guest users
+    if (!currentUser) {
+        saveCustomLists();
+    }
+
+    // Update UI
+    showCustomListsManager();
 }
 
 function addWordToList(listId) {
