@@ -4922,16 +4922,6 @@ function initializeDragAndDrop(item) {
         item.classList.remove('dragging');
         item.style.opacity = '1';
         item.draggable = false;
-        
-        // Save the new order immediately
-        const listId = item.closest('.word-translation-list').id.split('-')[1];
-        const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
-        const wordList = document.getElementById(`list-${listId}`);
-        
-        // Only save if in edit mode
-        if (listItem.getAttribute('data-in-edit-mode') === 'true') {
-            saveListChanges(listId, wordList, listItem, false);
-        }
     });
 }
 
@@ -5168,13 +5158,32 @@ function showCustomListsManager() {
 function toggleListCollapse(listId) {
     const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
     const editButton = listItem.querySelector('.edit-button');
+    const listContent = listItem.querySelector('.list-content');
+    const wordList = listItem.querySelector('.word-translation-list');
     
-    if (editButton.textContent === 'Save') {
-        // Don't toggle if in edit mode
-        return;
+    if (editButton.textContent === 'Edit') {
+        // Only toggle if not in edit mode
+        listItem.classList.toggle('collapsed');
+        
+        // If opening and list is empty, populate with words
+        if (!listItem.classList.contains('collapsed') && wordList.children.length === 0) {
+            const list = customPracticeLists.lists.find(l => l.id === listId);
+            if (list) {
+                list.words.forEach((word, index) => {
+                    const wordItem = document.createElement('div');
+                    wordItem.className = 'word-translation-item';
+                    wordItem.innerHTML = `
+                        <div class="drag-handle">
+                            <i class="fas fa-grip-vertical"></i>
+                        </div>
+                        <span class="source-word">${word}</span>
+                        <input type="text" class="target-word" value="${list.translations[index]}" readonly>
+                    `;
+                    wordList.appendChild(wordItem);
+                });
+            }
+        }
     }
-    
-    listItem.classList.toggle('collapsed');
 }
 
 function toggleEditMode(listId) {
@@ -5386,27 +5395,21 @@ function makeWordListDraggable(listId) {
     const wordList = document.getElementById(`list-${listId}`);
     if (!wordList) return;
     
-    // Clear existing listeners
-    wordList.replaceWith(wordList.cloneNode(true));
-    
-    // Get fresh reference after clone
-    const freshList = document.getElementById(`list-${listId}`);
-    
-    freshList.addEventListener('dragover', e => {
+    wordList.addEventListener('dragover', e => {
         e.preventDefault();
-        const draggable = document.querySelector('.dragging');
+        const draggable = wordList.querySelector('.dragging');
         if (!draggable) return;
         
-        const afterElement = getDragAfterElement(freshList, e.clientY);
+        const afterElement = getDragAfterElement(wordList, e.clientY);
         if (afterElement) {
-            freshList.insertBefore(draggable, afterElement);
+            wordList.insertBefore(draggable, afterElement);
         } else {
-            freshList.appendChild(draggable);
+            wordList.appendChild(draggable);
         }
     });
-    
+
     // Initialize drag events for all items
-    const items = freshList.querySelectorAll('.word-translation-item');
+    const items = wordList.querySelectorAll('.word-translation-item');
     items.forEach(item => initializeDragAndDrop(item));
 }
 
