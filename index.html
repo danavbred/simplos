@@ -2518,6 +2518,8 @@ const supabaseClient = createClient(
 );
 
 // Auth UI functions
+
+// Modify the existing authentication functions
 async function handleSignup() {
     const email = document.getElementById('signupEmail').value;
     const password = document.getElementById('signupPassword').value;
@@ -2532,8 +2534,47 @@ async function handleSignup() {
         return;
     }
 
+    // After successful signup, initialize game progress
+    await initializeGameProgressForUser(data.user.id);
+
     currentUser = data.user;
     updateAuthUI();
+}
+
+async function initializeGameProgressForUser(userId) {
+    // Check if game progress already exists
+    const { data, error: fetchError } = await supabaseClient
+        .from('game_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error checking game progress:', fetchError);
+        return;
+    }
+
+    // If no existing progress, create initial game progress
+    if (!data) {
+        const { error } = await supabaseClient
+            .from('game_progress')
+            .insert({
+                user_id: userId,
+                stage: 1,
+                set_number: 1,
+                level: 1,
+                coins: 0,
+                perks: {},
+                unlocked_sets: { "1": [1] },
+                unlocked_levels: { "1_1": [1] },
+                perfect_levels: [],
+                completed_levels: []
+            });
+
+        if (error) {
+            console.error('Error initializing game progress:', error);
+        }
+    }
 }
 
 async function handleLogin() {
@@ -2551,29 +2592,110 @@ async function handleLogin() {
     }
 
     currentUser = data.user;
+    await loadUserGameProgress(currentUser.id);
     updateAuthUI();
 }
 
-async function handleLogout() {
-    const { error } = await supabaseClient.auth.signOut();
-    
+async function loadUserGameProgress(userId) {
+    const { data, error } = await supabaseClient
+        .from('game_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
     if (error) {
-        console.error('Error logging out:', error.message);
+        console.error('Error loading game progress:', error);
         return;
     }
 
-    currentUser = null;
-    updateAuthUI();
+    // Synchronize Supabase progress with local gameState
+    gameState.currentStage = data.stage;
+    gameState.currentSet = data.set_number;
+    gameState.coins = data.coins;
+    gameState.perks = data.perks;
+    
+    // Convert jsonb to Sets and proper data structures
+    gameState.unlockedSets = Object.fromEntries(
+        Object.entries(data.unlocked_sets).map(([k, v]) => [k, new Set(v)])
+    );
+    gameState.unlockedLevels = Object.fromEntries(
+        Object.entries(data.unlocked_levels).map(([k, v]) => [k, new Set(v)])
+    );
+    gameState.perfectLevels = new Set(data.perfect_levels);
+    gameState.completedLevels = new Set(data.completed_levels);
+
+    updateAllCoinDisplays();
 }
 
-async function checkExistingSession() {
-    const { data: { session }, error } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        updateAuthUI();
+async function saveProgress() {
+    if (!currentUser) return;
+
+    const progressToSave = {
+        stage: gameState.currentStage,
+        set_number: gameState.currentSet,
+        level: gameState.currentLevel,
+        coins: gameState.coins,
+        perks: gameState.perks,
+        unlocked_sets: Object.fromEntries(
+            Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+        ),
+        unlocked_levels: Object.fromEntries(
+            Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+        ),
+        perfect_levels: Array.from(gameState.perfectLevels),
+        completed_levels: Array.from(gameState.completedLevels)
+    };
+
+    const { error } = await supabaseClient
+        .from('game_progress')
+        .update(progressToSave)
+        .eq('user_id', currentUser.id);
+
+    if (error) {
+        console.error('Error saving game progress:', error);
     }
 }
+
+async function saveCustomList(list) {
+    if (!currentUser) return;
+
+    const { error } = await supabaseClient
+        .from('custom_lists')
+        .upsert({
+            user_id: currentUser.id,
+            name: list.name,
+            words: list.words,
+            translations: list.translations
+        });
+
+    if (error) {
+        console.error('Error saving custom list:', error);
+    }
+}
+
+async function loadCustomLists() {
+    if (!currentUser) return;
+
+    const { data, error } = await supabaseClient
+        .from('custom_lists')
+        .select('*')
+        .eq('user_id', currentUser.id);
+
+    if (error) {
+        console.error('Error loading custom lists:', error);
+        return;
+    }
+
+    customPracticeLists.lists = data.map(list => ({
+        id: list.id,
+        name: list.name,
+        words: list.words,
+        translations: list.translations
+    }));
+
+    updateListsDisplay();
+}
+
 
 // Game Constants & State Management
 const gameStructure = {
@@ -4879,8 +5001,11 @@ function deleteCustomList(listId) {
 }
 
 // Initialize custom lists on page load
-window.addEventListener('load', () => {
-    loadCustomLists();
+window.addEventListener('load', async () => {
+    await checkExistingSession();
+    initializeGame();
+    updatePerkCounts();
+    initializeParticles();
 });
 
 function addWordToList(listId) {
