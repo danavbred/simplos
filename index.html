@@ -2251,10 +2251,11 @@ body {
             <button onclick="handleLogin()">Login</button>
         </div>
         <div class="auth-form hidden" id="signupForm">
-            <input type="email" placeholder="Email" id="signupEmail">
-            <input type="password" placeholder="Password" id="signupPassword">
-            <button onclick="handleSignup()">Sign Up</button>
-        </div>
+    <input type="email" placeholder="Email" id="signupEmail">
+    <input type="text" placeholder="Username" id="signupUsername">
+    <input type="password" placeholder="Password" id="signupPassword">
+    <button onclick="handleSignup()">Sign Up</button>
+</div>
     </div>
     <div class="user-info hidden" id="userInfo">
         <span id="userEmail"></span>
@@ -2527,11 +2528,33 @@ const supabaseClient = createClient(
 
 async function handleSignup() {
     const email = document.getElementById('signupEmail').value;
+    const username = document.getElementById('signupUsername').value;
     const password = document.getElementById('signupPassword').value;
+
+    if (!username) {
+        alert('Username is required');
+        return;
+    }
+
+    const { data: existingUsers, error: checkError } = await supabaseClient
+        .from('auth.users')
+        .select('username')
+        .eq('username', username)
+        .single();
+
+    if (existingUsers) {
+        alert('Username already taken');
+        return;
+    }
 
     const { data, error } = await supabaseClient.auth.signUp({
         email,
-        password
+        password,
+        options: {
+            data: {
+                username: username
+            }
+        }
     });
 
     if (error) {
@@ -2539,11 +2562,9 @@ async function handleSignup() {
         return;
     }
 
-    // After successful signup, initialize game progress
     await initializeGameProgressForUser(data.user.id);
-
     currentUser = data.user;
-    await loadCustomLists(); // Add this line
+    await loadCustomLists();
     updateAuthUI();
 }
 
@@ -4922,6 +4943,16 @@ function initializeDragAndDrop(item) {
         item.classList.remove('dragging');
         item.style.opacity = '1';
         item.draggable = false;
+        
+        // Save the new order immediately
+        const listId = item.closest('.word-translation-list').id.split('-')[1];
+        const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+        const wordList = document.getElementById(`list-${listId}`);
+        
+        // Only save if in edit mode
+        if (listItem.getAttribute('data-in-edit-mode') === 'true') {
+            saveListChanges(listId, wordList, listItem, false);
+        }
     });
 }
 
@@ -5158,32 +5189,13 @@ function showCustomListsManager() {
 function toggleListCollapse(listId) {
     const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
     const editButton = listItem.querySelector('.edit-button');
-    const listContent = listItem.querySelector('.list-content');
-    const wordList = listItem.querySelector('.word-translation-list');
     
-    if (editButton.textContent === 'Edit') {
-        // Only toggle if not in edit mode
-        listItem.classList.toggle('collapsed');
-        
-        // If opening and list is empty, populate with words
-        if (!listItem.classList.contains('collapsed') && wordList.children.length === 0) {
-            const list = customPracticeLists.lists.find(l => l.id === listId);
-            if (list) {
-                list.words.forEach((word, index) => {
-                    const wordItem = document.createElement('div');
-                    wordItem.className = 'word-translation-item';
-                    wordItem.innerHTML = `
-                        <div class="drag-handle">
-                            <i class="fas fa-grip-vertical"></i>
-                        </div>
-                        <span class="source-word">${word}</span>
-                        <input type="text" class="target-word" value="${list.translations[index]}" readonly>
-                    `;
-                    wordList.appendChild(wordItem);
-                });
-            }
-        }
+    if (editButton.textContent === 'Save') {
+        // Don't toggle if in edit mode
+        return;
     }
+    
+    listItem.classList.toggle('collapsed');
 }
 
 function toggleEditMode(listId) {
@@ -5395,21 +5407,27 @@ function makeWordListDraggable(listId) {
     const wordList = document.getElementById(`list-${listId}`);
     if (!wordList) return;
     
-    wordList.addEventListener('dragover', e => {
+    // Clear existing listeners
+    wordList.replaceWith(wordList.cloneNode(true));
+    
+    // Get fresh reference after clone
+    const freshList = document.getElementById(`list-${listId}`);
+    
+    freshList.addEventListener('dragover', e => {
         e.preventDefault();
-        const draggable = wordList.querySelector('.dragging');
+        const draggable = document.querySelector('.dragging');
         if (!draggable) return;
         
-        const afterElement = getDragAfterElement(wordList, e.clientY);
+        const afterElement = getDragAfterElement(freshList, e.clientY);
         if (afterElement) {
-            wordList.insertBefore(draggable, afterElement);
+            freshList.insertBefore(draggable, afterElement);
         } else {
-            wordList.appendChild(draggable);
+            freshList.appendChild(draggable);
         }
     });
-
+    
     // Initialize drag events for all items
-    const items = wordList.querySelectorAll('.word-translation-item');
+    const items = freshList.querySelectorAll('.word-translation-item');
     items.forEach(item => initializeDragAndDrop(item));
 }
 
