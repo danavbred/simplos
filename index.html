@@ -2514,7 +2514,13 @@ const vocabularySets = {
   const { createClient } = supabase;
 const supabaseClient = createClient(
     'https://mczfgzffyyyacisrccqb.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo'
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo',
+    {
+        // Add these options for better cross-browser and deployment support
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+    }
 );
 
 // Auth UI functions
@@ -2597,14 +2603,36 @@ async function handleLogin() {
 }
 
 async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        await loadUserGameProgress(currentUser.id);
-        updateAuthUI(); // Ensure this is called
+    try {
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        
+        if (error) {
+            console.error('Error checking session:', error);
+            return;
+        }
+
+        if (session) {
+            currentUser = session.user;
+            await loadUserGameProgress(currentUser.id);
+            updateAuthUI();
+        } else {
+            currentUser = null;
+            updateAuthUI();
+        }
+    } catch (error) {
+        console.error('Unexpected error checking session:', error);
+        currentUser = null;
+        updateAuthUI();
     }
 }
+
+// Call this on page load
+window.addEventListener('load', async () => {
+    await checkExistingSession();
+    initializeGame();
+    updatePerkCounts();
+    initializeParticles();
+});
 
 async function loadUserGameProgress(userId) {
     const { data, error } = await supabaseClient
@@ -2639,11 +2667,11 @@ async function loadUserGameProgress(userId) {
 
 async function handleLogout() {
     try {
+        // First, try to sign out using Supabase
         const { error } = await supabaseClient.auth.signOut();
         
         if (error) {
-            console.error('Error logging out:', error.message);
-            return;
+            console.error('Supabase logout error:', error.message);
         }
 
         // Reset game state
@@ -2662,11 +2690,19 @@ async function handleLogout() {
         // Reset current user
         currentUser = null;
 
+        // Clear any local storage items related to authentication
+        localStorage.removeItem('supabase.auth.token');
+        localStorage.removeItem('simploxProgress');
+        localStorage.removeItem('simploxCustomCoins');
+
         // Update UI
         updateAuthUI();
 
         // Redirect to welcome screen
         showScreen('welcome-screen');
+
+        // Additional logging for debugging
+        console.log('Logout process completed');
     } catch (error) {
         console.error('Unexpected error during logout:', error);
     }
@@ -5091,14 +5127,6 @@ function deleteCustomList(listId) {
     saveCustomLists();
     showCustomListsManager();
 }
-
-// Initialize custom lists on page load
-window.addEventListener('load', async () => {
-    await checkExistingSession();
-    initializeGame();
-    updatePerkCounts();
-    initializeParticles();
-});
 
 function addWordToList(listId) {
     const listElement = document.getElementById(`list-${listId}`);
