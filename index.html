@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google" content="notranslate">
+    <html lang="en" translate="no">
     <title>Simplos</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -2291,7 +2293,7 @@ body {
     <span class="student-mode">Student Mode</span>
 </div>
 
-<button class="logout-button" onclick="handleLogout()">Logout</button>
+<button class="logout-button hidden" onclick="handleLogout()">Logout</button>
     </div>
 </div>
     
@@ -2716,13 +2718,24 @@ async function checkExistingSession() {
     }
 }
 
-window.addEventListener('load', async () => {
+document.addEventListener('DOMContentLoaded', async () => {
     await checkExistingSession();
-    await initializeGame();
+    initializeGame();
     updatePerkCounts();
-    initializeParticles();
+    
+    // Initialize particles for welcome screen
+    const welcomeScreen = document.getElementById('welcome-screen');
+    if (welcomeScreen) {
+        initializeParticles(welcomeScreen);
+    }
+    
+    // Also initialize particles for other screens
+    document.querySelectorAll('.screen').forEach(screen => {
+        if (screen.id !== 'welcome-screen') {
+            initializeParticles(screen);
+        }
+    });
 });
-
 
 async function loadUserGameProgress(userId) {
     const { data, error } = await supabaseClient
@@ -2967,16 +2980,17 @@ function updateAuthUI() {
     const authBox = document.getElementById('authBox');
     const userInfo = document.getElementById('userInfo');
     const userEmailElement = document.getElementById('userEmail');
+    const logoutButton = document.querySelector('.logout-button');
 
     if (currentUser) {
-        // User is logged in
         authBox.classList.add('hidden');
         userInfo.classList.remove('hidden');
-        userEmailElement.textContent = currentUser.user_metadata.username; // Change this line
+        logoutButton.classList.remove('hidden'); // Show logout button
+        userEmailElement.textContent = currentUser.user_metadata.username;
     } else {
-        // User is logged out
         authBox.classList.remove('hidden');
         userInfo.classList.add('hidden');
+        logoutButton.classList.add('hidden'); // Hide logout button
         userEmailElement.textContent = '';
     }
 }
@@ -4281,6 +4295,11 @@ function activatePerk(perkType, cost) {
 
 // Particle background initialization
 function initializeParticles(container = document.body) {
+    // Ensure container is a valid DOM element
+    if (!(container instanceof HTMLElement)) {
+        container = document.body;
+    }
+    
     // Find or create the particle container
     let particleContainer = container.querySelector('.particle-container');
     if (!particleContainer) {
@@ -4289,7 +4308,6 @@ function initializeParticles(container = document.body) {
         container.appendChild(particleContainer);
     }
     
-    // Rest of the function remains the same as before
     const characterSet = [
         ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
         ...'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩαβγδεζηθικλμνξοπρστυφχψω',
@@ -4302,8 +4320,8 @@ function initializeParticles(container = document.body) {
         
         particle.textContent = characterSet[Math.floor(Math.random() * characterSet.length)];
         
-        const startX = Math.random() * window.innerWidth;
-        const startY = Math.random() * window.innerHeight;
+        const startX = Math.random() * container.clientWidth;
+        const startY = Math.random() * container.clientHeight;
         
         const moveX = -100 + Math.random() * 200;
         const moveY = -100 + Math.random() * 200;
@@ -4314,6 +4332,7 @@ function initializeParticles(container = document.body) {
         const duration = 8 + Math.random() * 10;
         
         particle.style.cssText = `
+            position: absolute;
             left: ${startX}px;
             top: ${startY}px;
             font-size: ${size}px;
@@ -4322,6 +4341,7 @@ function initializeParticles(container = document.body) {
             --moveY: ${moveY}px;
             --opacity: ${opacity};
             --rotate: ${rotate}deg;
+            pointer-events: none;
         `;
         
         particleContainer.appendChild(particle);
@@ -4348,9 +4368,11 @@ window.onload = async () => {
     await checkExistingSession();
     initializeGame();
     updatePerkCounts();
-    initializeParticles();
     
-    // Load custom lists regardless of auth state
+    // Ensure particles on welcome screen
+    const welcomeScreen = document.getElementById('welcome-screen');
+    initializeParticles(welcomeScreen);
+    
     await loadCustomLists();
 };
 
@@ -5116,6 +5138,7 @@ function updateListsDisplay() {
 }
 
 function startCustomListPractice(listId) {
+    requestFullScreen();
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
