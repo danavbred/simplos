@@ -5631,20 +5631,13 @@ function toggleAuthMode() {
 async function showShareListModal(listId) {
     if (!currentUser) return;
 
-    const { data, error } = await supabaseClient.auth.getUser();
+    const { data, error } = await supabaseClient
+        .from('custom_lists')
+        .select('user_id')
+        .neq('user_id', currentUser.id);
 
     if (error) {
-        console.error('Error fetching current user:', error);
-        return;
-    }
-
-    const { data: users, error: usersError } = await supabaseClient
-        .from('profiles')  // Replace with your actual user table name
-        .select('id, username')
-        .neq('id', currentUser.id);
-
-    if (usersError) {
-        console.error('Error fetching users:', usersError);
+        console.error('Error fetching users:', error);
         return;
     }
 
@@ -5652,8 +5645,8 @@ async function showShareListModal(listId) {
         <div class="share-modal">
             <h2>Share List</h2>
             <select id="recipient-username">
-                ${users
-                    .map(u => `<option value="${u.id}">${u.username}</option>`)
+                ${data
+                    .map(u => `<option value="${u.user_id}">User ${u.user_id.slice(0,8)}</option>`)
                     .join('')}
             </select>
             <div class="modal-actions">
@@ -5686,14 +5679,11 @@ async function shareListToUser(listId) {
 
     const { error } = await supabaseClient
         .from('custom_lists')
-        .insert({
-            user_id: recipientId,
-            name: `${listData.name} (Shared from ${currentUser.user_metadata.username})`,
-            words: listData.words,
-            translations: listData.translations,
-            is_shared: true,
-            local_id: Date.now()
-        });
+        .update({ 
+            shared_with: supabaseClient.sql`array_append(shared_with, ${recipientId})` 
+        })
+        .eq('id', listId)
+        .eq('user_id', currentUser.id);
 
     if (error) {
         console.error('Share error:', error);
@@ -5703,7 +5693,6 @@ async function shareListToUser(listId) {
 
     alert('List shared successfully');
     closeShareModal();
-    await loadCustomLists();
 }
 
 function closeShareModal() {
