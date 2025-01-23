@@ -180,98 +180,120 @@ body {
 }
 
 /* Maintain active state for auth tabs */
-.auth-tab.active {
-    background: transparent;
-    border-color: var(--accent);
-    box-shadow: 0 0 15px var(--accent);
-}
-
-.welcome-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  align-items: center;
-  width: 100%;
-    padding: 0 1rem;
-}
-
 .auth-container {
-    margin-top: 2rem;
-    width: 100%;
-    max-width: 300px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    padding: 1.5rem;
+    position: fixed;
+    top: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(10px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-}
-
-.auth-tabs {
+    padding: 1rem 2rem;
+    border-radius: 1rem;
     display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    background: rgba(0, 0, 0, 0.2);
-    padding: 0.5rem;
-    border-radius: 25px;
-}
-
-
-.auth-form {
-    display: flex;
-    flex-direction: column;
     gap: 1rem;
+    align-items: center;
+    z-index: 100;
 }
 
-.auth-form input {
-    width: 100%;
-    padding: 0.875rem 1.25rem;
-    border: 2px solid rgba(255, 255, 255, 0.1);
-    border-radius: 15px;
-    background: rgba(0, 0, 0, 0.2);
+.auth-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
     color: var(--text);
-    font-size: 1rem;
-    transition: all 0.3s ease;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.3s ease;
+    width: 160px;
 }
 
-.auth-form input:focus {
+.auth-input:focus {
     border-color: var(--accent);
-    outline: none;
-    box-shadow: 0 0 15px rgba(233, 69, 96, 0.2);
+}
+
+.auth-button {
+    color: var(--accent);
+    border: 1px solid rgba(233, 69, 96, 0.5);
+    padding: 0.5rem 1.5rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    background: transparent;
+    transition: background 0.3s ease;
+    cursor: pointer;
+}
+
+.auth-button:hover {
+    background: rgba(233, 69, 96, 0.1);
+}
+
+.auth-toggle {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.85rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.auth-toggle:hover {
+    color: var(--text);
 }
 
 .user-info {
+    position: fixed;
+    top: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
     text-align: center;
-    padding: 1rem;
+    z-index: 100;
 }
 
 #userEmail {
-    display: block;
-    font-size: 1.1rem;
+    font-size: 1.5rem;
     color: var(--gold);
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.student-mode {
+    color: var(--text);
+    font-size: 1rem;
+    opacity: 0.8;
+    display: block;
 }
 
 .logout-button {
-    padding: 0.75rem 2rem;
-    border: none;
-    border-radius: 50px;
-    background: var(--error);
-    color: var(--text);
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 5px 15px rgba(244, 67, 54, 0.3);
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    opacity: 0.7;
+    transition: opacity 0.3s ease, box-shadow 0.3s ease;
+    z-index: 100;
 }
 
 .logout-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px rgba(244, 67, 54, 0.4);
+    opacity: 1;
+    box-shadow: 0 5px 15px rgba(244, 67, 54, 0.4);
 }
 
 .hidden {
     display: none !important;
+}
+
+@media (max-width: 768px) {
+    .auth-container {
+        flex-direction: column;
+        padding: 1rem;
+        width: 90%;
+        max-width: 320px;
+    }
+
+    .auth-input {
+        width: 100%;
+    }
 }
 
 /* Neon style for custom practice screen buttons */
@@ -2239,27 +2261,28 @@ body {
     <div class="welcome-buttons">
         <button class="start-button" onclick="startGame()">Start Game</button>
         <button class="start-button custom-lists-button" onclick="showCustomListsManager()">Custom Practice</button>
-        <div class="auth-container">
-    <div class="auth-box" id="authBox">
-        <div class="auth-tabs">
-            <button class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
-            <button class="auth-tab" onclick="switchAuthTab('signup')">Sign Up</button>
-        </div>
-        <div class="auth-form" id="loginForm">
-            <input type="email" placeholder="Email" id="loginEmail">
-            <input type="password" placeholder="Password" id="loginPassword">
-            <button onclick="handleLogin()">Login</button>
-        </div>
-        <div class="auth-form hidden" id="signupForm">
-    <input type="email" placeholder="Email" id="signupEmail">
-    <input type="text" placeholder="Username" id="signupUsername">
-    <input type="password" placeholder="Password" id="signupPassword">
-    <button onclick="handleSignup()">Sign Up</button>
-</div>
+        <div class="auth-container" id="authBox">
+    <div class="auth-login" id="loginForm">
+        <input type="text" class="auth-input" placeholder="Username" id="loginUsername">
+        <input type="password" class="auth-input" placeholder="Password" id="loginPassword">
+        <button class="auth-button" onclick="handleLogin()">Login</button>
+        <button class="auth-toggle" onclick="toggleAuthMode()">New? Register here</button>
     </div>
-    <div class="user-info hidden" id="userInfo">
-        <span id="userEmail"></span>
-        <button class="logout-button" onclick="handleLogout()">Logout</button>
+    <div class="auth-signup hidden" id="signupForm">
+        <input type="email" class="auth-input" placeholder="Email" id="signupEmail">
+        <input type="text" class="auth-input" placeholder="Username" id="signupUsername">
+        <input type="password" class="auth-input" placeholder="Password" id="signupPassword">
+        <button class="auth-button" onclick="handleSignup()">Sign Up</button>
+        <button class="auth-toggle" onclick="toggleAuthMode()">Already have an account?</button>
+    </div>
+</div>
+
+<div class="user-info hidden" id="userInfo">
+    <span id="userEmail"></span>
+    <span class="student-mode">Student Mode</span>
+</div>
+
+<button class="logout-button" onclick="handleLogout()">Logout</button>
     </div>
 </div>
     
@@ -2609,28 +2632,36 @@ async function initializeGameProgressForUser(userId) {
 }
 
 async function handleLogin() {
-    const email = document.getElementById('loginEmail').value;
+    const email = document.getElementById('loginUsername').value;
     const password = document.getElementById('loginPassword').value;
+    
+    try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email,
+            password
+        });
 
-    const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-    });
+        if (error) {
+            console.error('Detailed Login Error:', {
+                message: error.message,
+                status: error.status,
+                type: error.type
+            });
+            alert(error.message); // Show user-friendly error
+            return;
+        }
 
-    if (error) {
-        console.error('Error logging in:', error.message);
-        return;
+        console.log('Login successful:', data.user);
+
+        currentUser = data.user;
+        await loadCustomLists();
+        await loadUserGameProgress(currentUser.id);
+        updateAuthUI();
+        showScreen('welcome-screen');
+    } catch (catchError) {
+        console.error('Unexpected Login Error:', catchError);
+        alert('An unexpected error occurred during login');
     }
-
-    currentUser = data.user;
-    
-    // Clear all input fields and UI state
-    clearCustomPracticeUI();
-    
-    await loadCustomLists();
-    await loadUserGameProgress(currentUser.id);
-    updateAuthUI();
-    showScreen('welcome-screen');
 }
 
 function initializeGame() {
@@ -5596,6 +5627,13 @@ async function checkExistingSession() {
     }
 }
 
+function toggleAuthMode() {
+    const loginForm = document.getElementById('loginForm');
+    const signupForm = document.getElementById('signupForm');
+    
+    loginForm.classList.toggle('hidden');
+    signupForm.classList.toggle('hidden');
+}
 
 </script>
 </body>
