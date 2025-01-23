@@ -252,6 +252,26 @@ body {
     z-index: 999;
 }
 
+.user-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    margin: 0.5rem 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.user-item:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.modal-close {
+    margin-top: 1rem;
+    width: 100%;
+}
+
 /* Maintain active state for auth tabs */
 .auth-container {
     position: fixed;
@@ -5675,46 +5695,51 @@ async function showShareModal(listId) {
         <div class="modal-backdrop"></div>
         <div class="share-modal">
             <h3 class="share-modal-header">Share List</h3>
-            <div class="users-list"></div>
+            <div class="users-list">Loading users...</div>
+            <button class="share-button modal-close">Cancel</button>
         </div>
     `;
     document.body.appendChild(modal);
 
     const { data: users, error } = await supabaseClient
-        .from('auth.users')
+        .from('user_list')
         .select('id, username')
         .neq('id', currentUser.id);
 
+    console.log('Query debug:', { users, error });
+
+    const usersList = modal.querySelector('.users-list');
+    usersList.innerHTML = '';
+
     if (error) {
         console.error('Error fetching users:', error);
+        usersList.innerHTML = 'Error loading users';
         return;
     }
 
-    const usersList = modal.querySelector('.users-list');
+    if (!users || users.length === 0) {
+        usersList.innerHTML = 'No other users found';
+        return;
+    }
+
     users.forEach(user => {
         const userItem = document.createElement('div');
         userItem.className = 'user-item';
-        userItem.textContent = user.username;
-        userItem.onclick = () => shareListWithUser(listId, user.id);
+        userItem.innerHTML = `
+            <span>${user.username || 'Unnamed User'}</span>
+            <button class="share-button">Share</button>
+        `;
+        userItem.querySelector('button').onclick = () => shareListWithUser(listId, user.id);
         usersList.appendChild(userItem);
     });
 
-    modal.querySelector('.modal-backdrop').onclick = () => {
-        document.body.removeChild(modal);
-    };
+    modal.querySelector('.modal-close').onclick = () => document.body.removeChild(modal);
+    modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
 
 async function shareListWithUser(listId, recipientId) {
-    const { data: list, error: fetchError } = await supabaseClient
-        .from('custom_lists')
-        .select('*')
-        .eq('id', listId)
-        .single();
-
-    if (fetchError) {
-        console.error('Error fetching list:', fetchError);
-        return;
-    }
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
 
     const sharedList = {
         user_id: recipientId,
@@ -5722,21 +5747,22 @@ async function shareListWithUser(listId, recipientId) {
         words: list.words,
         translations: list.translations,
         is_shared: true,
-        shared_by: currentUser.id
+        local_id: Date.now()
     };
 
-    const { error: shareError } = await supabaseClient
-        .from('custom_lists')
-        .insert([sharedList]);
+    console.log('Sharing list:', sharedList);
 
-    if (shareError) {
-        console.error('Error sharing list:', shareError);
+    const { data, error } = await supabaseClient
+        .from('custom_lists')
+        .insert([sharedList])
+        .select();
+
+    if (error) {
+        console.error('Error sharing list:', error);
         return;
     }
 
-    // Remove share modal
-    const modal = document.querySelector('.share-modal').parentElement;
-    document.body.removeChild(modal);
+    document.body.removeChild(document.querySelector('.share-modal').parentElement);
 }
 
 </script>
