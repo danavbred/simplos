@@ -4995,13 +4995,54 @@ async function saveCustomListToSupabase(list) {
 }
 
 
-function saveCustomLists() {
-    if (currentUser) {
-        // Lists are saved individually via saveCustomListToSupabase
-        return;
-    } else {
-        // For guest users, save to localStorage
-        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+async function saveCurrentList() {
+    const listNameInput = document.getElementById('custom-list-name');
+    const wordInput = document.getElementById('custom-word-input');
+    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+    
+    const wordItems = document.querySelectorAll('.word-translation-item');
+    const words = [];
+    const translations = [];
+    
+    wordItems.forEach(item => {
+        const englishWord = item.querySelector('.source-word').textContent.trim();
+        const hebrewTranslation = item.querySelector('.target-word').value.trim();
+        
+        if (englishWord && hebrewTranslation) {
+            words.push(englishWord);
+            translations.push(hebrewTranslation);
+        }
+    });
+
+    const newList = {
+        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
+        name: name,
+        words: words,
+        translations: translations
+    };
+
+    const success = await saveCustomListToSupabase(newList);
+    if (success) {
+        // Clear all input fields and translation table
+        listNameInput.value = '';
+        wordInput.value = '';
+        
+        // Clear the translation results
+        const translationResults = document.getElementById('translation-results');
+        const wordList = document.getElementById('word-translation-list');
+        if (wordList) {
+            wordList.innerHTML = '';
+        }
+        if (translationResults) {
+            translationResults.style.display = 'none';
+        }
+
+        // Reset current list
+        customPracticeLists.currentList = null;
+        
+        // Reload lists and update display
+        await loadCustomLists();
+        showCustomListsManager();
     }
 }
 
