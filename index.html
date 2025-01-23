@@ -181,6 +181,77 @@ body {
     left: 100%;
 }
 
+.share-button {
+    position: relative; 
+    padding: 0.5rem 1rem;
+    border: 2px solid var(--accent);
+    background: transparent;
+    color: var(--text);
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.share-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    padding: 2rem;
+    border-radius: 20px;
+    z-index: 1000;
+    width: 90%;
+    max-width: 500px;
+}
+
+.share-modal-header {
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+}
+
+.users-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 1rem 0;
+}
+
+.user-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.user-item:hover {
+    background: rgba(255,255,255,0.2);
+    transform: translateY(-2px);
+}
+
+.shared-list {
+    border: 2px solid transparent;
+    background: linear-gradient(135deg, #00f2fe, #4facfe);
+    background-clip: padding-box;
+}
+
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(5px);
+    z-index: 999;
+}
+
 /* Maintain active state for auth tabs */
 .auth-container {
     position: fixed;
@@ -2953,24 +3024,23 @@ async function loadCustomLists() {
         const { data, error } = await supabaseClient
             .from('custom_lists')
             .select('*')
-            .eq('user_id', currentUser.id);
+            .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
 
         if (error) {
             console.error('Error loading custom lists:', error);
-            // Fallback to localStorage if Supabase load fails
-            const savedLists = localStorage.getItem('simploxCustomLists');
-            customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
+            customPracticeLists.lists = [];
         } else {
             customPracticeLists.lists = data.map(item => ({
                 id: item.local_id || Date.now(),
                 supabaseId: item.id,
                 name: item.name,
                 words: item.words,
-                translations: item.translations
+                translations: item.translations,
+                is_shared: item.is_shared,
+                shared_by: item.shared_by
             }));
         }
     } else {
-        // For guest users, load from localStorage
         const savedLists = localStorage.getItem('simploxCustomLists');
         customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
     }
@@ -5245,21 +5315,19 @@ function showCustomListsManager() {
         return;
     }
 
-    // Track seen list IDs to prevent duplicates
     const seenIds = new Set();
 
     customPracticeLists.lists.forEach(list => {
-        // Skip if we've already seen this list ID
         if (seenIds.has(list.id)) return;
         seenIds.add(list.id);
         
         const listItem = document.createElement('div');
-        listItem.className = 'custom-list-item collapsed';
+        listItem.className = `custom-list-item collapsed ${list.is_shared ? 'shared-list' : ''}`;
         listItem.dataset.listId = list.id;
         
         listItem.innerHTML = `
             <div class="list-header">
-                <h3>${list.name}</h3>
+                <h3>${list.name}${list.is_shared ? ' (Shared)' : ''}</h3>
                 <div class="list-summary">
                     <span>${list.words.length} words</span>
                     <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
@@ -5270,8 +5338,13 @@ function showCustomListsManager() {
             </div>
             <div class="list-actions">
                 <button class="start-button practice-button">Practice</button>
-                <button class="edit-button" data-list-id="${list.id}">Edit</button>
-                <button class="start-button delete-button">Delete</button>
+                ${!list.is_shared ? `
+                    <button class="edit-button" data-list-id="${list.id}">Edit</button>
+                    <button class="start-button delete-button">Delete</button>
+                    <button class="share-button" onclick="showShareModal(${list.id})">
+                        <i class="fas fa-share-alt"></i> Share
+                    </button>
+                ` : ''}
             </div>
         `;
 
@@ -5281,11 +5354,13 @@ function showCustomListsManager() {
         const practiceButton = listItem.querySelector('.practice-button');
         practiceButton.addEventListener('click', () => startCustomListPractice(list.id));
 
-        const editButton = listItem.querySelector('.edit-button');
-        editButton.addEventListener('click', () => toggleEditMode(list.id));
+        if (!list.is_shared) {
+            const editButton = listItem.querySelector('.edit-button');
+            editButton.addEventListener('click', () => toggleEditMode(list.id));
 
-        const deleteButton = listItem.querySelector('.delete-button');
-        deleteButton.addEventListener('click', () => deleteCustomList(list.id));
+            const deleteButton = listItem.querySelector('.delete-button');
+            deleteButton.addEventListener('click', () => deleteCustomList(list.id));
+        }
 
         container.appendChild(listItem);
     });
@@ -5592,6 +5667,76 @@ function toggleAuthMode() {
     
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
+}
+
+async function showShareModal(listId) {
+    const modal = document.createElement('div');
+    modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="share-modal">
+            <h3 class="share-modal-header">Share List</h3>
+            <div class="users-list"></div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const { data: users, error } = await supabaseClient
+        .from('auth.users')
+        .select('id, username')
+        .neq('id', currentUser.id);
+
+    if (error) {
+        console.error('Error fetching users:', error);
+        return;
+    }
+
+    const usersList = modal.querySelector('.users-list');
+    users.forEach(user => {
+        const userItem = document.createElement('div');
+        userItem.className = 'user-item';
+        userItem.textContent = user.username;
+        userItem.onclick = () => shareListWithUser(listId, user.id);
+        usersList.appendChild(userItem);
+    });
+
+    modal.querySelector('.modal-backdrop').onclick = () => {
+        document.body.removeChild(modal);
+    };
+}
+
+async function shareListWithUser(listId, recipientId) {
+    const { data: list, error: fetchError } = await supabaseClient
+        .from('custom_lists')
+        .select('*')
+        .eq('id', listId)
+        .single();
+
+    if (fetchError) {
+        console.error('Error fetching list:', fetchError);
+        return;
+    }
+
+    const sharedList = {
+        user_id: recipientId,
+        name: `${list.name} (Shared)`,
+        words: list.words,
+        translations: list.translations,
+        is_shared: true,
+        shared_by: currentUser.id
+    };
+
+    const { error: shareError } = await supabaseClient
+        .from('custom_lists')
+        .insert([sharedList]);
+
+    if (shareError) {
+        console.error('Error sharing list:', shareError);
+        return;
+    }
+
+    // Remove share modal
+    const modal = document.querySelector('.share-modal').parentElement;
+    document.body.removeChild(modal);
 }
 
 </script>
