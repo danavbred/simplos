@@ -1975,6 +1975,24 @@ body {
     opacity: 0.8;
 }
 
+.list-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.custom-list-item:not(.collapsed) .list-content {
+    max-height: 1000px;
+    margin-top: 1rem;
+}
+
+.list-header {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
 .word-preview {
     white-space: nowrap;
     overflow: hidden;
@@ -1983,40 +2001,14 @@ body {
     margin-top: 0.25rem;
 }
 
-.list-content {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease;
-    order: 2; /* Places content last */
-}
-
 .add-word-button {
-    display: flex;
+    display: none;
+    margin-top: 1rem;
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
     border-radius: 50px;
-    font-size: 0.9rem;
-    font-weight: 600;
     background: var(--accent);
-    color: var(--text);
-    border: none;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    min-width: 100px;
-}
-
-.add-word-button i {
-    font-size: 1rem;
-}
-
-.add-word-button:hover {
-    background-color: var(--secondary);
-}
-
-.custom-list-item:not(.collapsed) .list-content {
-    max-height: 1000px;
-    margin-top: 1rem;
 }
 
 /* Media Queries */
@@ -5091,55 +5083,35 @@ function initializeDragAndDrop(item) {
 }
 
 
-async function saveCurrentList() {
+function saveCurrentList() {
     const listNameInput = document.getElementById('custom-list-name');
-    const wordInput = document.getElementById('custom-word-input');
-    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+    const wordList = document.getElementById('word-translation-list');
+    const items = wordList.querySelectorAll('.word-translation-item');
     
-    const wordItems = document.querySelectorAll('.word-translation-item');
+    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
     const words = [];
     const translations = [];
     
-    wordItems.forEach(item => {
-        const englishWord = item.querySelector('.source-word').textContent.trim();
-        const hebrewTranslation = item.querySelector('.target-word').value.trim();
+    items.forEach(item => {
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
         
-        if (englishWord && hebrewTranslation) {
-            words.push(englishWord);
-            translations.push(hebrewTranslation);
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
         }
     });
 
     const newList = {
-        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
+        id: Date.now(),
         name: name,
         words: words,
         translations: translations
     };
 
-    const success = await saveCustomListToSupabase(newList);
-    if (success) {
-        // Clear all input fields and translation table
-        listNameInput.value = '';
-        wordInput.value = '';
-        
-        // Clear the translation results
-        const translationResults = document.getElementById('translation-results');
-        const wordList = document.getElementById('word-translation-list');
-        if (wordList) {
-            wordList.innerHTML = '';
-        }
-        if (translationResults) {
-            translationResults.style.display = 'none';
-        }
-
-        // Reset current list
-        customPracticeLists.currentList = null;
-        
-        // Reload lists and update display
-        await loadCustomLists();
-        showCustomListsManager();
-    }
+    customPracticeLists.lists.push(newList);
+    saveCustomLists();
+    showCustomListsManager();
 }
 
 function updateListsDisplay() {
@@ -5279,13 +5251,14 @@ function showCustomListsManager() {
     customPracticeLists.lists.forEach(list => {
         const listItem = document.createElement('div');
         listItem.className = 'custom-list-item collapsed';
+        listItem.dataset.listId = list.id;
         
         listItem.innerHTML = `
             <div class="list-header">
                 <h3>${list.name}</h3>
                 <div class="list-summary">
                     <span>${list.words.length} words</span>
-                    <p class="word-preview">${list.words.join(', ')}</p>
+                    <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
                 </div>
             </div>
             <div class="list-content">
@@ -5294,10 +5267,6 @@ function showCustomListsManager() {
             <div class="list-actions">
                 <button class="start-button practice-button">Practice</button>
                 <button class="edit-button" data-list-id="${list.id}">Edit</button>
-                <button class="add-word-button">
-                    <i class="fas fa-plus"></i>
-                    Add Word
-                </button>
                 <button class="start-button delete-button">Delete</button>
             </div>
         `;
@@ -5310,9 +5279,6 @@ function showCustomListsManager() {
 
         const editButton = listItem.querySelector('.edit-button');
         editButton.addEventListener('click', () => toggleEditMode(list.id));
-
-        const addWordButton = listItem.querySelector('.add-word-button');
-        addWordButton.addEventListener('click', () => addWordToList(list.id));
 
         const deleteButton = listItem.querySelector('.delete-button');
         deleteButton.addEventListener('click', () => deleteCustomList(list.id));
@@ -5334,76 +5300,25 @@ function toggleListCollapse(listId) {
 }
 
 function toggleEditMode(listId) {
-    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
     const editButton = listItem.querySelector('.edit-button');
     const wordList = document.getElementById(`list-${listId}`);
     
     if (editButton.textContent === 'Edit') {
-        // Enter edit mode
         editButton.textContent = 'Save';
         listItem.classList.remove('collapsed');
         listItem.setAttribute('data-in-edit-mode', 'true');
         
-        // Load editable word list
-        const list = customPracticeLists.lists.find(l => l.id === listId);
-        if (!list) return;
-        
+        const list = customPracticeLists.lists.find(l => l.id === parseInt(listId));
         wordList.innerHTML = '';
         
         list.words.forEach((word, index) => {
-            const wordItem = document.createElement('div');
-            wordItem.className = 'word-translation-item';
-            wordItem.draggable = true;
-            
-            wordItem.innerHTML = `
-                <div class="drag-handle">
-                    <i class="fas fa-grip-vertical"></i>
-                </div>
-                <span class="source-word" contenteditable="true">${word}</span>
-                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
-                <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-            `;
-            
-            wordList.appendChild(wordItem);
+            createWordTranslationItem(word, list.translations[index], true);
         });
         
-        // Initialize drag functionality
         makeWordListDraggable(listId);
     } else {
-        // Save changes
-        const list = customPracticeLists.lists.find(l => l.id === listId);
-        const items = wordList.querySelectorAll('.word-translation-item');
-        
-        list.words = [];
-        list.translations = [];
-        
-        items.forEach(item => {
-            const word = item.querySelector('.source-word').textContent.trim();
-            const translation = item.querySelector('.target-word').value.trim();
-            
-            if (word && translation) {
-                list.words.push(word);
-                list.translations.push(translation);
-            }
-        });
-        
-        // Save to appropriate storage
-        if (currentUser) {
-            saveCustomListToSupabase(list);
-        } else {
-            saveCustomLists();
-        }
-        
-        editButton.textContent = 'Edit';
-        listItem.classList.add('collapsed');
-        listItem.removeAttribute('data-in-edit-mode');
-        
-        // Update summary
-        const summary = listItem.querySelector('.list-summary');
-        summary.innerHTML = `
-            <span>${list.words.length} words</span>
-            <p class="word-preview">${list.words.join(', ')}</p>
-        `;
+        saveListChanges(listId, wordList, listItem);
     }
 }
 
@@ -5621,11 +5536,10 @@ function toggleEditMode(listId) {
     }
 }
 
-async function saveListChanges(listId, wordList, listItem, shouldCollapse = true) {
-    if (!currentUser) return;
-
-    const items = wordList.querySelectorAll('.word-translation-item');
+function saveListChanges(listId, wordList, listItem) {
+    const list = customPracticeLists.lists.find(l => l.id === parseInt(listId));
     const editButton = listItem.querySelector('.edit-button');
+    const items = wordList.querySelectorAll('.word-translation-item');
     
     const words = [];
     const translations = [];
@@ -5633,48 +5547,25 @@ async function saveListChanges(listId, wordList, listItem, shouldCollapse = true
     items.forEach(item => {
         const word = item.querySelector('.source-word').textContent.trim();
         const translation = item.querySelector('.target-word').value.trim();
-        
-        if (word || translation) {
-            words.push(word || '');
-            translations.push(translation || '');
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
         }
     });
-
-    // Save to Supabase
-    const { error } = await supabaseClient
-        .from('custom_lists')
-        .update({
-            words: words,
-            translations: translations
-        })
-        .eq('id', listId)
-        .eq('user_id', currentUser.id);
-
-    if (error) {
-        console.error('Error saving list changes:', error);
-        return;
-    }
-
-    // Update UI
-    if (editButton) {
-        editButton.textContent = 'Edit';
-        listItem.removeAttribute('data-in-edit-mode');
-        
-        if (shouldCollapse) {
-            listItem.classList.add('collapsed');
-        }
-    }
     
-    // Update summary display
+    list.words = words;
+    list.translations = translations;
+    saveCustomLists();
+    
+    editButton.textContent = 'Edit';
+    listItem.removeAttribute('data-in-edit-mode');
+    listItem.classList.add('collapsed');
+    
     const summary = listItem.querySelector('.list-summary');
-    if (summary) {
-        summary.innerHTML = `
-            <span>${words.length} words</span>
-            <p class="word-preview">${words.join(', ')}</p>
-        `;
-    }
-
-    await loadCustomLists(); // Reload all lists to ensure sync
+    summary.innerHTML = `
+        <span>${words.length} words</span>
+        <p class="word-preview">${words.slice(0,5).join(', ')}${words.length > 5 ? '...' : ''}</p>
+    `;
 }
 
 // Add to checkExistingSession()
