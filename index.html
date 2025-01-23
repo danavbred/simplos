@@ -2246,38 +2246,6 @@ body {
     }
 }
 
-.share-button {
-    position: relative;
-    padding: 0.5rem 1rem;
-    border: 2px solid var(--accent);
-    background: transparent;
-    color: var(--text);
-    border-radius: 50px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    overflow: hidden;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.share-button:hover {
-    box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent);
-}
-
-.share-modal {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--glass);
-    backdrop-filter: blur(10px);
-    border-radius: 15px;
-    padding: 2rem;
-    z-index: 1000;
-    width: 90%;
-    max-width: 400px;
-}
-
     </style>
 </head>
 <body>
@@ -5145,31 +5113,30 @@ function saveCurrentList() {
 }
 
 function updateListsDisplay() {
-   const container = document.getElementById('custom-lists-container');
-   if (!container) return;
+    const container = document.getElementById('custom-lists-container');
+    if (!container) return;
 
-   container.innerHTML = '';
+    container.innerHTML = '';
 
-   if (customPracticeLists.lists.length === 0) {
-       container.innerHTML = '<p>No custom lists created yet. Create your first list!</p>';
-       return;
-   }
+    if (customPracticeLists.lists.length === 0) {
+        container.innerHTML = '<p>No custom lists created yet. Create your first list!</p>';
+        return;
+    }
 
-   customPracticeLists.lists.forEach(list => {
-       const listItem = document.createElement('div');
-       listItem.className = 'custom-list-item';
-       listItem.innerHTML = `
-           <h3>${list.name}</h3>
-           <p>${list.words.length} words</p>
-           <div class="list-actions">
-               <button onclick="startCustomListPractice(${list.id})">Practice</button>
-               <button onclick="editCustomList(${list.id})">Edit</button>
-               <button onclick="deleteCustomList(${list.id})">Delete</button>
-               <button class="share-button" onclick="showShareListModal(${list.id})">Share</button>
-           </div>
-       `;
-       container.appendChild(listItem);
-   });
+    customPracticeLists.lists.forEach(list => {
+        const listItem = document.createElement('div');
+        listItem.className = 'custom-list-item';
+        listItem.innerHTML = `
+            <h3>${list.name}</h3>
+            <p>${list.words.length} words</p>
+            <div class="list-actions">
+                <button onclick="startCustomListPractice(${list.id})">Practice</button>
+                <button onclick="editCustomList(${list.id})">Edit</button>
+                <button onclick="deleteCustomList(${list.id})">Delete</button>
+            </div>
+        `;
+        container.appendChild(listItem);
+    });
 }
 
 function startCustomListPractice(listId) {
@@ -5305,7 +5272,6 @@ function showCustomListsManager() {
                 <button class="start-button practice-button">Practice</button>
                 <button class="edit-button" data-list-id="${list.id}">Edit</button>
                 <button class="start-button delete-button">Delete</button>
-                <button class="share-button" onclick="showShareListModal(${list.id})">Share</button>
             </div>
         `;
 
@@ -5627,79 +5593,6 @@ function toggleAuthMode() {
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
 }
-
-async function showShareListModal(listId) {
-    if (!currentUser) return;
-
-    const { data, error } = await supabaseClient
-        .from('custom_lists')
-        .select('user_id')
-        .neq('user_id', currentUser.id);
-
-    if (error) {
-        console.error('Error fetching users:', error);
-        return;
-    }
-
-    const modalHtml = `
-        <div class="share-modal">
-            <h2>Share List</h2>
-            <select id="recipient-username">
-                ${data
-                    .map(u => `<option value="${u.user_id}">User ${u.user_id.slice(0,8)}</option>`)
-                    .join('')}
-            </select>
-            <div class="modal-actions">
-                <button onclick="shareListToUser(${listId})">Share</button>
-                <button onclick="closeShareModal()">Cancel</button>
-            </div>
-        </div>
-    `;
-
-    const modal = document.createElement('div');
-    modal.id = 'share-list-modal';
-    modal.innerHTML = modalHtml;
-    document.body.appendChild(modal);
-}
-
-async function shareListToUser(listId) {
-    const recipientId = document.getElementById('recipient-username').value;
-    
-    const { data: listData, error: listError } = await supabaseClient
-        .from('custom_lists')
-        .select('*')
-        .eq('id', listId)
-        .eq('user_id', currentUser.id)
-        .single();
-
-    if (listError) {
-        console.error('List fetch error:', listError);
-        return;
-    }
-
-    const { error } = await supabaseClient
-        .from('custom_lists')
-        .update({ 
-            shared_with: supabaseClient.sql`array_append(shared_with, ${recipientId})` 
-        })
-        .eq('id', listId)
-        .eq('user_id', currentUser.id);
-
-    if (error) {
-        console.error('Share error:', error);
-        alert('Failed to share list');
-        return;
-    }
-
-    alert('List shared successfully');
-    closeShareModal();
-}
-
-function closeShareModal() {
-    const modal = document.getElementById('share-list-modal');
-    if (modal) modal.remove();
-}
-
 
 </script>
 </body>
