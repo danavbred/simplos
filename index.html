@@ -2901,7 +2901,7 @@ function saveProgress() {
     }
 }
 
-function saveCustomList() {
+async function saveCustomList() {
     const listNameInput = document.getElementById('custom-list-name');
     const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
     
@@ -2941,14 +2941,15 @@ function saveCustomList() {
     // Reset current list
     customPracticeLists.currentList = null;
     
-    // Save and show lists
+    // Save to Supabase if logged in
     if (currentUser) {
-        // Save to Supabase
-        saveCustomListToSupabase(newList);
+        await saveCustomListToSupabase(newList);
     } else {
-        // Save to localStorage
+        // Save to localStorage for guest users
         localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
     }
+
+    // Update UI after saving
     showCustomListsManager();
 }
 
@@ -5241,14 +5242,20 @@ function showCustomListsManager() {
     if (!container) return;
     
     container.innerHTML = '';
-    loadCustomLists();
     
     if (customPracticeLists.lists.length === 0) {
         container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
         return;
     }
 
+    // Track seen list IDs to prevent duplicates
+    const seenIds = new Set();
+
     customPracticeLists.lists.forEach(list => {
+        // Skip if we've already seen this list ID
+        if (seenIds.has(list.id)) return;
+        seenIds.add(list.id);
+        
         const listItem = document.createElement('div');
         listItem.className = 'custom-list-item collapsed';
         listItem.dataset.listId = list.id;
