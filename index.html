@@ -2718,10 +2718,17 @@ async function checkExistingSession() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    await checkExistingSession();
-    initializeGame();
-    updatePerkCounts();
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize particles immediately for all screens
+    document.querySelectorAll('.screen').forEach(screen => {
+        initializeParticles(screen);
+    });
+    
+    // Then handle session checks and game initialization
+    checkExistingSession().then(() => {
+        initializeGame();
+        updatePerkCounts();
+    });
     
     // Initialize particles for welcome screen
     const welcomeScreen = document.getElementById('welcome-screen');
