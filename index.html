@@ -2676,22 +2676,56 @@ async function handleLogin() {
 }
 
 function initializeGame() {
-    if (currentUser) {
-        // Load progress from Supabase for logged in users
-        loadUserGameProgress(currentUser.id);
+    // Check for existing progress in localStorage first
+    const saved = localStorage.getItem('simploxProgress');
+    
+    if (saved) {
+        const parsedSaved = JSON.parse(saved);
+        
+        // Explicitly set all game state from localStorage
+        gameState.currentStage = parsedSaved.currentStage || 1;
+        gameState.currentSet = parsedSaved.currentSet || 1;
+        gameState.currentLevel = parsedSaved.currentLevel || 1;
+        gameState.coins = parsedSaved.coins || 0;
+        gameState.perks = parsedSaved.perks || {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        };
+        gameState.unlockedSets = Object.fromEntries(
+            Object.entries(parsedSaved.unlockedSets || {}).map(([k, v]) => [k, new Set(v)])
+        );
+        gameState.unlockedLevels = Object.fromEntries(
+            Object.entries(parsedSaved.unlockedLevels || {}).map(([k, v]) => [k, new Set(v)])
+        );
+        gameState.perfectLevels = new Set(parsedSaved.perfectLevels || []);
+        gameState.completedLevels = new Set(parsedSaved.completedLevels || []);
     } else {
-        // For guest users, use localStorage but don't remove it entirely
-        const saved = localStorage.getItem('simploxProgress');
-        if (!saved) {
-            // Initialize first stage/set/level if no saved progress
-            gameState.unlockedSets[1] = new Set([1]);
-            gameState.unlockedLevels['1_1'] = new Set([1]);
-        } else {
-            loadProgress();
-        }
+        // Initialize first stage/set/level if no saved progress
+        gameState.unlockedSets = { 1: new Set([1]) };
+        gameState.unlockedLevels = { '1_1': new Set([1]) };
+        gameState.currentStage = 1;
+        gameState.currentSet = 1;
+        gameState.currentLevel = 1;
+        gameState.coins = 0;
+        gameState.perks = {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        };
     }
+
+    // If logged in, also load Supabase progress
+    if (currentUser) {
+        loadUserGameProgress(currentUser.id);
+    }
+
     updateAllCoinDisplays();
+    updatePerkCounts();
 }
+
 
 
 async function checkExistingSession() {
@@ -2724,6 +2758,9 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeParticles(screen);
     });
     
+    // Explicitly set currentUser to null if not logged in
+    currentUser = null;
+    
     // Then handle session checks and game initialization
     checkExistingSession().then(() => {
         initializeGame();
@@ -2735,13 +2772,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (welcomeScreen) {
         initializeParticles(welcomeScreen);
     }
-    
-    // Also initialize particles for other screens
-    document.querySelectorAll('.screen').forEach(screen => {
-        if (screen.id !== 'welcome-screen') {
-            initializeParticles(screen);
-        }
-    });
 });
 
 async function loadUserGameProgress(userId) {
@@ -2839,24 +2869,33 @@ function clearCustomPracticeUI() {
 }
 
 function saveProgress() {
-    if (currentUser) {
-        // Save to Supabase for logged in users
-        const progressToSave = {
-            stage: gameState.currentStage,
-            set_number: gameState.currentSet,
-            level: gameState.currentLevel,
-            coins: gameState.coins,
-            perks: gameState.perks,
-            unlocked_sets: Object.fromEntries(
-                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
-            ),
-            unlocked_levels: Object.fromEntries(
-                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
-            ),
-            perfect_levels: Array.from(gameState.perfectLevels),
-            completed_levels: Array.from(gameState.completedLevels)
-        };
+    // Ensure currentUser is always defined, even for unregistered users
+    const userId = currentUser ? currentUser.id : 'guest';
 
+    // For guest users, save to localStorage
+    const progressToSave = {
+        currentStage: gameState.currentStage || 1,
+        currentSet: gameState.currentSet || 1,
+        currentLevel: gameState.currentLevel || 1,
+        unlockedSets: Object.fromEntries(
+            Object.entries(gameState.unlockedSets || {}).map(([k, v]) => [k, Array.from(v || [])])
+        ),
+        unlockedLevels: Object.fromEntries(
+            Object.entries(gameState.unlockedLevels || {}).map(([k, v]) => [k, Array.from(v || [])])
+        ),
+        perfectLevels: Array.from(gameState.perfectLevels || []),
+        completedLevels: Array.from(gameState.completedLevels || []),
+        coins: gameState.coins || 0,
+        perks: gameState.perks || {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        }
+    };
+
+    if (currentUser) {
+        // Save to Supabase for logged-in users
         supabaseClient
             .from('game_progress')
             .update(progressToSave)
@@ -2865,22 +2904,8 @@ function saveProgress() {
                 if (error) console.error('Error saving game progress:', error);
             });
     } else {
-        // For guest users, save to localStorage
-        localStorage.setItem('simploxProgress', JSON.stringify({
-            currentStage: gameState.currentStage,
-            currentSet: gameState.currentSet,
-            currentLevel: gameState.currentLevel,
-            unlockedSets: Object.fromEntries(
-                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
-            ),
-            unlockedLevels: Object.fromEntries(
-                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
-            ),
-            perfectLevels: Array.from(gameState.perfectLevels),
-            completedLevels: Array.from(gameState.completedLevels),
-            coins: gameState.coins,
-            perks: gameState.perks
-        }));
+        // Save to localStorage for guest users
+        localStorage.setItem('simploxProgress', JSON.stringify(progressToSave));
     }
 }
 
@@ -3067,24 +3092,6 @@ let isFrozen = false;
 let resetProgressTimeout = null;
 let isFirstResetAttempt = true;
 
-function initializeGame() {
-    if (currentUser) {
-        // Load progress from Supabase for logged in users
-        loadUserGameProgress(currentUser.id);
-    } else {
-        // For guest users, use localStorage but don't remove it entirely
-        const saved = localStorage.getItem('simploxProgress');
-        if (!saved) {
-            // Initialize first stage/set/level if no saved progress
-            gameState.unlockedSets[1] = new Set([1]);
-            gameState.unlockedLevels['1_1'] = new Set([1]);
-        } else {
-            loadProgress();
-        }
-    }
-    updateAllCoinDisplays();
-}
-
 
 // Progress Management
 function saveProgress() {
@@ -3149,6 +3156,26 @@ function loadProgress() {
     const savedCustomCoins = localStorage.getItem('simploxCustomCoins');
     if (savedCustomCoins) {
         gameState.coins = parseInt(savedCustomCoins);
+    }
+}
+
+async function handleLogout() {
+    try {
+        const { error } = await supabaseClient.auth.signOut();
+        
+        if (error) {
+            console.error('Supabase logout error:', error.message);
+        }
+
+        currentUser = null;
+        updateAuthUI();
+        showScreen('welcome-screen');
+        
+        // Reload game progress from localStorage
+        initializeGame();
+
+    } catch (error) {
+        console.error('Unexpected error during logout:', error);
     }
 }
 
@@ -4766,27 +4793,25 @@ function showLevelIntro(levelId, setupCallback) {
     const stageTitle = titleContainer.querySelector('h1');
     const levelTitle = titleContainer.querySelector('h2');
     
-    // Set the titles
-    stageTitle.textContent = `Stage ${gameState.currentStage}`;
-    levelTitle.textContent = `Level ${gameState.currentSet}-${levelId}`;
+    // Ensure fallback values
+    stageTitle.textContent = `Stage ${gameState.currentStage || 1}`;
+    levelTitle.textContent = `Level ${gameState.currentSet || 1}-${levelId}`;
     
-    // Drop curtain quickly
+    // Ensure curtain is always dropped and raised
     curtain.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0.4, 1)';
     curtain.style.transform = 'translateY(0)';
     
-    // Show the titles quickly after curtain drops
     setTimeout(() => {
         titleContainer.classList.add('show');
         
-        // IMPORTANT: Prepare the next screen while curtain is down
+        // Call setup callback
         setupCallback();
         
-        // After holding for a moment, hide title and pull up curtain rapidly
         setTimeout(() => {
             titleContainer.classList.remove('show');
             curtain.style.transition = 'transform 0.2s cubic-bezier(0.6, 0, 0.8, 1)';
             curtain.style.transform = 'translateY(-100%)';
-        }, 1200); // Slightly shorter hold time
+        }, 1200);
     }, 200);
 }
 
