@@ -3,8 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="google" content="notranslate">
-    <html lang="en" translate="no">
     <title>Simplos</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -182,120 +180,98 @@ body {
 }
 
 /* Maintain active state for auth tabs */
-.auth-container {
-    position: fixed;
-    top: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
-    padding: 1rem 2rem;
-    border-radius: 1rem;
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    z-index: 100;
-}
-
-.auth-input {
+.auth-tab.active {
     background: transparent;
-    border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-    color: var(--text);
-    padding: 0.5rem;
-    font-size: 0.9rem;
-    outline: none;
-    transition: border-color 0.3s ease;
-    width: 160px;
-}
-
-.auth-input:focus {
     border-color: var(--accent);
+    box-shadow: 0 0 15px var(--accent);
 }
 
-.auth-button {
-    color: var(--accent);
-    border: 1px solid rgba(233, 69, 96, 0.5);
-    padding: 0.5rem 1.5rem;
-    border-radius: 999px;
-    font-size: 0.9rem;
-    background: transparent;
-    transition: background 0.3s ease;
-    cursor: pointer;
+.welcome-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  width: 100%;
+    padding: 0 1rem;
 }
 
-.auth-button:hover {
-    background: rgba(233, 69, 96, 0.1);
+.auth-container {
+    margin-top: 2rem;
+    width: 100%;
+    max-width: 300px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 1.5rem;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
-.auth-toggle {
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 0.85rem;
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    transition: color 0.3s ease;
+.auth-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.5rem;
+    border-radius: 25px;
 }
 
-.auth-toggle:hover {
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.auth-form input {
+    width: 100%;
+    padding: 0.875rem 1.25rem;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    background: rgba(0, 0, 0, 0.2);
     color: var(--text);
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.auth-form input:focus {
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: 0 0 15px rgba(233, 69, 96, 0.2);
 }
 
 .user-info {
-    position: fixed;
-    top: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
     text-align: center;
-    z-index: 100;
+    padding: 1rem;
 }
 
 #userEmail {
-    font-size: 1.5rem;
+    display: block;
+    font-size: 1.1rem;
     color: var(--gold);
-    margin-bottom: 0.5rem;
-    display: block;
-}
-
-.student-mode {
-    color: var(--text);
-    font-size: 1rem;
-    opacity: 0.8;
-    display: block;
+    margin-bottom: 1rem;
 }
 
 .logout-button {
-    position: fixed;
-    bottom: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 0.5rem 1rem;
-    font-size: 0.8rem;
-    opacity: 0.7;
-    transition: opacity 0.3s ease, box-shadow 0.3s ease;
-    z-index: 100;
+    padding: 0.75rem 2rem;
+    border: none;
+    border-radius: 50px;
+    background: var(--error);
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 5px 15px rgba(244, 67, 54, 0.3);
 }
 
 .logout-button:hover {
-    opacity: 1;
-    box-shadow: 0 5px 15px rgba(244, 67, 54, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(244, 67, 54, 0.4);
 }
 
 .hidden {
     display: none !important;
-}
-
-@media (max-width: 768px) {
-    .auth-container {
-        flex-direction: column;
-        padding: 1rem;
-        width: 90%;
-        max-width: 320px;
-    }
-
-    .auth-input {
-        width: 100%;
-    }
 }
 
 /* Neon style for custom practice screen buttons */
@@ -371,25 +347,14 @@ body {
     left: 100%;
 }
 
-
-
 @media (max-width: 768px) {
     .welcome-buttons {
-        max-width: 250px;
-        
+        width: 100%;
+        padding: 0 1rem;
     }
     }
 
-    .welcome-buttons {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    width: 100%;
-    max-width: 300px;
-    margin: 0 auto;
-    padding: 0 1rem;
-}
+
 
 .coins-header {
   position: fixed;
@@ -2173,7 +2138,7 @@ body {
 
     .start-button {
         width: 100%;
-        max-width: 250px;
+        max-width: none;
         font-size: 0.9rem;
         padding: 0.6rem;
     }
@@ -2267,33 +2232,34 @@ body {
 
   <div id="welcome-screen" class="screen visible">
     <div class="particle-container" id="particleContainer"></div>    
+    <button class="menu-button" onclick="showStagesFromMenu()">
+        <i class="fas fa-bars navigation-icon"></i>
+    </button>
     <h1 class="welcome-title">Simplos</h1>
     <div class="welcome-buttons">
-        <button class="start-button" onclick="startGame()">Play Game</button>
-        <button class="start-button" onclick="showSetScreen(gameState.currentStage || 1)">Level Map</button>
-        <button class="start-button custom-lists-button" onclick="showCustomListsManager()">My Lists</button>
-        <div class="auth-container" id="authBox">
-        <div class="auth-login" id="loginForm">
-        <input type="text" class="auth-input" placeholder="Username" id="loginUsername">
-        <input type="password" class="auth-input" placeholder="Password" id="loginPassword">
-        <button class="auth-button" onclick="handleLogin()">Login</button>
-        <button class="auth-toggle" onclick="toggleAuthMode()">New? Register here</button>
-    </div>
-    <div class="auth-signup hidden" id="signupForm">
-        <input type="email" class="auth-input" placeholder="Email" id="signupEmail">
-        <input type="text" class="auth-input" placeholder="Username" id="signupUsername">
-        <input type="password" class="auth-input" placeholder="Password" id="signupPassword">
-        <button class="auth-button" onclick="handleSignup()">Sign Up</button>
-        <button class="auth-toggle" onclick="toggleAuthMode()">Already have an account?</button>
-    </div>
+        <button class="start-button" onclick="startGame()">Start Game</button>
+        <button class="start-button custom-lists-button" onclick="showCustomListsManager()">Custom Practice</button>
+        <div class="auth-container">
+    <div class="auth-box" id="authBox">
+        <div class="auth-tabs">
+            <button class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
+            <button class="auth-tab" onclick="switchAuthTab('signup')">Sign Up</button>
+        </div>
+        <div class="auth-form" id="loginForm">
+            <input type="email" placeholder="Email" id="loginEmail">
+            <input type="password" placeholder="Password" id="loginPassword">
+            <button onclick="handleLogin()">Login</button>
+        </div>
+        <div class="auth-form hidden" id="signupForm">
+    <input type="email" placeholder="Email" id="signupEmail">
+    <input type="text" placeholder="Username" id="signupUsername">
+    <input type="password" placeholder="Password" id="signupPassword">
+    <button onclick="handleSignup()">Sign Up</button>
 </div>
-
-<div class="user-info hidden" id="userInfo">
-    <span id="userEmail"></span>
-    <span class="student-mode">Student Mode</span>
-</div>
-
-<button class="logout-button hidden" onclick="handleLogout()">Logout</button>
+    </div>
+    <div class="user-info hidden" id="userInfo">
+        <span id="userEmail"></span>
+        <button class="logout-button" onclick="handleLogout()">Logout</button>
     </div>
 </div>
     
@@ -2643,89 +2609,47 @@ async function initializeGameProgressForUser(userId) {
 }
 
 async function handleLogin() {
-    const email = document.getElementById('loginUsername').value;
+    const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
-    
-    try {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-        });
 
-        if (error) {
-            console.error('Detailed Login Error:', {
-                message: error.message,
-                status: error.status,
-                type: error.type
-            });
-            alert(error.message); // Show user-friendly error
-            return;
-        }
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password
+    });
 
-        console.log('Login successful:', data.user);
-
-        currentUser = data.user;
-        await loadCustomLists();
-        await loadUserGameProgress(currentUser.id);
-        updateAuthUI();
-        showScreen('welcome-screen');
-    } catch (catchError) {
-        console.error('Unexpected Login Error:', catchError);
-        alert('An unexpected error occurred during login');
+    if (error) {
+        console.error('Error logging in:', error.message);
+        return;
     }
+
+    currentUser = data.user;
+    
+    // Clear all input fields and UI state
+    clearCustomPracticeUI();
+    
+    await loadCustomLists();
+    await loadUserGameProgress(currentUser.id);
+    updateAuthUI();
+    showScreen('welcome-screen');
 }
 
 function initializeGame() {
-    // Check for existing progress in localStorage first
-    const saved = localStorage.getItem('simploxProgress');
-    
-    if (saved) {
-        const parsedSaved = JSON.parse(saved);
-        
-        // Explicitly set all game state from localStorage
-        gameState.currentStage = parsedSaved.currentStage || 1;
-        gameState.currentSet = parsedSaved.currentSet || 1;
-        gameState.currentLevel = parsedSaved.currentLevel || 1;
-        gameState.coins = parsedSaved.coins || 0;
-        gameState.perks = parsedSaved.perks || {
-            timeFreeze: 0,
-            skip: 0,
-            clue: 0,
-            reveal: 0
-        };
-        gameState.unlockedSets = Object.fromEntries(
-            Object.entries(parsedSaved.unlockedSets || {}).map(([k, v]) => [k, new Set(v)])
-        );
-        gameState.unlockedLevels = Object.fromEntries(
-            Object.entries(parsedSaved.unlockedLevels || {}).map(([k, v]) => [k, new Set(v)])
-        );
-        gameState.perfectLevels = new Set(parsedSaved.perfectLevels || []);
-        gameState.completedLevels = new Set(parsedSaved.completedLevels || []);
-    } else {
-        // Initialize first stage/set/level if no saved progress
-        gameState.unlockedSets = { 1: new Set([1]) };
-        gameState.unlockedLevels = { '1_1': new Set([1]) };
-        gameState.currentStage = 1;
-        gameState.currentSet = 1;
-        gameState.currentLevel = 1;
-        gameState.coins = 0;
-        gameState.perks = {
-            timeFreeze: 0,
-            skip: 0,
-            clue: 0,
-            reveal: 0
-        };
-    }
-
-    // If logged in, also load Supabase progress
     if (currentUser) {
+        // Load progress from Supabase for logged in users
         loadUserGameProgress(currentUser.id);
+    } else {
+        // For guest users, use localStorage but don't remove it entirely
+        const saved = localStorage.getItem('simploxProgress');
+        if (!saved) {
+            // Initialize first stage/set/level if no saved progress
+            gameState.unlockedSets[1] = new Set([1]);
+            gameState.unlockedLevels['1_1'] = new Set([1]);
+        } else {
+            loadProgress();
+        }
     }
-
     updateAllCoinDisplays();
-    updatePerkCounts();
 }
-
 
 
 async function checkExistingSession() {
@@ -2752,27 +2676,13 @@ async function checkExistingSession() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    // Initialize particles immediately for all screens
-    document.querySelectorAll('.screen').forEach(screen => {
-        initializeParticles(screen);
-    });
-    
-    // Explicitly set currentUser to null if not logged in
-    currentUser = null;
-    
-    // Then handle session checks and game initialization
-    checkExistingSession().then(() => {
-        initializeGame();
-        updatePerkCounts();
-    });
-    
-    // Initialize particles for welcome screen
-    const welcomeScreen = document.getElementById('welcome-screen');
-    if (welcomeScreen) {
-        initializeParticles(welcomeScreen);
-    }
+window.addEventListener('load', async () => {
+    await checkExistingSession();
+    await initializeGame();
+    updatePerkCounts();
+    initializeParticles();
 });
+
 
 async function loadUserGameProgress(userId) {
     const { data, error } = await supabaseClient
@@ -2869,33 +2779,24 @@ function clearCustomPracticeUI() {
 }
 
 function saveProgress() {
-    // Ensure currentUser is always defined, even for unregistered users
-    const userId = currentUser ? currentUser.id : 'guest';
-
-    // For guest users, save to localStorage
-    const progressToSave = {
-        currentStage: gameState.currentStage || 1,
-        currentSet: gameState.currentSet || 1,
-        currentLevel: gameState.currentLevel || 1,
-        unlockedSets: Object.fromEntries(
-            Object.entries(gameState.unlockedSets || {}).map(([k, v]) => [k, Array.from(v || [])])
-        ),
-        unlockedLevels: Object.fromEntries(
-            Object.entries(gameState.unlockedLevels || {}).map(([k, v]) => [k, Array.from(v || [])])
-        ),
-        perfectLevels: Array.from(gameState.perfectLevels || []),
-        completedLevels: Array.from(gameState.completedLevels || []),
-        coins: gameState.coins || 0,
-        perks: gameState.perks || {
-            timeFreeze: 0,
-            skip: 0,
-            clue: 0,
-            reveal: 0
-        }
-    };
-
     if (currentUser) {
-        // Save to Supabase for logged-in users
+        // Save to Supabase for logged in users
+        const progressToSave = {
+            stage: gameState.currentStage,
+            set_number: gameState.currentSet,
+            level: gameState.currentLevel,
+            coins: gameState.coins,
+            perks: gameState.perks,
+            unlocked_sets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlocked_levels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfect_levels: Array.from(gameState.perfectLevels),
+            completed_levels: Array.from(gameState.completedLevels)
+        };
+
         supabaseClient
             .from('game_progress')
             .update(progressToSave)
@@ -2904,8 +2805,22 @@ function saveProgress() {
                 if (error) console.error('Error saving game progress:', error);
             });
     } else {
-        // Save to localStorage for guest users
-        localStorage.setItem('simploxProgress', JSON.stringify(progressToSave));
+        // For guest users, save to localStorage
+        localStorage.setItem('simploxProgress', JSON.stringify({
+            currentStage: gameState.currentStage,
+            currentSet: gameState.currentSet,
+            currentLevel: gameState.currentLevel,
+            unlockedSets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlockedLevels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfectLevels: Array.from(gameState.perfectLevels),
+            completedLevels: Array.from(gameState.completedLevels),
+            coins: gameState.coins,
+            perks: gameState.perks
+        }));
     }
 }
 
@@ -3012,17 +2927,16 @@ function updateAuthUI() {
     const authBox = document.getElementById('authBox');
     const userInfo = document.getElementById('userInfo');
     const userEmailElement = document.getElementById('userEmail');
-    const logoutButton = document.querySelector('.logout-button');
 
     if (currentUser) {
+        // User is logged in
         authBox.classList.add('hidden');
         userInfo.classList.remove('hidden');
-        logoutButton.classList.remove('hidden'); // Show logout button
-        userEmailElement.textContent = currentUser.user_metadata.username;
+        userEmailElement.textContent = currentUser.email;
     } else {
+        // User is logged out
         authBox.classList.remove('hidden');
         userInfo.classList.add('hidden');
-        logoutButton.classList.add('hidden'); // Hide logout button
         userEmailElement.textContent = '';
     }
 }
@@ -3092,6 +3006,24 @@ let isFrozen = false;
 let resetProgressTimeout = null;
 let isFirstResetAttempt = true;
 
+function initializeGame() {
+    if (currentUser) {
+        // Load progress from Supabase for logged in users
+        loadUserGameProgress(currentUser.id);
+    } else {
+        // For guest users, use localStorage but don't remove it entirely
+        const saved = localStorage.getItem('simploxProgress');
+        if (!saved) {
+            // Initialize first stage/set/level if no saved progress
+            gameState.unlockedSets[1] = new Set([1]);
+            gameState.unlockedLevels['1_1'] = new Set([1]);
+        } else {
+            loadProgress();
+        }
+    }
+    updateAllCoinDisplays();
+}
+
 
 // Progress Management
 function saveProgress() {
@@ -3156,26 +3088,6 @@ function loadProgress() {
     const savedCustomCoins = localStorage.getItem('simploxCustomCoins');
     if (savedCustomCoins) {
         gameState.coins = parseInt(savedCustomCoins);
-    }
-}
-
-async function handleLogout() {
-    try {
-        const { error } = await supabaseClient.auth.signOut();
-        
-        if (error) {
-            console.error('Supabase logout error:', error.message);
-        }
-
-        currentUser = null;
-        updateAuthUI();
-        showScreen('welcome-screen');
-        
-        // Reload game progress from localStorage
-        initializeGame();
-
-    } catch (error) {
-        console.error('Unexpected error during logout:', error);
     }
 }
 
@@ -4329,11 +4241,6 @@ function activatePerk(perkType, cost) {
 
 // Particle background initialization
 function initializeParticles(container = document.body) {
-    // Ensure container is a valid DOM element
-    if (!(container instanceof HTMLElement)) {
-        container = document.body;
-    }
-    
     // Find or create the particle container
     let particleContainer = container.querySelector('.particle-container');
     if (!particleContainer) {
@@ -4342,6 +4249,7 @@ function initializeParticles(container = document.body) {
         container.appendChild(particleContainer);
     }
     
+    // Rest of the function remains the same as before
     const characterSet = [
         ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
         ...'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩαβγδεζηθικλμνξοπρστυφχψω',
@@ -4354,8 +4262,8 @@ function initializeParticles(container = document.body) {
         
         particle.textContent = characterSet[Math.floor(Math.random() * characterSet.length)];
         
-        const startX = Math.random() * container.clientWidth;
-        const startY = Math.random() * container.clientHeight;
+        const startX = Math.random() * window.innerWidth;
+        const startY = Math.random() * window.innerHeight;
         
         const moveX = -100 + Math.random() * 200;
         const moveY = -100 + Math.random() * 200;
@@ -4366,7 +4274,6 @@ function initializeParticles(container = document.body) {
         const duration = 8 + Math.random() * 10;
         
         particle.style.cssText = `
-            position: absolute;
             left: ${startX}px;
             top: ${startY}px;
             font-size: ${size}px;
@@ -4375,7 +4282,6 @@ function initializeParticles(container = document.body) {
             --moveY: ${moveY}px;
             --opacity: ${opacity};
             --rotate: ${rotate}deg;
-            pointer-events: none;
         `;
         
         particleContainer.appendChild(particle);
@@ -4402,11 +4308,9 @@ window.onload = async () => {
     await checkExistingSession();
     initializeGame();
     updatePerkCounts();
+    initializeParticles();
     
-    // Ensure particles on welcome screen
-    const welcomeScreen = document.getElementById('welcome-screen');
-    initializeParticles(welcomeScreen);
-    
+    // Load custom lists regardless of auth state
     await loadCustomLists();
 };
 
@@ -4793,25 +4697,27 @@ function showLevelIntro(levelId, setupCallback) {
     const stageTitle = titleContainer.querySelector('h1');
     const levelTitle = titleContainer.querySelector('h2');
     
-    // Ensure fallback values
-    stageTitle.textContent = `Stage ${gameState.currentStage || 1}`;
-    levelTitle.textContent = `Level ${gameState.currentSet || 1}-${levelId}`;
+    // Set the titles
+    stageTitle.textContent = `Stage ${gameState.currentStage}`;
+    levelTitle.textContent = `Level ${gameState.currentSet}-${levelId}`;
     
-    // Ensure curtain is always dropped and raised
+    // Drop curtain quickly
     curtain.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0.4, 1)';
     curtain.style.transform = 'translateY(0)';
     
+    // Show the titles quickly after curtain drops
     setTimeout(() => {
         titleContainer.classList.add('show');
         
-        // Call setup callback
+        // IMPORTANT: Prepare the next screen while curtain is down
         setupCallback();
         
+        // After holding for a moment, hide title and pull up curtain rapidly
         setTimeout(() => {
             titleContainer.classList.remove('show');
             curtain.style.transition = 'transform 0.2s cubic-bezier(0.6, 0, 0.8, 1)';
             curtain.style.transform = 'translateY(-100%)';
-        }, 1200);
+        }, 1200); // Slightly shorter hold time
     }, 200);
 }
 
@@ -4995,54 +4901,13 @@ async function saveCustomListToSupabase(list) {
 }
 
 
-async function saveCurrentList() {
-    const listNameInput = document.getElementById('custom-list-name');
-    const wordInput = document.getElementById('custom-word-input');
-    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
-    
-    const wordItems = document.querySelectorAll('.word-translation-item');
-    const words = [];
-    const translations = [];
-    
-    wordItems.forEach(item => {
-        const englishWord = item.querySelector('.source-word').textContent.trim();
-        const hebrewTranslation = item.querySelector('.target-word').value.trim();
-        
-        if (englishWord && hebrewTranslation) {
-            words.push(englishWord);
-            translations.push(hebrewTranslation);
-        }
-    });
-
-    const newList = {
-        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
-        name: name,
-        words: words,
-        translations: translations
-    };
-
-    const success = await saveCustomListToSupabase(newList);
-    if (success) {
-        // Clear all input fields and translation table
-        listNameInput.value = '';
-        wordInput.value = '';
-        
-        // Clear the translation results
-        const translationResults = document.getElementById('translation-results');
-        const wordList = document.getElementById('word-translation-list');
-        if (wordList) {
-            wordList.innerHTML = '';
-        }
-        if (translationResults) {
-            translationResults.style.display = 'none';
-        }
-
-        // Reset current list
-        customPracticeLists.currentList = null;
-        
-        // Reload lists and update display
-        await loadCustomLists();
-        showCustomListsManager();
+function saveCustomLists() {
+    if (currentUser) {
+        // Lists are saved individually via saveCustomListToSupabase
+        return;
+    } else {
+        // For guest users, save to localStorage
+        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
     }
 }
 
@@ -5211,7 +5076,6 @@ function updateListsDisplay() {
 }
 
 function startCustomListPractice(listId) {
-    requestFullScreen();
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
@@ -5362,6 +5226,91 @@ function showCustomListsManager() {
     });
 }
 
+function toggleListCollapse(listId) {
+    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+    const editButton = listItem.querySelector('.edit-button');
+    
+    if (editButton.textContent === 'Save') {
+        // Don't toggle if in edit mode
+        return;
+    }
+    
+    listItem.classList.toggle('collapsed');
+}
+
+function toggleEditMode(listId) {
+    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+    const editButton = listItem.querySelector('.edit-button');
+    const wordList = document.getElementById(`list-${listId}`);
+    
+    if (editButton.textContent === 'Edit') {
+        // Enter edit mode
+        editButton.textContent = 'Save';
+        listItem.classList.remove('collapsed');
+        listItem.setAttribute('data-in-edit-mode', 'true');
+        
+        // Load editable word list
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        if (!list) return;
+        
+        wordList.innerHTML = '';
+        
+        list.words.forEach((word, index) => {
+            const wordItem = document.createElement('div');
+            wordItem.className = 'word-translation-item';
+            wordItem.draggable = true;
+            
+            wordItem.innerHTML = `
+                <div class="drag-handle">
+                    <i class="fas fa-grip-vertical"></i>
+                </div>
+                <span class="source-word" contenteditable="true">${word}</span>
+                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
+                <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+            `;
+            
+            wordList.appendChild(wordItem);
+        });
+        
+        // Initialize drag functionality
+        makeWordListDraggable(listId);
+    } else {
+        // Save changes
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        const items = wordList.querySelectorAll('.word-translation-item');
+        
+        list.words = [];
+        list.translations = [];
+        
+        items.forEach(item => {
+            const word = item.querySelector('.source-word').textContent.trim();
+            const translation = item.querySelector('.target-word').value.trim();
+            
+            if (word && translation) {
+                list.words.push(word);
+                list.translations.push(translation);
+            }
+        });
+        
+        // Save to appropriate storage
+        if (currentUser) {
+            saveCustomListToSupabase(list);
+        } else {
+            saveCustomLists();
+        }
+        
+        editButton.textContent = 'Edit';
+        listItem.classList.add('collapsed');
+        listItem.removeAttribute('data-in-edit-mode');
+        
+        // Update summary
+        const summary = listItem.querySelector('.list-summary');
+        summary.innerHTML = `
+            <span>${list.words.length} words</span>
+            <p class="word-preview">${list.words.join(', ')}</p>
+        `;
+    }
+}
 
 function editCustomList(listId) {
     const list = customPracticeLists.lists.find(l => l.id === listId);
@@ -5647,13 +5596,6 @@ async function checkExistingSession() {
     }
 }
 
-function toggleAuthMode() {
-    const loginForm = document.getElementById('loginForm');
-    const signupForm = document.getElementById('signupForm');
-    
-    loginForm.classList.toggle('hidden');
-    signupForm.classList.toggle('hidden');
-}
 
 </script>
 </body>
