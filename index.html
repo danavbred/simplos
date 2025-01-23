@@ -5631,10 +5631,20 @@ function toggleAuthMode() {
 async function showShareListModal(listId) {
     if (!currentUser) return;
 
-    const { data, error } = await supabaseClient.auth.getUsers();
+    const { data, error } = await supabaseClient.auth.getUser();
 
     if (error) {
-        console.error('Error fetching users:', error);
+        console.error('Error fetching current user:', error);
+        return;
+    }
+
+    const { data: users, error: usersError } = await supabaseClient
+        .from('profiles')  // Replace with your actual user table name
+        .select('id, username')
+        .neq('id', currentUser.id);
+
+    if (usersError) {
+        console.error('Error fetching users:', usersError);
         return;
     }
 
@@ -5642,9 +5652,8 @@ async function showShareListModal(listId) {
         <div class="share-modal">
             <h2>Share List</h2>
             <select id="recipient-username">
-                ${data.users
-                    .filter(u => u.user_metadata?.username && u.id !== currentUser.id)
-                    .map(u => `<option value="${u.id}">${u.user_metadata.username}</option>`)
+                ${users
+                    .map(u => `<option value="${u.id}">${u.username}</option>`)
                     .join('')}
             </select>
             <div class="modal-actions">
