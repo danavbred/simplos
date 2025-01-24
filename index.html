@@ -5486,8 +5486,6 @@ function loadCustomList(listId) {
 }
 
 async function deleteCustomList(listId) {
-    if (!confirm('Are you sure you want to delete this list?')) return;
-
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
@@ -5504,15 +5502,12 @@ async function deleteCustomList(listId) {
         }
     }
 
-    // Remove from local array
     customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
     
-    // Update localStorage for guest users
     if (!currentUser) {
         saveCustomLists();
     }
 
-    // Update UI
     showCustomListsManager();
 }
 
