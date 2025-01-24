@@ -181,6 +181,110 @@ body {
     left: 100%;
 }
 
+.custom-practice-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1rem;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.word-input-section {
+    background: var(--glass);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.list-entry {
+    background: var(--glass);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-direction: column;
+    gap: 0.5rem;
+
+}
+
+.list-entry:hover {
+    transform: translateX(5px);
+    border-color: var(--accent);
+}
+
+.list-entry .buttons-container {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+.list-entry h3 {
+    color: var(--text);
+    margin-bottom: 0.25rem;
+}
+
+.list-entry p {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.875rem;
+}
+
+/* Add after existing .custom-practice-container styles */
+.word-input-section {
+    background: var(--glass);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.custom-lists-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.custom-list-item {
+    background: var(--glass);
+    border-radius: 8px;
+    padding: 1rem;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 0.5rem;
+}
+
+.custom-list-item:hover {
+    transform: translateX(5px);
+    border-color: var(--accent);
+}
+
+.list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .custom-practice-container {
+        padding: 0.5rem;
+    }
+    
+    .custom-list-item {
+        padding: 0.75rem;
+    }
+    
+    .list-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+}
+
 .share-button {
     position: relative; 
     padding: 0.5rem 1rem;
@@ -1756,37 +1860,8 @@ body {
 }
 
 /* Main Custom Practice Container */
-.custom-practice-container {
-    display: flex;
-    gap: 2rem;
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 2rem;
-}
 
-.practice-section {
-    flex: 1;
-    background: transparent;
-    border-radius: 20px;
-    padding: 2rem;
-    backdrop-filter: none;
-    box-shadow: none;
-    border: 1px solid rgba(255,255,255,0.1);
-}
 
-.lists-section {
-    flex: 1;
-    background: transparent;
-    border-radius: 20px;
-    padding: 2rem;
-    backdrop-filter: none;
-    box-shadow: none;
-    border: 1px solid rgba(255,255,255,0.1);
-}
-
-.list-name-section {
-    margin-bottom: 1.5rem;
-}
 
 .list-name-input {
     width: 100%;
@@ -2120,8 +2195,7 @@ body {
     .custom-practice-container {
         flex-direction: column;
         gap: 1.5rem;
-        padding: 1rem;
-    }
+        padding: 0.5rem;    }
 
     .practice-section {
         padding: 1rem;
@@ -2513,50 +2587,34 @@ body {
     </div>
 
     <div class="custom-practice-container">
-        <div class="lists-section">
-            <h2 class="welcome-title">My Word Lists</h2>
-            <div id="custom-lists-container" class="custom-lists-container">
-                <!-- Lists will be dynamically populated here -->
-            </div>
-        </div>
-        
-        <div class="practice-section">
-            <h2 class="welcome-title">Create Custom Word List</h2>
-            <div class="list-name-section">
-                <input 
-                    type="text" 
-                    id="custom-list-name" 
-                    class="list-name-input" 
-                    placeholder="List Name"
-                >
-            </div>
+        <div class="word-input-section">
+            <input 
+                type="text" 
+                id="custom-list-name" 
+                class="list-name-input" 
+                placeholder="List Name"
+            >
             <textarea 
                 id="custom-word-input" 
                 placeholder="Enter words, separated by commas or newlines"
             ></textarea>
             <div class="word-input-actions">
-    <button 
-        onclick="processCustomWords()" 
-        class="start-button"
-    >
-        Make
-    </button>
-    <button 
-        onclick="saveCurrentList()" 
-        class="start-button"
-    >
-        Save
-    </button>
-</div>
-<div class="translation-results" id="translation-results">
-    <div class="word-translation-list" id="word-translation-list">
-        <!-- Processed words will appear here -->
-    </div>
-</div>
+                <button onclick="processCustomWords()" class="start-button">Make</button>
+                <button onclick="saveCurrentList()" class="start-button">Save</button>
             </div>
+            <div class="translation-results" id="translation-results">
+                <div class="word-translation-list" id="word-translation-list">
+                    <!-- Processed words will appear here -->
+                </div>
+            </div>
+        </div>
+        
+        <div id="custom-lists-container" class="custom-lists-container">
+            <!-- Lists will be dynamically populated here -->
         </div>
     </div>
 </div>
+
 <script>
 
 const vocabularySets = {
