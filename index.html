@@ -6015,23 +6015,21 @@ async function handleTimeExpired() {
 }
 
 function initializeTimer() {
-    if (!currentUser || currentUser.status === 'free') {
+    if (!currentUser || gameState.sessionTracking.status === 'free') {
         let timerDiv = document.querySelector('.free-timer');
         if (!timerDiv) {
             timerDiv = document.createElement('div');
             timerDiv.className = 'free-timer';
             timerDiv.innerHTML = `
-                <span class="timer-label">Time Left:</span>
-                <span class="timer-value">15:00</span>
+                <div class="timer-container">
+                    <span>Time Left:</span>
+                    <span class="timer-value">15:00</span>
+                </div>
             `;
             document.body.appendChild(timerDiv);
         }
         
-        const timeLeft = initializeSessionTracking();
-        if (!timeLeft) {
-            showScreen('welcome-screen');
-            showPremiumPrompt('time_expired');
-        }
+        startSessionTimer();
     }
 }
 
