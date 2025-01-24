@@ -5492,27 +5492,34 @@ async function deleteCustomList(listId) {
     if (!list) return;
 
     if (currentUser && list.supabaseId) {
-        const { error } = await supabaseClient
+        // First find all shared copies of this list
+        const { data: sharedCopies } = await supabaseClient
             .from('custom_lists')
-            .delete()
-            .eq('id', list.supabaseId)
-            .eq('user_id', currentUser.id);
+            .select('id')
+            .eq('shared_by', currentUser.id)
+            .eq('original_list_id', list.supabaseId);
 
-        if (error) {
-            console.error('Error deleting list:', error);
-            return;
+        // Delete both original and shared copies
+        if (sharedCopies) {
+            const idsToDelete = [list.supabaseId, ...sharedCopies.map(copy => copy.id)];
+            const { error } = await supabaseClient
+                .from('custom_lists')
+                .delete()
+                .in('id', idsToDelete);
+
+            if (error) {
+                console.error('Error deleting shared lists:', error);
+                return;
+            }
         }
     }
 
-    // Remove from local array
     customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
     
-    // Update localStorage for guest users
     if (!currentUser) {
         saveCustomLists();
     }
 
-    // Update UI
     showCustomListsManager();
 }
 
