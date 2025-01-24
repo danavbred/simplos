@@ -5664,6 +5664,9 @@ async function shareListWithUser(listId, recipientId) {
    const list = customPracticeLists.lists.find(l => l.id === listId);
    if (!list) return;
 
+   // Ensure shared_with is an array
+   const currentSharedWith = Array.isArray(list.shared_with) ? list.shared_with : [];
+
    // Create shared list with cascade reference
    const sharedList = {
        user_id: recipientId,
@@ -5674,7 +5677,7 @@ async function shareListWithUser(listId, recipientId) {
        local_id: Date.now(),
        shared_with: [recipientId],
        shared_by: currentUser.id,
-       original_list_id: list.supabaseId // Add reference to original list
+       original_list_id: list.supabaseId
    };
 
    try {
@@ -5688,18 +5691,17 @@ async function shareListWithUser(listId, recipientId) {
        // Update original list's shared_with array
        const { error: updateError } = await supabaseClient
            .from('custom_lists')
-           .update({ shared_with: [...list.shared_with, recipientId] })
+           .update({ shared_with: [...currentSharedWith, recipientId] })
            .eq('id', list.supabaseId);
 
        if (updateError) throw updateError;
 
-       // Close modal
+       // Close modal and visual feedback
        const modal = document.querySelector('.share-modal').parentElement;
        if (modal) {
            document.body.removeChild(modal);
        }
        
-       // Visual feedback
        const listItem = document.querySelector(`[data-list-id="${listId}"]`);
        if (listItem) {
            listItem.style.animation = 'pulse 0.5s ease';
