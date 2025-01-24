@@ -5492,15 +5492,33 @@ async function deleteCustomList(listId) {
     if (!list) return;
 
     if (currentUser && list.supabaseId) {
+        // Delete original list - trigger will handle shared copies
         const { error } = await supabaseClient
             .from('custom_lists')
             .delete()
-            .eq('id', list.supabaseId)
-            .eq('user_id', currentUser.id);
+            .match({ 
+                'id': list.supabaseId,
+                'user_id': currentUser.id 
+            });
 
         if (error) {
             console.error('Error deleting list:', error);
             return;
+        }
+
+        // Delete any shared copies if this is the original list
+        if (!list.is_shared && list.shared_with?.length > 0) {
+            const { error: sharedError } = await supabaseClient
+                .from('custom_lists')
+                .delete()
+                .match({
+                    'local_id': list.id,
+                    'shared_by': currentUser.id
+                });
+
+            if (sharedError) {
+                console.error('Error deleting shared copies:', sharedError);
+            }
         }
     }
 
@@ -5509,47 +5527,11 @@ async function deleteCustomList(listId) {
     
     // Update localStorage for guest users
     if (!currentUser) {
-        saveCustomLists();
+        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
     }
 
     // Update UI
     showCustomListsManager();
-}
-
-function addWordToList(listId) {
-    const listElement = document.getElementById(`list-${listId}`);
-    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
-    const editButton = listItem.querySelector('.edit-button');
-    
-    // Only add word if in edit mode
-    if (editButton.textContent !== 'Save') return;
-
-    const wordItem = document.createElement('div');
-    wordItem.className = 'word-translation-item';
-    wordItem.draggable = true;
-    
-    wordItem.innerHTML = `
-        <div class="drag-handle">
-            <i class="fas fa-grip-vertical"></i>
-        </div>
-        <span class="source-word" contenteditable="true"></span>
-        <input type="text" class="target-word" placeholder="Hebrew translation">
-        <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-    `;
-    
-    // Add at the top of the list
-    if (listElement.firstChild) {
-        listElement.insertBefore(wordItem, listElement.firstChild);
-    } else {
-        listElement.appendChild(wordItem);
-    }
-    
-    // Make the new item draggable
-    initializeDragAndDrop(wordItem);
-    
-    // Focus on the new word input
-    const sourceWord = wordItem.querySelector('.source-word');
-    sourceWord.focus();
 }
 
 function makeWordListDraggable(listId) {
