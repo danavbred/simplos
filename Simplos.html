@@ -16,7 +16,7 @@
   --primary-dark: #1a1a2e;
   --primary: #16213e;
   --secondary: #0f3460;
-  --accent: #e94561;
+  --accent: #e94560;
   --text: #ffffff;
   --gold: #ffd700;
   --silver: #c0c0c0;
@@ -179,97 +179,6 @@ body {
 .save-list-button:hover::before,
 .add-word-button:hover::before {
     left: 100%;
-}
-
-.share-button {
-    position: relative; 
-    padding: 0.5rem 1rem;
-    border: 2px solid var(--accent);
-    background: transparent;
-    color: var(--text);
-    border-radius: 50px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.share-modal {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--glass);
-    backdrop-filter: blur(10px);
-    padding: 2rem;
-    border-radius: 20px;
-    z-index: 1000;
-    width: 90%;
-    max-width: 500px;
-}
-
-.share-modal-header {
-    color: var(--gold);
-    margin-bottom: 1.5rem;
-}
-
-.users-list {
-    max-height: 300px;
-    overflow-y: auto;
-    margin: 1rem 0;
-}
-
-.user-item {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem;
-    margin: 0.5rem 0;
-    background: rgba(255,255,255,0.1);
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.user-item:hover {
-    background: rgba(255,255,255,0.2);
-    transform: translateY(-2px);
-}
-
-.shared-list {
-    border: 2px solid transparent;
-    background: linear-gradient(135deg, #00f2fe, #4facfe);
-    background-clip: padding-box;
-}
-
-.modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.5);
-    backdrop-filter: blur(5px);
-    z-index: 999;
-}
-
-.user-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem;
-    margin: 0.5rem 0;
-    background: rgba(255,255,255,0.1);
-    border-radius: 10px;
-    transition: all 0.3s ease;
-}
-
-.user-item:hover {
-    background: rgba(255,255,255,0.2);
-}
-
-.modal-close {
-    margin-top: 1rem;
-    width: 100%;
 }
 
 /* Maintain active state for auth tabs */
@@ -2648,58 +2557,58 @@ async function handleSignup() {
     const username = document.getElementById('signupUsername').value;
     const password = document.getElementById('signupPassword').value;
 
-    if (!email || !username || !password) {
-        alert('All fields are required');
+    console.log('Starting signup...');
+
+    if (!username) {
+        alert('Username is required');
         return;
     }
 
-    const { data, error } = await supabaseClient.auth.signUp({
+    // First signup
+    const { error: signupError } = await supabaseClient.auth.signUp({
         email,
         password,
         options: {
-            data: { username }
+            data: {
+                username: username,
+                display_name: username
+            }
         }
     });
 
-    if (error) {
-        console.error('Error signing up:', error.message);
-        alert(error.message);
+    if (signupError) {
+        console.error('Error signing up:', signupError.message);
         return;
     }
 
-    const { error: progressError } = await supabaseClient
-        .from('game_progress')
-        .insert([{
-            user_id: data.user.id,
-            stage: 1,
-            set_number: 1,
-            level: 1,
-            coins: 0,
-            perks: {},
-            unlocked_sets: { "1": [1] },
-            unlocked_levels: { "1_1": [1] },
-            perfect_levels: [],
-            completed_levels: []
-        }]);
+    console.log('Signup successful, attempting login...');
 
-    if (progressError) {
-        console.error('Error initializing game progress:', progressError);
-        return;
-    }
-
-    const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
+    // Then immediately login
+    const { data, error: loginError } = await supabaseClient.auth.signInWithPassword({
         email,
         password
     });
 
     if (loginError) {
-        alert('Account created but login failed. Please try logging in manually.');
+        console.error('Error logging in:', loginError.message);
         return;
     }
 
-    currentUser = loginData.user;
+    console.log('Login successful:', data.user);
+
+    currentUser = data.user;
     clearCustomPracticeUI();
-    await Promise.all([loadCustomLists(), loadUserGameProgress(currentUser.id)]);
+    
+    console.log('Initializing game progress...');
+    await initializeGameProgressForUser(data.user.id);
+    
+    console.log('Loading lists...');
+    await loadCustomLists();
+    
+    console.log('Loading game progress...');
+    await loadUserGameProgress(currentUser.id);
+    
+    console.log('Updating UI...');
     updateAuthUI();
     showScreen('welcome-screen');
 }
@@ -3044,23 +2953,24 @@ async function loadCustomLists() {
         const { data, error } = await supabaseClient
             .from('custom_lists')
             .select('*')
-            .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
+            .eq('user_id', currentUser.id);
 
         if (error) {
             console.error('Error loading custom lists:', error);
-            customPracticeLists.lists = [];
+            // Fallback to localStorage if Supabase load fails
+            const savedLists = localStorage.getItem('simploxCustomLists');
+            customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
         } else {
             customPracticeLists.lists = data.map(item => ({
                 id: item.local_id || Date.now(),
                 supabaseId: item.id,
                 name: item.name,
                 words: item.words,
-                translations: item.translations,
-                is_shared: item.is_shared,
-                shared_by: item.shared_by
+                translations: item.translations
             }));
         }
     } else {
+        // For guest users, load from localStorage
         const savedLists = localStorage.getItem('simploxCustomLists');
         customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
     }
@@ -5335,19 +5245,21 @@ function showCustomListsManager() {
         return;
     }
 
+    // Track seen list IDs to prevent duplicates
     const seenIds = new Set();
 
     customPracticeLists.lists.forEach(list => {
+        // Skip if we've already seen this list ID
         if (seenIds.has(list.id)) return;
         seenIds.add(list.id);
         
         const listItem = document.createElement('div');
-        listItem.className = `custom-list-item collapsed ${list.is_shared ? 'shared-list' : ''}`;
+        listItem.className = 'custom-list-item collapsed';
         listItem.dataset.listId = list.id;
         
         listItem.innerHTML = `
             <div class="list-header">
-                <h3>${list.name}${list.is_shared ? ' (Shared)' : ''}</h3>
+                <h3>${list.name}</h3>
                 <div class="list-summary">
                     <span>${list.words.length} words</span>
                     <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
@@ -5358,13 +5270,8 @@ function showCustomListsManager() {
             </div>
             <div class="list-actions">
                 <button class="start-button practice-button">Practice</button>
-                ${!list.is_shared ? `
-                    <button class="edit-button" data-list-id="${list.id}">Edit</button>
-                    <button class="start-button delete-button">Delete</button>
-                    <button class="share-button" onclick="showShareModal(${list.id})">
-                        <i class="fas fa-share-alt"></i> Share
-                    </button>
-                ` : ''}
+                <button class="edit-button" data-list-id="${list.id}">Edit</button>
+                <button class="start-button delete-button">Delete</button>
             </div>
         `;
 
@@ -5374,13 +5281,11 @@ function showCustomListsManager() {
         const practiceButton = listItem.querySelector('.practice-button');
         practiceButton.addEventListener('click', () => startCustomListPractice(list.id));
 
-        if (!list.is_shared) {
-            const editButton = listItem.querySelector('.edit-button');
-            editButton.addEventListener('click', () => toggleEditMode(list.id));
+        const editButton = listItem.querySelector('.edit-button');
+        editButton.addEventListener('click', () => toggleEditMode(list.id));
 
-            const deleteButton = listItem.querySelector('.delete-button');
-            deleteButton.addEventListener('click', () => deleteCustomList(list.id));
-        }
+        const deleteButton = listItem.querySelector('.delete-button');
+        deleteButton.addEventListener('click', () => deleteCustomList(list.id));
 
         container.appendChild(listItem);
     });
@@ -5504,8 +5409,15 @@ async function deleteCustomList(listId) {
         }
     }
 
+    // Remove from local array
     customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
-    if (!currentUser) saveCustomLists();
+    
+    // Update localStorage for guest users
+    if (!currentUser) {
+        saveCustomLists();
+    }
+
+    // Update UI
     showCustomListsManager();
 }
 
@@ -5680,104 +5592,6 @@ function toggleAuthMode() {
     
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
-}
-
-async function shareListWithUser(listId, recipientId) {
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list || !currentUser) return;
-
-    // Get original list's Supabase ID
-    const { data: originalList } = await supabaseClient
-        .from('custom_lists')
-        .select('id')
-        .eq('local_id', list.id)
-        .eq('user_id', currentUser.id)
-        .single();
-
-    if (!originalList) return;
-
-    // Create shared copy
-    const sharedList = {
-        user_id: recipientId,
-        name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
-        words: list.words,
-        translations: list.translations,
-        local_id: Date.now(),
-        is_shared: true,
-        shared_with: [recipientId],
-        shared_by: currentUser.id,
-        source_list_id: originalList.id
-    };
-
-    const { error } = await supabaseClient
-        .from('custom_lists')
-        .insert([sharedList]);
-
-    if (error) {
-        console.error('Error sharing list:', error);
-        return;
-    }
-
-    // Update UI
-    closeShareModal();
-    showListSharedConfirmation(listId);
-}
-
-function closeShareModal() {
-    const modal = document.querySelector('.share-modal')?.parentElement;
-    if (modal) document.body.removeChild(modal);
-}
-
-function showListSharedConfirmation(listId) {
-    const listItem = document.querySelector(`[data-list-id="${listId}"]`);
-    if (listItem) {
-        listItem.style.animation = 'pulse 0.5s ease';
-        setTimeout(() => listItem.style.animation = '', 500);
-    }
-}
-
-async function showShareModal(listId) {
-    // Create modal HTML
-    const modal = document.createElement('div');
-    modal.innerHTML = `
-        <div class="modal-backdrop"></div>
-        <div class="share-modal">
-            <h3 class="share-modal-header">Share List</h3>
-            <div class="users-list">Loading users...</div>
-            <button class="share-button modal-close">Cancel</button>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    // Fetch users
-    const { data: users, error } = await supabaseClient
-        .from('user_list')
-        .select('id, username')
-        .neq('id', currentUser.id);
-
-    const usersList = modal.querySelector('.users-list');
-    usersList.innerHTML = '';
-
-    if (error || !users?.length) {
-        usersList.innerHTML = error ? 'Error loading users' : 'No other users found';
-        return;
-    }
-
-    // Create user list
-    users.forEach(user => {
-        const userItem = document.createElement('div');
-        userItem.className = 'user-item';
-        userItem.innerHTML = `
-            <span>${user.username || 'Unnamed User'}</span>
-            <button class="share-button">Share</button>
-        `;
-        userItem.querySelector('button').onclick = () => shareListWithUser(listId, user.id);
-        usersList.appendChild(userItem);
-    });
-
-    // Modal close handlers
-    modal.querySelector('.modal-close').onclick = () => document.body.removeChild(modal);
-    modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
 
 </script>
