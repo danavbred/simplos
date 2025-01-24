@@ -5753,61 +5753,20 @@ async function showShareModal(listId) {
     }
 
     // Create user list
-    async function shareListWithUser(listId, recipientId) {
-   const list = customPracticeLists.lists.find(l => l.id === listId);
-   if (!list) return;
+    users.forEach(user => {
+        const userItem = document.createElement('div');
+        userItem.className = 'user-item';
+        userItem.innerHTML = `
+            <span>${user.username || 'Unnamed User'}</span>
+            <button class="share-button">Share</button>
+        `;
+        userItem.querySelector('button').onclick = () => shareListWithUser(listId, user.id);
+        usersList.appendChild(userItem);
+    });
 
-   // Ensure shared_with is an array
-   const currentSharedWith = Array.isArray(list.shared_with) ? list.shared_with : [];
-
-   // Create shared list with cascade reference
-   const sharedList = {
-       user_id: recipientId,
-       name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
-       words: list.words,
-       translations: list.translations,
-       is_shared: true,
-       local_id: Date.now(),
-       shared_with: [recipientId],
-       shared_by: currentUser.id,
-       original_list_id: list.supabaseId
-   };
-
-   try {
-       // Insert shared list
-       const { data, error } = await supabaseClient
-           .from('custom_lists')
-           .insert([sharedList]);
-
-       if (error) throw error;
-
-       // Update original list's shared_with array
-       const { error: updateError } = await supabaseClient
-           .from('custom_lists')
-           .update({ shared_with: [...currentSharedWith, recipientId] })
-           .eq('id', list.supabaseId);
-
-       if (updateError) throw updateError;
-
-       // Close modal and visual feedback
-       const modal = document.querySelector('.share-modal').parentElement;
-       if (modal) {
-           document.body.removeChild(modal);
-       }
-       
-       const listItem = document.querySelector(`[data-list-id="${listId}"]`);
-       if (listItem) {
-           listItem.style.animation = 'pulse 0.5s ease';
-           setTimeout(() => listItem.style.animation = '', 500);
-       }
-
-       // Refresh lists display
-       await loadCustomLists();
-       
-   } catch (err) {
-       console.error('Error sharing list:', err);
-       alert('Failed to share list. Please try again.');
-   }
+    // Modal close handlers
+    modal.querySelector('.modal-close').onclick = () => document.body.removeChild(modal);
+    modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
 
 </script>
