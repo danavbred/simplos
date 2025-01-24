@@ -5688,8 +5688,45 @@ function toggleAuthMode() {
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
 }
+async function shareListWithUser(listId, recipientId) {
+    // Find the original list
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
+
+    // Create shared list data
+    const sharedList = {
+        user_id: recipientId,
+        name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
+        words: list.words,
+        translations: list.translations,
+        is_shared: true,
+        local_id: Date.now(),
+        shared_with: [recipientId],
+        shared_by: currentUser.id
+    };
+
+    const { data, error } = await supabaseClient
+        .from('custom_lists')
+        .insert([sharedList]);
+
+    if (error) {
+        console.error('Error sharing list:', error);
+        return;
+    }
+
+    // Close modal and show visual feedback
+    const modal = document.querySelector('.share-modal').parentElement;
+    document.body.removeChild(modal);
+    
+    const listItem = document.querySelector(`[data-list-id="${listId}"]`);
+    if (listItem) {
+        listItem.style.animation = 'pulse 0.5s ease';
+        setTimeout(() => listItem.style.animation = '', 500);
+    }
+}
 
 async function showShareModal(listId) {
+    // Create modal HTML
     const modal = document.createElement('div');
     modal.innerHTML = `
         <div class="modal-backdrop"></div>
@@ -5701,27 +5738,21 @@ async function showShareModal(listId) {
     `;
     document.body.appendChild(modal);
 
+    // Fetch users
     const { data: users, error } = await supabaseClient
         .from('user_list')
         .select('id, username')
         .neq('id', currentUser.id);
 
-    console.log('Query debug:', { users, error });
-
     const usersList = modal.querySelector('.users-list');
     usersList.innerHTML = '';
 
-    if (error) {
-        console.error('Error fetching users:', error);
-        usersList.innerHTML = 'Error loading users';
+    if (error || !users?.length) {
+        usersList.innerHTML = error ? 'Error loading users' : 'No other users found';
         return;
     }
 
-    if (!users || users.length === 0) {
-        usersList.innerHTML = 'No other users found';
-        return;
-    }
-
+    // Create user list
     users.forEach(user => {
         const userItem = document.createElement('div');
         userItem.className = 'user-item';
@@ -5733,41 +5764,9 @@ async function showShareModal(listId) {
         usersList.appendChild(userItem);
     });
 
+    // Modal close handlers
     modal.querySelector('.modal-close').onclick = () => document.body.removeChild(modal);
     modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
-}
-
-async function shareListWithUser(listId, recipientId) {
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
-
-    const sharedList = {
-        user_id: recipientId,
-        name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
-        words: list.words,
-        translations: list.translations,
-        is_shared: true,
-        local_id: Date.now(),
-        shared_with: [recipientId],  // Using shared_with instead of shared_by
-    };
-
-    const { error } = await supabaseClient
-        .from('custom_lists')
-        .insert([sharedList]);
-
-    if (error) {
-        console.error('Error sharing list:', error);
-        return;
-    }
-
-    const modal = document.querySelector('.share-modal').parentElement;
-    document.body.removeChild(modal);
-
-    const existingListItem = document.querySelector(`[data-list-id="${listId}"]`);
-    if (existingListItem) {
-        existingListItem.style.animation = 'pulse 0.5s ease';
-        setTimeout(() => existingListItem.style.animation = '', 500);
-    }
 }
 
 </script>
