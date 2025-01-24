@@ -220,9 +220,9 @@ body {
 }
 
 .list-entry .buttons-container {
-        width: 100%;
-        justify-content: space-between;
-    }
+    display: flex;
+    gap: 0.5rem;
+}
 
 .list-entry h3 {
     color: var(--text);
@@ -232,57 +232,6 @@ body {
 .list-entry p {
     color: rgba(255, 255, 255, 0.7);
     font-size: 0.875rem;
-}
-
-/* Add after existing .custom-practice-container styles */
-.word-input-section {
-    background: var(--glass);
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.custom-lists-container {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.custom-list-item {
-    background: var(--glass);
-    border-radius: 8px;
-    padding: 1rem;
-    transition: all 0.3s ease;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    margin-bottom: 0.5rem;
-}
-
-.custom-list-item:hover {
-    transform: translateX(5px);
-    border-color: var(--accent);
-}
-
-.list-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-}
-
-@media (max-width: 768px) {
-    .custom-practice-container {
-        padding: 0.5rem;
-    }
-    
-    .custom-list-item {
-        padding: 0.75rem;
-    }
-    
-    .list-actions {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
 }
 
 .share-button {
@@ -2587,34 +2536,50 @@ body {
     </div>
 
     <div class="custom-practice-container">
-        <div class="word-input-section">
-            <input 
-                type="text" 
-                id="custom-list-name" 
-                class="list-name-input" 
-                placeholder="List Name"
-            >
+        <div class="lists-section">
+            <h2 class="welcome-title">My Word Lists</h2>
+            <div id="custom-lists-container" class="custom-lists-container">
+                <!-- Lists will be dynamically populated here -->
+            </div>
+        </div>
+        
+        <div class="practice-section">
+            <h2 class="welcome-title">Create Custom Word List</h2>
+            <div class="list-name-section">
+                <input 
+                    type="text" 
+                    id="custom-list-name" 
+                    class="list-name-input" 
+                    placeholder="List Name"
+                >
+            </div>
             <textarea 
                 id="custom-word-input" 
                 placeholder="Enter words, separated by commas or newlines"
             ></textarea>
             <div class="word-input-actions">
-                <button onclick="processCustomWords()" class="start-button">Make</button>
-                <button onclick="saveCurrentList()" class="start-button">Save</button>
+    <button 
+        onclick="processCustomWords()" 
+        class="start-button"
+    >
+        Make
+    </button>
+    <button 
+        onclick="saveCurrentList()" 
+        class="start-button"
+    >
+        Save
+    </button>
+</div>
+<div class="translation-results" id="translation-results">
+    <div class="word-translation-list" id="word-translation-list">
+        <!-- Processed words will appear here -->
+    </div>
+</div>
             </div>
-            <div class="translation-results" id="translation-results">
-                <div class="word-translation-list" id="word-translation-list">
-                    <!-- Processed words will appear here -->
-                </div>
-            </div>
-        </div>
-        
-        <div id="custom-lists-container" class="custom-lists-container">
-            <!-- Lists will be dynamically populated here -->
         </div>
     </div>
 </div>
-
 <script>
 
 const vocabularySets = {
