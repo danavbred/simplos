@@ -2657,7 +2657,11 @@ async function handleSignup() {
         email,
         password,
         options: {
-            data: { username }
+            data: {
+                username: username,
+                role: 'student',
+                status: 'free'
+            }
         }
     });
 
@@ -2667,6 +2671,22 @@ async function handleSignup() {
         return;
     }
 
+    const { error: profileError } = await supabaseClient
+        .from('user_profiles')
+        .insert([{
+            user_id: data.user.id,
+            username: username,
+            role: 'student',
+            status: 'free',
+            trial_start: new Date().toISOString()
+        }]);
+
+    if (profileError) {
+        console.error('Error creating profile:', profileError);
+        return;
+    }
+
+    // Initialize game progress
     const { error: progressError } = await supabaseClient
         .from('game_progress')
         .insert([{
@@ -2687,7 +2707,8 @@ async function handleSignup() {
         return;
     }
 
-    const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
+    // Auto-login after signup
+    const { error: loginError } = await supabaseClient.auth.signInWithPassword({
         email,
         password
     });
@@ -2697,8 +2718,7 @@ async function handleSignup() {
         return;
     }
 
-    currentUser = loginData.user;
-    clearCustomPracticeUI();
+    currentUser = data.user;
     await Promise.all([loadCustomLists(), loadUserGameProgress(currentUser.id)]);
     updateAuthUI();
     showScreen('welcome-screen');
@@ -5138,48 +5158,56 @@ function processCustomWords() {
 }
 
 function initializeDragAndDrop(item) {
-    const dragHandle = item.querySelector('.drag-handle');
+    if (!item) return;
     
-    dragHandle.addEventListener('mousedown', () => {
-        item.draggable = true;
-    });
+    item.setAttribute('draggable', 'true');
     
-    dragHandle.addEventListener('mouseup', () => {
-        item.draggable = false;
-    });
-    
-    item.addEventListener('dragstart', () => {
+    item.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
         item.classList.add('dragging');
         item.style.opacity = '0.5';
     });
     
-    item.addEventListener('dragend', () => {
+    item.addEventListener('dragend', (e) => {
+        e.stopPropagation();
         item.classList.remove('dragging');
         item.style.opacity = '1';
-        item.draggable = false;
         
-        // Save the new order immediately
-        const listId = item.closest('.word-translation-list').id.split('-')[1];
-        const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
-        const wordList = document.getElementById(`list-${listId}`);
-        
-        // Only save if in edit mode
-        if (listItem.getAttribute('data-in-edit-mode') === 'true') {
-            saveListChanges(listId, wordList, listItem, false);
+        // Save the new order
+        const listId = item.closest('.word-translation-list')?.id.split('-')[1];
+        if (listId) {
+            const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+            const wordList = document.getElementById(`list-${listId}`);
+            if (listItem?.getAttribute('data-in-edit-mode') === 'true') {
+                saveListChanges(listId, wordList, listItem, false);
+            }
         }
     });
+
+    const dragHandle = item.querySelector('.drag-handle');
+    if (dragHandle) {
+        dragHandle.addEventListener('mousedown', () => {
+            item.draggable = true;
+        });
+        
+        dragHandle.addEventListener('mouseup', () => {
+            item.draggable = false;
+        });
+    }
 }
 
 
 function saveCurrentList() {
     const listNameInput = document.getElementById('custom-list-name');
+    const wordInput = document.getElementById('custom-word-input');
     const wordList = document.getElementById('word-translation-list');
-    const items = wordList.querySelectorAll('.word-translation-item');
+    const translationResults = document.getElementById('translation-results');
     
     const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
     const words = [];
     const translations = [];
     
+    const items = wordList.querySelectorAll('.word-translation-item');
     items.forEach(item => {
         const word = item.querySelector('.source-word').textContent.trim();
         const translation = item.querySelector('.target-word').value.trim();
@@ -5199,6 +5227,13 @@ function saveCurrentList() {
 
     customPracticeLists.lists.push(newList);
     saveCustomLists();
+    
+    // Clear form
+    listNameInput.value = '';
+    wordInput.value = '';
+    wordList.innerHTML = '';
+    translationResults.style.display = 'none';
+    
     showCustomListsManager();
 }
 
