@@ -3045,23 +3045,35 @@ async function saveCustomList() {
 }
 
 async function loadCustomLists() {
-   const { data, error } = await supabaseClient
-       .from('custom_lists')
-       .select('*')
-       .or(`user_id.eq.${currentUser.id},original_list_id.eq.${currentUser.id}`);
+    customPracticeLists.lists = []; // Always clear lists first
 
-   if (error) {
-       console.error('Error loading lists:', error);
-       return;
-   }
+    if (currentUser) {
+        // Load lists for logged-in users from Supabase
+        const { data, error } = await supabaseClient
+            .from('custom_lists')
+            .select('*')
+            .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
 
-   customPracticeLists.lists = data.map(list => ({
-       ...list,
-       is_shared: list.user_id !== currentUser.id
-   }));
-
-   // Update UI
-   updateListsDisplay();
+        if (error) {
+            console.error('Error loading custom lists:', error);
+        } else {
+            customPracticeLists.lists = data.map(item => ({
+                id: item.local_id || Date.now(),
+                supabaseId: item.id,
+                name: item.name,
+                words: item.words,
+                translations: item.translations,
+                is_shared: item.is_shared,
+                shared_by: item.shared_by
+            }));
+        }
+    } else {
+        // Load lists for guest users from localStorage
+        const savedLists = localStorage.getItem('simploxCustomLists');
+        customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
+    }
+    
+    updateListsDisplay();
 }
 
 function switchAuthTab(tab) {
