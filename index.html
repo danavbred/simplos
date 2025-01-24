@@ -5512,29 +5512,26 @@ function loadCustomList(listId) {
 }
 
 async function deleteCustomList(listId) {
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
-
-    if (currentUser && list.supabaseId) {
-        const { error } = await supabaseClient
-            .from('custom_lists')
-            .delete()
-            .eq('id', list.supabaseId)
-            .eq('user_id', currentUser.id);
-
-        if (error) {
-            console.error('Error deleting list:', error);
-            return;
-        }
-    }
-
-    customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
-    
-    if (!currentUser) {
-        saveCustomLists();
-    }
-
-    showCustomListsManager();
+   const list = customPracticeLists.lists.find(l => l.id === listId);
+   
+   if (list.is_shared) {
+       // For shared lists, just remove from local state and Supabase
+       await supabaseClient
+           .from('custom_lists')
+           .delete()
+           .eq('id', list.supabaseId)
+           .eq('user_id', currentUser.id);
+   } else {
+       // For original list, delete and cascade to shared lists
+       await supabaseClient
+           .from('custom_lists')
+           .delete()
+           .eq('id', list.supabaseId)
+           .eq('user_id', currentUser.id);
+   }
+   
+   // Refresh lists display
+   await loadCustomLists();
 }
 
 function addWordToList(listId) {
