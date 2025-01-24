@@ -2648,58 +2648,58 @@ async function handleSignup() {
     const username = document.getElementById('signupUsername').value;
     const password = document.getElementById('signupPassword').value;
 
-    console.log('Starting signup...');
-
-    if (!username) {
-        alert('Username is required');
+    if (!email || !username || !password) {
+        alert('All fields are required');
         return;
     }
 
-    // First signup
-    const { error: signupError } = await supabaseClient.auth.signUp({
+    const { data, error } = await supabaseClient.auth.signUp({
         email,
         password,
         options: {
-            data: {
-                username: username,
-                display_name: username
-            }
+            data: { username }
         }
     });
 
-    if (signupError) {
-        console.error('Error signing up:', signupError.message);
+    if (error) {
+        console.error('Error signing up:', error.message);
+        alert(error.message);
         return;
     }
 
-    console.log('Signup successful, attempting login...');
+    const { error: progressError } = await supabaseClient
+        .from('game_progress')
+        .insert([{
+            user_id: data.user.id,
+            stage: 1,
+            set_number: 1,
+            level: 1,
+            coins: 0,
+            perks: {},
+            unlocked_sets: { "1": [1] },
+            unlocked_levels: { "1_1": [1] },
+            perfect_levels: [],
+            completed_levels: []
+        }]);
 
-    // Then immediately login
-    const { data, error: loginError } = await supabaseClient.auth.signInWithPassword({
+    if (progressError) {
+        console.error('Error initializing game progress:', progressError);
+        return;
+    }
+
+    const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
         email,
         password
     });
 
     if (loginError) {
-        console.error('Error logging in:', loginError.message);
+        alert('Account created but login failed. Please try logging in manually.');
         return;
     }
 
-    console.log('Login successful:', data.user);
-
-    currentUser = data.user;
+    currentUser = loginData.user;
     clearCustomPracticeUI();
-    
-    console.log('Initializing game progress...');
-    await initializeGameProgressForUser(data.user.id);
-    
-    console.log('Loading lists...');
-    await loadCustomLists();
-    
-    console.log('Loading game progress...');
-    await loadUserGameProgress(currentUser.id);
-    
-    console.log('Updating UI...');
+    await Promise.all([loadCustomLists(), loadUserGameProgress(currentUser.id)]);
     updateAuthUI();
     showScreen('welcome-screen');
 }
@@ -5743,26 +5743,31 @@ async function shareListWithUser(listId, recipientId) {
 
     const sharedList = {
         user_id: recipientId,
-        name: `${list.name} (Shared)`,
+        name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
         words: list.words,
         translations: list.translations,
         is_shared: true,
-        local_id: Date.now()
+        local_id: Date.now(),
+        shared_with: [recipientId],  // Using shared_with instead of shared_by
     };
 
-    console.log('Sharing list:', sharedList);
-
-    const { data, error } = await supabaseClient
+    const { error } = await supabaseClient
         .from('custom_lists')
-        .insert([sharedList])
-        .select();
+        .insert([sharedList]);
 
     if (error) {
         console.error('Error sharing list:', error);
         return;
     }
 
-    document.body.removeChild(document.querySelector('.share-modal').parentElement);
+    const modal = document.querySelector('.share-modal').parentElement;
+    document.body.removeChild(modal);
+
+    const existingListItem = document.querySelector(`[data-list-id="${listId}"]`);
+    if (existingListItem) {
+        existingListItem.style.animation = 'pulse 0.5s ease';
+        setTimeout(() => existingListItem.style.animation = '', 500);
+    }
 }
 
 </script>
