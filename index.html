@@ -5492,31 +5492,49 @@ async function deleteCustomList(listId) {
     if (!list || !currentUser) return;
 
     try {
-        // Delete shared copies
+        // Get the original list's Supabase ID
+        const { data: originalList } = await supabaseClient
+            .from('custom_lists')
+            .select('id')
+            .eq('local_id', list.id)
+            .eq('user_id', currentUser.id)
+            .single();
+
+        if (!originalList) {
+            console.error('Original list not found');
+            return;
+        }
+
+        // Delete all shared copies first
         const { error: sharedError } = await supabaseClient
             .from('custom_lists')
             .delete()
-            .eq('shared_by', currentUser.id)
-            .eq('is_shared', true)
-            .eq('local_id', list.id);
+            .match({
+                shared_by: currentUser.id,
+                is_shared: true,
+                name: list.name // Additional check to ensure correct copies
+            });
 
         if (sharedError) throw sharedError;
 
-        // Delete original list
+        // Delete the original list
         const { error: originalError } = await supabaseClient
             .from('custom_lists')
             .delete()
-            .eq('local_id', list.id)
-            .eq('user_id', currentUser.id);
+            .match({
+                id: originalList.id,
+                user_id: currentUser.id
+            });
 
         if (originalError) throw originalError;
 
+        // Update local state
         customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
         showCustomListsManager();
 
     } catch (error) {
         console.error('Error deleting list:', error);
- 
+        alert('Failed to delete list. Please try again.');
     }
 }
 
