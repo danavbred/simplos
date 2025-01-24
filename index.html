@@ -5696,11 +5696,9 @@ function toggleAuthMode() {
     signupForm.classList.toggle('hidden');
 }
 async function shareListWithUser(listId, recipientId) {
-    // Find the original list
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
-    // Create shared list data
     const sharedList = {
         user_id: recipientId,
         name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
@@ -5709,10 +5707,11 @@ async function shareListWithUser(listId, recipientId) {
         is_shared: true,
         local_id: Date.now(),
         shared_with: [recipientId],
-        shared_by: currentUser.id
+        shared_by: currentUser.id,
+        original_list_id: list.supabaseId  // Add this reference
     };
 
-    const { data, error } = await supabaseClient
+    const { error } = await supabaseClient
         .from('custom_lists')
         .insert([sharedList]);
 
@@ -5721,7 +5720,6 @@ async function shareListWithUser(listId, recipientId) {
         return;
     }
 
-    // Close modal and show visual feedback
     const modal = document.querySelector('.share-modal').parentElement;
     document.body.removeChild(modal);
     
