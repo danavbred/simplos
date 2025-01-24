@@ -5486,51 +5486,28 @@ function loadCustomList(listId) {
 }
 
 async function deleteCustomList(listId) {
-    if (!confirm('Are you sure you want to delete this list?')) return;
-
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
     if (currentUser && list.supabaseId) {
-        // Delete original list - trigger will handle shared copies
         const { error } = await supabaseClient
             .from('custom_lists')
             .delete()
-            .match({ 
-                'id': list.supabaseId,
-                'user_id': currentUser.id 
-            });
+            .eq('id', list.supabaseId)
+            .eq('user_id', currentUser.id);
 
         if (error) {
             console.error('Error deleting list:', error);
             return;
         }
-
-        // Delete any shared copies if this is the original list
-        if (!list.is_shared && list.shared_with?.length > 0) {
-            const { error: sharedError } = await supabaseClient
-                .from('custom_lists')
-                .delete()
-                .match({
-                    'local_id': list.id,
-                    'shared_by': currentUser.id
-                });
-
-            if (sharedError) {
-                console.error('Error deleting shared copies:', sharedError);
-            }
-        }
     }
 
-    // Remove from local array
     customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
     
-    // Update localStorage for guest users
     if (!currentUser) {
-        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+        saveCustomLists();
     }
 
-    // Update UI
     showCustomListsManager();
 }
 
