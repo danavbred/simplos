@@ -5492,22 +5492,29 @@ async function deleteCustomList(listId) {
     if (!list) return;
 
     if (currentUser && list.supabaseId) {
-        // Delete original list and all copies that reference it
-        const { error } = await supabaseClient
+        // First find all shared copies of this list
+        const { data: sharedCopies } = await supabaseClient
             .from('custom_lists')
-            .delete()
-            .or(`id.eq.${list.supabaseId},original_list_id.eq.${list.supabaseId}`);
+            .select('id')
+            .eq('shared_by', currentUser.id)
+            .eq('original_list_id', list.supabaseId);
 
-        if (error) {
-            console.error('Error deleting lists:', error);
-            return;
+        // Delete both original and shared copies
+        if (sharedCopies) {
+            const idsToDelete = [list.supabaseId, ...sharedCopies.map(copy => copy.id)];
+            const { error } = await supabaseClient
+                .from('custom_lists')
+                .delete()
+                .in('id', idsToDelete);
+
+            if (error) {
+                console.error('Error deleting shared lists:', error);
+                return;
+            }
         }
     }
 
-    // Update local state
-    customPracticeLists.lists = customPracticeLists.lists.filter(l => 
-        l.id !== listId && l.original_list_id !== list.supabaseId
-    );
+    customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
     
     if (!currentUser) {
         saveCustomLists();
@@ -5689,9 +5696,11 @@ function toggleAuthMode() {
     signupForm.classList.toggle('hidden');
 }
 async function shareListWithUser(listId, recipientId) {
+    // Find the original list
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
+    // Create shared list data
     const sharedList = {
         user_id: recipientId,
         name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
@@ -5700,11 +5709,10 @@ async function shareListWithUser(listId, recipientId) {
         is_shared: true,
         local_id: Date.now(),
         shared_with: [recipientId],
-        shared_by: currentUser.id,
-        original_list_id: list.supabaseId  // Add this reference
+        shared_by: currentUser.id
     };
 
-    const { error } = await supabaseClient
+    const { data, error } = await supabaseClient
         .from('custom_lists')
         .insert([sharedList]);
 
@@ -5713,6 +5721,7 @@ async function shareListWithUser(listId, recipientId) {
         return;
     }
 
+    // Close modal and show visual feedback
     const modal = document.querySelector('.share-modal').parentElement;
     document.body.removeChild(modal);
     
