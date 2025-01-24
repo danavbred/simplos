@@ -5688,35 +5688,24 @@ function toggleAuthMode() {
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
 }
-
 async function shareListWithUser(listId, recipientId) {
+    // Find the original list
     const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list || !currentUser) return;
+    if (!list) return;
 
-    // Get original list's Supabase ID
-    const { data: originalList } = await supabaseClient
-        .from('custom_lists')
-        .select('id')
-        .eq('local_id', list.id)
-        .eq('user_id', currentUser.id)
-        .single();
-
-    if (!originalList) return;
-
-    // Create shared copy
+    // Create shared list data
     const sharedList = {
         user_id: recipientId,
         name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
         words: list.words,
         translations: list.translations,
-        local_id: Date.now(),
         is_shared: true,
+        local_id: Date.now(),
         shared_with: [recipientId],
-        shared_by: currentUser.id,
-        source_list_id: originalList.id
+        shared_by: currentUser.id
     };
 
-    const { error } = await supabaseClient
+    const { data, error } = await supabaseClient
         .from('custom_lists')
         .insert([sharedList]);
 
@@ -5725,11 +5714,16 @@ async function shareListWithUser(listId, recipientId) {
         return;
     }
 
-    // Update UI
-    closeShareModal();
-    showListSharedConfirmation(listId);
+    // Close modal and show visual feedback
+    const modal = document.querySelector('.share-modal').parentElement;
+    document.body.removeChild(modal);
+    
+    const listItem = document.querySelector(`[data-list-id="${listId}"]`);
+    if (listItem) {
+        listItem.style.animation = 'pulse 0.5s ease';
+        setTimeout(() => listItem.style.animation = '', 500);
+    }
 }
-
 
 async function showShareModal(listId) {
     // Create modal HTML
