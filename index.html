@@ -5489,31 +5489,31 @@ async function deleteCustomList(listId) {
     if (!confirm('Are you sure you want to delete this list?')) return;
 
     const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
+    if (!list || !currentUser) return;
 
-    if (currentUser && list.supabaseId) {
-        const { error } = await supabaseClient
+    try {
+        // Delete shared copies
+        const { error: sharedError } = await supabaseClient
             .from('custom_lists')
             .delete()
-            .eq('id', list.supabaseId)
+            .eq('shared_by', currentUser.id)
+            .eq('is_shared', true)
+            .eq('local_id', list.id);
+
+        if (sharedError) throw sharedError;
+
+        // Delete original list
+        const { error: originalError } = await supabaseClient
+            .from('custom_lists')
+            .delete()
+            .eq('local_id', list.id)
             .eq('user_id', currentUser.id);
 
-        if (error) {
-            console.error('Error deleting list:', error);
-            return;
-        }
-    }
+        if (originalError) throw originalError;
 
-    // Remove from local array
-    customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
-    
-    // Update localStorage for guest users
-    if (!currentUser) {
-        saveCustomLists();
-    }
+        customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
+        showCustomListsManager();
 
-    // Update UI
-    showCustomListsManager();
 }
 
 function addWordToList(listId) {
