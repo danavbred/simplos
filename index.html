@@ -5512,22 +5512,29 @@ function loadCustomList(listId) {
 }
 
 async function deleteCustomList(listId) {
-   const list = customPracticeLists.lists.find(l => l.id === listId);
-   if (!list) return;
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
 
-   try {
-       // Delete the list (this should cascade to shared instances due to the policy)
-       await supabaseClient
-           .from('custom_lists')
-           .delete()
-           .eq('id', list.supabaseId);
+    if (currentUser && list.supabaseId) {
+        const { error } = await supabaseClient
+            .from('custom_lists')
+            .delete()
+            .eq('id', list.supabaseId)
+            .eq('user_id', currentUser.id);
 
-       // Refresh lists display
-       await loadCustomLists();
-   } catch (error) {
-       console.error('Error deleting list:', error);
-       alert('Failed to delete list');
-   }
+        if (error) {
+            console.error('Error deleting list:', error);
+            return;
+        }
+    }
+
+    customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
+    
+    if (!currentUser) {
+        saveCustomLists();
+    }
+
+    showCustomListsManager();
 }
 
 function addWordToList(listId) {
@@ -5702,32 +5709,41 @@ function toggleAuthMode() {
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
 }
-
 async function shareListWithUser(listId, recipientId) {
-   const list = customPracticeLists.lists.find(l => l.id === listId);
-   if (!list) return;
+    // Find the original list
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
 
-   try {
-       const { data, error } = await supabaseClient
-           .from('custom_lists')
-           .insert({
-               user_id: recipientId,
-               name: `${list.name} (Shared)`,
-               words: list.words,
-               translations: list.translations,
-               is_shared: true,
-               original_list_id: list.supabaseId,
-               shared_by: currentUser.id
-           });
+    // Create shared list data
+    const sharedList = {
+        user_id: recipientId,
+        name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
+        words: list.words,
+        translations: list.translations,
+        is_shared: true,
+        local_id: Date.now(),
+        shared_with: [recipientId],
+        shared_by: currentUser.id
+    };
 
-       if (error) throw error;
+    const { data, error } = await supabaseClient
+        .from('custom_lists')
+        .insert([sharedList]);
 
-       // Refresh lists display
-       await loadCustomLists();
-   } catch (err) {
-       console.error('Error sharing list:', err);
-       alert('Failed to share list');
-   }
+    if (error) {
+        console.error('Error sharing list:', error);
+        return;
+    }
+
+    // Close modal and show visual feedback
+    const modal = document.querySelector('.share-modal').parentElement;
+    document.body.removeChild(modal);
+    
+    const listItem = document.querySelector(`[data-list-id="${listId}"]`);
+    if (listItem) {
+        listItem.style.animation = 'pulse 0.5s ease';
+        setTimeout(() => listItem.style.animation = '', 500);
+    }
 }
 
 async function showShareModal(listId) {
