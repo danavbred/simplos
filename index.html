@@ -2943,12 +2943,7 @@ function clearCustomPracticeUI() {
 
     // Reset current list
     customPracticeLists.currentList = null;
-    
-    // If not logged in, clear lists
-    if (!currentUser) {
-        customPracticeLists.lists = [];
-        localStorage.removeItem('simploxCustomLists');
-    }
+    customPracticeLists.lists = [];
 }
 
 function saveProgress() {
@@ -3045,10 +3040,7 @@ async function saveCustomList() {
 }
 
 async function loadCustomLists() {
-    customPracticeLists.lists = []; // Always clear lists first
-
     if (currentUser) {
-        // Load lists for logged-in users from Supabase
         const { data, error } = await supabaseClient
             .from('custom_lists')
             .select('*')
@@ -3056,6 +3048,7 @@ async function loadCustomLists() {
 
         if (error) {
             console.error('Error loading custom lists:', error);
+            customPracticeLists.lists = [];
         } else {
             customPracticeLists.lists = data.map(item => ({
                 id: item.local_id || Date.now(),
@@ -3068,7 +3061,6 @@ async function loadCustomLists() {
             }));
         }
     } else {
-        // Load lists for guest users from localStorage
         const savedLists = localStorage.getItem('simploxCustomLists');
         customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
     }
@@ -3254,29 +3246,12 @@ async function handleLogout() {
             console.error('Supabase logout error:', error.message);
         }
 
-        // Reset game state
-        gameState.coins = 0;
-        gameState.unlockedSets = {};
-        gameState.unlockedLevels = {};
-        gameState.perfectLevels = new Set();
-        gameState.completedLevels = new Set();
-        gameState.perks = {
-            timeFreeze: 0,
-            skip: 0,
-            clue: 0,
-            reveal: 0
-        };
-
-        // Clear custom lists from memory
-        customPracticeLists.lists = [];
-        
-        // Clear list inputs
-        clearCustomPracticeUI();
-
         currentUser = null;
         updateAuthUI();
-        saveCustomLists(); // This will clear localStorage for guest users
         showScreen('welcome-screen');
+        
+        // Reload game progress from localStorage
+        initializeGame();
 
     } catch (error) {
         console.error('Unexpected error during logout:', error);
@@ -5100,14 +5075,13 @@ async function saveCustomListToSupabase(list) {
 
 
 function saveCustomLists() {
+    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+    
     if (currentUser) {
-        // Only save to Supabase for logged-in users
+        // Also save to Supabase for logged-in users
         customPracticeLists.lists.forEach(list => {
             saveCustomListToSupabase(list);
         });
-    } else {
-        // Only save to localStorage for guest users
-        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
     }
 }
 
