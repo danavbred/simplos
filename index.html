@@ -2657,7 +2657,10 @@ async function handleSignup() {
         email,
         password,
         options: {
-            data: { username }
+            data: { 
+                username: username,
+                full_name: username  // Additional metadata field
+            }
         }
     });
 
@@ -2665,6 +2668,20 @@ async function handleSignup() {
         console.error('Error signing up:', error.message);
         alert(error.message);
         return;
+    }
+
+    // Insert username into user_profiles table
+    const { error: profileError } = await supabaseClient
+        .from('user_profiles')
+        .insert({
+            id: data.user.id,
+            username: username,
+            role: 'student',
+            status: 'free'
+        });
+
+    if (profileError) {
+        console.error('Error creating user profile:', profileError);
     }
 
     const { error: progressError } = await supabaseClient
