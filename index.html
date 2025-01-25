@@ -516,18 +516,120 @@ body {
     transition: content 1s ease-out;
 }
 
+.knowledge-branch {
+    background: rgba(0,0,0,0.2);
+    border-radius: 20px;
+    border: 3px solid #27AE60;
+    margin-bottom: 1rem;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
 
-.stage-container, .set-container, .level-selection {
-  display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 2rem;
-    width: 100%;
-    max-width: 1200px;
-    padding: 2rem;
-    z-index: 1;
+.branch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #27AE60, transparent);
+    cursor: pointer;
+}
+
+.branch-title {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.branch-title .branch-icon {
+    font-size: 2rem;
+    color: white;
+}
+
+.branch-title h2 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.branch-meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.branch-details {
+    padding: 1.5rem;
+    background: rgba(255,255,255,0.05);
+}
+
+.branch-skills {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.skill-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-radius: 15px;
+    background: rgba(0,0,0,0.2);
+}
+
+.skill-item.unlocked {
+    background: rgba(255,255,255,0.1);
+}
+
+.skill-item i {
+    font-size: 1.2rem;
+}
+
+.skill-item.unlocked i {
+    color: green;
+}
+
+.skill-item.locked i {
+    color: gray;
+}
+
+.sets-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1rem;
+}
+
+.set-block {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 15px;
+    background: rgba(255,255,255,0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.set-block.unlocked {
+    background: #27AE60;
+    box-shadow: 0 0 20px #27AE60;
+}
+
+.set-block i {
+    font-size: 2rem;
+    color: white;
 }
 
 
+
+.stage-container, .set-container, .level-selection {
+  display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 0.5fr));
+    gap: 1rem;
+    width: 100%;
+    max-width: 600px;
+    padding: rem;
+    z-index: 1;
+}
 
 .stage-button, .set-button, .level {
   aspect-ratio: 1;
@@ -1755,6 +1857,127 @@ body {
     }
 }
 
+.upgrade-prompt {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    padding: 2rem;
+    border-radius: 20px;
+    z-index: 1000;
+    width: 90%;
+    max-width: 500px;
+    display: none;
+}
+
+.upgrade-prompt.show {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+.upgrade-prompt h2 {
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.upgrade-prompt-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+.lock-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: inherit;
+}
+
+.lock-overlay i {
+    color: var(--text);
+    font-size: 2rem;
+    opacity: 0.8;
+}
+
+.payment-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+}
+
+.payment-container {
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 800px;
+}
+
+.payment-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    margin: 2rem 0;
+}
+
+.payment-option {
+    background: rgba(255,255,255,0.1);
+    border-radius: 15px;
+    padding: 2rem;
+    text-align: center;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.payment-option:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+}
+
+.payment-option.featured {
+    border: 2px solid var(--gold);
+}
+
+.best-value {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--gold);
+    color: var(--primary-dark);
+    padding: 0.25rem 1rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.price {
+    font-size: 2rem;
+    color: var(--gold);
+    margin: 1rem 0;
+}
+
+.savings {
+    color: var(--success);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+
 /* Main Custom Practice Container */
 .custom-practice-container {
     display: flex;
@@ -2337,6 +2560,9 @@ body {
     }
 }
 
+
+
+
     </style>
 </head>
 <body>
@@ -2426,9 +2652,44 @@ body {
       <button class="navigation-button reset-button" onclick="handleResetProgress()">
           <i class="fas fa-trash-alt navigation-icon"></i>
       </button>
-  </div>
-    <div class="set-container" id="set-container"></div>
+
+      <div class="knowledge-branch" data-stage-id="1">
+    <div class="branch-header">
+        <div class="branch-title">
+            <i class="fas fa-leaf branch-icon"></i>
+            <h2>Elementary Roots</h2>
+        </div>
+        <div class="branch-meta">
+            <span class="growth-stage">Seedling Stage</span>
+            <span class="sets-progress">3/9 Sets Unlocked</span>
+            <i class="fas fa-book-open expand-icon"></i>
+        </div>
+    </div>
+    
+    <div class="branch-details" style="display: none;">
+        <div class="branch-skills">
+            <div class="skill-item unlocked">
+                <i class="fas fa-unlock"></i>
+                <span>Basic Vocabulary</span>
+            </div>
+            <div class="skill-item unlocked">
+                <i class="fas fa-unlock"></i>
+                <span>Simple Sentence Structure</span>
+            </div>
+            <div class="skill-item locked">
+                <i class="fas fa-lock"></i>
+                <span>Early Grammar</span>
+            </div>
+        </div>
+        
+        <div class="sets-grid">
+            <div class="set-container" id="set-container"></div>
+        </div>
+    </div>
 </div>
+  </div>  
+</div>
+
 
 <div id="level-screen" class="screen">
     <div class="particle-container"></div>
@@ -2557,6 +2818,40 @@ body {
         </div>
     </div>
 </div>
+
+<div id="payment-screen" class="screen">
+    <div class="navigation-container">
+        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+    </div>
+    
+    <div class="payment-container">
+        <h2 class="welcome-title">Upgrade to Premium</h2>
+        <div class="payment-options">
+            <div class="payment-option">
+                <h3>Monthly Plan</h3>
+                <p class="price">$9.99/month</p>
+                <button class="start-button" onclick="processPayment('monthly')">Choose Monthly</button>
+            </div>
+            <div class="payment-option featured">
+                <div class="best-value">Best Value!</div>
+                <h3>Yearly Plan</h3>
+                <p class="price">$99.99/year</p>
+                <p class="savings">Save 17%</p>
+                <button class="start-button" onclick="processPayment('yearly')">Choose Yearly</button>
+            </div>
+            <div class="payment-option">
+                <h3>Lifetime Access</h3>
+                <p class="price">$299.99</p>
+                <button class="start-button" onclick="processPayment('lifetime')">Get Lifetime</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
 <script>
 
 const vocabularySets = {
@@ -2626,19 +2921,95 @@ const vocabularySets = {
 "4_29": { words: ["decrease", "favorable", "stock", "method", "valid", "depart", "feeling", "psychological", "relative", "yard", "sociology", "forum", "sufficient", "concentration", "politics", "challenge", "domain", "fund", "publish", "painful", "surface", "reinforce", "understood", "format", "sufficiently", "luckily", "spatial", "seriously", "conflict", "ideally", "motivate", "payment", "emotion", "kill", "continuous", "masculine", "staff", "hill", "whereas", "distinguish", "defend", "development", "remark", "abuse", "persuade", "analyze", "observation", "disappointment", "educational", "reduction"], translations: ["להוריד", "מועדף", "מניה", "שיטה", "בתוקף", "לעזוב", "הרגשה", "פסיכולוגי", "קרוב משפחה", "חצר", "סוציולוגיה", "פורום", "מספיק", "ריכוז", "פוליטיקה", "אתגר", "תחום", "קרן", "לפרסם", "כואב", "משטח", "לחזק", "מובן", "פורמט", "באופן מספק", "למרבה המזל", "מרחבי", "ברצינות", "קונפליקט", "באופן אידיאלי", "לעודד", "תשלום", "רגש", "להרוג", "רציף", "גברי", "צוות", "גבעה", "בעוד ש", "להבחין", "להגן", "התפתחות", "הערה", "התעללות", "לשכנע", "לנתח", "אבחנה", "אכזבה", "חינוכי", "צמצום"] },
 "4_30": { words: ["central", "refusal", "financial", "cycle", "inferior", "strongly", "northern", "institute", "idealist", "permanent", "relationship", "struggle", "reasonable", "terms", "victim", "furthermore", "acknowledge", "logical", "probable", "determine", "Easter", "surely", "small-scale", "igno­re", "index", "substantial", "checklist", "enhance", "lift", "married", "depressive", "attendance", "destruction", "im­possible", "technique", "spirit", "precise", "dilemma", "adapt", "attachment", "reflection", "acknowledgment", "emergency", "pull", "enemy", "actual", "beach"], translations: ["מרכזי", "סירוב", "כספי", "מעגל", "נחות", "בכוח", "צפוני", "מכון", "אידיאליסט", "קבוע", "מערכת יחסים", "להיאבק", "סביר", "תנאים", "קורבן", "בנוסף", "להכיר ב", "הגיוני", "סביר", "לקבוע", "חג הפסחא", "בוודאות", "קנה מידה קטן", "להתעלם", "אינדקס", "ממשי", "רשימה", "להגביר", "מעלית", "נשוי", "מדכא", "נוכחות", "הרס", "בלתי אפשרי", "טכניקה", "רוח", "מדויק", "דילמה", "להסתגל", "התקשרות", "השתקפות", "הכרה", "חירום", "למשוך", "אויב", "ממשי", "חוף"] },
 
-  };
+"5_1": { words: ["migration", "strategic", "cultural", "compilation", "transformation", "foundation", "compensation", "discretion", "cooperative", "specified", "widespread", "preceding", "wavelength", "justification", "contract", "interval", "monitoring", "substitution", "automatically", "amendment", "oriented", "overseas", "identified", "isolated", "offset", "wheat", "paradigm", "layer", "consultation", "philosophy", "inferred", "arbitrary", "parallel", "entity", "forms", "goal", "assigned", "type", "charter", "currency", "orientation", "prime", "accumulation", "weave", "ignored", "minimised", "appendix"], translations: ["הגירה", "אסטרטגי", "תרבותי", "קומפילציה", "טרנספורמציה", "יסוד", "פיצוי", "שיקול דעת", "שיתופי", "מפורט", "נרחב", "קודם", "אורך גל", "הצדקה", "חוזה", "מרווח", "ניטור", "החלפה", "אוטומטית", "תיקון", "מכוון", "מעבר לים", "זוהה", "מבודד", "קיזוז", "חיטה", "פרדיגמה", "שכבה", "התייעצות", "פילוסופיה", "הוסק", "שרירותי", "מקביל", "ישות", "טפסים", "מטרה", "שויך", "סוג", "חוזה", "מטבע", "כיוון", "עיקרי", "צבירה", "לארוג", "התעלם", "מצומצם", "נספח"] },  
+"5_2": { words: ["partnership", "fluctuation", "corporate", "constraint", "successive", "termination", "revealed", "simulation", "contradiction", "discrimination", "definite", "accompanied", "retained", "underlying", "virtually", "complement", "attributed", "restore", "enhanced", "vowel", "variable", "comment", "instance", "insert", "hierarchical", "ideology", "federal", "edition", "fund", "guarantee", "cited", "restricted", "published", "disposal", "regulation", "tape", "aggregate", "exposure", "legislation", "finite", "stability", "analyser", "apparent", "visual", "volition", "sought"], translations: ["שותפות", "תנודה", "תאגידי", "מגבלה", "עוקבים", "סיום", "נחשף", "סימולציה", "סתירה", "אפליה", "מוגדר", "לווה", "נשמר", "בסיסי", "למעשה", "השלמה", "יוחס", "לשחזר", "משופר", "תנועת אותיות", "משתנה", "הערה", "מקרה", "להכניס", "היררכי", "אידיאולוגיה", "פדרלי", "מהדורה", "קרן", "ערבות", "צוטט", "מוגבל", "פורסם", "פינוי", "תקנה", "סרט", "מצרפי", "חשיפה", "חקיקה", "סופי", "יציבות", "מנתח", "נראה", "חזותי", "רצון", "חיפש"] },  
+"5_3": { words: ["utility", "attitude", "scope", "detected", "emerged", "implied", "derived", "perceived", "confirmed", "professional", "dimension", "dynamic", "issued", "induced", "allocation", "rejection", "purchase", "validity", "inhibition", "license", "registration", "prospect", "feature", "commodity", "approximated", "converted", "labor", "enforcement", "tension", "reinforced", "thesis", "inspection", "liberal", "predominantly", "paragraph", "conformity", "statistic", "ambiguous", "deduction", "obtained", "generated", "core", "reject", "denote", "empirical", "abandon", "corresponding"], translations: ["תועלת", "עמדה", "היקף", "התגלה", "הופיע", "רמוז", "נגזר", "נתפס", "אושר", "מקצועי", "מימד", "דינמי", "הופץ", "גרם", "הקצאה", "דחייה", "רכישה", "תקפות", "עיכוב", "רישיון", "רישום", "סיכוי", "מאפיין", "סחורה", "בקירוב", "הומר", "עבודה", "אכיפה", "מתח", "חוזק", "תזה", "בדיקה", "ליברלי", "בעיקר", "פסקה", "התאמה", "סטטיסטיקה", "דו-משמעי", "הפחתה", "התקבל", "נוצר", "ליבה", "לדחות", "לציין", "אמפירי", "לנטוש", "תואם"] },  
+"5_4": { words: ["transmission", "modification", "consent", "factor", "prohibited", "equation", "adaptation", "symbolic", "instruction", "extract", "intensity", "commission", "shift", "sustainable", "deviation", "marginal", "clause", "occupational", "constitutional", "displaced", "reverse", "incorporated", "ultimately", "lifecycle", "abdominal", "absorb", "acceleration", "accent", "acid", "acidic", "accumulate", "acknowledged", "decades", "minority", "aspect", "subsidiary", "imposed", "estate", "clarity", "trace", "removed", "manipulation", "reliance", "uniform", "compound", "practiced"], translations: ["העברה", "שינוי", "הסכמה", "גורם", "אסור", "משוואה", "הסתגלות", "סמלי", "הנחיה", "להוציא", "עוצמה", "ועדה", "להזיז", "בר-קיימא", "סטייה", "שולי", "סעיף", "תעסוקתי", "חוקתי", "מוזז", "הפוך", "שולב", "בסופו של דבר", "מחזור חיים", "בטני", "לספוג", "האצה", "מבטא", "חומצה", "חומצי", "לצבור", "הוכר", "עשורים", "מיעוט", "היבט", "חברת בת", "הוטל", "נכס", "בהירות", "עקבות", "הוסר", "תמרון", "הסתמכות", "אחיד", "מורכב", "מיומן"] },
+"5_5": { words: ["adaptive", "altitude", "artifact", "amino", "allocation", "adjacent", "activate", "aerosol", "amplification", "ancestor", "affirm", "aluminum", "admission", "anthropology", "artistic", "assembly", "arcade", "algorithm", "acute", "anti", "antibiotic", "allocate", "arithmetic", "assertive", "array", "athletics", "auditing", "atomic", "afterward", "arrow", "architectural", "aesthetic", "authority", "availability", "auction", "audio", "adolescent", "artwork", "adverse", "airplane", "amplitude", "axiom"], translations: ["מסתגל", "גובה", "אריtefact", "אמינו", "הקצאה", "סמוך", "להפעיל", "אירוסול", "הגברה", "אב-קדמון", "לאשר", "אלומיניום", "כניסה", "אנתרופולוגיה", "אמנותי", "אסיפה", "קשת", "אלגוריתם", "חד", "נגד", "אנטיביוטיקה", "להקצות", "חשבון", "נחרץ", "מערך", "ספורטיביות", "ביקורת", "אטומי", "לאחר מכן", "חץ", "אדריכלי", "אסתטי", "סמכות", "זמינות", "מכירה פומבית", "אודיו", "מתבגר", "יצירת אמנות", "שלילי", "מטוס", "עוצמה", "אקסיומה"] },  
+"5_6": { words: ["bacteria", "behavioral", "biodiversity", "bilingual", "bleed", "calcium", "bang", "bucket", "breakdown", "calculator", "campus", "capitalism", "carrier", "cheer", "cattle", "capillary", "baron", "beam", "binary", "broadly", "bonus", "bizarre", "blank", "characterization", "bodily", "cinema", "cicada", "bulk", "circa", "bubble", "censor", "checkpoint", "chronic", "chess", "chunk", "conduction", "circulation", "chloride", "commercialization", "chromosome", "chemical"], translations: ["חיידקים", "התנהגותי", "מגוון ביולוגי", "דו-לשוני", "לדמם", "סידן", "פיצוץ", "דלי", "התמוטטות", "מחשבון", "קמפוס", "קפיטליזם", "מוביל", "לעודד", "בקר", "קפילרי", "ברון", "קרן", "בינרי", "בהרחבה", "בונוס", "מוזר", "ריק", "אפיון", "גופני", "קולנוע", "ציקדה", "נפח", "סביב", "בועה", "צנזור", "נקודת בידוק", "כרוני", "שחמט", "חתיכה", "הולכה", "זרימה", "כלוריד", "מסחור", "כרומוזום", "כימי"] }, 
+"5_7": { words: ["closure", "colony", "comma", "coefficient", "cognitive", "coherent", "composer", "conditional", "communist", "cluster", "competence", "collective", "complicate", "comply", "colonial", "computational", "configuration", "conceptual", "consciousness", "connector", "conservative", "conservation", "conscious", "consonant", "constrain", "complication", "compact", "comparable", "commentary", "commonly", "communication", "compensate", "communication", "composite", "conduction", "cone", "confine", "congruent", "conception", "confound", "consummate"], translations: ["סגירה", "מושבה", "פסיק", "מקדם", "קוגניטיבי", "עקבי", "מלחין", "תנאי", "קומוניסט", "צביר", "כשירות", "קיבוצי", "למסך", "לציית", "קולוניאלי", "חישובי", "תצורה", "מושגי", "תודעה", "מחבר", "שמרני", "שימור", "מודע", "עיצור", "להגביל", "סיבוך", "דחוס", "ניתן להשוואה", "הערות", "בדרך כלל", "תקשורת", "לפצות", "תקשורת", "מרכיב", "הולכה", "חרוט", "להגביל", "תואם", "תפיסה", "לבלבל", "לסיים"] },
+"5_8": { words: ["controversy", "converge", "cylinder", "crude", "deadline", "deliberately", "dense", "derivative", "descendent", "descriptor", "destination", "developmental", "diagnosis", "dialect", "diameter", "diary", "dictate", "diffusion", "dilute", "dimensional", "discharge", "discourse", "discrete", "dissection", "dissolution", "dominant", "donor", "dose", "drift", "dye", "correlated", "correction", "critically", "credential", "credibility", "crystal", "cyclic", "cord", "coronary", "corpus", "correspondence", "corruption", "cortex"], translations: ["מחלוקת", "להתכנס", "צילינדר", "גולמי", "מועד אחרון", "במכוון", "צפוף", "נגזרת", "צאצא", "מתאר", "יעד", "התפתחותי", "אבחנה", "דיאלקט", "קוטר", "יומן", "להכתיב", "פיזור", "לדלל", "ממדי", "פריקה", "שיח", "נפרד", "ניתוח", "התפרקות", "שליט", "תורם", "מנה", "סחף", "צבע", "מתואם", "תיקון", "באופן ביקורתי", "אישור", "מהימנות", "גביש", "מעגלי", "חוט", "כלילי", "גוף", "התכתבות", "שחיתות", "קורטקס"] },
+"5_9": { words: ["discharge", "dominance", "donor", "dose", "drift", "duration", "dye", "ecological", "ecology", "economist", "effectiveness", "elaborate", "elastic", "elasticity", "electron", "elevate", "elevation", "elite", "embed", "emission", "emit", "emperor", "encode", "enormously", "entity", "entrant", "enzyme", "epidemic", "epidemiology", "equilibrium", "equivalence", "erase", "essence", "ethics", "evolutionary", "ex"], translations: ["שחרור", "שליטה", "תורם", "מנה", "סחף", "משך", "צבע", "אקולוגי", "אקולוגיה", "כלכלן", "יעילות", "מפורט", "גמיש", "גמישות", "אלקטרון", "להגביה", "גובה", "עילית", "לשבץ", "פליטה", "לפלוט", "קיסר", "לקודד", "בצורה עצומה", "ישות", "משתתף", "אנזים", "מגפה", "אפידמיולוגיה", "שיווי משקל", "שקילות", "למחוק", "מהות", "אתיקה", "אבולוציוני", "לשעבר"] }, 
+"5_10": { words: ["execute", "execution", "exponential", "fabric", "facet", "factorial", "faculty", "fatigue", "feedback", "fertility", "fetal", "fever", "fiber", "fin", "flesh", "flip", "fluid", "flux", "footnote", "formulation", "fossil", "fracture", "freely", "friction", "fringe", "fundamentally", "fungus", "fusion", "gauge", "generalization", "generalize", "genetically", "genetics", "ghost", "goodness", "gradient", "gram", "grammatical", "grasp", "gravity", "grid", "gross", "gut", "habitat", "halfway", "handout", "harvest", "headquarter", "hedge", "helix"], translations: ["לבצע", "ביצוע", "אקספוננציאלי", "בד", "היבט", "פקטוריאל", "פקולטה", "עייפות", "משוב", "פוריות", "עוברי", "חום", "סיב", "סנפיר", "בשר", "להפוך", "נוזל", "זרימה", "הערת שוליים", "ניסוח", "מאובן", "שבר", "בחופשיות", "חיכוך", "שוליים", "באופן יסודי", "פטרייה", "היתוך", "מד", "הכללה", "להכליל", "גנטית", "גנטיקה", "רוח רפאים", "טוב", "שיפוע", "גרם", "דקדוקי", "להבין", "כבידה", "רשת", "גס", "מעיים", "בית גידול", "באמצע", "דף מידע", "לקצור", "מטה", "גדר", "סליל"] },  
+"5_11": { words: ["hepatitis", "herbicide", "historically", "homework", "horizon", "hormone", "hydrogen", "illusion", "immune", "importantly", "impulse", "incline", "inclusion", "incredible", "incredibly", "incumbent", "independently", "indicator", "indifference", "indigenous", "induce", "induction", "industrialization", "industrialize", "inequality", "infect", "infectious", "inference", "infinite", "infinity", "influential", "inhibit", "initiate", "initiation", "inject", "injection", "innate", "insect", "instability", "instinct", "integral", "interestingly", "interface", "interfere", "intermediate", "interrupt", "intervene", "interviewer", "invade", "invasion"], translations: ["דלקת כבד", "קוטל עשבים", "היסטורית", "שיעורי בית", "אופק", "הורמון", "מימן", "אשליה", "חסין", "בחשיבות", "דחף", "להשתפע", "הכללה", "בלתי מאמין", "בצורה בלתי מאמינה", "מכהן", "באופן עצמאי", "מדד", "אדישות", "מקומי", "לגרום", "השראה", "תיעוש", "לתעש", "אי-שוויון", "להדביק", "מדבק", "היסק", "אינסופי", "אינסוף", "משפיע", "לעכב", "להתחיל", "התחלה", "להזריק", "הזרקה", "מולד", "חרק", "אי-יציבות", "יצר", "אינטגרלי", "בצורה מעניינת", "ממשק", "להתערב", "ביניים", "להפריע", "להתערב", "מראיין", "לפלוש", "פלישה"] },
+"5_12": { words: ["inversion", "invert", "ion", "irrelevant", "irrigation", "jazz", "junior", "kilometer", "lab", "lateral", "layout", "lecturer", "legend", "legitimate", "leisure", "lever", "liable", "lifestyle", "lifetime", "likelihood", "likewise", "limb", "linear", "linguistic", "linguistics", "liter", "locally", "locus", "longitudinal", "loop", "lump", "machinery", "magnitude", "mall", "manipulate", "manual", "manuscript", "marble", "marker", "marrow", "maternal", "mathematical", "matrix", "maximize", "meaningful", "mechanical", "mediate", "membrane", "memorize", "mentor"], translations: ["היפוך", "להפוך", "יון", "לא רלוונטי", "השקיה", "ג'אז", "צעיר", "קילומטר", "מעבדה", "צדדי", "פריסה", "מרצה", "אגדה", "לגיטימי", "פנאי", "מנוף", "אחראי", "אורח חיים", "חיי נצח", "סבירות", "וכך גם", "גף", "לינארי", "לשוני", "בלשנות", "ליטר", "מקומית", "מוקד", "אורכי", "לולאה", "גוש", "מכונות", "גודל", "קניון", "לתמרן", "מדריך", "כתב יד", "שיש", "מסמן", "מח עצם", "אימהי", "מתמטי", "מטריצה", "למקסם", "משמעותי", "מכני", "לתווך", "קרום", "לזכור", "מנטור"] },
+"5_13": { words: ["mercury", "merge", "messenger", "metabolism", "metaphor", "methodology", "micro", "mid", "migrate", "millimeter", "mineral", "minus", "missile", "mobility", "mole", "molecular", "molecule", "momentum", "monetary", "monkey", "monopoly", "morphological", "morphology", "mortality", "motif", "multi", "multinational", "mutation", "naked", "namely", "nasty", "nationalism", "neo", "nest", "neural", "neuron", "nicely", "niche", "nitrogen", "noble", "node", "noisy", "nominal", "wisdom", "nonlinear", "notation", "novice", "nucleus", "null", "numerical"], translations: ["כספית", "למזג", "שליח", "חילוף חומרים", "מטאפורה", "מתודולוגיה", "מיקרו", "אמצע", "להגר", "מילימטר", "מינרל", "מינוס", "טיל", "ניידות", "חפף", "מולקולרי", "מולקולה", "תנע", "כספי", "קוף", "מונופול", "מורפולוגי", "מורפולוגיה", "תמותה", "מוטיב", "רב", "רב-לאומי", "מוטציה", "עירום", "דהיינו", "מגעיל", "לאומנות", "חדש", "קן", "עצבי", "נוירון", "בנעימות", "נישה", "חנקן", "אציל", "צומת", "רועש", "שמי", "חוכמה", "בלתי-לינארי", "סימון", "מתחיל", "גרעין", "אפס", "מספרי"] },
+"5_14": { words: ["nutrient", "obscure", "observer", "occurrence", "offspring", "onset", "onwards", "optical", "optimal", "optimum", "oral", "organ", "organism", "orient", "oscillation", "outer", "outlet", "overhead", "overlap", "overview", "oxidize", "oxygen", "whoever", "paradox", "parameter", "parcel", "pardon", "parental", "parenthesis", "partially", "particle", "partition", "pathway", "peasant", "periodic", "peripheral", "pest", "pesticide", "phenomenal", "philosopher", "philosophical", "phonological", "phosphate", "photographic", "physically", "physician", "physiological", "pi", "planner", "plantation"], translations: ["נוטריינט", "לטשטש", "צופה", "התרחשות", "צאצאים", "התחלה", "והלאה", "אופטי", "אופטימלי", "אופטימום", "פומבי", "איבר", "אורגניזם", "לכוון", "תנודה", "חיצוני", "פתח", "עלות כללית", "חפיפה", "סקירה", "לחמצן", "חמצן", "מי שהוא", "פרדוקס", "פרמטר", "חבילה", "סליחה", "הורי", "סוגריים", "באופן חלקי", "חלקיק", "חלוקה", "נתיב", "איכר", "מחזורי", "היקפי", "מזיק", "חומר הדברה", "מופלא", "פילוסוף", "פילוסופי", "פונולוגי", "זרחן", "צילומי", "פיזית", "רופא", "פיזיולוגי", "פאי", "מתכנן", "מטע"] },
+"5_15": { words: ["plausible", "plug", "plural", "polar", "pole", "politically", "portfolio", "portray", "portrayal", "poster", "postgraduate", "potassium", "powder", "practitioner", "pragmatic", "pre", "precede", "precipitate", "precipitation", "predator", "prejudice", "preliminary", "presume", "prevalence", "prey", "primer", "primitive", "probe", "processor", "productive", "productivity", "profound", "progression", "projection", "prominent", "pronounce", "proposition", "protocol", "proton", "psychiatric", "psychologist", "pulse", "punch", "punish", "punishment", "purely", "puzzle", "qualitative", "quantitative", "quantum"], translations: ["סביר", "תקע", "רבים", "קוטבי", "קוטב", "פוליטית", "תיק השקעות", "לתאר", "תיאור", "כרזה", "בתר-תואר", "אשלגן", "אבקה", "מטפל", "פרגמטי", "טרום", "להקדים", "להשקיע", "משקעים", "טורף", "דעה קדומה", "מקדים", "להניח", "שכיחות", "טרף", "ספר יסוד", "ראשוני", "לחקור", "מעבד", "פורה", "פריון", "עמוק", "התקדמות", "הקרנה", "בולט", "להגות", "הנחה", "פרוטוקול", "פרוטון", "פסיכיאטרי", "פסיכולוג", "דופק", "מכה", "להעניש", "ענישה", "באופן טהור", "חידה", "איכותני", "כמותי", "קוונטי"] },
+"5_16": { words: ["questionnaire", "quiz", "rack", "radar", "radiation", "radius", "rainfall", "randomize", "randomly", "rationality", "ray", "reactive", "reactor", "readily", "realism", "realistic", "realm", "receptor", "recipe", "reconstruct", "regression", "rehabilitation", "reliability", "render", "repertoire", "replacement", "replicate", "replication", "reproduce", "reproduction", "republic", "resemble", "reservoir", "residual", "residue", "resistant", "respiratory", "retrieve", "rewrite", "rhetoric", "ridiculous", "robot", "rope", "rotate", "rotation", "rub", "ruler", "scatter", "scholarship", "scripture"], translations: ["שאלון", "חידון", "מתלה", "רדאר", "קרינה", "רדיוס", "גשם", "לאמת באקראי", "באקראי", "רציונליות", "קרן", "מגיב", "כור", "בקלות", "ריאליזם", "ריאלי", "תחום", "קולט", "מתכון", "לשחזר", "רגרסיה", "שיקום", "מהימנות", "להציג", "רפרטואר", "החלפה", "לשכפל", "שכפול", "לשחזר", "רבייה", "רפובליקה", "להיות דומה", "מאגר", "שארית", "שאריות", "עמיד", "נשימתי", "לאחזר", "לכתוב מחדש", "רטוריקה", "מגוחך", "רובוט", "חבל", "לסובב", "סיבוב", "לשפשף", "סרגל", "לפזר", "מלגה", "כתב קודש"] },
+"5_17": { words: ["scroll", "secrete", "sediment", "selective", "semantic", "semester", "semi", "seminar", "sensation", "sensible", "sensory", "separately", "sexuality", "shallow", "shortly", "shuttle", "similarity", "simplify", "simulate", "simultaneously", "sin", "singular", "sketch", "skip", "slab", "slash", "slavery", "slot", "sneeze", "sniff", "socialize", "socially", "soluble", "solute", "solvent", "sometime", "sophisticated", "span", "specialty", "specification", "specimen", "spectrum", "sperm", "sphere", "splice", "sponsorship", "yeast", "spontaneous", "spray", "stabilize"], translations: ["לגלול", "להפריש", "משקע", "סלקטיבי", "סמנטי", "סמסטר", "חצי", "סמינר", "תחושה", "סביר", "חושי", "בנפרד", "מיניות", "שטחי", "בקרוב", "שאטל", "דמיון", "לפשט", "לדמות", "בו-זמנית", "חטא", "יחיד", "לשרטט", "לדלג", "לוח", "להכות", "עבדות", "חריץ", "להתעטש", "להריח", "לחברת", "חברתית", "מסיס", "מומס", "ממיס", "פעם", "מתוחכם", "מתח", "מומחיות", "מפרט", "דוגמה", "ספקטרום", "זרע", "כדור", "לחבר", "חסות", "שמרים", "ספונטני", "לרסס", "ליצב"] },
+"5_18": { words: ["stack", "stadium", "stance", "standardize", "static", "statistically", "stimulus", "straightforward", "strand", "strictly", "stripe", "sub", "subset", "substrate", "subtle", "subtract", "suicide", "super", "superior", "supposedly", "surgeon", "surgical", "surplus", "susceptible", "swap", "swell", "sword", "syllable", "syllabus", "syndrome", "syntactic", "syntax", "synthesis", "synthetic", "systematic", "tech", "technically", "temporal", "tempt", "tense", "terminal", "terminology", "terribly", "textbook", "theorem", "theorist", "thermal", "thickness", "thread", "threshold"], translations: ["ערימה", "אצטדיון", "עמדה", "לתקנן", "סטטי", "סטטיסטית", "גירוי", "ישיר", "חוט", "בצורה קפדנית", "פס", "תת", "תת-קבוצה", "מצע", "עדין", "להפחית", "התאבדות", "על", "עליון", "כביכול", "מנתח", "כירורגי", "עודף", "רגיש", "להחליף", "לנפח", "חרב", "הברה", "סילבוס", "תסמונת", "תחביר", "תחביר", "סינתזה", "סינתטי", "שיטתי", "טכנולוגיה", "טכנית", "זמני", "לפתות", "מתוח", "סופי", "טרמינולוגיה", "נוראי", "ספר לימוד", "משפט", "תיאורטיקן", "תרמי", "עובי", "חוט", "סף"] },  
+"5_19": { words: ["tolerance", "ton", "toxic", "tract", "trait", "trajectory", "whereby", "transaction", "transcribe", "transcription", "transparency", "transplant", "trauma", "treaty", "tremendous", "triangle", "tribe", "tricky", "trivial", "tropical", "tumor", "turbulent", "tutor", "ultimate", "undergraduate", "undermine", "underneath", "unify", "unintelligible", "unity", "unstable", "uplift", "upward", "urine", "usage", "utilize", "utterance", "vague", "valve", "variability", "variance", "variant", "vector", "vegetation", "vein", "velocity", "verbal", "viable", "vitamin", "vocabulary"], translations: ["סובלנות", "טון", "רעיל", "מחוז", "תכונה", "מסלול", "באמצעותו", "עסקה", "לתמלל", "תמלול", "שקיפות", "להשתיל", "טראומה", "הסכם", "עצום", "משולש", "שבט", "מתוחכם", "טריוויאלי", "טרופי", "גידול", "סוער", "מורה פרטי", "סופי", "תואר ראשון", "לערער", "מתחת", "לאחד", "בלתי מובן", "אחדות", "בלתי יציב", "להרים", "כלפי מעלה", "שתן", "שימוש", "לנצל", "אמירה", "עמום", "שסתום", "שונות", "שונות", "וריאנט", "וקטור", "צמחייה", "וריד", "מהירות", "מילולי", "בר-קיימא", "ויטמין", "אוצר מילים"] }
+};
 
-  const { createClient } = supabase;
+// At the top of your script section
+const gameInit = {
+    async init() {
+        await checkExistingSession();
+        initializeGame();
+        updatePerkCounts();
+        const welcomeScreen = document.getElementById('welcome-screen');
+        initializeParticles(welcomeScreen);
+        await loadCustomLists();
+    }
+};
+
+// Replace window.onload with:
+document.addEventListener('DOMContentLoaded', () => {
+    gameInit.init();
+});
+
+const { createClient } = supabase;
 const supabaseClient = createClient(
     'https://mczfgzffyyyacisrccqb.supabase.co',
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo',
     {
-        // Add these options for better cross-browser and deployment support
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true
     }
 );
+
+async function showSetScreen(stageId) {
+    gameState.currentStage = stageId;
+    const container = document.getElementById('set-container');
+    container.innerHTML = '';
+    
+    const stage = gameStructure.stages[stageId - 1];
+    
+    const access = await checkUserAccess();
+    if (!access) return;
+
+    for (let i = 1; i <= stage.numSets; i++) {
+        const setButton = document.createElement('div');
+        const hasAccess = access.unlockedStages[stageId] === 'full' || 
+                         (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
+        
+        setButton.className = `set-button ${hasAccess ? 'active' : 'locked'}`;
+        setButton.textContent = `Set ${i}`;
+        
+        if (hasAccess) {
+            if (gameState.unlockedSets[stageId]?.has(i)) {
+                setButton.onclick = () => showLevelScreen(i);
+            }
+        } else {
+            setButton.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
+            setButton.onclick = () => showUpgradePrompt();
+        }
+        
+        container.appendChild(setButton);
+    }
+    
+    showScreen('set-screen');
+}
+
+
+// Event listener initialization
+document.addEventListener('DOMContentLoaded', async () => {
+    await checkExistingSession();
+    initializeGame();
+    initializeParticles(document.getElementById('welcome-screen'));
+});
 
 // Auth UI functions
 // Modify the existing authentication functions
@@ -2776,13 +3147,10 @@ async function handleLogin() {
 }
 
 function initializeGame() {
-    // Check for existing progress in localStorage first
     const saved = localStorage.getItem('simploxProgress');
     
     if (saved) {
         const parsedSaved = JSON.parse(saved);
-        
-        // Explicitly set all game state from localStorage
         gameState.currentStage = parsedSaved.currentStage || 1;
         gameState.currentSet = parsedSaved.currentSet || 1;
         gameState.currentLevel = parsedSaved.currentLevel || 1;
@@ -2802,7 +3170,6 @@ function initializeGame() {
         gameState.perfectLevels = new Set(parsedSaved.perfectLevels || []);
         gameState.completedLevels = new Set(parsedSaved.completedLevels || []);
     } else {
-        // Initialize first stage/set/level if no saved progress
         gameState.unlockedSets = { 1: new Set([1]) };
         gameState.unlockedLevels = { '1_1': new Set([1]) };
         gameState.currentStage = 1;
@@ -2817,7 +3184,6 @@ function initializeGame() {
         };
     }
 
-    // If logged in, also load Supabase progress
     if (currentUser) {
         loadUserGameProgress(currentUser.id);
     }
@@ -2846,6 +3212,14 @@ async function checkExistingSession() {
         }
     }
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    currentUser = null;
+    checkExistingSession().then(() => {
+        initializeGame();
+        updatePerkCounts();
+    });
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize particles immediately for all screens
@@ -2881,13 +3255,11 @@ async function loadUserGameProgress(userId) {
         return;
     }
 
-    // Synchronize Supabase progress with local gameState
     gameState.currentStage = data.stage;
     gameState.currentSet = data.set_number;
     gameState.coins = data.coins;
     gameState.perks = data.perks;
     
-    // Convert jsonb to Sets and proper data structures
     gameState.unlockedSets = Object.fromEntries(
         Object.entries(data.unlocked_sets).map(([k, v]) => [k, new Set(v)])
     );
@@ -3559,30 +3931,19 @@ document.addEventListener('fullscreenchange', function() {
     }
 });
 
-async function showSetScreen(stageId) {
+function showSetScreen(stageId) {
     gameState.currentStage = stageId;
     const container = document.getElementById('set-container');
     container.innerHTML = '';
     
-    const access = await checkUserAccess();
     const stage = gameStructure.stages[stageId - 1];
-
-    // Handle disabled stage 5
-    if (stageId === 5 && access.unlockedStages[5] === 'disabled') {
-        container.innerHTML = '<div class="coming-soon-overlay">Coming Soon!</div>';
-        showScreen('set-screen');
-        return;
-    }
-
+    
     for (let i = 1; i <= stage.numSets; i++) {
         const setButton = document.createElement('div');
-        const hasAccess = access.unlockedStages[stageId] === 'full' || 
-                         access.unlockedStages[stageId].includes(i);
-        
-        setButton.className = `set-button ${hasAccess ? 'active' : ''}`;
+        setButton.className = 'set-button active';
         setButton.textContent = `Set ${i}`;
         
-        if (hasAccess && gameState.unlockedSets[stageId]?.has(i)) {
+        if (gameState.unlockedSets[stageId]?.has(i)) {
             setButton.onclick = () => showLevelScreen(i);
         }
         
@@ -3590,6 +3951,24 @@ async function showSetScreen(stageId) {
     }
     
     showScreen('set-screen');
+
+    // Run access check after showing screen
+    checkUserAccess().then(access => {
+        if (!access) return;
+        
+        container.querySelectorAll('.set-button').forEach((btn, index) => {
+            const i = index + 1;
+            const hasAccess = access.unlockedStages[stageId] === 'full' || 
+                             (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
+            
+            if (!hasAccess) {
+                btn.classList.remove('active');
+                btn.classList.add('locked');
+                btn.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
+                btn.onclick = () => showUpgradePrompt();
+            }
+        });
+    });
 }
 
 function showLevelScreen(setId) {
@@ -3762,6 +4141,20 @@ function calculateWordsForLevel(level, vocabulary) {
 }
 
 function startLevel(levelId) {
+    const completions = parseInt(sessionStorage.getItem('levelCompletions') || '0');
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    
+    if (completions > 0 && completions % 4 === 0 && userStatus !== 'premium') {
+        showUpgradePrompt(() => {
+            proceedWithLevel(levelId);
+        });
+        return;
+    }
+
+    proceedWithLevel(levelId);
+}
+
+function proceedWithLevel(levelId) {
     if (!currentGame.restartsRemaining) {
         currentGame.restartsRemaining = 2;
     }
@@ -3818,6 +4211,52 @@ function startLevel(levelId) {
             startTimer(currentGame.words.length);
         }, 200);
     });
+}
+
+function setupGameState(levelConfig, vocabulary) {
+    if (typeof levelConfig === 'object') {
+        const { startIndex, count, isHebrewToEnglish, mixed } = levelConfig;
+        Object.assign(currentGame, {
+            words: vocabulary.words.slice(startIndex, startIndex + count),
+            translations: vocabulary.translations.slice(startIndex, startIndex + count),
+            currentIndex: 0,
+            correctAnswers: 0,
+            firstAttempt: true,
+            isHebrewToEnglish: isHebrewToEnglish || false,
+            mixed: mixed || false
+        });
+    } else {
+        Object.assign(currentGame, {
+            words: vocabulary.words.slice(0, levelConfig),
+            translations: vocabulary.translations.slice(0, levelConfig),
+            currentIndex: 0,
+            correctAnswers: 0,
+            firstAttempt: true,
+            isHebrewToEnglish: false,
+            mixed: false
+        });
+    }
+}
+
+function handleLevelProgression() {
+    const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
+    const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
+    const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
+
+    if (isLastLevelInSet) {
+        if (!isLastSetInStage) {
+            gameState.currentSet++;
+            startLevel(1);
+        } else if (gameState.currentStage < 5) {
+            gameState.currentStage++;
+            gameState.currentSet = 1;
+            startLevel(1);
+        } else {
+            showScreen('stage-screen');
+        }
+    } else {
+        startLevel(gameState.currentLevel + 1);
+    }
 }
 
 function updateNavigationIcons(screenId) {
@@ -4283,143 +4722,149 @@ function startCustomListPractice(listId) {
 }
 
 function handleLevelCompletion() {
-    clearTimer();
-    const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
-    const isLevelCompleted = gameState.perfectLevels.has(levelKey);
-    
-    // Disable buttons
-    const buttons = document.querySelectorAll('.buttons button');
-    buttons.forEach(btn => {
-        btn.disabled = true;
-        btn.style.opacity = '0.5';
-    });
+   clearTimer();
+   const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
+   const isLevelCompleted = gameState.perfectLevels.has(levelKey);
+   
+   // Handle custom practice mode
+   if (currentGame.isCustomPractice) {
+       if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
+           gameState.coins += 5;
+           pulseCoins(5);
+           
+           const questionScreen = document.getElementById('question-screen');
+           const rect = questionScreen.getBoundingClientRect();
+           const viewportX = rect.left + (rect.width / 2);
+           const viewportY = rect.top + (rect.height / 2);
+           
+           for (let i = 0; i < 5; i++) {
+               setTimeout(() => createParticles(viewportX, viewportY), i * 300);
+           }
 
-    // Handle custom practice mode
-    if (currentGame.isCustomPractice) {
-        if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
-            // Award completion bonus
-            gameState.coins += 5;
-            pulseCoins(5);
-            
-            // Create completion particles
-            const questionScreen = document.getElementById('question-screen');
-            const rect = questionScreen.getBoundingClientRect();
-            const viewportX = rect.left + (rect.width / 2);
-            const viewportY = rect.top + (rect.height / 2);
-            
-            for (let i = 0; i < 5; i++) {
-                setTimeout(() => createParticles(viewportX, viewportY), i * 300);
-            }
+           const nextLevel = currentGame.practiceState.currentLevel + 1;
+           
+           // Update practice state
+           currentGame.practiceState.unlockedLevels.add(nextLevel);
+           currentGame.practiceState.progress[currentGame.practiceState.currentLevel] = true;
+           
+           saveProgress();
+           updateAllCoinDisplays();
 
-            const nextLevel = currentGame.practiceState.currentLevel + 1;
-            
-            // Update practice state
-            currentGame.practiceState.unlockedLevels.add(nextLevel);
-            currentGame.practiceState.progress[currentGame.practiceState.currentLevel] = true;
-            
-            // Save progress and update UI
-            saveProgress();
-            updateAllCoinDisplays();
+           if (nextLevel <= currentGame.practiceState.maxLevel) {
+               setTimeout(() => {
+                   currentGame.practiceState.currentLevel = nextLevel;
+                   startCustomLevel(nextLevel, currentGame.practiceState);
+               }, 1500);
+           } else {
+               setTimeout(() => {
+                   showScreen('custom-practice-screen');
+               }, 1500);
+           }
+       } else {
+           setTimeout(() => {
+               startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
+           }, 1500);
+       }
+       return;
+   }
 
-            // Check if practice set is complete
-            if (nextLevel <= currentGame.practiceState.maxLevel) {
-                // Progress to next level
-                setTimeout(() => {
-                    currentGame.practiceState.currentLevel = nextLevel;
-                    startCustomLevel(nextLevel, currentGame.practiceState);
-                }, 1500);
-            } else {
-                // Return to custom practice screen
-                setTimeout(() => {
-                    showScreen('custom-practice-screen');
-                }, 1500);
-            }
-        } else {
-            // Retry current level if not perfect
-            setTimeout(() => {
-                startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
-            }, 1500);
+   // Check completion counter for prompts
+   const completions = parseInt(sessionStorage.getItem('levelCompletions') || '0');
+    if (!currentUser) {
+        if (completions > 0 && completions % 4 === 0) {
+            showUnregisteredWarning(() => {
+                processPerfectCompletion(levelKey, isLevelCompleted);
+            });
+            return;
         }
-        return;
+    } else if (currentUser?.status === 'free') {
+        if (completions > 0 && completions % 4 === 0) {
+            showUpgradePrompt(() => {
+                processPerfectCompletion(levelKey, isLevelCompleted);
+            });
+            return;
+        }
     }
+   
+   // Regular game mode handling
+   if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
+       sessionStorage.setItem('levelCompletions', (completions + 1).toString());
+       
+       gameState.coins += 5;
+       pulseCoins(5);
+       gameState.perfectLevels.add(levelKey);
 
-    // Regular game mode handling
-    if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
-        gameState.coins += 5;
-        pulseCoins(5);
-        gameState.perfectLevels.add(levelKey);
+       // Create completion particles
+       const questionScreen = document.getElementById('question-screen');
+       const rect = questionScreen.getBoundingClientRect();
+       const viewportX = rect.left + (rect.width / 2);
+       const viewportY = rect.top + (rect.height / 2);
+       
+       for (let i = 0; i < 5; i++) {
+           setTimeout(() => createParticles(viewportX, viewportY), i * 300);
+       }
 
-        // Create completion particles
-        const questionScreen = document.getElementById('question-screen');
-        const rect = questionScreen.getBoundingClientRect();
-        const viewportX = rect.left + (rect.width / 2);
-        const viewportY = rect.top + (rect.height / 2);
-        
-        for (let i = 0; i < 5; i++) {
-            setTimeout(() => createParticles(viewportX, viewportY), i * 300);
-        }
+       // Handle regular game progression
+       const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+       if (!gameState.unlockedLevels[setKey]) {
+           gameState.unlockedLevels[setKey] = new Set();
+       }
+       gameState.unlockedLevels[setKey].add(gameState.currentLevel);
 
-        // Handle regular game progression
-        const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-        if (!gameState.unlockedLevels[setKey]) {
-            gameState.unlockedLevels[setKey] = new Set();
-        }
-        gameState.unlockedLevels[setKey].add(gameState.currentLevel);
+       const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
+       const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
+       const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
 
-        const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
-        const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
-        const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
+       // Handle progression unlocks
+       if (!isLastLevelInSet) {
+           gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
+       } else if (!isLastSetInStage) {
+           const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
+           if (!gameState.unlockedSets[gameState.currentStage]) {
+               gameState.unlockedSets[gameState.currentStage] = new Set();
+           }
+           gameState.unlockedSets[gameState.currentStage].add(gameState.currentSet + 1);
+           if (!gameState.unlockedLevels[nextSetKey]) {
+               gameState.unlockedLevels[nextSetKey] = new Set([1]);
+           }
+       } else if (gameState.currentStage < 5) {
+           const nextStage = gameState.currentStage + 1;
+           if (!gameState.unlockedSets[nextStage]) {
+               gameState.unlockedSets[nextStage] = new Set([1]);
+           }
+           gameState.unlockedLevels[`${nextStage}_1`] = new Set([1]);
+       }
 
-        // Handle progression unlocks
-        if (!isLastLevelInSet) {
-            gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
-        } else if (!isLastSetInStage) {
-            const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
-            if (!gameState.unlockedSets[gameState.currentStage]) {
-                gameState.unlockedSets[gameState.currentStage] = new Set();
-            }
-            gameState.unlockedSets[gameState.currentStage].add(gameState.currentSet + 1);
-            if (!gameState.unlockedLevels[nextSetKey]) {
-                gameState.unlockedLevels[nextSetKey] = new Set([1]);
-            }
-        } else if (gameState.currentStage < 5) {
-            const nextStage = gameState.currentStage + 1;
-            if (!gameState.unlockedSets[nextStage]) {
-                gameState.unlockedSets[nextStage] = new Set([1]);
-            }
-            gameState.unlockedLevels[`${nextStage}_1`] = new Set([1]);
-        }
+       saveProgress();
+       updateAllCoinDisplays();
 
-        saveProgress();
-        updateAllCoinDisplays();
-
-        // Handle level transitions
-        setTimeout(() => {
-            if (isLastLevelInSet) {
-                if (!isLastSetInStage) {
-                    gameState.currentSet++;
-                    startLevel(1);
-                } else if (gameState.currentStage < 5) {
-                    gameState.currentStage++;
-                    gameState.currentSet = 1;
-                    startLevel(1);
-                } else {
-                    showScreen('stage-screen');
-                }
-            } else {
-                startLevel(gameState.currentLevel + 1);
-            }
-        }, 1500);
-    } else {
-        // Retry level if not perfect
-        setTimeout(() => {
-            if (currentGame.isCustomPractice) {
-                startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
-            } else {
-                startLevel(gameState.currentLevel);
-            }
-        }, 1500);
-    }
+       // Handle level transitions
+       setTimeout(() => {
+           if (isLastLevelInSet) {
+               if (!isLastSetInStage) {
+                   gameState.currentSet++;
+                   startLevel(1);
+               } else if (gameState.currentStage < 5) {
+                   gameState.currentStage++;
+                   gameState.currentSet = 1;
+                   startLevel(1);
+               } else {
+                   showScreen('stage-screen');
+               }
+           } else {
+               startLevel(gameState.currentLevel + 1);
+           }
+       }, 1500);
+   } else {
+       // Retry level if not perfect
+       setTimeout(() => {
+           if (currentGame.isCustomPractice) {
+               startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
+           } else {
+               startLevel(gameState.currentLevel);
+           }
+       }, 1500);
+   }
 }
 
 
@@ -4880,21 +5325,19 @@ function handleLevelCompletion() {
 function startGame() {
     requestFullScreen();
     
-    // Initialize first level if no progress
     if (!gameState.unlockedSets[1] || !gameState.unlockedLevels['1_1']) {
         gameState.unlockedSets[1] = new Set([1]);
         gameState.unlockedLevels['1_1'] = new Set([1]);
         gameState.currentStage = 1;
         gameState.currentSet = 1;
-        startLevel(1);  // This will now show the intro first
+        startLevel(1);
         return;
     }
     
-    // Find furthest incomplete level
     const furthestPoint = findFurthestProgression();
     gameState.currentStage = furthestPoint.stage;
     gameState.currentSet = furthestPoint.set;
-    startLevel(furthestPoint.level);  // This will now show the intro first
+    startLevel(furthestPoint.level);
 }
 
 function showLevelIntro(levelId, setupCallback) {
@@ -5811,6 +6254,227 @@ async function showShareModal(listId) {
 }
 
 async function checkUserAccess() {
+    const completions = parseInt(sessionStorage.getItem('levelCompletions') || '0');
+    
+    if (!currentUser) {
+        if (completions > 0 && completions % 4 === 0) {
+            showUnregisteredWarning();
+        }
+        return {
+            fullAccess: false,
+            unlockedStages: {
+                1: 'full',     
+                2: [1],        
+                3: [1],        
+                4: [1],
+                5: [1]          
+            },
+            isUnregistered: true,
+            stage5Available: false
+        };
+    }
+
+    const { data: userProfile } = await supabaseClient
+        .from('user_profiles')
+        .select('status')
+        .eq('id', currentUser.id)
+        .single();
+
+    if (userProfile?.status === 'premium') {
+        return {
+            fullAccess: true,
+            unlockedStages: {
+                1: 'full',
+                2: 'full',
+                3: 'full',
+                4: 'full',
+                5: 'full'
+            },
+            isUnregistered: false,
+            stage5Available: true
+        };
+    }
+
+    return {
+        fullAccess: false,
+        unlockedStages: {
+            1: 'full',
+            2: [1],
+            3: [1],
+            4: [1],
+            5: [1]
+        },
+        isUnregistered: false,
+        stage5Available: false
+    };
+}
+
+function handleProgressionAfterCompletion(isLevelCompleted) {
+    if (!isLevelCompleted && currentGame.streakBonus) {
+        // Award completion bonus
+        gameState.coins += 5;
+        pulseCoins(5);
+        
+        // Handle level unlocks and progression
+        const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set();
+        }
+        gameState.unlockedLevels[setKey].add(gameState.currentLevel);
+
+        const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
+        const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
+        const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
+
+        if (!isLastLevelInSet) {
+            startLevel(gameState.currentLevel + 1);
+        } else if (!isLastSetInStage) {
+            gameState.currentSet++;
+            startLevel(1);
+        } else {
+            showScreen('stage-screen');
+        }
+        
+        saveProgress();
+    } else {
+        startLevel(gameState.currentLevel);
+    }
+}
+
+function showSetScreen(stageId) {
+    gameState.currentStage = stageId;
+    const container = document.getElementById('set-container');
+    container.innerHTML = '';
+    
+    const stage = gameStructure.stages[stageId - 1];
+    
+    for (let i = 1; i <= stage.numSets; i++) {
+        const setButton = document.createElement('div');
+        setButton.className = 'set-button active';
+        setButton.textContent = `Set ${i}`;
+        
+        if (gameState.unlockedSets[stageId]?.has(i)) {
+            setButton.onclick = () => showLevelScreen(i);
+        }
+        
+        container.appendChild(setButton);
+    }
+    
+    showScreen('set-screen');
+
+    checkUserAccess().then(access => {
+        if (!access) return;
+        
+        container.querySelectorAll('.set-button').forEach((btn, index) => {
+            const i = index + 1;
+            const hasAccess = access.unlockedStages[stageId] === 'full' || 
+                             (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
+            
+            if (!hasAccess) {
+                btn.classList.remove('active');
+                btn.classList.add('locked');
+                btn.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
+                btn.onclick = () => showUpgradePrompt();
+            }
+        });
+    });
+}
+
+function showUpgradePrompt() {
+    const isUnregistered = !currentUser;
+    const promptContent = isUnregistered ? {
+        title: "Sign Up to Save Progress",
+        message: "Create a free account to save your progress and unlock more content!",
+        buttons: [
+            {text: "Sign Up", action: () => showScreen('welcome-screen'), class: 'start-button'},
+            {text: "Continue Playing", action: hideUpgradePrompt, class: 'start-button'}
+        ]
+    } : {
+        title: "Unlock Full Access",
+        message: "Upgrade to premium to access all stages and sets!",
+        buttons: [
+            {text: "Upgrade Now", action: showPaymentScreen, class: 'start-button'},
+            {text: "Maybe Later", action: hideUpgradePrompt, class: 'start-button'}
+        ]
+    };
+
+    const prompt = document.createElement('div');
+    prompt.className = 'upgrade-prompt';
+    prompt.innerHTML = `
+        <h2>${promptContent.title}</h2>
+        <p>${promptContent.message}</p>
+        <div class="upgrade-prompt-buttons">
+            ${promptContent.buttons.map(btn => 
+                `<button class="${btn.class}" onclick="(${btn.action})()">${btn.text}</button>`
+            ).join('')}
+        </div>
+    `;
+
+    document.body.appendChild(prompt);
+    setTimeout(() => prompt.classList.add('show'), 100);
+}
+
+function hideUpgradePrompt() {
+    const prompt = document.querySelector('.upgrade-prompt');
+    if (prompt) {
+        prompt.classList.remove('show');
+        setTimeout(() => prompt.remove(), 300);
+    }
+}
+
+function showPaymentScreen() {
+    hideUpgradePrompt();
+    // Placeholder for payment screen
+    alert('Payment functionality coming soon!');
+}
+
+function showUpgradePrompt(callback = null) {
+    const isUnregistered = !currentUser;
+    const promptContent = isUnregistered ? {
+        title: "Sign Up to Save Progress",
+        message: "Create a free account to save your progress and unlock more content!",
+        primaryBtn: "Sign Up",
+        secondaryBtn: "Continue Playing"
+    } : {
+        title: "Unlock Full Access",
+        message: "Get unlimited access to all stages and premium features!",
+        primaryBtn: "Upgrade Now",
+        secondaryBtn: "Maybe Later"
+    };
+
+    const prompt = document.createElement('div');
+    prompt.className = 'upgrade-prompt';
+    prompt.innerHTML = `
+        <div class="upgrade-prompt-content">
+            <h2>${promptContent.title}</h2>
+            <p>${promptContent.message}</p>
+            <div class="upgrade-prompt-buttons">
+                <button class="start-button">${promptContent.primaryBtn}</button>
+                <button class="start-button secondary">${promptContent.secondaryBtn}</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(prompt);
+    setTimeout(() => prompt.classList.add('show'), 50);
+
+    const [primaryButton, secondaryButton] = prompt.querySelectorAll('button');
+    primaryButton.onclick = () => {
+        hideUpgradePrompt();
+        if (isUnregistered) {
+            showScreen('welcome-screen');
+        } else {
+            showPaymentScreen();
+        }
+    };
+
+    secondaryButton.onclick = () => {
+        hideUpgradePrompt();
+        if (callback) callback();
+    };
+}
+
+async function checkUserAccess() {
     // For unregistered users
     if (!currentUser) {
         return {
@@ -5820,7 +6484,7 @@ async function checkUserAccess() {
                 2: [1],         // Set 1 only
                 3: [1],         // Set 1 only
                 4: [1],         // Set 1 only
-                5: 'disabled'   // Coming soon
+                5: [1]   // Coming soon
             }
         };
     }
@@ -5855,10 +6519,306 @@ async function checkUserAccess() {
             2: [1],
             3: [1],
             4: [1],
-            5: 'disabled'
+            5: [1]
         }
     };
 }
+
+function showPaymentScreen() {
+    const paymentScreen = document.createElement('div');
+    paymentScreen.className = 'payment-screen screen';
+    
+    paymentScreen.innerHTML = `
+        <div class="payment-container">
+            <h2 class="welcome-title">Upgrade to Premium</h2>
+            <div class="payment-options">
+                <div class="payment-option">
+                    <h3>Monthly Plan</h3>
+                    <p class="price">$9.99/month</p>
+                    <button class="start-button" onclick="processPayment('monthly')">
+                        Choose Monthly
+                    </button>
+                </div>
+                <div class="payment-option featured">
+                    <div class="best-value">Best Value!</div>
+                    <h3>Yearly Plan</h3>
+                    <p class="price">$99.99/year</p>
+                    <p class="savings">Save 17%</p>
+                    <button class="start-button" onclick="processPayment('yearly')">
+                        Choose Yearly
+                    </button>
+                </div>
+                <div class="payment-option">
+                    <h3>Lifetime Access</h3>
+                    <p class="price">$299.99</p>
+                    <button class="start-button" onclick="processPayment('lifetime')">
+                        Get Lifetime
+                    </button>
+                </div>
+            </div>
+            <button class="back-button" onclick="showScreen('stage-screen')">
+                <i class="fas fa-arrow-left"></i> Go Back
+            </button>
+        </div>
+    `;
+
+    document.body.appendChild(paymentScreen);
+    showScreen('payment-screen');
+}
+
+async function processPayment(plan) {
+    const plans = {
+        monthly: { amount: 9.99, interval: 'month' },
+        yearly: { amount: 99.99, interval: 'year' },
+        lifetime: { amount: 299.99, interval: 'once' }
+    };
+
+    const { data, error } = await supabaseClient
+        .from('payment_requests')
+        .insert({
+            user_id: currentUser.id,
+            amount: plans[plan].amount,
+            payment_method: 'pending',
+            status: 'pending'
+        });
+
+    if (error) {
+        console.error('Payment initialization error:', error);
+        return;
+    }
+
+    // Show payment method selection
+    const paymentMethods = document.createElement('div');
+    paymentMethods.className = 'payment-methods';
+    paymentMethods.innerHTML = `
+        <div class="payment-methods-container">
+            <h3>Choose Payment Method</h3>
+            <div class="method-buttons">
+                <button onclick="selectPaymentMethod('bit', ${plans[plan].amount})">Bit</button>
+                <button onclick="selectPaymentMethod('paybox', ${plans[plan].amount})">Paybox</button>
+                <button onclick="selectPaymentMethod('kashkash', ${plans[plan].amount})">KashKash</button>
+            </div>
+        </div>
+    `;
+
+    document.querySelector('.payment-container').appendChild(paymentMethods);
+}
+
+function processPerfectCompletion(isLevelCompleted) {
+    if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
+        // Award completion bonus
+        gameState.coins += 5;
+        pulseCoins(5);
+        gameState.perfectLevels.add(levelKey);
+
+        // Create completion particles
+        createCompletionParticles();
+
+        // Update unlocks and progress
+        updateLevelUnlocks();
+        saveProgress();
+        updateAllCoinDisplays();
+
+        // Handle progression
+        setTimeout(() => {
+            const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
+            const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
+            const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
+
+            if (isLastLevelInSet) {
+                if (!isLastSetInStage) {
+                    gameState.currentSet++;
+                    startLevel(1);
+                } else if (gameState.currentStage < 5) {
+                    gameState.currentStage++;
+                    gameState.currentSet = 1;
+                    startLevel(1);
+                } else {
+                    showScreen('stage-screen');
+                }
+            } else {
+                startLevel(gameState.currentLevel + 1);
+            }
+        }, 1500);
+    } else {
+        setTimeout(() => startLevel(gameState.currentLevel), 1500);
+    }
+}
+
+async function showSetScreen(stageId) {
+    gameState.currentStage = stageId;
+    const container = document.getElementById('set-container');
+    container.innerHTML = '';
+    
+    const access = await checkUserAccess();
+    const stage = gameStructure.stages[stageId - 1];
+
+    for (let i = 1; i <= stage.numSets; i++) {
+        const setButton = document.createElement('div');
+        const hasAccess = access.unlockedStages[stageId] === 'full' || 
+                         access.unlockedStages[stageId].includes(i);
+        
+        setButton.className = `set-button ${hasAccess ? 'active' : ''}`;
+        setButton.textContent = `Set ${i}`;
+        
+        if (hasAccess && gameState.unlockedSets[stageId]?.has(i)) {
+            setButton.onclick = () => showLevelScreen(i);
+        }
+        
+        container.appendChild(setButton);
+    }
+    
+    showScreen('set-screen');
+}
+
+
+function toggleAuthMode() {
+    const loginForm = document.getElementById('loginForm');
+    const signupForm = document.getElementById('signupForm');
+    
+    loginForm.classList.toggle('hidden');
+    signupForm.classList.toggle('hidden');
+}
+
+function showUnregisteredWarning(callback) {
+    const prompt = document.createElement('div');
+    prompt.className = 'upgrade-prompt';
+    prompt.innerHTML = `
+        <h2>Save Your Progress!</h2>
+        <p>Sign up for free to save your progress and access more content!</p>
+        <div class="upgrade-prompt-buttons">
+            <button class="start-button" onclick="showScreen('welcome-screen')">Sign Up</button>
+            <button class="start-button secondary" onclick="hidePrompt()">Continue Playing</button>
+        </div>
+    `;
+
+    document.body.appendChild(prompt);
+    setTimeout(() => prompt.classList.add('show'), 50);
+
+    window.hidePrompt = () => {
+        prompt.classList.remove('show');
+        setTimeout(() => {
+            document.body.removeChild(prompt);
+            if (callback) callback();
+        }, 300);
+    };
+}
+
+function handleCustomPracticeCompletion() {
+    if (!isLevelCompleted && currentGame.streakBonus && 
+        currentGame.correctAnswers === currentGame.words.length) {
+        gameState.coins += 5;
+        pulseCoins(5);
+        
+        const nextLevel = currentGame.currentCustomLevel + 1;
+        if (nextLevel <= 10) {
+            currentGame.practiceState.unlockedLevels.add(nextLevel);
+            currentGame.practiceState.progress[currentGame.currentCustomLevel] = true;
+            setTimeout(() => startCustomLevel(nextLevel, currentGame.practiceState), 1500);
+        } else {
+            setTimeout(() => {
+                showScreen('custom-practice-screen');
+                alert('Congratulations! Practice set completed!');
+            }, 1500);
+        }
+    } else {
+        setTimeout(() => startCustomLevel(currentGame.currentCustomLevel, 
+            currentGame.practiceState), 1500);
+    }
+}
+
+async function processPayment(plan) {
+    const plans = {
+        monthly: { amount: 9.99, interval: 'month' },
+        yearly: { amount: 99.99, interval: 'year' },
+        lifetime: { amount: 299.99, interval: 'once' }
+    };
+
+    const { data, error } = await supabaseClient
+        .from('payment_requests')
+        .insert({
+            user_id: currentUser.id,
+            plan_type: plan,
+            amount: plans[plan].amount,
+            status: 'pending'
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Payment error:', error);
+        return;
+    }
+
+    showPaymentMethods(plans[plan].amount, data.id);
+}
+
+function showPaymentMethods(amount, requestId) {
+    const methods = document.createElement('div');
+    methods.className = 'payment-methods';
+    methods.innerHTML = `
+        <h3>Choose Payment Method</h3>
+        <div class="payment-buttons">
+            <button onclick="handlePayment('bit', ${amount}, '${requestId}')">
+                <i class="fas fa-mobile-alt"></i> Bit
+            </button>
+            <button onclick="handlePayment('paybox', ${amount}, '${requestId}')">
+                <i class="fas fa-credit-card"></i> Paybox
+            </button>
+            <button onclick="handlePayment('bank', ${amount}, '${requestId}')">
+                <i class="fas fa-university"></i> Bank Transfer
+            </button>
+        </div>
+    `;
+
+    document.querySelector('.payment-container').appendChild(methods);
+}
+
+async function handlePayment(method, amount, requestId) {
+    // Placeholder for payment processing
+    const { data, error } = await supabaseClient
+        .from('payment_requests')
+        .update({ 
+            payment_method: method,
+            status: 'processing' 
+        })
+        .eq('id', requestId);
+
+    if (error) {
+        console.error('Payment update error:', error);
+        return;
+    }
+
+    // Show confirmation placeholder
+    alert(`Payment processing! Amount: $${amount} via ${method}`);
+    showScreen('welcome-screen');
+}
+
+function hidePaymentMethods() {
+    const methods = document.querySelector('.payment-methods');
+    if (methods) {
+        methods.remove();
+    }
+}
+
+function toggleBranchDetails(branchElement) {
+    const details = branchElement.querySelector('.branch-details');
+    const isExpanded = details.style.display !== 'none';
+    
+    details.style.display = isExpanded ? 'none' : 'block';
+    branchElement.style.transform = isExpanded 
+        ? 'scale(1)' 
+        : 'scale(1.02)';
+}
+
+// Add click event to branch headers
+document.querySelectorAll('.branch-header').forEach(header => {
+    header.addEventListener('click', () => {
+        const branchElement = header.closest('.knowledge-branch');
+        toggleBranchDetails(branchElement);
+    });
+});
+
 
 </script>
 </body>

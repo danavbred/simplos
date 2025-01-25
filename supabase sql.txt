@@ -1,0 +1,516 @@
+supabase sql
+
+
+
+
+
+ACCESS CONTROL
+
+
+
+ALTER TABLE user_profiles 
+ADD COLUMN status VARCHAR(20) DEFAULT 'free' 
+CHECK (status IN ('free', 'premium'));
+
+-- First add needed status column if not exists
+ALTER TABLE user_profiles 
+ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'free' 
+CHECK (status IN ('free', 'premium'));
+
+-- Then create the access check function
+CREATE OR REPLACE FUNCTION check_user_access(user_id uuid)
+RETURNS jsonb AS $$
+BEGIN
+    RETURN (
+        SELECT jsonb_build_object(
+            'fullAccess', CASE WHEN status = 'premium' THEN true ELSE false END,
+            'stage5Available', CASE WHEN status = 'premium' THEN true ELSE false END
+        )
+        FROM user_profiles
+        WHERE id = user_id
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION check_user_access(uuid) TO authenticated;
+
+-- First drop the existing table if it exists
+DROP TABLE IF EXISTS access_controls;
+
+-- Recreate with proper constraints
+CREATE TABLE access_controls (
+    user_type VARCHAR(20),
+    stage INTEGER,
+    set_number INTEGER DEFAULT 0,  -- Default value instead of NULL
+    is_accessible BOOLEAN,
+    PRIMARY KEY (user_type, stage, set_number)
+);
+
+-- Insert rules with explicit set numbers
+CREATE INDEX idx_user_profiles_status ON user_profiles(status);
+
+INSERT INTO access_controls (user_type, stage, set_number, is_accessible) VALUES
+('unregistered', 1, 0, true),   -- Full stage 1
+('unregistered', 2, 1, true),   -- Only set 1
+('unregistered', 3, 1, true),
+('unregistered', 4, 1, true),
+('unregistered', 5, 1, true),
+('free', 1, 0, true),          -- Same for free users
+('free', 2, 1, true),
+('free', 3, 1, true), 
+('free', 4, 1, true),
+('free', 5, 1, true),
+('premium', 0, 0, true);  
+
+
+
+PAYMENT REQUESTS
+
+CREATE TABLE payment_requests (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    plan_type text CHECK (plan_type IN ('monthly', 'yearly', 'lifetime')),
+    amount decimal(10,2) NOT NULL,
+    payment_method text,
+    status text DEFAULT 'pending' 
+        CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+CREATE POLICY "Users can view own payment requests" 
+    ON payment_requests FOR SELECT 
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create payment requests" 
+    ON payment_requests FOR INSERT 
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own pending requests" 
+    ON payment_requests FOR UPDATE 
+    USING (auth.uid() = user_id AND status = 'pending');
+
+CREATE TABLE IF NOT EXISTS public.payment_requests (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    payment_method text CHECK (payment_method IN ('bit', 'paybox', 'kashkash')),
+    amount decimal(10,2) NOT NULL,
+    status text DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'rejected')),
+    submission_time timestamp with time zone DEFAULT now(),
+    verification_time timestamp with time zone,
+    verification_notes text,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS payment_transactions (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    amount decimal(10,2) NOT NULL,
+    status text CHECK (status IN ('pending', 'completed', 'failed')),
+    payment_method text,
+    created_at timestamp with time zone DEFAULT now(),
+    completed_at timestamp with time zone
+);
+
+
+
+
+USER AND CLASS MANAGEMENT
+-- Custom Lists Table
+CREATE TABLE IF NOT EXISTS custom_lists (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    name text NOT NULL,
+    words text[] DEFAULT '{}',
+    translations text[] DEFAULT '{}',
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    local_id BIGINT,
+    is_shared boolean DEFAULT false,
+    shared_with uuid[] DEFAULT '{}'::uuid[],
+    shared_by uuid REFERENCES auth.users(id)
+);
+
+-- Classes Table
+CREATE TABLE IF NOT EXISTS classes (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    teacher_id uuid REFERENCES auth.users NOT NULL,
+    name text NOT NULL,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+-- Class Members Table
+CREATE TABLE IF NOT EXISTS class_members (
+    class_id uuid REFERENCES classes(id) ON DELETE CASCADE,
+    student_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    PRIMARY KEY (class_id, student_id)
+);
+
+-- Class Assignments Table
+CREATE TABLE IF NOT EXISTS class_assignments (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    class_id uuid REFERENCES classes(id) ON DELETE CASCADE,
+    list_id uuid REFERENCES custom_lists(id) ON DELETE CASCADE,
+    assigned_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    due_date timestamp with time zone,
+    status text DEFAULT 'active' CHECK (status IN ('active', 'completed', 'expired'))
+);
+
+-- Assignment Progress Table
+CREATE TABLE IF NOT EXISTS assignment_progress (
+    assignment_id uuid REFERENCES class_assignments(id) ON DELETE CASCADE,
+    student_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+    progress jsonb DEFAULT '{}',
+    completed_at timestamp with time zone,
+    PRIMARY KEY (assignment_id, student_id)
+);
+
+-- Add constraints and indexes
+ALTER TABLE classes ADD CONSTRAINT unique_teacher_class_name UNIQUE (teacher_id, name);
+CREATE INDEX idx_class_members_student ON class_members(student_id);
+CREATE INDEX idx_assignments_class ON class_assignments(class_id);
+CREATE INDEX idx_assignment_progress_student ON assignment_progress(student_id);
+
+-- Grant permissions
+GRANT ALL ON classes TO authenticated;
+GRANT ALL ON class_members TO authenticated;
+GRANT ALL ON class_assignments TO authenticated;
+GRANT ALL ON assignment_progress TO authenticated;
+
+-- Enable RLS
+ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE class_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE class_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assignment_progress ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for classes
+CREATE POLICY "Teachers can manage their classes" ON classes
+    FOR ALL USING (auth.uid() = teacher_id);
+
+CREATE POLICY "Students can view their classes" ON classes
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM class_members 
+            WHERE class_id = classes.id 
+            AND student_id = auth.uid()
+        )
+    );
+
+
+
+
+GAME PROGRESS
+
+
+
+
+ALTER TABLE game_progress 
+ADD COLUMN access_level VARCHAR(20) DEFAULT 'free';
+
+CREATE TABLE IF NOT EXISTS game_progress (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    stage integer NOT NULL DEFAULT 1,
+    set_number integer NOT NULL DEFAULT 1,
+    level integer NOT NULL DEFAULT 1,
+    coins integer NOT NULL DEFAULT 0,
+    perks jsonb NOT NULL DEFAULT '{}',
+    unlocked_sets jsonb NOT NULL DEFAULT '{}',
+    unlocked_levels jsonb NOT NULL DEFAULT '{}',
+    perfect_levels jsonb NOT NULL DEFAULT '[]',
+    completed_levels jsonb NOT NULL DEFAULT '[]',
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+
+
+
+USER PROFILES
+
+
+
+
+ALTER TABLE game_progress 
+DROP COLUMN IF EXISTS access_level;
+
+ALTER TABLE user_profiles
+ADD COLUMN shared_lists INTEGER[] DEFAULT '{}',
+ADD COLUMN received_lists INTEGER[] DEFAULT '{}';
+DROP COLUMN trial_start,
+DROP COLUMN trial_time_used,
+DROP COLUMN last_session_start,
+ADD COLUMN access_level VARCHAR(20) DEFAULT 'free';
+
+-- Create and configure user_profiles table
+CREATE TABLE IF NOT EXISTS public.user_profiles (
+    id uuid REFERENCES auth.users PRIMARY KEY,
+    username text UNIQUE,
+    role text CHECK (role IN ('student', 'teacher', 'admin')),
+    status text DEFAULT 'free' CHECK (status IN ('free', 'premium')),
+    payment_pending boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+-- Handle table updates
+DO $$
+BEGIN
+    -- Remove deprecated columns
+    ALTER TABLE public.user_profiles 
+    DROP COLUMN IF EXISTS trial_start,
+    DROP COLUMN IF EXISTS trial_time_used,
+    DROP COLUMN IF EXISTS last_session_start;
+
+    -- Update status check constraint
+    ALTER TABLE public.user_profiles 
+    DROP CONSTRAINT IF EXISTS user_profiles_status_check;
+    
+    ALTER TABLE public.user_profiles 
+    ADD CONSTRAINT user_profiles_status_check 
+    CHECK (status IN ('free', 'premium'));
+
+    -- Ensure username migration
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'user_profiles' AND column_name = 'username') THEN
+        ALTER TABLE user_profiles ADD COLUMN username text UNIQUE;
+    END IF;
+END $$;
+
+-- Create or replace handle_new_user function
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.user_profiles (id, username, role, status)
+    VALUES (
+        NEW.id, 
+        NEW.raw_user_meta_data->>'username',
+        'student',
+        'free'
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Recreate trigger
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Create view for user listing
+CREATE OR REPLACE VIEW public.user_list AS
+SELECT 
+    id,
+    username,
+    status,
+    role,
+    payment_pending
+FROM public.user_profiles;
+
+-- Grant permissions
+GRANT SELECT ON public.user_list TO authenticated;
+GRANT SELECT, UPDATE ON public.user_profiles TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+    extracted_username text;
+BEGIN
+    -- Try to extract username from different possible metadata locations
+    extracted_username := COALESCE(
+        NEW.raw_user_meta_data->>'username', 
+        NEW.email, 
+        split_part(NEW.email, '@', 1)
+    );
+
+    INSERT INTO public.user_profiles (
+        id, 
+        username, 
+        role, 
+        status
+    )
+    VALUES (
+        NEW.id, 
+        extracted_username,
+        'student',
+        'free'
+    );
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create view for user listing
+CREATE OR REPLACE VIEW public.user_list AS
+SELECT 
+    id,
+    username,
+    status,
+    role,
+    payment_pending
+FROM public.user_profiles;
+
+-- NEW VIEW GOES HERE
+CREATE OR REPLACE VIEW user_game_details AS
+SELECT 
+    gp.id AS progress_id,
+    gp.user_id,
+    gp.stage,
+    gp.set_number,
+    gp.level,
+    gp.coins,
+    up.username,
+    au.email
+FROM 
+    game_progress gp
+JOIN 
+    user_profiles up ON gp.user_id = up.id
+JOIN 
+    auth.users au ON gp.user_id = au.id;
+
+
+
+
+
+
+RLS POLICIES
+
+
+
+
+
+-- First batch - Game Progress Policies
+DROP POLICY IF EXISTS "Users can read own game progress" ON game_progress;
+DROP POLICY IF EXISTS "Users can insert own game progress" ON game_progress;
+DROP POLICY IF EXISTS "Users can update own game progress" ON game_progress;
+DROP POLICY IF EXISTS "Access control based on user status" ON game_progress;
+
+ALTER TABLE game_progress ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Access control based on user status" ON game_progress
+FOR SELECT USING (
+    CASE 
+        WHEN auth.role() = 'anon' THEN 
+            (stage = 1) OR 
+            (stage IN (2,3,4,5) AND set_number = 1)
+        WHEN EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE user_id = auth.uid() 
+            AND status = 'free'
+        ) THEN 
+            (stage = 1) OR 
+            (stage IN (2,3,4,5) AND set_number = 1)
+        WHEN EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE user_id = auth.uid() 
+            AND status = 'premium'
+        ) THEN 
+            true
+        ELSE false
+    END
+);
+
+CREATE POLICY "Users can read own game progress" ON game_progress 
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own game progress" ON game_progress 
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own game progress" ON game_progress 
+    FOR UPDATE USING (auth.uid() = user_id);
+
+-- Second batch - Custom Lists Policies
+DROP POLICY IF EXISTS "Users can read own lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can insert own lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can update own lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can delete own lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can insert shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can read shared lists" ON custom_lists;
+
+ALTER TABLE custom_lists ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can read own lists" ON custom_lists 
+    FOR SELECT USING (auth.uid() = user_id OR auth.uid() = ANY(shared_with));
+
+CREATE POLICY "Users can insert own lists" ON custom_lists 
+    FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Users can update own lists" ON custom_lists 
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own and shared lists"
+ON custom_lists FOR DELETE
+USING (
+    auth.uid() = user_id 
+    OR auth.uid() = ANY(shared_with)
+    OR EXISTS (
+        SELECT 1 FROM custom_lists
+        WHERE id = custom_lists.id AND user_id = auth.uid()
+    )
+);
+
+-- Final batch - Permissions and Cascade Policies
+GRANT ALL ON custom_lists TO authenticated;
+GRANT ALL ON game_progress TO authenticated;
+
+-- User Profiles Policies
+CREATE POLICY "Users can view their own profile"
+ON public.user_profiles
+FOR SELECT
+TO authenticated
+USING (auth.uid() = id);
+
+CREATE POLICY "Users can update their own profile"
+ON public.user_profiles
+FOR UPDATE
+TO authenticated
+USING (auth.uid() = id);
+
+CREATE POLICY "Users can read their own profile"
+ON user_profiles FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own profile"
+ON user_profiles FOR UPDATE
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view lists shared with them"
+ON custom_lists FOR SELECT
+USING (
+    auth.uid() = user_id 
+    OR auth.uid() = ANY(shared_with)
+);
+
+-- In the "RLS POLICIES" section:
+DROP POLICY IF EXISTS "Access control based on user status" ON game_progress;
+
+CREATE POLICY "Access control based on user status" ON game_progress
+FOR SELECT USING (
+    CASE 
+        WHEN auth.role() = 'anon' THEN 
+            (stage = 1) OR 
+            (stage IN (2,3,4,5) AND set_number = 1)
+        WHEN EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE id = auth.uid() 
+            AND status = 'free'
+        ) THEN 
+            (stage = 1) OR 
+            (stage IN (2,3,4,5) AND set_number = 1)
+        WHEN EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE id = auth.uid() 
+            AND status = 'premium'
+        ) THEN 
+            true
+        ELSE false
+    END
+);
+
+-- Add missing RLS policies
+DROP POLICY IF EXISTS "Users can view shared lists" ON custom_lists;
+CREATE POLICY "Users can view shared lists" ON custom_lists
+FOR SELECT USING (
+    auth.uid() = user_id 
+    OR auth.uid() = ANY(shared_with)
+);

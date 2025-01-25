@@ -1,9 +1,5 @@
 window.vocabularySets = {
 
-  "1_1": {
-stage: 1,
-set: 1,
-  words: ["stability", "get", "beside", "sad", "important", "pick", "fair", "computer", "place", "together", "start", "go", "brother", "teach", "women", "of", "man", "quiet", "sentence", "enter", "news", "few", "ago", "student", "nice", "or", "course", "many", "month", "idea", "alone", "if", "happy", "smart", "until", "number", "careful", "true", "practice", "grade", "under", "exercise", "bag", "fact", "clean", "dad", "now", "classroom", "cold", "hang"],
-  translations: ["יציבות", "לקבל", "בצד", "עצוב", "חשוב", "לבחור", "הוגן", "מחשב", "מקום", "יחד", "התחלה", "ללכת", "אח", "ללמד", "נשים", "של", "איש", "שקט", "משפט", "להיכנס", "חדשות", "מעט", "לפני", "סטודנט", "נחמד", "או", "קורס", "הרבה", "חודש", "רעיון", "לבד", "אם", "שמח", "חכם", "עד", "מספר", "זהיר", "אמיתי", "לתרגל", "ציון", "מתחת", "תרגיל", "תיק", "עובדה", "לנקות", "אבא", "עכשיו", "כיתה", "קר", "לתלות"]
-  },
-  };
+"1_1": { words: ["pizza", "soup", "omelette", "chocolate", "rice", "muffins", "eggs", "lentils", "yogurt", "carrot", "sushi", "pasta", "cookies", "coffee", "grapes", "water", "potatoes", "pancake", "onion", "tea", "noodles", "chicken", "cheese", "sandwich", "hot dogs", "butter", "tomato", "lettuce", "salad", "milk", "banana", "fish", "hamburger", "orange", "croissant", "beans", "bread", "juice", "kebab", "cucumber", "ice cream", "french fries", "beef", "apple", "popsicle", "pepper", "popcorn", "cake", "garlic", "salt", "sauce", "ketchup", "mustard"], translations: ["פיצה", "מרק", "חביתה", "שוקולד", "אורז", "מאפינס", "ביצים", "עדשים", "יוגורט", "גזר", "סושי", "פסטה", "עוגיות", "קפה", "ענבים", "מים", "תפוחי אדמה", "פנקייק", "בצל", "תה", "נודלס", "עוף", "גבינה", "כריך", "נקניקיות", "חמאה", "עגבנייה", "חסה", "סלט", "חלב", "בננה", "דג", "המבורגר", "תפוז", "קרואסון", "שעועית", "לחם", "מיץ", "קבב", "מלפפון", "גלידה", "צ'יפס", "בקר", "תפוח", "ארטיק", "פלפל", "פופקורן", "עוגה", "שום", "מלח", "רוטב", "קטשופ", "חרדל"] },
+
+
