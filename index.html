@@ -516,120 +516,18 @@ body {
     transition: content 1s ease-out;
 }
 
-.knowledge-branch {
-    background: rgba(0,0,0,0.2);
-    border-radius: 20px;
-    border: 3px solid #27AE60;
-    margin-bottom: 1rem;
-    overflow: hidden;
-    transition: all 0.3s ease;
-}
-
-.branch-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem;
-    background: linear-gradient(135deg, #27AE60, transparent);
-    cursor: pointer;
-}
-
-.branch-title {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.branch-title .branch-icon {
-    font-size: 2rem;
-    color: white;
-}
-
-.branch-title h2 {
-    margin: 0;
-    font-size: 1.5rem;
-}
-
-.branch-meta {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.branch-details {
-    padding: 1.5rem;
-    background: rgba(255,255,255,0.05);
-}
-
-.branch-skills {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.skill-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem;
-    border-radius: 15px;
-    background: rgba(0,0,0,0.2);
-}
-
-.skill-item.unlocked {
-    background: rgba(255,255,255,0.1);
-}
-
-.skill-item i {
-    font-size: 1.2rem;
-}
-
-.skill-item.unlocked i {
-    color: green;
-}
-
-.skill-item.locked i {
-    color: gray;
-}
-
-.sets-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 1rem;
-}
-
-.set-block {
-    aspect-ratio: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 15px;
-    background: rgba(255,255,255,0.1);
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.set-block.unlocked {
-    background: #27AE60;
-    box-shadow: 0 0 20px #27AE60;
-}
-
-.set-block i {
-    font-size: 2rem;
-    color: white;
-}
-
-
 
 .stage-container, .set-container, .level-selection {
   display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 0.5fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 2rem;
     width: 100%;
-    max-width: 600px;
-    padding: rem;
+    max-width: 1200px;
+    padding: 2rem;
     z-index: 1;
 }
+
+
 
 .stage-button, .set-button, .level {
   aspect-ratio: 1;
@@ -2560,9 +2458,6 @@ body {
     }
 }
 
-
-
-
     </style>
 </head>
 <body>
@@ -2652,44 +2547,9 @@ body {
       <button class="navigation-button reset-button" onclick="handleResetProgress()">
           <i class="fas fa-trash-alt navigation-icon"></i>
       </button>
-
-      <div class="knowledge-branch" data-stage-id="1">
-    <div class="branch-header">
-        <div class="branch-title">
-            <i class="fas fa-leaf branch-icon"></i>
-            <h2>Elementary Roots</h2>
-        </div>
-        <div class="branch-meta">
-            <span class="growth-stage">Seedling Stage</span>
-            <span class="sets-progress">3/9 Sets Unlocked</span>
-            <i class="fas fa-book-open expand-icon"></i>
-        </div>
-    </div>
-    
-    <div class="branch-details" style="display: none;">
-        <div class="branch-skills">
-            <div class="skill-item unlocked">
-                <i class="fas fa-unlock"></i>
-                <span>Basic Vocabulary</span>
-            </div>
-            <div class="skill-item unlocked">
-                <i class="fas fa-unlock"></i>
-                <span>Simple Sentence Structure</span>
-            </div>
-            <div class="skill-item locked">
-                <i class="fas fa-lock"></i>
-                <span>Early Grammar</span>
-            </div>
-        </div>
-        
-        <div class="sets-grid">
-            <div class="set-container" id="set-container"></div>
-        </div>
-    </div>
+  </div>
+    <div class="set-container" id="set-container"></div>
 </div>
-  </div>  
-</div>
-
 
 <div id="level-screen" class="screen">
     <div class="particle-container"></div>
@@ -6254,12 +6114,8 @@ async function showShareModal(listId) {
 }
 
 async function checkUserAccess() {
-    const completions = parseInt(sessionStorage.getItem('levelCompletions') || '0');
-    
+
     if (!currentUser) {
-        if (completions > 0 && completions % 4 === 0) {
-            showUnregisteredWarning();
-        }
         return {
             fullAccess: false,
             unlockedStages: {
@@ -6520,7 +6376,7 @@ async function checkUserAccess() {
             3: [1],
             4: [1],
             5: [1]
-        }
+        },
     };
 }
 
@@ -6801,23 +6657,7 @@ function hidePaymentMethods() {
     }
 }
 
-function toggleBranchDetails(branchElement) {
-    const details = branchElement.querySelector('.branch-details');
-    const isExpanded = details.style.display !== 'none';
-    
-    details.style.display = isExpanded ? 'none' : 'block';
-    branchElement.style.transform = isExpanded 
-        ? 'scale(1)' 
-        : 'scale(1.02)';
-}
 
-// Add click event to branch headers
-document.querySelectorAll('.branch-header').forEach(header => {
-    header.addEventListener('click', () => {
-        const branchElement = header.closest('.knowledge-branch');
-        toggleBranchDetails(branchElement);
-    });
-});
 
 
 </script>
