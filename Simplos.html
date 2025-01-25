@@ -483,17 +483,45 @@ body {
 }
 
 .coins-header {
-  position: fixed;
-  top: 2rem;
-  right: 2rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--glass);
-  padding: 0.75rem 1.5rem;
-  border-radius: 25px;
-  backdrop-filter: blur(10px);
-  z-index: 100;
+    position: fixed;
+    top: 2rem;
+    right: 8rem; /* Adjusted to make room for timer */
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--glass);
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    backdrop-filter: blur(10px);
+    z-index: 100;
+}
+
+.free-timer {
+    position: fixed;
+    top: 2rem;
+    right: 2rem;
+    background: var(--glass);
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    backdrop-filter: blur(10px);
+    color: var(--text);
+    z-index: 100;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.free-timer.warning {
+    color: #ff4444;
+    animation: timerPulse 1s infinite;
+}
+
+@keyframes timerPulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
 }
 
 .coins-header .coin-icon {
@@ -2337,6 +2365,7 @@ body {
     }
 }
 
+
     </style>
 </head>
 <body>
@@ -2657,7 +2686,11 @@ async function handleSignup() {
         email,
         password,
         options: {
-            data: { username }
+            data: {
+                username: username,
+                role: 'student',
+                status: 'free'
+            }
         }
     });
 
@@ -2667,6 +2700,22 @@ async function handleSignup() {
         return;
     }
 
+    const { error: profileError } = await supabaseClient
+        .from('user_profiles')
+        .insert([{
+            user_id: data.user.id,
+            username: username,
+            role: 'student',
+            status: 'free',
+            trial_start: new Date().toISOString()
+        }]);
+
+    if (profileError) {
+        console.error('Error creating profile:', profileError);
+        return;
+    }
+
+    // Initialize game progress
     const { error: progressError } = await supabaseClient
         .from('game_progress')
         .insert([{
@@ -2687,7 +2736,8 @@ async function handleSignup() {
         return;
     }
 
-    const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
+    // Auto-login after signup
+    const { error: loginError } = await supabaseClient.auth.signInWithPassword({
         email,
         password
     });
@@ -2697,8 +2747,7 @@ async function handleSignup() {
         return;
     }
 
-    currentUser = loginData.user;
-    clearCustomPracticeUI();
+    currentUser = data.user;
     await Promise.all([loadCustomLists(), loadUserGameProgress(currentUser.id)]);
     updateAuthUI();
     showScreen('welcome-screen');
@@ -3143,6 +3192,22 @@ const gameState = {
         skip: 0,
         clue: 0,
         reveal: 0
+    },
+    sessionTracking: {
+        startTime: null,
+        timeUsed: 0,
+        isTimerActive: false,
+        lastSessionDate: null,
+        status: 'free',  // 'free', 'trial', 'premium'
+        trialStart: null,
+        trialTimeUsed: 0,
+        paymentPending: false
+    },
+    userProgress: {
+        lastCheckpoint: null,
+        timeRemaining: 900000, // 15 minutes in milliseconds
+        dailyPlayTime: 0,
+        lastPlayDate: null
     }
 };
 
@@ -5138,48 +5203,56 @@ function processCustomWords() {
 }
 
 function initializeDragAndDrop(item) {
-    const dragHandle = item.querySelector('.drag-handle');
+    if (!item) return;
     
-    dragHandle.addEventListener('mousedown', () => {
-        item.draggable = true;
-    });
+    item.setAttribute('draggable', 'true');
     
-    dragHandle.addEventListener('mouseup', () => {
-        item.draggable = false;
-    });
-    
-    item.addEventListener('dragstart', () => {
+    item.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
         item.classList.add('dragging');
         item.style.opacity = '0.5';
     });
     
-    item.addEventListener('dragend', () => {
+    item.addEventListener('dragend', (e) => {
+        e.stopPropagation();
         item.classList.remove('dragging');
         item.style.opacity = '1';
-        item.draggable = false;
         
-        // Save the new order immediately
-        const listId = item.closest('.word-translation-list').id.split('-')[1];
-        const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
-        const wordList = document.getElementById(`list-${listId}`);
-        
-        // Only save if in edit mode
-        if (listItem.getAttribute('data-in-edit-mode') === 'true') {
-            saveListChanges(listId, wordList, listItem, false);
+        // Save the new order
+        const listId = item.closest('.word-translation-list')?.id.split('-')[1];
+        if (listId) {
+            const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+            const wordList = document.getElementById(`list-${listId}`);
+            if (listItem?.getAttribute('data-in-edit-mode') === 'true') {
+                saveListChanges(listId, wordList, listItem, false);
+            }
         }
     });
+
+    const dragHandle = item.querySelector('.drag-handle');
+    if (dragHandle) {
+        dragHandle.addEventListener('mousedown', () => {
+            item.draggable = true;
+        });
+        
+        dragHandle.addEventListener('mouseup', () => {
+            item.draggable = false;
+        });
+    }
 }
 
 
 function saveCurrentList() {
     const listNameInput = document.getElementById('custom-list-name');
+    const wordInput = document.getElementById('custom-word-input');
     const wordList = document.getElementById('word-translation-list');
-    const items = wordList.querySelectorAll('.word-translation-item');
+    const translationResults = document.getElementById('translation-results');
     
     const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
     const words = [];
     const translations = [];
     
+    const items = wordList.querySelectorAll('.word-translation-item');
     items.forEach(item => {
         const word = item.querySelector('.source-word').textContent.trim();
         const translation = item.querySelector('.target-word').value.trim();
@@ -5199,6 +5272,13 @@ function saveCurrentList() {
 
     customPracticeLists.lists.push(newList);
     saveCustomLists();
+    
+    // Clear form
+    listNameInput.value = '';
+    wordInput.value = '';
+    wordList.innerHTML = '';
+    translationResults.style.display = 'none';
+    
     showCustomListsManager();
 }
 
@@ -5763,6 +5843,198 @@ async function showShareModal(listId) {
     modal.querySelector('.modal-close').onclick = () => document.body.removeChild(modal);
     modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
+
+async function initializeSessionTracking() {
+    if (!currentUser) {
+        // For unregistered users, use localStorage
+        const lastSessionDate = localStorage.getItem('lastSessionDate');
+        const timeUsedToday = parseInt(localStorage.getItem('timeUsedToday') || '0');
+        const today = new Date().toDateString();
+        
+        if (lastSessionDate !== today) {
+            // Reset for new day
+            localStorage.setItem('lastSessionDate', today);
+            localStorage.setItem('timeUsedToday', '0');
+            gameState.sessionTracking.timeUsed = 0;
+        } else {
+            gameState.sessionTracking.timeUsed = timeUsedToday;
+            
+            // Check if daily limit reached
+            if (timeUsedToday >= 15 * 60 * 1000) { // 15 minutes in milliseconds
+                showPremiumPrompt('daily_limit');
+                return false;
+            }
+        }
+    } else {
+        // For registered users, check Supabase
+        const { data, error } = await supabaseClient
+            .from('user_profiles')
+            .select('status, trial_start, trial_time_used, last_session_start')
+            .eq('user_id', currentUser.id)
+            .single();
+            
+        if (error) {
+            console.error('Error fetching session data:', error);
+            return false;
+        }
+        
+        if (data.status === 'premium') {
+            return true; // Premium users have unlimited access
+        }
+        
+        // Update session tracking
+        gameState.sessionTracking.timeUsed = data.trial_time_used || 0;
+        
+        if (data.status === 'free' || data.status === 'trial') {
+            const timeLimit = 15 * 60 * 1000; // 15 minutes
+            if (gameState.sessionTracking.timeUsed >= timeLimit) {
+                showPremiumPrompt('time_expired');
+                return false;
+            }
+        }
+    }
+    
+    // Start session timer
+    gameState.sessionTracking.startTime = Date.now();
+    gameState.sessionTracking.isTimerActive = true;
+    startSessionTimer();
+    return true;
+}
+
+// Timer display in header
+function addSessionTimerDisplay() {
+    const header = document.createElement('div');
+    header.className = 'session-timer-header';
+    header.innerHTML = `
+        <div class="timer-container">
+            <span class="timer-label">Time Remaining:</span>
+            <span class="timer-value">15:00</span>
+        </div>
+    `;
+    document.body.appendChild(header);
+}
+
+const timerStyles = `
+.session-timer-header {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    color: white;
+    font-weight: bold;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.timer-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.timer-value {
+    font-family: monospace;
+    font-size: 1.2rem;
+}
+
+.timer-value.warning {
+    color: #ff4444;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+`;
+
+function startSessionTimer() {
+    if (!gameState.sessionTracking.isTimerActive) return;
+    
+    const timerDisplay = document.querySelector('.timer-value');
+    const updateInterval = setInterval(async () => {
+        const elapsedTime = Date.now() - gameState.sessionTracking.startTime;
+        const totalTimeUsed = gameState.sessionTracking.timeUsed + elapsedTime;
+        const timeLimit = 15 * 60 * 1000; // 15 minutes
+        const remaining = Math.max(0, timeLimit - totalTimeUsed);
+        
+        // Update display
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        
+        // Warning when less than 2 minutes remaining
+        if (remaining < 120000) {
+            timerDisplay.classList.add('warning');
+        }
+        
+        // Time's up
+        if (remaining <= 0) {
+            clearInterval(updateInterval);
+            await handleTimeExpired();
+        }
+        
+        // Update storage every minute
+        if (elapsedTime % 60000 < 1000) {
+            await updateTimeUsed(totalTimeUsed);
+        }
+    }, 1000);
+}
+
+async function updateTimeUsed(totalTimeUsed) {
+    if (currentUser) {
+        const { error } = await supabaseClient
+            .from('user_profiles')
+            .update({ 
+                trial_time_used: totalTimeUsed,
+                last_session_start: gameState.sessionTracking.startTime 
+            })
+            .eq('user_id', currentUser.id);
+            
+        if (error) console.error('Error updating session time:', error);
+    } else {
+        localStorage.setItem('timeUsedToday', totalTimeUsed.toString());
+    }
+}
+
+async function handleTimeExpired() {
+    gameState.sessionTracking.isTimerActive = false;
+    showPremiumPrompt('time_expired');
+    
+    // Save final time
+    await updateTimeUsed(15 * 60 * 1000);
+    
+    // Return to welcome screen
+    showScreen('welcome-screen');
+}
+
+function initializeTimer() {
+    if (!currentUser || currentUser.status === 'free') {
+        let timerDiv = document.querySelector('.free-timer');
+        if (!timerDiv) {
+            timerDiv = document.createElement('div');
+            timerDiv.className = 'free-timer';
+            timerDiv.innerHTML = `
+                <span class="timer-label">Time Left:</span>
+                <span class="timer-value">15:00</span>
+            `;
+            document.body.appendChild(timerDiv);
+        }
+        
+        const timeLeft = initializeSessionTracking();
+        if (!timeLeft) {
+            showScreen('welcome-screen');
+            showPremiumPrompt('time_expired');
+        }
+    }
+}
+
 
 </script>
 </body>

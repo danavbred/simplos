@@ -891,25 +891,44 @@ body {
   font-weight: bold;
 }
 
+.session-timer-header {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    color: white;
+    font-weight: bold;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .timer-container {
-    position: absolute;
-    visibility: hidden;
-    opacity: 0;
-    pointer-events: none;
-    height: 0;
-    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .timer-value {
-    font-size: 0;
-    padding: 0;
+    font-family: monospace;
+    font-size: 1.2rem;
 }
 
 .timer-value.warning {
-  color: var(--error);
-  text-shadow: 0 0 15px rgba(244, 67, 54, 0.5);
-  animation: warningPulse 1s infinite;
+    color: #ff4444;
+    animation: pulse 1s infinite;
 }
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
 
 .buttons {
   display: grid;
@@ -3555,49 +3574,60 @@ function handleTimeUp() {
 
 // Screen Management
 function showScreen(screenId) {
-    // Clear any running timer when leaving question screen
-    const currentVisibleScreen = document.querySelector('.screen.visible');
-    if (currentVisibleScreen && currentVisibleScreen.id === 'question-screen') {
-        clearTimer();
-        isFrozen = false; // Reset freeze state
-    }
+   // Clear any running timer when leaving question screen
+   const currentVisibleScreen = document.querySelector('.screen.visible');
+   if (currentVisibleScreen && currentVisibleScreen.id === 'question-screen') {
+       clearTimer();
+       isFrozen = false;
+   }
 
-    // Remove visible class from all screens
-    document.querySelectorAll('.screen').forEach(screen => {
-        screen.classList.remove('visible');
-        
-        // Remove existing particle containers
-        const existingParticleContainer = screen.querySelector('.particle-container');
-        if (existingParticleContainer) {
-            existingParticleContainer.remove();
-        }
-    });
+   // Remove visible class from all screens
+   document.querySelectorAll('.screen').forEach(screen => {
+       screen.classList.remove('visible');
+       
+       // Remove existing particle containers
+       const existingParticleContainer = screen.querySelector('.particle-container');
+       if (existingParticleContainer) {
+           existingParticleContainer.remove();
+       }
+   });
 
-    // Get the target screen
-    const screenElement = document.getElementById(screenId);
-    screenElement.classList.add('visible');
-    
-    // Add particles to the current screen
-    initializeParticles(screenElement);
-    
-    // Update coin displays
-    updateAllCoinDisplays();
-    
-    // Specific screen logic
-    switch(screenId) {
-        case 'question-screen':
-            updatePerkCounts();
-            break;
-        case 'welcome-screen':
-            // Any additional welcome screen initialization
-            break;
-        case 'stage-screen':
-            // Any stage screen specific logic
-            break;
-    }
+   // Get the target screen
+   const screenElement = document.getElementById(screenId);
+   screenElement.classList.add('visible');
+   
+   // Add particles to the current screen
+   initializeParticles(screenElement);
+   
+   // Update coin displays
+   updateAllCoinDisplays();
+   
+   // Screen specific logic
+   switch(screenId) {
+       case 'question-screen':
+           updatePerkCounts();
+           break;
+       case 'welcome-screen':
+           // Remove timer if exists
+           const existingTimer = document.querySelector('.free-timer');
+           if (existingTimer) {
+               existingTimer.remove();
+           }
+           break;
+       case 'stage-screen':
+           break;
+   }
 
-    // Navigation icon logic
-    
+   // Initialize timer for non-welcome screens
+   if (screenId !== 'welcome-screen') {
+       initializeSessionTracking().then(timeLeft => {
+           if (!timeLeft) {
+               showScreen('welcome-screen');
+           } else {
+               initializeTimer();
+           }
+       });
+   }
 }
 
 // Add full-screen event listener
@@ -4345,11 +4375,11 @@ function handleLevelCompletion() {
                 setTimeout(() => createParticles(viewportX, viewportY), i * 300);
             }
 
-            const nextLevel = currentGame.currentCustomLevel + 1;
+            const nextLevel = currentGame.practiceState.currentLevel + 1;
             
             // Update practice state
             currentGame.practiceState.unlockedLevels.add(nextLevel);
-            currentGame.practiceState.progress[currentGame.currentCustomLevel] = true;
+            currentGame.practiceState.progress[currentGame.practiceState.currentLevel] = true;
             
             // Save progress and update UI
             saveProgress();
@@ -4371,14 +4401,89 @@ function handleLevelCompletion() {
         } else {
             // Retry current level if not perfect
             setTimeout(() => {
-                startCustomLevel(currentGame.currentCustomLevel, currentGame.practiceState);
+                startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
             }, 1500);
         }
         return;
     }
 
-    // Rest of the regular game mode handling...
-    // [Previous code for non-custom practice remains unchanged]
+    // Regular game mode handling
+    if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
+        gameState.coins += 5;
+        pulseCoins(5);
+        gameState.perfectLevels.add(levelKey);
+
+        // Create completion particles
+        const questionScreen = document.getElementById('question-screen');
+        const rect = questionScreen.getBoundingClientRect();
+        const viewportX = rect.left + (rect.width / 2);
+        const viewportY = rect.top + (rect.height / 2);
+        
+        for (let i = 0; i < 5; i++) {
+            setTimeout(() => createParticles(viewportX, viewportY), i * 300);
+        }
+
+        // Handle regular game progression
+        const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set();
+        }
+        gameState.unlockedLevels[setKey].add(gameState.currentLevel);
+
+        const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
+        const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
+        const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
+
+        // Handle progression unlocks
+        if (!isLastLevelInSet) {
+            gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
+        } else if (!isLastSetInStage) {
+            const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
+            if (!gameState.unlockedSets[gameState.currentStage]) {
+                gameState.unlockedSets[gameState.currentStage] = new Set();
+            }
+            gameState.unlockedSets[gameState.currentStage].add(gameState.currentSet + 1);
+            if (!gameState.unlockedLevels[nextSetKey]) {
+                gameState.unlockedLevels[nextSetKey] = new Set([1]);
+            }
+        } else if (gameState.currentStage < 5) {
+            const nextStage = gameState.currentStage + 1;
+            if (!gameState.unlockedSets[nextStage]) {
+                gameState.unlockedSets[nextStage] = new Set([1]);
+            }
+            gameState.unlockedLevels[`${nextStage}_1`] = new Set([1]);
+        }
+
+        saveProgress();
+        updateAllCoinDisplays();
+
+        // Handle level transitions
+        setTimeout(() => {
+            if (isLastLevelInSet) {
+                if (!isLastSetInStage) {
+                    gameState.currentSet++;
+                    startLevel(1);
+                } else if (gameState.currentStage < 5) {
+                    gameState.currentStage++;
+                    gameState.currentSet = 1;
+                    startLevel(1);
+                } else {
+                    showScreen('stage-screen');
+                }
+            } else {
+                startLevel(gameState.currentLevel + 1);
+            }
+        }, 1500);
+    } else {
+        // Retry level if not perfect
+        setTimeout(() => {
+            if (currentGame.isCustomPractice) {
+                startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
+            } else {
+                startLevel(gameState.currentLevel);
+            }
+        }, 1500);
+    }
 }
 
 
@@ -5296,7 +5401,6 @@ function startCustomLevel(levelId, practiceState) {
     const levelData = calculateCustomLevelWords(levelId, practiceState);
     if (!levelData) return;
 
-    // Initialize game state for custom practice
     currentGame = {
         words: levelData.words,
         translations: levelData.translations,
@@ -5324,7 +5428,7 @@ function startCustomLevel(levelId, practiceState) {
         showScreen('question-screen');
         updateProgressCircle();
         loadNextQuestion();
-        startTimer(currentGame.words.length * 10);
+        startTimer(currentGame.words.length * 10); // 10 seconds per word
     });
 }
 
@@ -5840,46 +5944,6 @@ function addSessionTimerDisplay() {
     document.body.appendChild(header);
 }
 
-const timerStyles = `
-.session-timer-header {
-    position: fixed;
-    top: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.7);
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    color: white;
-    font-weight: bold;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.timer-container {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.timer-value {
-    font-family: monospace;
-    font-size: 1.2rem;
-}
-
-.timer-value.warning {
-    color: #ff4444;
-    animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-}
-`;
-
 function startSessionTimer() {
     if (!gameState.sessionTracking.isTimerActive) return;
     
@@ -5959,14 +6023,8 @@ function initializeTimer() {
     }
 }
 
-if (screenId !== 'welcome-screen') {
-    initializeTimer();
-    const timeLeft = initializeSessionTracking();
-    if (!timeLeft) {
-        showScreen('welcome-screen');
-        showPremiumPrompt();
-    }
-}
+
+
 
 </script>
 </body>
