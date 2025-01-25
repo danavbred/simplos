@@ -483,45 +483,17 @@ body {
 }
 
 .coins-header {
-    position: fixed;
-    top: 2rem;
-    right: 8rem; /* Adjusted to make room for timer */
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: var(--glass);
-    padding: 0.75rem 1.5rem;
-    border-radius: 25px;
-    backdrop-filter: blur(10px);
-    z-index: 100;
-}
-
-.free-timer {
-    position: fixed;
-    top: 2rem;
-    right: 2rem;
-    background: var(--glass);
-    padding: 0.75rem 1.5rem;
-    border-radius: 25px;
-    backdrop-filter: blur(10px);
-    color: var(--text);
-    z-index: 100;
-    font-family: 'Montserrat', sans-serif;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.free-timer.warning {
-    color: #ff4444;
-    animation: timerPulse 1s infinite;
-}
-
-@keyframes timerPulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.6; }
-    100% { opacity: 1; }
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--glass);
+  padding: 0.75rem 1.5rem;
+  border-radius: 25px;
+  backdrop-filter: blur(10px);
+  z-index: 100;
 }
 
 .coins-header .coin-icon {
@@ -891,44 +863,25 @@ body {
   font-weight: bold;
 }
 
-.session-timer-header {
-    position: fixed;
-    top: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.7);
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    color: white;
-    font-weight: bold;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
 .timer-container {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    position: absolute;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    height: 0;
+    margin: 0;
 }
 
 .timer-value {
-    font-family: monospace;
-    font-size: 1.2rem;
+    font-size: 0;
+    padding: 0;
 }
 
 .timer-value.warning {
-    color: #ff4444;
-    animation: pulse 1s infinite;
+  color: var(--error);
+  text-shadow: 0 0 15px rgba(244, 67, 54, 0.5);
+  animation: warningPulse 1s infinite;
 }
-
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-}
-
 
 .buttons {
   display: grid;
@@ -2384,7 +2337,6 @@ body {
     }
 }
 
-
     </style>
 </head>
 <body>
@@ -2705,11 +2657,7 @@ async function handleSignup() {
         email,
         password,
         options: {
-            data: {
-                username: username,
-                role: 'student',
-                status: 'free'
-            }
+            data: { username }
         }
     });
 
@@ -2719,22 +2667,6 @@ async function handleSignup() {
         return;
     }
 
-    const { error: profileError } = await supabaseClient
-        .from('user_profiles')
-        .insert([{
-            user_id: data.user.id,
-            username: username,
-            role: 'student',
-            status: 'free',
-            trial_start: new Date().toISOString()
-        }]);
-
-    if (profileError) {
-        console.error('Error creating profile:', profileError);
-        return;
-    }
-
-    // Initialize game progress
     const { error: progressError } = await supabaseClient
         .from('game_progress')
         .insert([{
@@ -2755,8 +2687,7 @@ async function handleSignup() {
         return;
     }
 
-    // Auto-login after signup
-    const { error: loginError } = await supabaseClient.auth.signInWithPassword({
+    const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
         email,
         password
     });
@@ -2766,7 +2697,8 @@ async function handleSignup() {
         return;
     }
 
-    currentUser = data.user;
+    currentUser = loginData.user;
+    clearCustomPracticeUI();
     await Promise.all([loadCustomLists(), loadUserGameProgress(currentUser.id)]);
     updateAuthUI();
     showScreen('welcome-screen');
@@ -3211,22 +3143,6 @@ const gameState = {
         skip: 0,
         clue: 0,
         reveal: 0
-    },
-    sessionTracking: {
-        startTime: null,
-        timeUsed: 0,
-        isTimerActive: false,
-        lastSessionDate: null,
-        status: 'free',  // 'free', 'trial', 'premium'
-        trialStart: null,
-        trialTimeUsed: 0,
-        paymentPending: false
-    },
-    userProgress: {
-        lastCheckpoint: null,
-        timeRemaining: 900000, // 15 minutes in milliseconds
-        dailyPlayTime: 0,
-        lastPlayDate: null
     }
 };
 
@@ -3574,60 +3490,49 @@ function handleTimeUp() {
 
 // Screen Management
 function showScreen(screenId) {
-   // Clear any running timer when leaving question screen
-   const currentVisibleScreen = document.querySelector('.screen.visible');
-   if (currentVisibleScreen && currentVisibleScreen.id === 'question-screen') {
-       clearTimer();
-       isFrozen = false;
-   }
+    // Clear any running timer when leaving question screen
+    const currentVisibleScreen = document.querySelector('.screen.visible');
+    if (currentVisibleScreen && currentVisibleScreen.id === 'question-screen') {
+        clearTimer();
+        isFrozen = false; // Reset freeze state
+    }
 
-   // Remove visible class from all screens
-   document.querySelectorAll('.screen').forEach(screen => {
-       screen.classList.remove('visible');
-       
-       // Remove existing particle containers
-       const existingParticleContainer = screen.querySelector('.particle-container');
-       if (existingParticleContainer) {
-           existingParticleContainer.remove();
-       }
-   });
+    // Remove visible class from all screens
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('visible');
+        
+        // Remove existing particle containers
+        const existingParticleContainer = screen.querySelector('.particle-container');
+        if (existingParticleContainer) {
+            existingParticleContainer.remove();
+        }
+    });
 
-   // Get the target screen
-   const screenElement = document.getElementById(screenId);
-   screenElement.classList.add('visible');
-   
-   // Add particles to the current screen
-   initializeParticles(screenElement);
-   
-   // Update coin displays
-   updateAllCoinDisplays();
-   
-   // Screen specific logic
-   switch(screenId) {
-       case 'question-screen':
-           updatePerkCounts();
-           break;
-       case 'welcome-screen':
-           // Remove timer if exists
-           const existingTimer = document.querySelector('.free-timer');
-           if (existingTimer) {
-               existingTimer.remove();
-           }
-           break;
-       case 'stage-screen':
-           break;
-   }
+    // Get the target screen
+    const screenElement = document.getElementById(screenId);
+    screenElement.classList.add('visible');
+    
+    // Add particles to the current screen
+    initializeParticles(screenElement);
+    
+    // Update coin displays
+    updateAllCoinDisplays();
+    
+    // Specific screen logic
+    switch(screenId) {
+        case 'question-screen':
+            updatePerkCounts();
+            break;
+        case 'welcome-screen':
+            // Any additional welcome screen initialization
+            break;
+        case 'stage-screen':
+            // Any stage screen specific logic
+            break;
+    }
 
-   // Initialize timer for non-welcome screens
-   if (screenId !== 'welcome-screen') {
-       initializeSessionTracking().then(timeLeft => {
-           if (!timeLeft) {
-               showScreen('welcome-screen');
-           } else {
-               initializeTimer();
-           }
-       });
-   }
+    // Navigation icon logic
+    
 }
 
 // Add full-screen event listener
@@ -3637,19 +3542,33 @@ document.addEventListener('fullscreenchange', function() {
     }
 });
 
-function showSetScreen(stageId) {
+async function showSetScreen(stageId) {
     gameState.currentStage = stageId;
     const container = document.getElementById('set-container');
     container.innerHTML = '';
     
+    const access = await checkUserAccess();
     const stage = gameStructure.stages[stageId - 1];
+
+    // Handle disabled stage 5
+    if (stageId === 5 && access.unlockedStages[5] === 'disabled') {
+        container.innerHTML = '<div class="coming-soon-overlay">Coming Soon!</div>';
+        showScreen('set-screen');
+        return;
+    }
+
     for (let i = 1; i <= stage.numSets; i++) {
         const setButton = document.createElement('div');
-        setButton.className = `set-button ${gameState.unlockedSets[stageId].has(i) ? 'active' : ''}`;
+        const hasAccess = access.unlockedStages[stageId] === 'full' || 
+                         access.unlockedStages[stageId].includes(i);
+        
+        setButton.className = `set-button ${hasAccess ? 'active' : ''}`;
         setButton.textContent = `Set ${i}`;
-        if (gameState.unlockedSets[stageId].has(i)) {
+        
+        if (hasAccess && gameState.unlockedSets[stageId]?.has(i)) {
             setButton.onclick = () => showLevelScreen(i);
         }
+        
         container.appendChild(setButton);
     }
     
@@ -5874,157 +5793,55 @@ async function showShareModal(listId) {
     modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
 
-async function initializeSessionTracking() {
+async function checkUserAccess() {
+    // For unregistered users
     if (!currentUser) {
-        // For unregistered users, use localStorage
-        const lastSessionDate = localStorage.getItem('lastSessionDate');
-        const timeUsedToday = parseInt(localStorage.getItem('timeUsedToday') || '0');
-        const today = new Date().toDateString();
-        
-        if (lastSessionDate !== today) {
-            // Reset for new day
-            localStorage.setItem('lastSessionDate', today);
-            localStorage.setItem('timeUsedToday', '0');
-            gameState.sessionTracking.timeUsed = 0;
-        } else {
-            gameState.sessionTracking.timeUsed = timeUsedToday;
-            
-            // Check if daily limit reached
-            if (timeUsedToday >= 15 * 60 * 1000) { // 15 minutes in milliseconds
-                showPremiumPrompt('daily_limit');
-                return false;
+        return {
+            fullAccess: false,
+            unlockedStages: {
+                1: 'full',      // Full access
+                2: [1],         // Set 1 only
+                3: [1],         // Set 1 only
+                4: [1],         // Set 1 only
+                5: 'disabled'   // Coming soon
             }
-        }
-    } else {
-        // For registered users, check Supabase
-        const { data, error } = await supabaseClient
-            .from('user_profiles')
-            .select('status, trial_start, trial_time_used, last_session_start')
-            .eq('user_id', currentUser.id)
-            .single();
-            
-        if (error) {
-            console.error('Error fetching session data:', error);
-            return false;
-        }
-        
-        if (data.status === 'premium') {
-            return true; // Premium users have unlimited access
-        }
-        
-        // Update session tracking
-        gameState.sessionTracking.timeUsed = data.trial_time_used || 0;
-        
-        if (data.status === 'free' || data.status === 'trial') {
-            const timeLimit = 15 * 60 * 1000; // 15 minutes
-            if (gameState.sessionTracking.timeUsed >= timeLimit) {
-                showPremiumPrompt('time_expired');
-                return false;
+        };
+    }
+
+    // Check user access level
+    const { data, error } = await supabaseClient
+        .from('user_profiles')
+        .select('access_level')
+        .eq('user_id', currentUser.id)
+        .single();
+
+    if (error) return null;
+
+    if (data.access_level === 'premium') {
+        return {
+            fullAccess: true,
+            unlockedStages: {
+                1: 'full',
+                2: 'full',
+                3: 'full',
+                4: 'full',
+                5: 'full'
             }
-        }
+        };
     }
-    
-    // Start session timer
-    gameState.sessionTracking.startTime = Date.now();
-    gameState.sessionTracking.isTimerActive = true;
-    startSessionTimer();
-    return true;
-}
 
-// Timer display in header
-function addSessionTimerDisplay() {
-    const header = document.createElement('div');
-    header.className = 'session-timer-header';
-    header.innerHTML = `
-        <div class="timer-container">
-            <span class="timer-label">Time Remaining:</span>
-            <span class="timer-value">15:00</span>
-        </div>
-    `;
-    document.body.appendChild(header);
-}
-
-function startSessionTimer() {
-    if (!gameState.sessionTracking.isTimerActive) return;
-    
-    const timerDisplay = document.querySelector('.timer-value');
-    const updateInterval = setInterval(async () => {
-        const elapsedTime = Date.now() - gameState.sessionTracking.startTime;
-        const totalTimeUsed = gameState.sessionTracking.timeUsed + elapsedTime;
-        const timeLimit = 15 * 60 * 1000; // 15 minutes
-        const remaining = Math.max(0, timeLimit - totalTimeUsed);
-        
-        // Update display
-        const minutes = Math.floor(remaining / 60000);
-        const seconds = Math.floor((remaining % 60000) / 1000);
-        timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        
-        // Warning when less than 2 minutes remaining
-        if (remaining < 120000) {
-            timerDisplay.classList.add('warning');
+    // Free registered users get same access as unregistered
+    return {
+        fullAccess: false,
+        unlockedStages: {
+            1: 'full',
+            2: [1],
+            3: [1],
+            4: [1],
+            5: 'disabled'
         }
-        
-        // Time's up
-        if (remaining <= 0) {
-            clearInterval(updateInterval);
-            await handleTimeExpired();
-        }
-        
-        // Update storage every minute
-        if (elapsedTime % 60000 < 1000) {
-            await updateTimeUsed(totalTimeUsed);
-        }
-    }, 1000);
+    };
 }
-
-async function updateTimeUsed(totalTimeUsed) {
-    if (currentUser) {
-        const { error } = await supabaseClient
-            .from('user_profiles')
-            .update({ 
-                trial_time_used: totalTimeUsed,
-                last_session_start: gameState.sessionTracking.startTime 
-            })
-            .eq('user_id', currentUser.id);
-            
-        if (error) console.error('Error updating session time:', error);
-    } else {
-        localStorage.setItem('timeUsedToday', totalTimeUsed.toString());
-    }
-}
-
-async function handleTimeExpired() {
-    gameState.sessionTracking.isTimerActive = false;
-    showPremiumPrompt('time_expired');
-    
-    // Save final time
-    await updateTimeUsed(15 * 60 * 1000);
-    
-    // Return to welcome screen
-    showScreen('welcome-screen');
-}
-
-function initializeTimer() {
-    if (!currentUser || gameState.sessionTracking.status === 'free') {
-        let timerDiv = document.querySelector('.free-timer');
-        if (!timerDiv) {
-            timerDiv = document.createElement('div');
-            timerDiv.className = 'free-timer';
-            timerDiv.innerHTML = `
-                <div class="timer-container">
-                    <span>Time Left:</span>
-                    <span class="timer-value">15:00</span>
-                </div>
-            `;
-            document.body.appendChild(timerDiv);
-        }
-        
-        startSessionTimer();
-    }
-}
-
-
-
 
 </script>
 </body>
