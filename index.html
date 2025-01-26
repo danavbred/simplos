@@ -3507,54 +3507,7 @@ async function handleLogout() {
     }
 }
 
-async function resetProgress() {
-    if (!confirm('Are you sure you want to reset all progress? This cannot be undone.')) return;
-    
-    if (currentUser) {
-        // Reset progress in Supabase
-        const { error } = await supabaseClient
-            .from('game_progress')
-            .update({
-                stage: 1,
-                set_number: 1,
-                level: 1,
-                coins: 0,
-                perks: {},
-                unlocked_sets: { "1": [1] },
-                unlocked_levels: { "1_1": [1] },
-                perfect_levels: [],
-                completed_levels: []
-            })
-            .eq('user_id', currentUser.id);
 
-        if (error) {
-            console.error('Error resetting progress:', error);
-            return;
-        }
-    } else {
-        // Reset localStorage for guest users
-        localStorage.removeItem('simploxProgress');
-        localStorage.removeItem('simploxCustomCoins');
-    }
-
-    // Reset local game state
-    gameState.coins = 0;
-    gameState.unlockedSets = { "1": new Set([1]) };
-    gameState.unlockedLevels = { "1_1": new Set([1]) };
-    gameState.perfectLevels = new Set();
-    gameState.completedLevels = new Set();
-    gameState.perks = {
-        timeFreeze: 0,
-        skip: 0,
-        clue: 0,
-        reveal: 0
-    };
-    
-    // Update UI
-    updatePerkCounts();
-    updateAllCoinDisplays();
-    showScreen('welcome-screen');
-}
 
 // Timer Functions
 // Replace the startTimer function:
@@ -4001,11 +3954,14 @@ function calculateWordsForLevel(level, vocabulary) {
 }
 
 async function startLevel(levelId) {
-    const completions = parseInt(sessionStorage.getItem('levelCompletions') || '0');
     const userStatus = currentUser ? currentUser.status : 'unregistered';
+    const triggerLevels = [2, 3, 8]; // Shows at completion of levels 1, 4, 7
     
-    // Check at level 1-1 completion
-    if (gameState.currentStage === 1 && gameState.currentSet === 1 && levelId === 2 && userStatus !== 'premium') {
+    if (gameState.currentStage === 1 && 
+        gameState.currentSet === 1 && 
+        triggerLevels.includes(levelId) && 
+        userStatus !== 'premium') {
+            
         if (!currentUser) {
             showUnregisteredWarning(() => {
                 proceedWithLevel(levelId);
@@ -4892,9 +4848,7 @@ function updateTimerCircle(timeRemaining, totalTime) {
     }
 }
 
-function handleResetProgress() {
-    if (!confirm('Are you sure you want to reset all progress? This cannot be undone.')) return;
-    
+function handleResetProgress() { 
     if (currentUser) {
         // Reset Supabase progress
         supabaseClient
