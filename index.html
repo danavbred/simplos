@@ -5056,24 +5056,39 @@ function handleLevelCompletion() {
    });
 
    if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
-       if (isFirstLevel) {
-           if (!currentUser) {
-               showUnregisteredWarning(() => {
-                   gameState.coins += 5;
-               });
-               return;
-           } else if (currentUser?.status === 'free') {
-               showUpgradePrompt(() => {
-                   gameState.coins += 5;
-               });
-               return;
-           }
-       }
-       
-       gameState.coins += 5;
-               pulseCoins(5);
-        gameState.perfectLevels.add(levelKey);
-
+    if (isFirstLevel) {
+        if (!currentUser) {
+            showUnregisteredWarning(() => {
+                gameState.coins += 5;
+                pulseCoins(5);
+                gameState.perfectLevels.add(levelKey);
+                handleProgression(levelKey);
+            });
+            return;
+        } else {
+            supabaseClient
+                .from('user_profiles')
+                .select('status')
+                .eq('id', currentUser.id)
+                .single()
+                .then(({ data }) => {
+                    if (data?.status === 'free') {
+                        showUpgradePrompt(() => {
+                            gameState.coins += 5;
+                            pulseCoins(5);
+                            gameState.perfectLevels.add(levelKey);
+                            handleProgression(levelKey);
+                        });
+                    } else {
+                        gameState.coins += 5;
+                        pulseCoins(5);
+                        gameState.perfectLevels.add(levelKey);
+                        handleProgression(levelKey);
+                    }
+                });
+            return;
+        }
+    }
         // Create completion particles
         const questionScreen = document.getElementById('question-screen');
         const rect = questionScreen.getBoundingClientRect();
