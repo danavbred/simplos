@@ -5014,81 +5014,40 @@ function findFurthestProgression() {
 }
 
 function handleLevelCompletion() {
-   clearTimer();
-   const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
-   const isLevelCompleted = gameState.perfectLevels.has(levelKey);
-   const isFirstLevel = (gameState.currentStage === 1 && 
-                        gameState.currentSet === 1 && 
-                        gameState.currentLevel === 1);
-   
-   // Handle custom practice mode
-   if (currentGame.isCustomPractice) {
-       if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
-           gameState.coins += 5;
-           pulseCoins(5);
-           
-           const nextLevel = currentGame.currentCustomLevel + 1;
-           if (nextLevel <= 10) {
-               currentGame.practiceState.unlockedLevels.add(nextLevel);
-               currentGame.practiceState.progress[currentGame.currentCustomLevel] = true;
-               setTimeout(() => {
-                   startCustomLevel(nextLevel, currentGame.practiceState);
-               }, 1500);
-           } else {
-               setTimeout(() => {
-                   showScreen('custom-practice-screen');
-                   alert('Congratulations! You have completed this practice set!');
-               }, 1500);
-           }
-       } else {
-           setTimeout(() => {
-               startCustomLevel(currentGame.currentCustomLevel, currentGame.practiceState);
-           }, 1500);
-       }
-       return;
-   }
-   
-   // Disable buttons
-   const buttons = document.querySelectorAll('.buttons button');
-   buttons.forEach(btn => {
-       btn.disabled = true;
-       btn.style.opacity = '0.5';
-   });
+    clearTimer();
+    const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
+    const isLevelCompleted = gameState.perfectLevels.has(levelKey);
+    const isFirstLevel = (gameState.currentStage === 1 && 
+                            gameState.currentSet === 1 && 
+                            gameState.currentLevel === 1);
 
-   if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
-    if (isFirstLevel) {
-        if (!currentUser) {
-            showUnregisteredWarning(() => {
-                gameState.coins += 5;
-                pulseCoins(5);
-                gameState.perfectLevels.add(levelKey);
-                handleProgression(levelKey);
-            });
-            return;
-        } else {
-            supabaseClient
-                .from('user_profiles')
-                .select('status')
-                .eq('id', currentUser.id)
-                .single()
-                .then(({ data }) => {
-                    if (data?.status === 'free') {
-                        showUpgradePrompt(() => {
-                            gameState.coins += 5;
-                            pulseCoins(5);
-                            gameState.perfectLevels.add(levelKey);
-                            handleProgression(levelKey);
-                        });
-                    } else {
-                        gameState.coins += 5;
-                        pulseCoins(5);
-                        gameState.perfectLevels.add(levelKey);
-                        handleProgression(levelKey);
-                    }
+        if (isFirstLevel) {
+            if (!currentUser) {
+                const prompt = showUnregisteredWarning(() => {
+                    setTimeout(() => startLevel(2), 500);
                 });
-            return;
+                document.getElementById('question-screen').appendChild(prompt);
+                return;
+            } else if (currentUser?.status === 'free') {
+                const prompt = showUpgradePrompt(() => {
+                    setTimeout(() => startLevel(2), 500);
+                });
+                document.getElementById('question-screen').appendChild(prompt);
+                return;
+            }
         }
-    }
+        
+        
+        
+        gameState.coins += 5;
+
+
+
+
+            gameState.coins += 5;
+        pulseCoins(5);
+        gameState.perfectLevels.add(levelKey);
+
         // Create completion particles
         const questionScreen = document.getElementById('question-screen');
         const rect = questionScreen.getBoundingClientRect();
