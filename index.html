@@ -6204,7 +6204,7 @@ function showUpgradePrompt(callback) {
             <button class="start-button" onclick="handleUpgradeClick()">Upgrade Now</button>
             <button class="start-button" onclick="hideUpgradePromptAndContinue()">Continue Playing</button>
         </div>
-    `;
+    `
     document.body.appendChild(prompt);
     setTimeout(() => prompt.classList.add('show'), 100);
 }
@@ -6451,25 +6451,41 @@ function showUnregisteredWarning(callback) {
 }
 
 function handleCustomPracticeCompletion() {
-    if (!isLevelCompleted && currentGame.streakBonus && 
-        currentGame.correctAnswers === currentGame.words.length) {
+    const completedPerfectly = currentGame.streakBonus && 
+        currentGame.correctAnswers === currentGame.words.length;
+
+    if (completedPerfectly) {
+        // Award coins
+        if (currentGame.firstAttempt) {
+            gameState.coins += 3;
+            pulseCoins(3);
+        } else {
+            gameState.coins += 1;
+            pulseCoins(1);
+        }
+
+        // Add completion bonus
         gameState.coins += 5;
         pulseCoins(5);
+        
+        updateAllCoinDisplays();
+        saveProgress();
         
         const nextLevel = currentGame.currentCustomLevel + 1;
         if (nextLevel <= 10) {
             currentGame.practiceState.unlockedLevels.add(nextLevel);
             currentGame.practiceState.progress[currentGame.currentCustomLevel] = true;
-            setTimeout(() => startCustomLevel(nextLevel, currentGame.practiceState), 1500);
+            
+            // Show completion curtain before next level
+            showLevelIntro(nextLevel, () => {
+                startCustomLevel(nextLevel, currentGame.practiceState);
+            });
         } else {
-            setTimeout(() => {
-                showScreen('custom-practice-screen');
-                alert('Congratulations! Practice set completed!');
-            }, 1500);
+            showScreen('custom-practice-screen');
+            alert('Congratulations! Practice set completed!');
         }
     } else {
-        setTimeout(() => startCustomLevel(currentGame.currentCustomLevel, 
-            currentGame.practiceState), 1500);
+        startCustomLevel(currentGame.currentCustomLevel, currentGame.practiceState);
     }
 }
 
