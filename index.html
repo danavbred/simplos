@@ -4000,15 +4000,23 @@ function calculateWordsForLevel(level, vocabulary) {
     }
 }
 
-function startLevel(levelId) {
+async function startLevel(levelId) {
     const completions = parseInt(sessionStorage.getItem('levelCompletions') || '0');
     const userStatus = currentUser ? currentUser.status : 'unregistered';
     
-    if (completions > 0 && completions % 4 === 0 && userStatus !== 'premium') {
-        showUpgradePrompt(() => {
-            proceedWithLevel(levelId);
-        });
-        return;
+    // Check at level 1-1 completion
+    if (gameState.currentStage === 1 && gameState.currentSet === 1 && levelId === 2 && userStatus !== 'premium') {
+        if (!currentUser) {
+            showUnregisteredWarning(() => {
+                proceedWithLevel(levelId);
+            });
+            return;
+        } else {
+            showUpgradePrompt(() => {
+                proceedWithLevel(levelId);
+            });
+            return;
+        }
     }
 
     proceedWithLevel(levelId);
@@ -5017,33 +5025,19 @@ function handleLevelCompletion() {
     clearTimer();
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     const isLevelCompleted = gameState.perfectLevels.has(levelKey);
-    const isFirstLevel = (gameState.currentStage === 1 && 
-                            gameState.currentSet === 1 && 
-                            gameState.currentLevel === 1);
+    
+    // Handle custom practice mode first
+    if (currentGame.isCustomPractice) {
+        handleCustomPracticeCompletion();
+        return;
+    }
 
-        if (isFirstLevel) {
-            if (!currentUser) {
-                const prompt = showUnregisteredWarning(() => {
-                    setTimeout(() => startLevel(2), 500);
-                });
-                document.getElementById('question-screen').appendChild(prompt);
-                return;
-            } else if (currentUser?.status === 'free') {
-                const prompt = showUpgradePrompt(() => {
-                    setTimeout(() => startLevel(2), 500);
-                });
-                document.getElementById('question-screen').appendChild(prompt);
-                return;
-            }
-        }
+    // Check for perfect completion
+    if (!isLevelCompleted && currentGame.streakBonus && 
+        currentGame.correctAnswers === currentGame.words.length) {
         
+        // Handle coins and particles
         
-        
-        gameState.coins += 5;
-
-
-
-
             gameState.coins += 5;
         pulseCoins(5);
         gameState.perfectLevels.add(levelKey);
@@ -6247,18 +6241,33 @@ function showPaymentScreen() {
 function showUpgradePrompt(callback) {
     const prompt = document.createElement('div');
     prompt.className = 'upgrade-prompt';
-    prompt.style.zIndex = '1000';  // Ensure it's above game elements
     prompt.innerHTML = `
-        <div class="upgrade-prompt-content">
-            <h2>Unlock Full Access</h2>
-            <p>Get unlimited access to all stages and premium features!</p>
-            <div class="upgrade-prompt-buttons">
-                <button class="start-button" onclick="showPaymentScreen()">Upgrade Now</button>
-                <button class="start-button" onclick="hideUpgradePrompt(${callback})">Continue Playing</button>
-            </div>
+        <h2>Unlock Full Access</h2>
+        <p>Upgrade to premium to access all stages and sets!</p>
+        <div class="upgrade-prompt-buttons">
+            <button class="start-button" onclick="handleUpgradeClick()">Upgrade Now</button>
+            <button class="start-button" onclick="handleContinueClick()">Continue Playing</button>
         </div>
     `;
-    document.querySelector('#question-screen').appendChild(prompt);
+
+    // Store callback in a data attribute
+    prompt.dataset.callback = callback?.toString();
+    document.body.appendChild(prompt);
+    setTimeout(() => prompt.classList.add('show'), 100);
+}
+
+function handleUpgradeClick() {
+    hideUpgradePrompt();
+    showPaymentScreen();
+}
+
+function handleContinueClick() {
+    const prompt = document.querySelector('.upgrade-prompt');
+    const callback = prompt?.dataset.callback;
+    hideUpgradePrompt();
+    if (callback) {
+        (new Function('return ' + callback))()();
+    }
 }
 
 async function checkUserAccess() {
@@ -6354,41 +6363,38 @@ function showPaymentScreen() {
 }
 
 async function processPayment(plan) {
+    console.log('Processing payment:', plan);
+    
+    if (!currentUser) {
+        console.error('No user logged in');
+        return;
+    }
+
     const plans = {
         monthly: { amount: 9.99, interval: 'month' },
         yearly: { amount: 99.99, interval: 'year' },
         lifetime: { amount: 299.99, interval: 'once' }
     };
 
-    const { data, error } = await supabaseClient
-        .from('payment_requests')
-        .insert({
-            user_id: currentUser.id,
-            amount: plans[plan].amount,
-            payment_method: 'pending',
-            status: 'pending'
-        });
+    try {
+        const { data, error } = await supabaseClient
+            .from('payment_requests')
+            .insert({
+                user_id: currentUser.id,
+                plan_type: plan,
+                amount: plans[plan].amount,
+                status: 'pending'
+            })
+            .select();
 
-    if (error) {
-        console.error('Payment initialization error:', error);
-        return;
+        if (error) throw error;
+        console.log('Payment request created:', data);
+        
+        showPaymentMethods(plans[plan].amount, data[0].id);
+    } catch (error) {
+        console.error('Payment error:', error);
+        alert('Payment processing failed. Please try again.');
     }
-
-    // Show payment method selection
-    const paymentMethods = document.createElement('div');
-    paymentMethods.className = 'payment-methods';
-    paymentMethods.innerHTML = `
-        <div class="payment-methods-container">
-            <h3>Choose Payment Method</h3>
-            <div class="method-buttons">
-                <button onclick="selectPaymentMethod('bit', ${plans[plan].amount})">Bit</button>
-                <button onclick="selectPaymentMethod('paybox', ${plans[plan].amount})">Paybox</button>
-                <button onclick="selectPaymentMethod('kashkash', ${plans[plan].amount})">KashKash</button>
-            </div>
-        </div>
-    `;
-
-    document.querySelector('.payment-container').appendChild(paymentMethods);
 }
 
 function processPerfectCompletion(isLevelCompleted) {
