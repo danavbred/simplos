@@ -4582,149 +4582,108 @@ function startCustomListPractice(listId) {
 }
 
 function handleLevelCompletion() {
-   clearTimer();
-   const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
-   const isLevelCompleted = gameState.perfectLevels.has(levelKey);
-   
-   // Handle custom practice mode
-   if (currentGame.isCustomPractice) {
-       if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
-           gameState.coins += 5;
-           pulseCoins(5);
-           
-           const questionScreen = document.getElementById('question-screen');
-           const rect = questionScreen.getBoundingClientRect();
-           const viewportX = rect.left + (rect.width / 2);
-           const viewportY = rect.top + (rect.height / 2);
-           
-           for (let i = 0; i < 5; i++) {
-               setTimeout(() => createParticles(viewportX, viewportY), i * 300);
-           }
-
-           const nextLevel = currentGame.practiceState.currentLevel + 1;
-           
-           // Update practice state
-           currentGame.practiceState.unlockedLevels.add(nextLevel);
-           currentGame.practiceState.progress[currentGame.practiceState.currentLevel] = true;
-           
-           saveProgress();
-           updateAllCoinDisplays();
-
-           if (nextLevel <= currentGame.practiceState.maxLevel) {
-               setTimeout(() => {
-                   currentGame.practiceState.currentLevel = nextLevel;
-                   startCustomLevel(nextLevel, currentGame.practiceState);
-               }, 1500);
-           } else {
-               setTimeout(() => {
-                   showScreen('custom-practice-screen');
-               }, 1500);
-           }
-       } else {
-           setTimeout(() => {
-               startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
-           }, 1500);
-       }
-       return;
-   }
-
-   // Check completion counter for prompts
-   const completions = parseInt(sessionStorage.getItem('levelCompletions') || '0');
-    if (!currentUser) {
-        if (completions > 0 && completions % 4 === 0) {
-            showUnregisteredWarning(() => {
-                processPerfectCompletion(levelKey, isLevelCompleted);
-            });
-            return;
-        }
-    } else if (currentUser?.status === 'free') {
-        if (completions > 0 && completions % 4 === 0) {
-            showUpgradePrompt(() => {
-                processPerfectCompletion(levelKey, isLevelCompleted);
-            });
-            return;
-        }
+    clearTimer();
+    const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
+    const isLevelCompleted = gameState.perfectLevels.has(levelKey);
+    
+    // Handle custom practice mode first
+    if (currentGame.isCustomPractice) {
+        handleCustomPracticeCompletion();
+        return;
     }
-   
-   // Regular game mode handling
-   if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
-       sessionStorage.setItem('levelCompletions', (completions + 1).toString());
-       
-       gameState.coins += 5;
-       pulseCoins(5);
-       gameState.perfectLevels.add(levelKey);
 
-       // Create completion particles
-       const questionScreen = document.getElementById('question-screen');
-       const rect = questionScreen.getBoundingClientRect();
-       const viewportX = rect.left + (rect.width / 2);
-       const viewportY = rect.top + (rect.height / 2);
-       
-       for (let i = 0; i < 5; i++) {
-           setTimeout(() => createParticles(viewportX, viewportY), i * 300);
-       }
+    // Check for perfect completion
+    if (!isLevelCompleted && currentGame.streakBonus && 
+        currentGame.correctAnswers === currentGame.words.length) {
+        
+        // Handle coins and particles
+        gameState.coins += 5;
+        pulseCoins(5);
+        gameState.perfectLevels.add(levelKey);
+        createCompletionParticles();
 
-       // Handle regular game progression
-       const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-       if (!gameState.unlockedLevels[setKey]) {
-           gameState.unlockedLevels[setKey] = new Set();
-       }
-       gameState.unlockedLevels[setKey].add(gameState.currentLevel);
+        // Check if this is level 1-1 completion
+        if (gameState.currentStage === 1 && gameState.currentSet === 1 && 
+            gameState.currentLevel === 1) {
+            
+            if (!currentUser) {
+                showUnregisteredWarning(() => {
+                    handleProgression(levelKey);
+                });
+                return;
+            } else if (currentUser?.status === 'free') {
+                showUpgradePrompt(() => {
+                    handleProgression(levelKey);
+                });
+                return;
+            }
+        }
 
-       const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
-       const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
-       const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
+        handleProgression(levelKey);
+    } else {
+        // Not perfect completion - retry level
+        setTimeout(() => {
+            if (currentGame.isCustomPractice) {
+                startCustomLevel(currentGame.practiceState.currentLevel, 
+                    currentGame.practiceState);
+            } else {
+                startLevel(gameState.currentLevel);
+            }
+        }, 1500);
+    }
+}
 
-       // Handle progression unlocks
-       if (!isLastLevelInSet) {
-           gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
-       } else if (!isLastSetInStage) {
-           const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
-           if (!gameState.unlockedSets[gameState.currentStage]) {
-               gameState.unlockedSets[gameState.currentStage] = new Set();
-           }
-           gameState.unlockedSets[gameState.currentStage].add(gameState.currentSet + 1);
-           if (!gameState.unlockedLevels[nextSetKey]) {
-               gameState.unlockedLevels[nextSetKey] = new Set([1]);
-           }
-       } else if (gameState.currentStage < 5) {
-           const nextStage = gameState.currentStage + 1;
-           if (!gameState.unlockedSets[nextStage]) {
-               gameState.unlockedSets[nextStage] = new Set([1]);
-           }
-           gameState.unlockedLevels[`${nextStage}_1`] = new Set([1]);
-       }
+function handleProgression(levelKey) {
+    const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+    if (!gameState.unlockedLevels[setKey]) {
+        gameState.unlockedLevels[setKey] = new Set();
+    }
+    gameState.unlockedLevels[setKey].add(gameState.currentLevel);
 
-       saveProgress();
-       updateAllCoinDisplays();
+    const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
+    const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
+    const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
 
-       // Handle level transitions
-       setTimeout(() => {
-           if (isLastLevelInSet) {
-               if (!isLastSetInStage) {
-                   gameState.currentSet++;
-                   startLevel(1);
-               } else if (gameState.currentStage < 5) {
-                   gameState.currentStage++;
-                   gameState.currentSet = 1;
-                   startLevel(1);
-               } else {
-                   showScreen('stage-screen');
-               }
-           } else {
-               startLevel(gameState.currentLevel + 1);
-           }
-       }, 1500);
-   } else {
-       // Retry level if not perfect
-       setTimeout(() => {
-           if (currentGame.isCustomPractice) {
-               startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
-           } else {
-               startLevel(gameState.currentLevel);
-           }
-       }, 1500);
-   }
+    // Handle unlocks
+    if (!isLastLevelInSet) {
+        gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
+    } else if (!isLastSetInStage) {
+        unlockNextSet();
+    } else if (gameState.currentStage < 5) {
+        unlockNextStage();
+    }
+
+    saveProgress();
+    updateAllCoinDisplays();
+
+    // Progress to next level
+    setTimeout(() => {
+        if (isLastLevelInSet) {
+            if (!isLastSetInStage) {
+                gameState.currentSet++;
+                startLevel(1);
+            } else if (gameState.currentStage < 5) {
+                gameState.currentStage++;
+                gameState.currentSet = 1;
+                startLevel(1);
+            } else {
+                showScreen('stage-screen');
+            }
+        } else {
+            startLevel(gameState.currentLevel + 1);
+        }
+    }, 1500);
+}
+
+function createCompletionParticles() {
+    const questionScreen = document.getElementById('question-screen');
+    const rect = questionScreen.getBoundingClientRect();
+    const viewportX = rect.left + (rect.width / 2);
+    const viewportY = rect.top + (rect.height / 2);
+    
+    for (let i = 0; i < 5; i++) {
+        setTimeout(() => createParticles(viewportX, viewportY), i * 300);
+    }
 }
 
 
@@ -4926,42 +4885,53 @@ function updateTimerCircle(timeRemaining, totalTime) {
 }
 
 function handleResetProgress() {
-    const resetButton = document.querySelector('.reset-button');
+    if (!confirm('Are you sure you want to reset all progress? This cannot be undone.')) return;
     
-    if (isFirstResetAttempt) {
-        // First attempt: Blink red and set timeout
-        resetButton.classList.add('warning');
-        
-        resetProgressTimeout = setTimeout(() => {
-            resetButton.classList.remove('warning');
-            isFirstResetAttempt = true;
-        }, 10000);  // 10 seconds window
-        
-        isFirstResetAttempt = false;
-    } else {
-        // Second attempt within 10 seconds: Actually reset progress
-        clearTimeout(resetProgressTimeout);
-        resetButton.classList.remove('warning');
-        
-        // Actual reset logic
-        gameState.coins = 0;
-        gameState.unlockedSets = {};
-        gameState.unlockedLevels = {};
-        gameState.perfectLevels = new Set();
-        gameState.completedLevels = new Set();
-        gameState.perks = {
-            timeFreeze: 0, 
-            skip: 0, 
-            clue: 0, 
-            reveal: 0
-        };
-        
-        initializeGame();
-        isFirstResetAttempt = true;
-        
-        // Automatically redirect to welcome screen
-        showScreen('welcome-screen');
+    if (currentUser) {
+        // Reset Supabase progress
+        supabaseClient
+            .from('game_progress')
+            .update({
+                stage: 1,
+                set_number: 1,
+                level: 1,
+                coins: 0,
+                perks: {},
+                unlocked_sets: { "1": [1] },
+                unlocked_levels: { "1_1": [1] },
+                perfect_levels: [],
+                completed_levels: []
+            })
+            .eq('user_id', currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error('Error resetting progress:', error);
+            });
     }
+
+    // Reset local game state
+    gameState.currentStage = 1;
+    gameState.currentSet = 1;
+    gameState.currentLevel = 1;
+    gameState.coins = 0;
+    gameState.unlockedSets = { "1": new Set([1]) };
+    gameState.unlockedLevels = { "1_1": new Set([1]) };
+    gameState.perfectLevels = new Set();
+    gameState.completedLevels = new Set();
+    gameState.perks = {
+        timeFreeze: 0,
+        skip: 0,
+        clue: 0,
+        reveal: 0
+    };
+
+    // Clear localStorage
+    localStorage.removeItem('simploxProgress');
+    localStorage.removeItem('simploxCustomCoins');
+    
+    // Update UI
+    updatePerkCounts();
+    updateAllCoinDisplays();
+    showScreen('welcome-screen');
 }
 
 
@@ -5083,7 +5053,38 @@ function handleLevelCompletion() {
     });
 
     if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
-        // Perfect streak bonus
+        
+        
+        if (isFirstLevel) {
+    if (!currentUser) {
+        const prompt = showUnregisteredWarning(() => {
+            handleProgression(levelKey); // Changed from setTimeout
+        });
+        document.getElementById('question-screen').appendChild(prompt);
+        return;
+    } else {
+        // Get user profile from Supabase
+        supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single()
+            .then(({ data }) => {
+                if (data?.status === 'free') {
+                    const prompt = showUpgradePrompt(() => {
+                        handleProgression(levelKey); // Changed from setTimeout
+                    });
+                    document.getElementById('question-screen').appendChild(prompt);
+                    return;
+                } else {
+                    handleProgression(levelKey); // Continue if premium
+                }
+            });
+    }
+} else {
+    handleProgression(levelKey); // Continue for non-first level
+}
+        
         gameState.coins += 5;
         pulseCoins(5);
         gameState.perfectLevels.add(levelKey);
@@ -6284,50 +6285,21 @@ function showPaymentScreen() {
     alert('Payment functionality coming soon!');
 }
 
-function showUpgradePrompt(callback = null) {
-    const isUnregistered = !currentUser;
-    const promptContent = isUnregistered ? {
-        title: "Sign Up to Save Progress",
-        message: "Create a free account to save your progress and unlock more content!",
-        primaryBtn: "Sign Up",
-        secondaryBtn: "Continue Playing"
-    } : {
-        title: "Unlock Full Access",
-        message: "Get unlimited access to all stages and premium features!",
-        primaryBtn: "Upgrade Now",
-        secondaryBtn: "Maybe Later"
-    };
-
+function showUpgradePrompt(callback) {
     const prompt = document.createElement('div');
     prompt.className = 'upgrade-prompt';
+    prompt.style.zIndex = '1000';  // Ensure it's above game elements
     prompt.innerHTML = `
         <div class="upgrade-prompt-content">
-            <h2>${promptContent.title}</h2>
-            <p>${promptContent.message}</p>
+            <h2>Unlock Full Access</h2>
+            <p>Get unlimited access to all stages and premium features!</p>
             <div class="upgrade-prompt-buttons">
-                <button class="start-button">${promptContent.primaryBtn}</button>
-                <button class="start-button secondary">${promptContent.secondaryBtn}</button>
+                <button class="start-button" onclick="showPaymentScreen()">Upgrade Now</button>
+                <button class="start-button" onclick="hideUpgradePrompt(${callback})">Continue Playing</button>
             </div>
         </div>
     `;
-
-    document.body.appendChild(prompt);
-    setTimeout(() => prompt.classList.add('show'), 50);
-
-    const [primaryButton, secondaryButton] = prompt.querySelectorAll('button');
-    primaryButton.onclick = () => {
-        hideUpgradePrompt();
-        if (isUnregistered) {
-            showScreen('welcome-screen');
-        } else {
-            showPaymentScreen();
-        }
-    };
-
-    secondaryButton.onclick = () => {
-        hideUpgradePrompt();
-        if (callback) callback();
-    };
+    document.querySelector('#question-screen').appendChild(prompt);
 }
 
 async function checkUserAccess() {
@@ -6540,23 +6512,27 @@ function showUnregisteredWarning(callback) {
     const prompt = document.createElement('div');
     prompt.className = 'upgrade-prompt';
     prompt.innerHTML = `
-        <h2>Save Your Progress!</h2>
-        <p>Sign up for free to save your progress and access more content!</p>
-        <div class="upgrade-prompt-buttons">
-            <button class="start-button" onclick="showScreen('welcome-screen')">Sign Up</button>
-            <button class="start-button secondary" onclick="hidePrompt()">Continue Playing</button>
+        <div class="upgrade-prompt-content">
+            <h2>Save Your Progress!</h2>
+            <p>Create a free account to save your progress and unlock more content!</p>
+            <div class="upgrade-prompt-buttons">
+                <button class="start-button signup-now">Sign Up</button>
+                <button class="start-button secondary">Continue Playing</button>
+            </div>
         </div>
     `;
 
     document.body.appendChild(prompt);
     setTimeout(() => prompt.classList.add('show'), 50);
 
-    window.hidePrompt = () => {
-        prompt.classList.remove('show');
-        setTimeout(() => {
-            document.body.removeChild(prompt);
-            if (callback) callback();
-        }, 300);
+    prompt.querySelector('.signup-now').onclick = () => {
+        hideUpgradePrompt();
+        showScreen('welcome-screen');
+    };
+
+    prompt.querySelector('.secondary').onclick = () => {
+        hideUpgradePrompt();
+        if (callback) callback();
     };
 }
 
