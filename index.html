@@ -3955,21 +3955,23 @@ function calculateWordsForLevel(level, vocabulary) {
 
 async function startLevel(levelId) {
     const userStatus = currentUser ? currentUser.status : 'unregistered';
-    const triggerLevels = [3, 8]; // Shows at completion of levels 1, 4, 7
+    const triggerLevels = [3, 8];
     
     if (gameState.currentStage === 1 && 
         gameState.currentSet === 1 && 
         triggerLevels.includes(levelId) && 
         userStatus !== 'premium') {
             
+        const continueLevelId = levelId; // Store levelId for callback
+            
         if (!currentUser) {
             showUnregisteredWarning(() => {
-                proceedWithLevel(levelId);
+                proceedWithLevel(continueLevelId);
             });
             return;
         } else {
             showUpgradePrompt(() => {
-                proceedWithLevel(levelId);
+                proceedWithLevel(continueLevelId);
             });
             return;
         }
