@@ -6202,28 +6202,21 @@ function showUpgradePrompt(callback) {
         <p>Upgrade to premium to access all stages and sets!</p>
         <div class="upgrade-prompt-buttons">
             <button class="start-button" onclick="handleUpgradeClick()">Upgrade Now</button>
-            <button class="start-button" onclick="handleContinueClick()">Continue Playing</button>
+            <button class="start-button" onclick="hideUpgradePromptAndContinue()">Continue Playing</button>
         </div>
     `;
-
-    // Store callback in a data attribute
-    prompt.dataset.callback = callback?.toString();
     document.body.appendChild(prompt);
     setTimeout(() => prompt.classList.add('show'), 100);
+}
+
+function hideUpgradePromptAndContinue() {
+    hideUpgradePrompt();
+    proceedWithLevel(gameState.currentLevel + 1);
 }
 
 function handleUpgradeClick() {
     hideUpgradePrompt();
     showPaymentScreen();
-}
-
-function handleContinueClick() {
-    const prompt = document.querySelector('.upgrade-prompt');
-    const callback = prompt?.dataset.callback;
-    hideUpgradePrompt();
-    if (callback) {
-        (new Function('return ' + callback))()();
-    }
 }
 
 async function checkUserAccess() {
