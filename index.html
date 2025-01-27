@@ -2808,6 +2808,119 @@ body {
 
 <script>
 
+    document.addEventListener('DOMContentLoaded', () => {
+    const gameAssets = {
+        stages: {}, // Cache stage data
+        currentWords: [], // Cache current level words
+        particles: new Set() // Reuse particle elements
+    };
+});
+
+const ParticleSystem = {
+    particlePool: [],
+    maxParticles: 50,
+
+    init() {
+        // Pre-create particle elements
+        for(let i = 0; i < this.maxParticles; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            this.particlePool.push(particle);
+        }
+    },
+
+    createParticle(x, y) {
+        const particle = this.particlePool.pop();
+        if (!particle) return;
+
+        // Reuse particle instead of creating new
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        
+        setTimeout(() => {
+            this.particlePool.push(particle);
+        }, 1000);
+    }
+};
+
+// Use event delegation instead of multiple listeners
+document.addEventListener('click', (e) => {
+    const target = e.target;
+    
+    if (target.matches('.game-btn')) {
+        handleButtonClick(target);
+    } else if (target.matches('.level')) {
+        handleLevelClick(target);
+    }
+});
+
+function updateUI() {
+    // Batch DOM updates
+    requestAnimationFrame(() => {
+        const fragment = document.createDocumentFragment();
+        // Add elements to fragment
+        document.body.appendChild(fragment);
+    });
+}
+
+const GameTimer = {
+    lastTick: 0,
+    
+    update(timestamp) {
+        if (!this.lastTick) this.lastTick = timestamp;
+        const delta = timestamp - this.lastTick;
+        
+        if (delta >= 1000) { // Update every second
+            this.updateTimer();
+            this.lastTick = timestamp;
+        }
+        
+        requestAnimationFrame(this.update.bind(this));
+    }
+};
+
+function cleanupLevel() {
+    // Clear unused event listeners
+    document.querySelectorAll('.buttons button').forEach(btn => {
+        btn.onclick = null;
+    });
+    
+    // Clear particle effects
+    ParticleSystem.clear();
+    
+    // Clear timeouts
+    clearTimeout(levelTimeout);
+}
+
+async function transitionScreen(screenType) {
+    const currentScreen = document.querySelector('.screen.visible');
+    if (currentScreen) {
+        currentScreen.style.opacity = 0;
+        await new Promise(r => setTimeout(r, 300));
+        currentScreen.style.display = 'none';
+    }
+    
+    const nextScreen = document.getElementById(`${screenType}-screen`);
+    nextScreen.style.display = 'flex';
+    requestAnimationFrame(() => {
+        nextScreen.style.opacity = 1;
+    });
+}
+
+const GameCache = {
+    words: new Map(),
+    
+    async getWords(setId) {
+        if (this.words.has(setId)) {
+            return this.words.get(setId);
+        }
+        
+        const words = await loadWords(setId);
+        this.words.set(setId, words);
+        return words;
+    }
+};
+
 const gameInit = {
     async init() {
         await checkExistingSession();
@@ -6579,6 +6692,129 @@ async function handleUpgradeSubmit(event) {
 function showUpgradeScreen() {
     showScreen('upgrade-screen');
 }
+
+class RateLimiter {
+    constructor(maxRequests = 100, timeWindow = 60000) {
+        this.requests = new Map();
+    }
+    
+    checkLimit(userId) {
+        const now = Date.now();
+        const userRequests = this.requests.get(userId) || [];
+        const recentRequests = userRequests.filter(time => now - time < this.timeWindow);
+        
+        if (recentRequests.length >= this.maxRequests) {
+            return false;
+        }
+        
+        recentRequests.push(now);
+        this.requests.set(userId, recentRequests);
+        return true;
+    }
+}
+
+function sanitizeInput(input) {
+    return input
+        .replace(/[<>]/g, '') // Remove potential HTML
+        .trim()
+        .slice(0, 500); // Reasonable length limit
+}
+
+
+const SessionManager = {
+    maxInactiveTime: 30 * 60 * 1000, // 30 minutes
+    lastActivity: Date.now(),
+    
+    init() {
+        document.addEventListener('click', () => this.updateActivity());
+        document.addEventListener('keypress', () => this.updateActivity());
+        setInterval(() => this.checkSession(), 60000);
+    },
+    
+    updateActivity() {
+        this.lastActivity = Date.now();
+    },
+    
+    async checkSession() {
+        if (Date.now() - this.lastActivity > this.maxInactiveTime) {
+            await handleLogout();
+            modalSystem.show('timeout', {
+                title: "Session Expired",
+                message: "Please log in again"
+            });
+        }
+    }
+};
+
+const DataValidator = {
+    validateGameProgress(progress) {
+        const maxAllowedCoins = 100000;
+        const maxAllowedPerks = 100;
+        
+        return {
+            ...progress,
+            coins: Math.min(progress.coins, maxAllowedCoins),
+            perks: Object.fromEntries(
+                Object.entries(progress.perks).map(([key, value]) => 
+                    [key, Math.min(value, maxAllowedPerks)]
+                )
+            )
+        };
+    },
+    
+    validateCustomList(list) {
+        return {
+            ...list,
+            words: list.words.slice(0, 1000).map(sanitizeInput),
+            translations: list.translations.slice(0, 1000).map(sanitizeInput)
+        };
+    }
+};
+
+function escapeHTML(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function createListItem(list) {
+    return `
+        <div class="list-item">
+            <h3>${escapeHTML(list.name)}</h3>
+            <p>${escapeHTML(list.description)}</p>
+        </div>
+    `;
+}
+
+const ErrorHandler = {
+    async logError(error, context) {
+        if (currentUser) {
+            await supabaseClient
+                .from('error_logs')
+                .insert([{
+                    user_id: currentUser.id,
+                    error: error.message,
+                    stack: error.stack,
+                    context,
+                    timestamp: new Date()
+                }]);
+        }
+        console.error(`${context}:`, error);
+    },
+    
+    handleError(error, context) {
+        this.logError(error, context);
+        modalSystem.show('error', {
+            title: "Oops!",
+            message: "Something went wrong. Please try again."
+        });
+    }
+};
+
+
 
 </script>
 </body>
