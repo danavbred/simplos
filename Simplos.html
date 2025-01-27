@@ -1582,6 +1582,54 @@ body {
 }
 
 
+.admin-verification {
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 800px;
+    margin: 2rem auto;
+}
+
+.pending-payments {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.payment-request {
+    background: rgba(255,255,255,0.1);
+    border-radius: 15px;
+    padding: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.verification-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.verification-actions button {
+    padding: 0.5rem 1rem;
+    border-radius: 25px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.verification-actions button:not(.reject) {
+    background: var(--success);
+    color: white;
+}
+
+.verification-actions button.reject {
+    background: var(--error);
+    color: white;
+}
+
 
 .navigation-container {
     display: flex;
@@ -3955,7 +4003,7 @@ function calculateWordsForLevel(level, vocabulary) {
 
 async function startLevel(levelId) {
     const userStatus = currentUser ? currentUser.status : 'unregistered';
-    const triggerLevels = [3, 5];
+    const triggerLevels = [4, 7, 11, 15, 20];
     
     if (gameState.currentStage === 1 && 
         gameState.currentSet === 1 && 
@@ -5787,7 +5835,7 @@ function addWordToList(listId) {
             <i class="fas fa-grip-vertical"></i>
         </div>
         <span class="source-word" contenteditable="true"></span>
-        <input type="text" class="target-word" placeholder="translation">
+        <input type="text" class="target-word" placeholder="Hebrew translation">
         <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
     `;
     
@@ -5874,7 +5922,7 @@ function toggleEditMode(listId) {
                     <i class="fas fa-grip-vertical"></i>
                 </div>
                 <span class="source-word" contenteditable="true">${word}</span>
-                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="translation">
+                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
                 <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
             `;
             
@@ -6189,9 +6237,42 @@ function hideUpgradePrompt() {
 }
 
 function showPaymentScreen() {
-    hideUpgradePrompt();
-    // Placeholder for payment screen
-    alert('Payment functionality coming soon!');
+    document.querySelector('.payment-container').innerHTML = `
+        <h2 class="welcome-title">Choose Payment Method</h2>
+        <div class="payment-options">
+            <div class="payment-option">
+                <h3>Bit</h3>
+                <p class="price">₪299.99</p>
+                <button class="start-button" id="bit-button">Pay with Bit</button>
+            </div>
+            <div class="payment-option">
+                <h3>Paybox</h3>
+                <p class="price">₪299.99</p>
+                <button class="start-button" id="paybox-button">Pay with Paybox</button>
+            </div>
+            <div class="payment-option">
+                <h3>Kashkash</h3>
+                <p class="price">₪299.99</p>
+                <button class="start-button" id="kashkash-button">Pay with Kashkash</button>
+            </div>
+            <div class="payment-option">
+                <h3>Bank Transfer</h3>
+                <p class="price">₪299.99</p>
+                <button class="start-button" id="bank-button">Pay with Bank Transfer</button>
+            </div>
+        </div>
+        <button class="back-button" onclick="showScreen('stage-screen')">
+            <i class="fas fa-arrow-left"></i> Go Back
+        </button>
+    `;
+
+    // Add event listeners
+    document.getElementById('bit-button').addEventListener('click', () => processPayment('bit'));
+    document.getElementById('paybox-button').addEventListener('click', () => processPayment('paybox'));
+    document.getElementById('kashkash-button').addEventListener('click', () => processPayment('kashkash'));
+    document.getElementById('bank-button').addEventListener('click', () => processPayment('bank'));
+
+    showScreen('payment-screen');
 }
 
 function showUpgradePrompt(callback) {
@@ -6269,47 +6350,6 @@ async function checkUserAccess() {
     };
 }
 
-function showPaymentScreen() {
-    const paymentScreen = document.createElement('div');
-    paymentScreen.className = 'payment-screen screen';
-    
-    paymentScreen.innerHTML = `
-        <div class="payment-container">
-            <h2 class="welcome-title">Upgrade to Premium</h2>
-            <div class="payment-options">
-                <div class="payment-option">
-                    <h3>Monthly Plan</h3>
-                    <p class="price">$9.99/month</p>
-                    <button class="start-button" onclick="processPayment('monthly')">
-                        Choose Monthly
-                    </button>
-                </div>
-                <div class="payment-option featured">
-                    <div class="best-value">Best Value!</div>
-                    <h3>Yearly Plan</h3>
-                    <p class="price">$99.99/year</p>
-                    <p class="savings">Save 17%</p>
-                    <button class="start-button" onclick="processPayment('yearly')">
-                        Choose Yearly
-                    </button>
-                </div>
-                <div class="payment-option">
-                    <h3>Lifetime Access</h3>
-                    <p class="price">$299.99</p>
-                    <button class="start-button" onclick="processPayment('lifetime')">
-                        Get Lifetime
-                    </button>
-                </div>
-            </div>
-            <button class="back-button" onclick="showScreen('stage-screen')">
-                <i class="fas fa-arrow-left"></i> Go Back
-            </button>
-        </div>
-    `;
-
-    document.body.appendChild(paymentScreen);
-    showScreen('payment-screen');
-}
 
 async function processPayment(plan) {
     console.log('Processing payment:', plan);
@@ -6563,8 +6603,187 @@ function hidePaymentMethods() {
     }
 }
 
+function generateReferenceCode() {
+    return `PAY-${Math.random().toString(36).substr(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+}
+
+async function processPayment(method) {
+    const prices = {bit: 299.99, paybox: 299.99, kashkash: 299.99, bank: 299.99};
+    const referenceCode = generateReferenceCode();
+    
+    try {
+        const { data, error } = await supabaseClient
+            .from('payment_requests')
+            .insert({
+                user_id: currentUser.id,
+                payment_method: method,
+                amount: prices[method],
+                reference_code: referenceCode,
+                status: 'pending',
+                submission_time: new Date()
+            })
+            .select();
+
+        if (error) throw error;
+        showPaymentDetails(method, referenceCode);
+    } catch (error) {
+        console.error('Payment error:', error);
+    }
+}
 
 
+function showPaymentDetails(method, referenceCode) {
+   const paymentDetails = {
+       bit: { recipient: "050-1234567", label: "Phone Number" },
+       paybox: { recipient: "050-7654321", label: "Payment Link" },
+       kashkash: { recipient: "KASHKASH-123", label: "ID" },
+       bank: {
+           bank: "Leumi",
+           branch: "123",
+           account: "45678",
+           label: "Bank Details"
+       }
+   };
+
+   const details = paymentDetails[method];
+   
+   document.querySelector('.payment-container').innerHTML = `
+       <h2 class="welcome-title">Payment Details</h2>
+       <div class="payment-info">
+           <p class="reference">Reference Code: <strong>${referenceCode}</strong></p>
+           <p>Amount: ₪299.99</p>
+           ${method === 'bank' ? `
+               <p>Bank: ${details.bank}</p>
+               <p>Branch: ${details.branch}</p>
+               <p>Account: ${details.account}</p>
+           ` : `
+               <p>${details.label}: ${details.recipient}</p>
+           `}
+           <p>Please save your reference code and send payment confirmation via WhatsApp</p>
+           <button class="start-button" onclick="openWhatsApp('${referenceCode}')">
+               <i class="fab fa-whatsapp"></i> Send Via WhatsApp
+           </button>
+           <button class="back-button" onclick="showPaymentScreen()">
+               <i class="fas fa-arrow-left"></i> Back
+           </button>
+       </div>
+   `;
+}
+
+function openWhatsApp(referenceCode) {
+   const message = encodeURIComponent(
+       `Payment confirmation for reference: ${referenceCode}\n` +
+       `Email: ${currentUser.email}`
+   );
+   window.open(`https://wa.me/972545996417?text=${message}`);
+}
+
+// Admin verification interface
+function createAdminVerificationInterface() {
+    return `
+        <div class="admin-verification">
+            <h2>Payment Verification Dashboard</h2>
+            <div class="pending-payments"></div>
+        </div>
+    `;
+}
+
+// Function to load pending payments
+async function loadPendingPayments() {
+    const { data, error } = await supabaseClient
+        .from('payment_requests')
+        .select(`
+            id,
+            user_id,
+            payment_method,
+            amount,
+            reference_code,
+            created_at,
+            user_profiles (
+                username,
+                email
+            )
+        `)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error loading payments:', error);
+        return;
+    }
+
+    const container = document.querySelector('.pending-payments');
+    container.innerHTML = data.map(payment => `
+        <div class="payment-request" data-id="${payment.id}">
+            <div class="payment-info">
+                <p>Reference: ${payment.reference_code}</p>
+                <p>User: ${payment.user_profiles.username}</p>
+                <p>Amount: $${payment.amount}</p>
+                <p>Method: ${payment.payment_method}</p>
+                <p>Date: ${new Date(payment.created_at).toLocaleString()}</p>
+            </div>
+            <div class="verification-actions">
+                <button onclick="verifyPayment('${payment.id}', '${payment.user_id}')">
+                    Verify Payment
+                </button>
+                <button onclick="rejectPayment('${payment.id}')" class="reject">
+                    Reject
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Verify payment and upgrade user
+async function verifyPayment(paymentId, userId) {
+    const { error: updateError } = await supabaseClient
+        .from('payment_requests')
+        .update({
+            status: 'verified',
+            verification_time: new Date(),
+            admin_verified_by: currentUser.id
+        })
+        .eq('id', paymentId);
+
+    if (updateError) {
+        console.error('Error updating payment:', updateError);
+        return;
+    }
+
+    const { error: profileError } = await supabaseClient
+        .from('user_profiles')
+        .update({
+            status: 'premium',
+            payment_pending: false
+        })
+        .eq('id', userId);
+
+    if (profileError) {
+        console.error('Error updating user profile:', profileError);
+        return;
+    }
+
+    loadPendingPayments();
+}
+
+// Reject payment
+async function rejectPayment(paymentId) {
+    const { error } = await supabaseClient
+        .from('payment_requests')
+        .update({
+            status: 'rejected',
+            verification_time: new Date(),
+            admin_verified_by: currentUser.id
+        })
+        .eq('id', paymentId);
+
+    if (error) {
+        console.error('Error rejecting payment:', error);
+        return;
+    }
+
+    loadPendingPayments();
+}
 
 </script>
 </body>
