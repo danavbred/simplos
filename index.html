@@ -3200,11 +3200,11 @@ function clearCustomPracticeUI() {
     customPracticeLists.lists = [];
 }
 
-function saveProgress() {
-    // Ensure currentUser is always defined, even for unregistered users
+async function saveProgress(type = 'game', listData = null) {
+    // Ensure currentUser or guest ID exists
     const userId = currentUser ? currentUser.id : 'guest';
 
-    // For guest users, save to localStorage
+    // Base progress data - always included
     const progressToSave = {
         currentStage: gameState.currentStage || 1,
         currentSet: gameState.currentSet || 1,
@@ -3227,20 +3227,109 @@ function saveProgress() {
     };
 
     if (currentUser) {
-        // Save to Supabase for logged-in users
-        supabaseClient
-            .from('game_progress')
-            .update(progressToSave)
-            .eq('user_id', currentUser.id)
-            .then(({ error }) => {
-                if (error) console.error('Error saving game progress:', error);
-            });
+        switch(type) {
+            case 'game':
+                // Save main game progress to Supabase
+                const { error: gameError } = await supabaseClient
+                    .from('game_progress')
+                    .update(progressToSave)
+                    .eq('user_id', currentUser.id);
+
+                if (gameError) console.error('Error saving game progress:', gameError);
+                break;
+
+            case 'custom_list':
+                if (listData) {
+                    // Save single custom list
+                    const listToSave = {
+                        user_id: currentUser.id,
+                        name: listData.name,
+                        words: listData.words,
+                        translations: listData.translations,
+                        local_id: listData.id || Date.now(),
+                        is_shared: listData.is_shared || false,
+                        shared_with: listData.shared_with || [],
+                        shared_by: listData.shared_by || null
+                    };
+
+                    // If editing existing list
+                    if (listData.supabaseId) {
+                        const { error } = await supabaseClient
+                            .from('custom_lists')
+                            .update(listToSave)
+                            .eq('id', listData.supabaseId)
+                            .eq('user_id', currentUser.id);
+
+                        if (error) console.error('Error updating custom list:', error);
+                    } else {
+                        // Create new list
+                        const { data, error } = await supabaseClient
+                            .from('custom_lists')
+                            .insert([listToSave])
+                            .select();
+
+                        if (error) {
+                            console.error('Error saving custom list:', error);
+                        } else if (data && data[0]) {
+                            listData.supabaseId = data[0].id;
+                        }
+                    }
+
+                    // Update local lists array
+                    const existingIndex = customPracticeLists.lists.findIndex(l => l.id === listData.id);
+                    if (existingIndex !== -1) {
+                        customPracticeLists.lists[existingIndex] = listData;
+                    } else {
+                        customPracticeLists.lists.push(listData);
+                    }
+                } else {
+                    // Save all custom lists
+                    const { error: listError } = await supabaseClient
+                        .from('custom_lists')
+                        .upsert(
+                            customPracticeLists.lists.map(list => ({
+                                user_id: currentUser.id,
+                                name: list.name,
+                                words: list.words,
+                                translations: list.translations,
+                                local_id: list.id,
+                                is_shared: list.is_shared || false,
+                                shared_with: list.shared_with || [],
+                                shared_by: list.shared_by || null
+                            }))
+                        );
+
+                    if (listError) console.error('Error saving custom lists:', listError);
+                }
+                break;
+
+            case 'all':
+                // Save both game progress and custom lists
+                await Promise.all([
+                    saveProgress('game'),
+                    saveProgress('custom_list')
+                ]);
+                break;
+        }
     } else {
-        // Save to localStorage for guest users
-        localStorage.setItem('simploxProgress', JSON.stringify(progressToSave));
+        // Guest user - save to localStorage
+        if (type === 'game' || type === 'all') {
+            localStorage.setItem('simploxProgress', JSON.stringify(progressToSave));
+        }
+        
+        if (type === 'custom_list' || type === 'all') {
+            localStorage.setItem('simploxCustomLists', 
+                JSON.stringify(customPracticeLists.lists));
+        }
+    }
+
+    // Update UI after saving
+    if (type === 'custom_list') {
+        showCustomListsManager();
     }
 }
 
+// OLD:
 async function saveCustomList() {
     const listNameInput = document.getElementById('custom-list-name');
     const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
@@ -3266,31 +3355,42 @@ async function saveCustomList() {
         translations: translations
     };
 
-    // If we're editing an existing list, replace it
-    if (customPracticeLists.currentList) {
-        const index = customPracticeLists.lists.findIndex(l => l.id === customPracticeLists.currentList.id);
-        if (index !== -1) {
-            customPracticeLists.lists[index] = newList;
-        } else {
-            customPracticeLists.lists.push(newList);
-        }
-    } else {
-        customPracticeLists.lists.push(newList);
-    }
-    
-    // Reset current list
-    customPracticeLists.currentList = null;
-    
-    // Save to Supabase if logged in
-    if (currentUser) {
-        await saveCustomListToSupabase(newList);
-    } else {
-        // Save to localStorage for guest users
-        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    }
+    // Save logic here...
+}
 
-    // Update UI after saving
-    showCustomListsManager();
+// NEW:
+async function handleCustomListSave() {
+    const listNameInput = document.getElementById('custom-list-name');
+    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+    
+    const wordItems = document.querySelectorAll('.word-translation-item');
+    const words = [];
+    const translations = [];
+    
+    wordItems.forEach(item => {
+        const englishWord = item.querySelector('.source-word').textContent.trim();
+        const hebrewTranslation = item.querySelector('.target-word').value.trim();
+        
+        if (englishWord && hebrewTranslation) {
+            words.push(englishWord);
+            translations.push(hebrewTranslation);
+        }
+    });
+
+    const newList = {
+        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
+        name: name,
+        words: words,
+        translations: translations
+    };
+
+    await saveProgress('custom_list', newList);
+    
+    // Reset UI state
+    customPracticeLists.currentList = null;
+    listNameInput.value = '';
+    document.getElementById('custom-word-input').value = '';
+    document.getElementById('word-translation-list').innerHTML = '';
 }
 
 async function loadCustomLists() {
@@ -3426,49 +3526,7 @@ let resetProgressTimeout = null;
 let isFirstResetAttempt = true;
 
 
-// Progress Management
-function saveProgress() {
-    if (currentUser) {
-        // Save to Supabase for logged in users
-        const progressToSave = {
-            stage: gameState.currentStage,
-            set_number: gameState.currentSet,
-            level: gameState.currentLevel,
-            coins: gameState.coins,
-            perks: gameState.perks,
-            unlocked_sets: Object.fromEntries(
-                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
-            ),
-            unlocked_levels: Object.fromEntries(
-                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
-            ),
-            perfect_levels: Array.from(gameState.perfectLevels),
-            completed_levels: Array.from(gameState.completedLevels)
-        };
 
-        supabaseClient
-            .from('game_progress')
-            .update(progressToSave)
-            .eq('user_id', currentUser.id)
-            .then(({ error }) => {
-                if (error) console.error('Error saving game progress:', error);
-            });
-    } else {
-        // For guest users, save to localStorage
-        localStorage.setItem('simploxProgress', JSON.stringify({
-            unlockedSets: Object.fromEntries(
-                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
-            ),
-            unlockedLevels: Object.fromEntries(
-                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
-            ),
-            perfectLevels: Array.from(gameState.perfectLevels),
-            completedLevels: Array.from(gameState.completedLevels),
-            coins: gameState.coins,
-            perks: gameState.perks
-        }));
-    }
-}
 
 
 function loadProgress() {
@@ -5234,59 +5292,6 @@ function createWordTranslationItem(word = '', translation = '', isEditable = fal
     wordList.appendChild(wordItem);
 }
 
-async function saveCustomListToSupabase(list) {
-    if (!currentUser) return;
-
-    const listData = {
-        user_id: currentUser.id,
-        name: list.name,
-        words: list.words,
-        translations: list.translations,
-        local_id: list.id // Using the timestamp ID as local_id
-    };
-
-    if (list.supabaseId) {
-        // Update existing list
-        const { error } = await supabaseClient
-            .from('custom_lists')
-            .update(listData)
-            .eq('id', list.supabaseId)
-            .eq('user_id', currentUser.id);
-
-        if (error) {
-            console.error('Error updating custom list:', error);
-            return false;
-        }
-    } else {
-        // Insert new list
-        const { data, error } = await supabaseClient
-            .from('custom_lists')
-            .insert([listData])
-            .select();
-
-        if (error) {
-            console.error('Error saving custom list:', error);
-            return false;
-        }
-        
-        if (data && data[0]) {
-            list.supabaseId = data[0].id; // Store Supabase UUID
-        }
-    }
-    return true;
-}
-
-
-function saveCustomLists() {
-    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    
-    if (currentUser) {
-        // Also save to Supabase for logged-in users
-        customPracticeLists.lists.forEach(list => {
-            saveCustomListToSupabase(list);
-        });
-    }
-}
 
 function processCustomWords() {
     const wordInput = document.getElementById('custom-word-input');
@@ -5380,45 +5385,10 @@ function initializeDragAndDrop(item) {
 }
 
 
-function saveCurrentList() {
-    const listNameInput = document.getElementById('custom-list-name');
-    const wordInput = document.getElementById('custom-word-input');
-    const wordList = document.getElementById('word-translation-list');
-    const translationResults = document.getElementById('translation-results');
-    
-    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
-    const words = [];
-    const translations = [];
-    
-    const items = wordList.querySelectorAll('.word-translation-item');
-    items.forEach(item => {
-        const word = item.querySelector('.source-word').textContent.trim();
-        const translation = item.querySelector('.target-word').value.trim();
-        
-        if (word && translation) {
-            words.push(word);
-            translations.push(translation);
-        }
-    });
 
-    const newList = {
-        id: Date.now(),
-        name: name,
-        words: words,
-        translations: translations
-    };
 
-    customPracticeLists.lists.push(newList);
-    saveCustomLists();
-    
-    // Clear form
-    listNameInput.value = '';
-    wordInput.value = '';
-    wordList.innerHTML = '';
-    translationResults.style.display = 'none';
-    
-    showCustomListsManager();
-}
+
+
 
 function updateListsDisplay() {
     const container = document.getElementById('custom-lists-container');
@@ -5846,38 +5816,6 @@ function toggleEditMode(listId) {
         // Save changes
         saveListChanges(listId, wordList, listItem);
     }
-}
-
-function saveListChanges(listId, wordList, listItem) {
-    const list = customPracticeLists.lists.find(l => l.id === parseInt(listId));
-    const editButton = listItem.querySelector('.edit-button');
-    const items = wordList.querySelectorAll('.word-translation-item');
-    
-    const words = [];
-    const translations = [];
-    
-    items.forEach(item => {
-        const word = item.querySelector('.source-word').textContent.trim();
-        const translation = item.querySelector('.target-word').value.trim();
-        if (word && translation) {
-            words.push(word);
-            translations.push(translation);
-        }
-    });
-    
-    list.words = words;
-    list.translations = translations;
-    saveCustomLists();
-    
-    editButton.textContent = 'Edit';
-    listItem.removeAttribute('data-in-edit-mode');
-    listItem.classList.add('collapsed');
-    
-    const summary = listItem.querySelector('.list-summary');
-    summary.innerHTML = `
-        <span>${words.length} words</span>
-        <p class="word-preview">${words.slice(0,5).join(', ')}${words.length > 5 ? '...' : ''}</p>
-    `;
 }
 
 // Add to checkExistingSession()
