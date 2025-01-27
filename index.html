@@ -2813,42 +2813,43 @@ body {
         </div>
         
         <!-- Parent/User Info Section -->
-        <div id="parentInfoSection">
-            <div class="form-group">
-                <label>שם מלא של הורה</label>
-                <input type="text" id="parentName" required>
-            </div>
-            <div class="form-group">
-                <label>מספר טלפון של הורה</label>
-                <input type="tel" id="parentPhone" required 
-                       pattern="[0-9]{10}" placeholder="הזן מספר טלפון של הורה">
-            </div>
-        </div>
+        <!-- Parent/User Info Section -->
+<div id="parentInfoSection">
+    <div class="form-group">
+        <label>שם מלא של הורה</label>
+        <input type="text" id="parentName" name="parentName" required>
+    </div>
+    <div class="form-group">
+        <label>מספר טלפון של הורה</label>
+        <input type="tel" id="parentPhone" name="parentPhone" 
+               pattern="[0-9]{10}" placeholder="הזן מספר טלפון של הורה" required>
+    </div>
+</div>
 
-        <div id="adultInfoSection" style="display:none;">
-            <div class="form-group">
-                <label>שם מלא</label>
-                <input type="text" id="fullName" required>
-            </div>
-            <div class="form-group">
-                <label>מספר טלפון</label>
-                <input type="tel" id="phone" required 
-                       pattern="[0-9]{10}" placeholder="הזן מספר טלפון">
-            </div>
-        </div>
+<div id="adultInfoSection" style="display:none;">
+    <div class="form-group">
+        <label>שם מלא</label>
+        <input type="text" id="fullName" name="fullName" required>
+    </div>
+    <div class="form-group">
+        <label>מספר טלפון</label>
+        <input type="tel" id="phone" name="phone" 
+               pattern="[0-9]{10}" placeholder="הזן מספר טלפון" required>
+    </div>
+</div>
 
-        <div class="form-group">
-            <label>איך שמעת עלינו?</label>
-            <select id="referralSource">
-                <option value="friend">חבר/ה</option>
-                <option value="teacher">מורה</option>
-                <option value="social">רשתות חברתיות</option>
-                <option value="other">אחר</option>
-            </select>
-        </div>
+<div class="form-group">
+    <label>איך שמעת עלינו?</label>
+    <select id="referralSource" name="referralSource">
+        <option value="friend">חבר/ה</option>
+        <option value="teacher">מורה</option>
+        <option value="social">רשתות חברתיות</option>
+        <option value="other">אחר</option>
+    </select>
+</div>
 
         <button type="submit" class="submit-button">שלח/י בקשה</button>
-        <button type="button" class="skip-button" onclick="skipUpgrade()">דלג</button>
+        <button type="button" class="skip-button" onclick="hideUpgradePromptAndContinue()">Skip</button>
     </form>
     <p>לאחר שליחת הבקשה ניצור איתך קשר בווטסאפ</p>
 </div>    
@@ -3243,6 +3244,7 @@ async function checkExistingSession() {
         updateAuthUI();
     }
 }
+
 
 document.addEventListener('DOMContentLoaded', function() {
     currentUser = null;
@@ -3904,8 +3906,24 @@ function showScreen(screenId) {
             break;
     }
 
-    // Navigation icon logic
-    
+    // Update status display if user is logged in
+    if (currentUser) {
+        supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single()
+            .then(({ data }) => {
+                if (data) {
+                    updateUserStatusDisplay(data.status);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching user status:', error);
+            });
+    }
+
+    // Navigation icon logic if needed
 }
 
 // Add full-screen event listener
@@ -4128,21 +4146,28 @@ async function startLevel(levelId) {
     const userStatus = currentUser ? currentUser.status : 'unregistered';
     const triggerLevels = [4, 7, 11, 15, 20];
     
+    // Only show prompts if user is unregistered or free (not pending or premium)
     if (gameState.currentStage === 1 && 
         gameState.currentSet === 1 && 
         triggerLevels.includes(levelId) && 
-        userStatus !== 'premium') {
+        userStatus !== 'premium' && 
+        userStatus !== 'pending') {
             
-        const continueLevelId = levelId; // Store levelId for callback
+        gameState.upgradePromptState = {
+            currentStage: gameState.currentStage,
+            currentSet: gameState.currentSet,
+            currentLevel: levelId,
+            nextLevel: levelId
+        };
             
         if (!currentUser) {
             showUnregisteredWarning(() => {
-                proceedWithLevel(continueLevelId);
+                proceedWithLevel(levelId);
             });
             return;
-        } else {
+        } else if (userStatus === 'free') {
             showUpgradePrompt(() => {
-                proceedWithLevel(continueLevelId);
+                proceedWithLevel(levelId);
             });
             return;
         }
@@ -4723,46 +4748,26 @@ function handleLevelCompletion() {
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     const isLevelCompleted = gameState.perfectLevels.has(levelKey);
     
-    // Disable buttons immediately
-    const buttons = document.querySelectorAll('.buttons button');
-    buttons.forEach(btn => {
-        btn.disabled = true;
-        btn.style.opacity = '0.5';
-    });
-
-    // Handle custom practice mode first
-    if (currentGame.isCustomPractice) {
-        handleCustomPracticeCompletion();
-        return;
-    }
-
-    // STRICT CHECK: Perfect completion requires:
-    // 1. Level not previously completed
-    // 2. Maintained streak (no wrong answers)
-    // 3. All words answered correctly
-    const isPerfectRun = !isLevelCompleted && 
-                        currentGame.streakBonus && 
-                        currentGame.correctAnswers === currentGame.words.length;
-
-    if (!isPerfectRun) {
-        // If not perfect, restart level after delay
-        setTimeout(() => startLevel(gameState.currentLevel), 1500);
-        return;
-    }
-
-    // For level 1-1 completion, check registration/upgrade status
-    if (gameState.currentStage === 1 && gameState.currentSet === 1 && 
-        gameState.currentLevel === 1) {
-        
-        if (!currentUser) {
-            showUnregisteredWarning(() => handleProgression(levelKey));
-            return;
-        } else if (currentUser?.status === 'free') {
-            showUpgradePrompt(() => handleProgression(levelKey));
-            return;
+    if (!isLevelCompleted && currentGame.streakBonus) {
+        if (gameState.currentStage === 1 && 
+            gameState.currentSet === 1 && 
+            gameState.currentLevel === 1) {
+            
+            const userStatus = currentUser ? currentUser.status : 'unregistered';
+            
+            // Only show prompts if user is unregistered or free
+            if (userStatus !== 'premium' && userStatus !== 'pending') {
+                if (!currentUser) {
+                    showUnregisteredWarning(() => handleProgression(levelKey));
+                    return;
+                } else if (userStatus === 'free') {
+                    showUpgradePrompt(() => handleProgression(levelKey));
+                    return;
+                }
+            }
         }
-    }
-
+        }
+        
     // If we get here, level was completed perfectly
     // Award completion bonus
     gameState.coins += 5;
@@ -6313,6 +6318,14 @@ function hideUpgradePrompt() {
 
 
 function showUpgradePrompt(callback) {
+    // Store exact game state before showing upgrade screen
+    gameState.upgradePromptState = {
+        currentStage: gameState.currentStage,
+        currentSet: gameState.currentSet,
+        currentLevel: gameState.currentLevel,
+        nextLevel: gameState.currentLevel + 1
+    };
+    
     if (!currentUser) {
         showUnregisteredWarning(() => {
             if (callback) callback();
@@ -6692,23 +6705,32 @@ async function rejectPayment(paymentId) {
 
 async function handleUpgradeSubmit(event) {
     event.preventDefault();
-    
     const isAdult = document.getElementById('isAdult').checked;
-    const formData = {
-        is_adult: isAdult,
-        full_name: isAdult ? 
-            document.getElementById('fullName').value : 
-            document.getElementById('parentName').value,
-        phone: isAdult ? 
-            document.getElementById('phone').value : 
-            document.getElementById('parentPhone').value,
-        referral_source: document.getElementById('referralSource').value,
-        user_id: currentUser?.id,
-        status: 'pending',
-        created_at: new Date()
-    };
-
+    
     try {
+        let formData;
+        if (isAdult) {
+            formData = {
+                user_id: currentUser.id,
+                is_adult: true,
+                full_name: document.getElementById('fullName').value,
+                phone: document.getElementById('phone').value,
+                parent_name: null,
+                parent_phone: null,
+                referral_source: document.getElementById('referralSource').value
+            };
+        } else {
+            formData = {
+                user_id: currentUser.id,
+                is_adult: false,
+                full_name: null,
+                phone: null,
+                parent_name: document.getElementById('parentName').value,
+                parent_phone: document.getElementById('parentPhone').value,
+                referral_source: document.getElementById('referralSource').value
+            };
+        }
+
         // Update user status to pending
         const { error: profileError } = await supabaseClient
             .from('user_profiles')
@@ -6717,7 +6739,7 @@ async function handleUpgradeSubmit(event) {
 
         if (profileError) throw profileError;
 
-        // Create upgrade request
+        // Insert request
         const { data, error } = await supabaseClient
             .from('upgrade_requests')
             .insert([formData])
@@ -6726,36 +6748,42 @@ async function handleUpgradeSubmit(event) {
 
         if (error) throw error;
 
-        // Update UI to show pending status
-        updateUserStatusDisplay('pending');
-        
-        // Open WhatsApp with pre-filled message
+        // Open WhatsApp
         const message = `New upgrade request!\n` +
-            `Reference: ${data.id}\n` +
-            `Name: ${formData.full_name}\n` +
-            `Phone: ${formData.phone}`;
+            `User: ${currentUser.email}\n` +
+            (isAdult ? 
+                `Name: ${formData.full_name}\nPhone: ${formData.phone}` : 
+                `Parent Name: ${formData.parent_name}\nParent Phone: ${formData.parent_phone}`
+            ) +
+            `\nReference ID: ${data.id}`;
 
         window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
-        
+
+        // Show success and return to game
+        alert('Thank you! Your request has been submitted. We will contact you shortly.');
         showScreen('welcome-screen');
+
     } catch (error) {
-        console.error('Error submitting upgrade request:', error);
-        alert('Error submitting request. Please try again.');
+        console.error('Error:', error);
+        alert('Error processing request. Please try again.');
     }
 }
 
 function skipUpgrade() {
-    showScreen(gameState.currentScreen || 'welcome-screen');
+    hideUpgradePromptAndContinue();
 }
 
 function updateUserStatusDisplay(status) {
     const userInfo = document.getElementById('userInfo');
+    if (!userInfo) return;
+
+    // Remove any existing status text
     const existingStatus = userInfo.querySelector('.status-text');
-    
     if (existingStatus) {
         existingStatus.remove();
     }
 
+    // Create new status text
     const statusText = document.createElement('span');
     statusText.classList.add('status-text');
     
@@ -6778,15 +6806,36 @@ function toggleParentFields() {
     const parentSection = document.getElementById('parentInfoSection');
     const adultSection = document.getElementById('adultInfoSection');
     
-    parentSection.style.display = isAdult ? 'none' : 'block';
-    adultSection.style.display = isAdult ? 'block' : 'none';
+    // Parent fields
+    const parentName = document.getElementById('parentName');
+    const parentPhone = document.getElementById('parentPhone');
     
-    // Toggle required attributes
-    const parentInputs = parentSection.querySelectorAll('input');
-    const adultInputs = adultSection.querySelectorAll('input');
+    // Adult fields
+    const fullName = document.getElementById('fullName');
+    const phone = document.getElementById('phone');
     
-    parentInputs.forEach(input => input.required = !isAdult);
-    adultInputs.forEach(input => input.required = isAdult);
+    if (isAdult) {
+        // Switch to adult fields
+        parentSection.style.display = 'none';
+        adultSection.style.display = 'block';
+        
+        // Make adult fields required, remove requirement from parent fields
+        parentName.removeAttribute('required');
+        parentPhone.removeAttribute('required');
+        fullName.setAttribute('required', '');
+        phone.setAttribute('required', '');
+        
+    } else {
+        // Switch to parent fields
+        parentSection.style.display = 'block';
+        adultSection.style.display = 'none';
+        
+        // Make parent fields required, remove requirement from adult fields
+        parentName.setAttribute('required', '');
+        parentPhone.setAttribute('required', '');
+        fullName.removeAttribute('required');
+        phone.removeAttribute('required');
+    }
 }
 
 function toggleParentPhone() {
@@ -6801,45 +6850,109 @@ function toggleParentPhone() {
 async function handleUpgradeSubmit(event) {
     event.preventDefault();
     
-    const formData = {
-        phone: document.getElementById('phoneNumber').value,
-        isAdult: document.getElementById('isAdult').checked,
-        parentPhone: document.getElementById('parentPhone')?.value || null,
-        contactTime: document.getElementById('contactTime').value,
-        referralSource: document.getElementById('referralSource').value,
-        englishLevel: document.getElementById('englishLevel').value,
-        userId: currentUser?.id || null,
-        status: 'pending',
-        created_at: new Date()
-    };
-
+    const isAdult = document.getElementById('isAdult').checked;
+    
     try {
+        // First update user status to pending
+        const { error: profileError } = await supabaseClient
+            .from('user_profiles')
+            .update({ status: 'pending' })
+            .eq('id', currentUser.id);
+
+        if (profileError) {
+            console.error('Error updating profile:', profileError);
+            alert('Error updating user status. Please try again.');
+            return;
+        }
+
+        // Get form values
+        const formData = {
+            user_id: currentUser.id,
+            is_adult: isAdult,
+            full_name: isAdult ? 
+                document.getElementById('fullName').value : '',
+            phone: isAdult ? 
+                document.getElementById('phone').value : '',
+            parent_name: !isAdult ? 
+                document.getElementById('parentName').value : '',
+            parent_phone: !isAdult ? 
+                document.getElementById('parentPhone').value : '',
+            referral_source: document.getElementById('referralSource').value,
+            created_at: new Date()
+        };
+
+        // Insert upgrade request
         const { data, error } = await supabaseClient
             .from('upgrade_requests')
             .insert([formData])
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
-        // Open WhatsApp with pre-filled message
-        const message = `New upgrade request!\n` +
-            `Reference: ${data.id}\n` +
-            `Phone: ${formData.phone}\n` +
-            `Contact Time: ${formData.contactTime}\n` +
-            `English Level: ${formData.englishLevel}`;
+        // Update UI to show pending status
+        updateUserStatusDisplay('pending');
 
-        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
-        
+        // Open WhatsApp with details
+        const whatsappMessage = `New Premium Request
+User Email: ${currentUser.email}
+${isAdult ? `Name: ${formData.full_name}
+Phone: ${formData.phone}` : 
+`Parent Name: ${formData.parent_name}
+Parent Phone: ${formData.parent_phone}`}
+Referral: ${formData.referral_source}
+Request ID: ${data.id}`;
+
+        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(whatsappMessage)}`);
+
+        // Return to game
+        alert('Thank you! Your request has been submitted. We will contact you shortly.');
         showScreen('welcome-screen');
+
     } catch (error) {
-        console.error('Error submitting upgrade request:', error);
-        alert('Error submitting request. Please try again.');
+        console.error('Error:', error);
+        alert('Error processing request. Please try again.');
     }
 }
 
 function showUpgradeScreen() {
+    // Store current game state BEFORE switching screens
+    gameState.upgradePromptState = {
+        currentStage: gameState.currentStage,
+        currentSet: gameState.currentSet,
+        currentLevel: gameState.currentLevel,
+        nextLevel: gameState.currentLevel + 1,
+        returnScreen: 'question-screen' // Add this to track where to return
+    };
+
+    console.log('Storing game state:', gameState.upgradePromptState); // Debug log
     showScreen('upgrade-screen');
+}
+
+function skipUpgrade() {
+    const savedState = gameState.upgradePromptState;
+    console.log('Retrieved state:', savedState); // Debug log
+
+    if (!savedState) {
+        console.error('No saved state found');
+        return; // Don't redirect to welcome screen
+    }
+
+    // Hide upgrade screen
+    const upgradeScreen = document.getElementById('upgrade-screen');
+    upgradeScreen.classList.remove('visible');
+
+    // Proceed with next level
+    if (savedState.nextLevel) {
+        gameState.currentStage = savedState.currentStage;
+        gameState.currentSet = savedState.currentSet;
+        startLevel(savedState.nextLevel);
+    }
+
+    // Clean up
+    delete gameState.upgradePromptState;
 }
 
 class RateLimiter {
