@@ -3222,7 +3222,27 @@ function initializeGame() {
 
 
 async function checkExistingSession() {
-
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (session) {
+        currentUser = session.user;
+        const { data: profile } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+            
+        if (profile) {
+            updateUserStatusDisplay(profile.status);
+        }
+        
+        await Promise.all([
+            loadUserGameProgress(currentUser.id),
+            loadCustomLists()
+        ]);
+        updateAuthUI();
+    }
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     currentUser = null;
