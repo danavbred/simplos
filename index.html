@@ -4564,66 +4564,54 @@ function handleLevelCompletion() {
         btn.style.opacity = '0.5';
     });
 
-    if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
+    // Handle custom practice mode first
+    if (currentGame.isCustomPractice) {
+        handleCustomPracticeCompletion();
+        return;
+    }
+
+    // For testing: Show prompt when completing level 1-1
+    if (gameState.currentStage === 1 && gameState.currentSet === 1 && 
+        gameState.currentLevel === 1 && !isLevelCompleted && 
+        currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
+        
+        if (!currentUser) {
+            showUnregisteredWarning(() => handleProgression(levelKey));
+            return;
+        } else if (currentUser?.status === 'free') {
+            showUpgradePrompt(() => handleProgression(levelKey));
+            return;
+        }
+    }
+
+    // Check for perfect completion
+    if (!isLevelCompleted && currentGame.streakBonus && 
+        currentGame.correctAnswers === currentGame.words.length) {
+        
+        // Handle coins and particles
         gameState.coins += 5;
         pulseCoins(5);
         gameState.perfectLevels.add(levelKey);
 
-        // Get the question word element
-        const questionWordElement = document.getElementById('question-word');
+        // Create visual effects
+        const questionScreen = document.getElementById('question-screen');
+        const rect = questionScreen.getBoundingClientRect();
+        const viewportX = rect.left + (rect.width / 2);
+        const viewportY = rect.top + (rect.height / 2);
         
-        // Determine next level number and text
+        for (let i = 0; i < 5; i++) {
+            setTimeout(() => createParticles(viewportX, viewportY), i * 300);
+        }
+
+        // Create dramatic level transition
+        const questionWordElement = document.getElementById('question-word');
         const nextLevel = gameState.currentLevel + 1;
         const nextLevelText = `Level ${gameState.currentStage}-${nextLevel}`;
         
-        // Create a dramatic level transition
-        setTimeout(() => {
-            // Pulse the next level text
-            questionWordElement.textContent = nextLevelText;
-            questionWordElement.style.animation = 'dramaticPulse 0.5s cubic-bezier(0.25, 0.75, 0.5, 1.25)';
-            
-            // Make letter particles shine brightly
-            const particleContainer = document.querySelector('.particle-container');
-            const letterParticles = particleContainer.querySelectorAll('.letter-particle');
-            letterParticles.forEach(particle => {
-                particle.style.animation = 'brightShine 0.5s ease-out';
-                particle.style.color = 'rgba(255,255,255,1)';
-                particle.style.textShadow = '0 0 10px rgba(255,255,255,0.7)';
-            });
+        questionWordElement.textContent = nextLevelText;
+        questionWordElement.style.animation = 'dramaticPulse 0.5s cubic-bezier(0.25, 0.75, 0.5, 1.25)';
 
-            // Reset animation after a short delay
-            setTimeout(() => {
-                questionWordElement.style.animation = '';
-                letterParticles.forEach(particle => {
-                    particle.style.animation = '';
-                    particle.style.color = 'rgba(255,255,255,0.2)';
-                    particle.style.textShadow = 'none';
-                });
-
-                // Start the next level immediately
-                startLevel(nextLevel);
-            }, 500);
-        }, 1000);
-
-        // Add new CSS animations to the existing stylesheet
-        const styleSheet = document.styleSheets[0];
-        styleSheet.insertRule(`
-            @keyframes dramaticPulse {
-                0% { transform: scale(1); opacity: 1; }
-                50% { transform: scale(1.2); opacity: 0.8; }
-                100% { transform: scale(1); opacity: 1; }
-            }
-        `, styleSheet.cssRules.length);
-
-        styleSheet.insertRule(`
-            @keyframes brightShine {
-                0% { color: rgba(255,255,255,0.2); text-shadow: none; }
-                50% { color: rgba(255,255,255,1); text-shadow: 0 0 20px rgba(255,255,255,0.7); }
-                100% { color: rgba(255,255,255,0.2); text-shadow: none; }
-            }
-        `, styleSheet.cssRules.length);
-
-        // Handle game progression logic (unlock next level, etc.)
+        // Handle progression logic
         const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
         if (!gameState.unlockedLevels[setKey]) {
             gameState.unlockedLevels[setKey] = new Set();
@@ -4634,28 +4622,48 @@ function handleLevelCompletion() {
         const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
         const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
 
-        // Handle progression unlocks
-        if (!isLastLevelInSet) {
-            gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
-        } else if (!isLastSetInStage) {
-            const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
-            if (!gameState.unlockedSets[gameState.currentStage]) {
-                gameState.unlockedSets[gameState.currentStage] = new Set();
+        // Handle progression unlocks and animations
+        requestAnimationFrame(() => {
+            const levelElements = document.querySelectorAll('.level');
+            const currentLevelElement = levelElements[gameState.currentLevel - 1];
+            const nextLevelElement = levelElements[gameState.currentLevel];
+
+            if (currentLevelElement) {
+                currentLevelElement.classList.add('completing');
+                setTimeout(() => currentLevelElement.classList.add('green'), 500);
             }
-            gameState.unlockedSets[gameState.currentStage].add(gameState.currentSet + 1);
-            if (!gameState.unlockedLevels[nextSetKey]) {
-                gameState.unlockedLevels[nextSetKey] = new Set([1]);
+
+            if (nextLevelElement && !isLastLevelInSet) {
+                setTimeout(() => {
+                    nextLevelElement.classList.add('unlocking', 'blue');
+                    nextLevelElement.onclick = () => startLevel(gameState.currentLevel + 1);
+                }, 1000);
             }
-        } else if (gameState.currentStage < 5) {
-            const nextStage = gameState.currentStage + 1;
-            if (!gameState.unlockedSets[nextStage]) {
-                gameState.unlockedSets[nextStage] = new Set([1]);
+        });
+
+        // Progress to next level/set/stage
+        setTimeout(() => {
+            if (isLastLevelInSet) {
+                if (!isLastSetInStage) {
+                    gameState.currentSet++;
+                    startLevel(1);
+                } else if (gameState.currentStage < 5) {
+                    gameState.currentStage++;
+                    gameState.currentSet = 1;
+                    startLevel(1);
+                } else {
+                    showScreen('stage-screen');
+                }
+            } else {
+                startLevel(gameState.currentLevel + 1);
             }
-            gameState.unlockedLevels[`${nextStage}_1`] = new Set([1]);
-        }
+        }, 1500);
 
         saveProgress();
         updateAllCoinDisplays();
+    } else {
+        // If level wasn't completed perfectly, restart
+        setTimeout(() => startLevel(gameState.currentLevel), 1500);
     }
 }
 
@@ -5037,120 +5045,7 @@ function findFurthestProgression() {
     return { stage: 1, set: 1, level: 1 };
 }
 
-function handleLevelCompletion() {
-    clearTimer();
-    const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
-    const isLevelCompleted = gameState.perfectLevels.has(levelKey);
-    
-    // Handle custom practice mode first
-    if (currentGame.isCustomPractice) {
-        handleCustomPracticeCompletion();
-        return;
-    }
 
-    // Check for perfect completion
-    if (!isLevelCompleted && currentGame.streakBonus && 
-        currentGame.correctAnswers === currentGame.words.length) {
-        
-        // Handle coins and particles
-        
-            gameState.coins += 5;
-        pulseCoins(5);
-        gameState.perfectLevels.add(levelKey);
-
-        // Create completion particles
-        const questionScreen = document.getElementById('question-screen');
-        const rect = questionScreen.getBoundingClientRect();
-        const viewportX = rect.left + (rect.width / 2);
-        const viewportY = rect.top + (rect.height / 2);
-        
-        for (let i = 0; i < 5; i++) {
-            setTimeout(() => createParticles(viewportX, viewportY), i * 300);
-        }
-
-        // Ensure current level is marked as unlocked
-        const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-        if (!gameState.unlockedLevels[setKey]) {
-            gameState.unlockedLevels[setKey] = new Set();
-        }
-        gameState.unlockedLevels[setKey].add(gameState.currentLevel);
-
-        // Only unlock next level if current level is completed perfectly
-        const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
-        const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
-        const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
-
-        if (!isLastLevelInSet) {
-            // Unlock next level in current set
-            gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
-        } else if (!isLastSetInStage) {
-            // Unlock first level of next set
-            const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
-            if (!gameState.unlockedSets[gameState.currentStage]) {
-                gameState.unlockedSets[gameState.currentStage] = new Set();
-            }
-            gameState.unlockedSets[gameState.currentStage].add(gameState.currentSet + 1);
-            if (!gameState.unlockedLevels[nextSetKey]) {
-                gameState.unlockedLevels[nextSetKey] = new Set([1]);
-            }
-        } else if (gameState.currentStage < 5) {
-            // Unlock first set of next stage
-            const nextStage = gameState.currentStage + 1;
-            if (!gameState.unlockedSets[nextStage]) {
-                gameState.unlockedSets[nextStage] = new Set([1]);
-            }
-            gameState.unlockedLevels[`${nextStage}_1`] = new Set([1]);
-        }
-
-        // Save progress and update displays
-        saveProgress();
-        updateAllCoinDisplays();
-
-        // Animate completion
-        requestAnimationFrame(() => {
-            const levelElements = document.querySelectorAll('.level');
-            const currentLevelElement = levelElements[gameState.currentLevel - 1];
-            const nextLevelElement = levelElements[gameState.currentLevel];
-
-            if (currentLevelElement) {
-                currentLevelElement.classList.add('completing');
-                setTimeout(() => {
-                    currentLevelElement.classList.add('green');
-                }, 500);
-            }
-
-            if (nextLevelElement && !isLastLevelInSet) {
-                setTimeout(() => {
-                    nextLevelElement.classList.add('unlocking', 'blue');
-                    nextLevelElement.onclick = () => startLevel(gameState.currentLevel + 1);
-                }, 1000);
-            }
-        });
-
-        // Add progress check and level transition
-        setTimeout(() => {
-            if (isLastLevelInSet) {
-                if (!isLastSetInStage) {
-                    gameState.currentSet++;
-                    startLevel(1);
-                } else if (gameState.currentStage < 5) {
-                    gameState.currentStage++;
-                    gameState.currentSet = 1;
-                    startLevel(1);
-                } else {
-                    showScreen('stage-screen');
-                }
-            } else {
-                startLevel(gameState.currentLevel + 1);
-            }
-        }, 1500);
-    } else {
-        // If level wasn't completed perfectly, restart the same level
-        setTimeout(() => {
-            startLevel(gameState.currentLevel);
-        }, 1500);
-    }
-}
 
 function startGame() {
     requestFullScreen();
