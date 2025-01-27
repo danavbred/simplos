@@ -67,52 +67,26 @@ INSERT INTO access_controls (user_type, stage, set_number, is_accessible) VALUES
 
 PAYMENT REQUESTS
 
+
+
+DROP TABLE IF EXISTS payment_requests;
+
 CREATE TABLE payment_requests (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id uuid REFERENCES auth.users NOT NULL,
-    plan_type text CHECK (plan_type IN ('monthly', 'yearly', 'lifetime')),
+    payment_method text CHECK (payment_method IN ('bit', 'paybox', 'kashkash', 'bank')),
     amount decimal(10,2) NOT NULL,
-    payment_method text,
-    status text DEFAULT 'pending' 
-        CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
-);
-
-CREATE POLICY "Users can view own payment requests" 
-    ON payment_requests FOR SELECT 
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can create payment requests" 
-    ON payment_requests FOR INSERT 
-    WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own pending requests" 
-    ON payment_requests FOR UPDATE 
-    USING (auth.uid() = user_id AND status = 'pending');
-
-CREATE TABLE IF NOT EXISTS public.payment_requests (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES auth.users NOT NULL,
-    payment_method text CHECK (payment_method IN ('bit', 'paybox', 'kashkash')),
-    amount decimal(10,2) NOT NULL,
+    reference_code text UNIQUE,
     status text DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'rejected')),
     submission_time timestamp with time zone DEFAULT now(),
     verification_time timestamp with time zone,
     verification_notes text,
+    whatsapp_number text,
+    admin_verified_by uuid REFERENCES auth.users(id),
     created_at timestamp with time zone DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS payment_transactions (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES auth.users NOT NULL,
-    amount decimal(10,2) NOT NULL,
-    status text CHECK (status IN ('pending', 'completed', 'failed')),
-    payment_method text,
-    created_at timestamp with time zone DEFAULT now(),
-    completed_at timestamp with time zone
-);
-
+CREATE INDEX idx_payment_reference ON payment_requests(reference_code);
 
 
 

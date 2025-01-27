@@ -312,6 +312,41 @@ body {
     -webkit-text-fill-color: transparent;
 }
 
+.skip-button {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: var(--text);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.skip-button:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.pending-status {
+    color: #00bfff;
+    animation: pendingBlink 2s infinite;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+
+@keyframes pendingBlink {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+.premium-status {
+    color: #50C878;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+
 .form-group {
     margin-bottom: 1rem;
 }
@@ -2768,60 +2803,56 @@ body {
 <div id="upgrade-screen" class="screen">
     <div class="upgrade-modal">
         <div class="upgrade-form">
-            <h2>שדרוג לפרימיום</h2>
-            <form id="upgradeForm" onsubmit="handleUpgradeSubmit(event)">
-                <div class="form-group">
-                    <label>מספר טלפון</label>
-                    <input type="tel" id="phoneNumber" required 
-                           pattern="[0-9]{10}" placeholder="הזן מספר טלפון">
-                </div>
-                
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="isAdult" onchange="toggleParentPhone()">
-                        אני מעל גיל 18
-                    </label>
-                </div>
-                
-                <div class="form-group parent-phone" id="parentPhoneGroup" style="display:none;">
-                    <label>מספר טלפון של הורה</label>
-                    <input type="tel" id="parentPhone" 
-                           pattern="[0-9]{10}" placeholder="הזן מספר טלפון של הורה">
-                </div>
-                
-                <div class="form-group">
-                    <label>זמן מועדף ליצירת קשר</label>
-                    <select id="contactTime">
-                        <option value="morning">בוקר (9-12)</option>
-                        <option value="afternoon">צהריים (12-17)</option>
-                        <option value="evening">ערב (17-21)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>איך שמעת עלינו?</label>
-                    <select id="referralSource">
-                        <option value="friend">חבר/ה</option>
-                        <option value="teacher">מורה</option>
-                        <option value="social">רשתות חברתיות</option>
-                        <option value="other">אחר</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>רמת אנגלית נוכחית</label>
-                    <select id="englishLevel">
-                        <option value="beginner">מתחיל/ה</option>
-                        <option value="intermediate">בינוני/ת</option>
-                        <option value="advanced">מתקדם/ת</option>
-                    </select>
-                </div>
-
-                <button type="submit" class="submit-button">שלח/י בקשה</button>
-            </form>
-            <p>לאחר שליחת הבקשה ניצור איתך קשר בווטסאפ</p>
+    <h2>שדרוג לפרימיום</h2>
+    <form id="upgradeForm" onsubmit="handleUpgradeSubmit(event)">
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="isAdult" onchange="toggleParentFields()">
+                אני מעל גיל 18
+            </label>
         </div>
-    </div>
+        
+        <!-- Parent/User Info Section -->
+        <div id="parentInfoSection">
+            <div class="form-group">
+                <label>שם מלא של הורה</label>
+                <input type="text" id="parentName" required>
+            </div>
+            <div class="form-group">
+                <label>מספר טלפון של הורה</label>
+                <input type="tel" id="parentPhone" required 
+                       pattern="[0-9]{10}" placeholder="הזן מספר טלפון של הורה">
+            </div>
+        </div>
+
+        <div id="adultInfoSection" style="display:none;">
+            <div class="form-group">
+                <label>שם מלא</label>
+                <input type="text" id="fullName" required>
+            </div>
+            <div class="form-group">
+                <label>מספר טלפון</label>
+                <input type="tel" id="phone" required 
+                       pattern="[0-9]{10}" placeholder="הזן מספר טלפון">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>איך שמעת עלינו?</label>
+            <select id="referralSource">
+                <option value="friend">חבר/ה</option>
+                <option value="teacher">מורה</option>
+                <option value="social">רשתות חברתיות</option>
+                <option value="other">אחר</option>
+            </select>
+        </div>
+
+        <button type="submit" class="submit-button">שלח/י בקשה</button>
+        <button type="button" class="skip-button" onclick="skipUpgrade()">דלג</button>
+    </form>
+    <p>לאחר שליחת הבקשה ניצור איתך קשר בווטסאפ</p>
+</div>    
+</div>
 </div>
 
 <script>
@@ -3191,23 +3222,7 @@ function initializeGame() {
 
 
 async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists()
-        ]);
-        updateAuthUI();
-    } else {
-        // Load lists from localStorage for guest users
-        const savedLists = localStorage.getItem('simploxCustomLists');
-        if (savedLists) {
-            customPracticeLists.lists = JSON.parse(savedLists);
-        }
-    }
-}
+
 
 document.addEventListener('DOMContentLoaded', function() {
     currentUser = null;
@@ -6114,7 +6129,6 @@ async function showShareModal(listId) {
 }
 
 async function checkUserAccess() {
-
     if (!currentUser) {
         return {
             fullAccess: false,
@@ -6125,8 +6139,7 @@ async function checkUserAccess() {
                 4: [1],
                 5: [1]          
             },
-            isUnregistered: true,
-            stage5Available: false
+            isUnregistered: true
         };
     }
 
@@ -6146,11 +6159,11 @@ async function checkUserAccess() {
                 4: 'full',
                 5: 'full'
             },
-            isUnregistered: false,
-            stage5Available: true
+            isUnregistered: false
         };
     }
 
+    // Pending users get same access as free users
     return {
         fullAccess: false,
         unlockedStages: {
@@ -6160,8 +6173,7 @@ async function checkUserAccess() {
             4: [1],
             5: [1]
         },
-        isUnregistered: false,
-        stage5Available: false
+        isUnregistered: false
     };
 }
 
@@ -6656,6 +6668,105 @@ async function rejectPayment(paymentId) {
     }
 
     loadPendingPayments();
+}
+
+async function handleUpgradeSubmit(event) {
+    event.preventDefault();
+    
+    const isAdult = document.getElementById('isAdult').checked;
+    const formData = {
+        is_adult: isAdult,
+        full_name: isAdult ? 
+            document.getElementById('fullName').value : 
+            document.getElementById('parentName').value,
+        phone: isAdult ? 
+            document.getElementById('phone').value : 
+            document.getElementById('parentPhone').value,
+        referral_source: document.getElementById('referralSource').value,
+        user_id: currentUser?.id,
+        status: 'pending',
+        created_at: new Date()
+    };
+
+    try {
+        // Update user status to pending
+        const { error: profileError } = await supabaseClient
+            .from('user_profiles')
+            .update({ status: 'pending' })
+            .eq('id', currentUser.id);
+
+        if (profileError) throw profileError;
+
+        // Create upgrade request
+        const { data, error } = await supabaseClient
+            .from('upgrade_requests')
+            .insert([formData])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Update UI to show pending status
+        updateUserStatusDisplay('pending');
+        
+        // Open WhatsApp with pre-filled message
+        const message = `New upgrade request!\n` +
+            `Reference: ${data.id}\n` +
+            `Name: ${formData.full_name}\n` +
+            `Phone: ${formData.phone}`;
+
+        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
+        
+        showScreen('welcome-screen');
+    } catch (error) {
+        console.error('Error submitting upgrade request:', error);
+        alert('Error submitting request. Please try again.');
+    }
+}
+
+function skipUpgrade() {
+    showScreen(gameState.currentScreen || 'welcome-screen');
+}
+
+function updateUserStatusDisplay(status) {
+    const userInfo = document.getElementById('userInfo');
+    const existingStatus = userInfo.querySelector('.status-text');
+    
+    if (existingStatus) {
+        existingStatus.remove();
+    }
+
+    const statusText = document.createElement('span');
+    statusText.classList.add('status-text');
+    
+    switch(status) {
+        case 'pending':
+            statusText.classList.add('pending-status');
+            statusText.textContent = 'Premium Order Pending';
+            break;
+        case 'premium':
+            statusText.classList.add('premium-status');
+            statusText.textContent = 'Premium Account';
+            break;
+    }
+    
+    userInfo.appendChild(statusText);
+}
+
+function toggleParentFields() {
+    const isAdult = document.getElementById('isAdult').checked;
+    const parentSection = document.getElementById('parentInfoSection');
+    const adultSection = document.getElementById('adultInfoSection');
+    
+    parentSection.style.display = isAdult ? 'none' : 'block';
+    adultSection.style.display = isAdult ? 'block' : 'none';
+    
+    // Toggle required attributes
+    const parentInputs = parentSection.querySelectorAll('input');
+    const adultInputs = adultSection.querySelectorAll('input');
+    
+    parentInputs.forEach(input => input.required = !isAdult);
+    adultInputs.forEach(input => input.required = isAdult);
 }
 
 function toggleParentPhone() {
