@@ -272,6 +272,91 @@ body {
     width: 100%;
 }
 
+.upgrade-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+}
+
+.upgrade-form {
+    width: 100%;
+    max-width: 500px;
+    padding: 2rem;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: right;
+    direction: rtl;
+}
+
+.upgrade-form h2 {
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(to right, var(--gold), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text);
+}
+
+.form-group input[type="tel"],
+.form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 25px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text);
+}
+
+.form-group input[type="checkbox"] {
+    margin-right: 0.5rem;
+}
+
+.submit-button {
+    width: 100%;
+    padding: 1rem;
+    border: 2px solid var(--accent);
+    background: transparent;
+    color: var(--text);
+    border-radius: 25px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 1rem;
+}
+
+.submit-button:hover {
+    box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent);
+}
+
+.upgrade-form p {
+    text-align: center;
+    color: var(--text);
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
 /* Maintain active state for auth tabs */
 .auth-container {
     position: fixed;
@@ -1855,73 +1940,6 @@ body {
     opacity: 0.8;
 }
 
-.payment-screen {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding: 2rem;
-}
-
-.payment-container {
-    background: var(--glass);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    padding: 2rem;
-    width: 100%;
-    max-width: 800px;
-}
-
-.payment-options {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 2rem;
-    margin: 2rem 0;
-}
-
-.payment-option {
-    background: rgba(255,255,255,0.1);
-    border-radius: 15px;
-    padding: 2rem;
-    text-align: center;
-    position: relative;
-    transition: all 0.3s ease;
-}
-
-.payment-option:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-}
-
-.payment-option.featured {
-    border: 2px solid var(--gold);
-}
-
-.best-value {
-    position: absolute;
-    top: -10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--gold);
-    color: var(--primary-dark);
-    padding: 0.25rem 1rem;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: bold;
-}
-
-.price {
-    font-size: 2rem;
-    color: var(--gold);
-    margin: 1rem 0;
-}
-
-.savings {
-    color: var(--success);
-    font-size: 0.9rem;
-    margin-bottom: 1rem;
-}
 
 
 /* Main Custom Practice Container */
@@ -2727,38 +2745,65 @@ body {
     </div>
 </div>
 
-<div id="payment-screen" class="screen">
-    <div class="navigation-container">
-        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-            <i class="fas fa-home navigation-icon"></i>
-        </button>
-    </div>
-    
-    <div class="payment-container">
-        <h2 class="welcome-title">Upgrade to Premium</h2>
-        <div class="payment-options">
-            <div class="payment-option">
-                <h3>Monthly Plan</h3>
-                <p class="price">$9.99/month</p>
-                <button class="start-button" onclick="processPayment('monthly')">Choose Monthly</button>
-            </div>
-            <div class="payment-option featured">
-                <div class="best-value">Best Value!</div>
-                <h3>Yearly Plan</h3>
-                <p class="price">$99.99/year</p>
-                <p class="savings">Save 17%</p>
-                <button class="start-button" onclick="processPayment('yearly')">Choose Yearly</button>
-            </div>
-            <div class="payment-option">
-                <h3>Lifetime Access</h3>
-                <p class="price">$299.99</p>
-                <button class="start-button" onclick="processPayment('lifetime')">Get Lifetime</button>
-            </div>
+
+<div id="upgrade-screen" class="screen">
+    <div class="upgrade-modal">
+        <div class="upgrade-form">
+            <h2>שדרוג לפרימיום</h2>
+            <form id="upgradeForm" onsubmit="handleUpgradeSubmit(event)">
+                <div class="form-group">
+                    <label>מספר טלפון</label>
+                    <input type="tel" id="phoneNumber" required 
+                           pattern="[0-9]{10}" placeholder="הזן מספר טלפון">
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="isAdult" onchange="toggleParentPhone()">
+                        אני מעל גיל 18
+                    </label>
+                </div>
+                
+                <div class="form-group parent-phone" id="parentPhoneGroup" style="display:none;">
+                    <label>מספר טלפון של הורה</label>
+                    <input type="tel" id="parentPhone" 
+                           pattern="[0-9]{10}" placeholder="הזן מספר טלפון של הורה">
+                </div>
+                
+                <div class="form-group">
+                    <label>זמן מועדף ליצירת קשר</label>
+                    <select id="contactTime">
+                        <option value="morning">בוקר (9-12)</option>
+                        <option value="afternoon">צהריים (12-17)</option>
+                        <option value="evening">ערב (17-21)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>איך שמעת עלינו?</label>
+                    <select id="referralSource">
+                        <option value="friend">חבר/ה</option>
+                        <option value="teacher">מורה</option>
+                        <option value="social">רשתות חברתיות</option>
+                        <option value="other">אחר</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>רמת אנגלית נוכחית</label>
+                    <select id="englishLevel">
+                        <option value="beginner">מתחיל/ה</option>
+                        <option value="intermediate">בינוני/ת</option>
+                        <option value="advanced">מתקדם/ת</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="submit-button">שלח/י בקשה</button>
+            </form>
+            <p>לאחר שליחת הבקשה ניצור איתך קשר בווטסאפ</p>
         </div>
     </div>
 </div>
-
-
 
 <script>
 
@@ -6236,58 +6281,16 @@ function hideUpgradePrompt() {
     }
 }
 
-function showPaymentScreen() {
-    document.querySelector('.payment-container').innerHTML = `
-        <h2 class="welcome-title">Choose Payment Method</h2>
-        <div class="payment-options">
-            <div class="payment-option">
-                <h3>Bit</h3>
-                <p class="price">₪299.99</p>
-                <button class="start-button" id="bit-button">Pay with Bit</button>
-            </div>
-            <div class="payment-option">
-                <h3>Paybox</h3>
-                <p class="price">₪299.99</p>
-                <button class="start-button" id="paybox-button">Pay with Paybox</button>
-            </div>
-            <div class="payment-option">
-                <h3>Kashkash</h3>
-                <p class="price">₪299.99</p>
-                <button class="start-button" id="kashkash-button">Pay with Kashkash</button>
-            </div>
-            <div class="payment-option">
-                <h3>Bank Transfer</h3>
-                <p class="price">₪299.99</p>
-                <button class="start-button" id="bank-button">Pay with Bank Transfer</button>
-            </div>
-        </div>
-        <button class="back-button" onclick="showScreen('stage-screen')">
-            <i class="fas fa-arrow-left"></i> Go Back
-        </button>
-    `;
 
-    // Add event listeners
-    document.getElementById('bit-button').addEventListener('click', () => processPayment('bit'));
-    document.getElementById('paybox-button').addEventListener('click', () => processPayment('paybox'));
-    document.getElementById('kashkash-button').addEventListener('click', () => processPayment('kashkash'));
-    document.getElementById('bank-button').addEventListener('click', () => processPayment('bank'));
-
-    showScreen('payment-screen');
-}
 
 function showUpgradePrompt(callback) {
-    const prompt = document.createElement('div');
-    prompt.className = 'upgrade-prompt';
-    prompt.innerHTML = `
-        <h2>Unlock Full Access</h2>
-        <p>Upgrade to premium to access all stages and sets!</p>
-        <div class="upgrade-prompt-buttons">
-            <button class="start-button" onclick="handleUpgradeClick()">Upgrade Now</button>
-            <button class="start-button" onclick="hideUpgradePromptAndContinue()">Continue Playing</button>
-        </div>
-    `
-    document.body.appendChild(prompt);
-    setTimeout(() => prompt.classList.add('show'), 100);
+    if (!currentUser) {
+        showUnregisteredWarning(() => {
+            if (callback) callback();
+        });
+    } else {
+        showUpgradeScreen();
+    }
 }
 
 function hideUpgradePromptAndContinue() {
@@ -6351,40 +6354,6 @@ async function checkUserAccess() {
 }
 
 
-async function processPayment(plan) {
-    console.log('Processing payment:', plan);
-    
-    if (!currentUser) {
-        console.error('No user logged in');
-        return;
-    }
-
-    const plans = {
-        monthly: { amount: 9.99, interval: 'month' },
-        yearly: { amount: 99.99, interval: 'year' },
-        lifetime: { amount: 299.99, interval: 'once' }
-    };
-
-    try {
-        const { data, error } = await supabaseClient
-            .from('payment_requests')
-            .insert({
-                user_id: currentUser.id,
-                plan_type: plan,
-                amount: plans[plan].amount,
-                status: 'pending'
-            })
-            .select();
-
-        if (error) throw error;
-        console.log('Payment request created:', data);
-        
-        showPaymentMethods(plans[plan].amount, data[0].id);
-    } catch (error) {
-        console.error('Payment error:', error);
-        alert('Payment processing failed. Please try again.');
-    }
-}
 
 function processPerfectCompletion(isLevelCompleted) {
     if (!isLevelCompleted && currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length) {
@@ -6555,57 +6524,6 @@ async function processPayment(plan) {
     showPaymentMethods(plans[plan].amount, data.id);
 }
 
-function showPaymentMethods(amount, requestId) {
-    const methods = document.createElement('div');
-    methods.className = 'payment-methods';
-    methods.innerHTML = `
-        <h3>Choose Payment Method</h3>
-        <div class="payment-buttons">
-            <button onclick="handlePayment('bit', ${amount}, '${requestId}')">
-                <i class="fas fa-mobile-alt"></i> Bit
-            </button>
-            <button onclick="handlePayment('paybox', ${amount}, '${requestId}')">
-                <i class="fas fa-credit-card"></i> Paybox
-            </button>
-            <button onclick="handlePayment('bank', ${amount}, '${requestId}')">
-                <i class="fas fa-university"></i> Bank Transfer
-            </button>
-        </div>
-    `;
-
-    document.querySelector('.payment-container').appendChild(methods);
-}
-
-async function handlePayment(method, amount, requestId) {
-    // Placeholder for payment processing
-    const { data, error } = await supabaseClient
-        .from('payment_requests')
-        .update({ 
-            payment_method: method,
-            status: 'processing' 
-        })
-        .eq('id', requestId);
-
-    if (error) {
-        console.error('Payment update error:', error);
-        return;
-    }
-
-    // Show confirmation placeholder
-    alert(`Payment processing! Amount: $${amount} via ${method}`);
-    showScreen('welcome-screen');
-}
-
-function hidePaymentMethods() {
-    const methods = document.querySelector('.payment-methods');
-    if (methods) {
-        methods.remove();
-    }
-}
-
-function generateReferenceCode() {
-    return `PAY-${Math.random().toString(36).substr(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`;
-}
 
 async function processPayment(method) {
     const prices = {bit: 299.99, paybox: 299.99, kashkash: 299.99, bank: 299.99};
@@ -6783,6 +6701,59 @@ async function rejectPayment(paymentId) {
     }
 
     loadPendingPayments();
+}
+
+function toggleParentPhone() {
+    const isAdult = document.getElementById('isAdult').checked;
+    const parentPhoneGroup = document.getElementById('parentPhoneGroup');
+    const parentPhoneInput = document.getElementById('parentPhone');
+    
+    parentPhoneGroup.style.display = isAdult ? 'none' : 'block';
+    parentPhoneInput.required = !isAdult;
+}
+
+async function handleUpgradeSubmit(event) {
+    event.preventDefault();
+    
+    const formData = {
+        phone: document.getElementById('phoneNumber').value,
+        isAdult: document.getElementById('isAdult').checked,
+        parentPhone: document.getElementById('parentPhone')?.value || null,
+        contactTime: document.getElementById('contactTime').value,
+        referralSource: document.getElementById('referralSource').value,
+        englishLevel: document.getElementById('englishLevel').value,
+        userId: currentUser?.id || null,
+        status: 'pending',
+        created_at: new Date()
+    };
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('upgrade_requests')
+            .insert([formData])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Open WhatsApp with pre-filled message
+        const message = `New upgrade request!\n` +
+            `Reference: ${data.id}\n` +
+            `Phone: ${formData.phone}\n` +
+            `Contact Time: ${formData.contactTime}\n` +
+            `English Level: ${formData.englishLevel}`;
+
+        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
+        
+        showScreen('welcome-screen');
+    } catch (error) {
+        console.error('Error submitting upgrade request:', error);
+        alert('Error submitting request. Please try again.');
+    }
+}
+
+function showUpgradeScreen() {
+    showScreen('upgrade-screen');
 }
 
 </script>
