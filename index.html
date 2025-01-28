@@ -1177,33 +1177,6 @@ body {
     50% { opacity: 1; }
 }
 
-.upgrade-success-modal {
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-}
-
-.upgrade-success-modal h2 {
-    color: var(--gold);
-    margin-bottom: 1rem;
-}
-
-.upgrade-success-modal button {
-    margin-top: 1rem;
-    padding: 0.75rem 1.5rem;
-    background: var(--accent);
-    color: white;
-    border: none;
-    border-radius: 25px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.upgrade-success-modal button:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-}
-
 /* Shop Styles */
 .shop-container {
   display: flex;
@@ -6404,8 +6377,22 @@ function showUpgradePrompt(callback) {
 }
 
 function hideUpgradePromptAndContinue() {
-    hideUpgradePrompt();
-    proceedWithLevel(gameState.currentLevel + 1);
+    // Hide upgrade screen
+    const upgradeScreen = document.getElementById('upgrade-screen');
+    if (upgradeScreen) {
+        upgradeScreen.classList.remove('visible');
+    }
+    
+    // Reset any frozen state
+    isFrozen = false;
+    clearTimer();
+    
+    // Continue to the next level using the current level as reference
+    if (gameState.currentLevel) {
+        proceedWithLevel(gameState.currentLevel);
+    } else {
+        showScreen('welcome-screen');
+    }
 }
 
 function handleUpgradeClick() {
@@ -6608,7 +6595,7 @@ async function processPayment(plan) {
 
 
 async function processPayment(method) {
-    const prices = {lifetime: 299.99};
+    const prices = {bit: 299.99, paybox: 299.99, kashkash: 299.99, bank: 299.99};
     const referenceCode = generateReferenceCode();
     
     try {
@@ -6617,7 +6604,7 @@ async function processPayment(method) {
             .insert({
                 user_id: currentUser.id,
                 payment_method: method,
-                amount: prices.lifetime,
+                amount: prices[method],
                 reference_code: referenceCode,
                 status: 'pending',
                 submission_time: new Date()
@@ -6625,16 +6612,10 @@ async function processPayment(method) {
             .select();
 
         if (error) throw error;
-
-        // Show payment details with reference code
         showPaymentDetails(method, referenceCode);
     } catch (error) {
         console.error('Payment error:', error);
     }
-}
-
-function generateReferenceCode() {
-    return Math.random().toString(36).substring(2, 10).toUpperCase();
 }
 
 
@@ -6801,6 +6782,12 @@ function toggleParentPhone() {
 }
 
 function showUpgradeScreen() {
+    // Check if user already submitted upgrade request
+    if (localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
+        hideUpgradePromptAndContinue();
+        return;
+    }
+    
     showScreen('upgrade-screen');
 }
 
@@ -6966,25 +6953,11 @@ async function handleUpgradeSubmit(event) {
             referral_source: document.getElementById('referralSource').value
         };
 
-        // Validate required fields
         if (!formData.full_name || !formData.phone) {
             alert('Please fill in all required fields');
             return;
         }
 
-        // Generate reference code
-        const referenceCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-
-        // Prepare WhatsApp message
-        const message = encodeURIComponent(
-            `Upgrade Request:\n` +
-            `User: ${currentUser.email}\n` +
-            `Name: ${formData.full_name}\n` +
-            `Phone: ${formData.phone}\n` +
-            `Reference: ${referenceCode}`
-        );
-
-        // Update user profile and insert upgrade request
         const [profileUpdate, requestInsert] = await Promise.all([
             supabaseClient
                 .from('user_profiles')
@@ -6996,10 +6969,7 @@ async function handleUpgradeSubmit(event) {
             
             supabaseClient
                 .from('upgrade_requests')
-            .insert([{
-                    ...formData,
-                    reference_code: referenceCode
-                }])
+                .insert([formData])
                 .select()
                 .single()
         ]);
@@ -7007,8 +6977,26 @@ async function handleUpgradeSubmit(event) {
         if (profileUpdate.error) throw profileUpdate.error;
         if (requestInsert.error) throw requestInsert.error;
 
-        // Show success modal
-        showUpgradeSuccessModal(referenceCode);
+        // Open WhatsApp with pre-filled message
+        const message = `Upgrade Request:\n` +
+            `User: ${currentUser.email}\n` +
+            `Name: ${formData.full_name}\n` +
+            `Phone: ${formData.phone}\n` +
+            `Reference: ${requestInsert.data.id}`;
+
+        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
+
+        // Store in localStorage to prevent re-showing upgrade form
+        localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
+
+        // Hide upgrade screen
+        const upgradeScreen = document.getElementById('upgrade-screen');
+        if (upgradeScreen) {
+            upgradeScreen.classList.remove('visible');
+        }
+
+        // Continue with game progression
+        hideUpgradePromptAndContinue();
 
     } catch (error) {
         console.error('Upgrade Request Error:', error);
@@ -7077,43 +7065,6 @@ function setupUserStatusSubscription() {
         .subscribe();
 
     return subscription;
-}
-
-function showUpgradeSuccessModal(referenceCode) {
-    // Create a modal with success message and continue button
-    const modal = document.createElement('div');
-    modal.className = 'upgrade-success-modal';
-    modal.innerHTML = `
-        <div class="modal-content">
-            <h2>Upgrade Request Sent!</h2>
-            <p>Your upgrade request has been submitted successfully.</p>
-            <p>Reference Code: <strong>${referenceCode}</strong></p>
-            <p>We'll contact you soon via WhatsApp to complete the process.</p>
-            <button onclick="closeUpgradeModal()">Continue Playing</button>
-        </div>
-    `;
-    
-    // Add some styling
-    modal.style.position = 'fixed';
-    modal.style.top = '50%';
-    modal.style.left = '50%';
-    modal.style.transform = 'translate(-50%, -50%)';
-    modal.style.background = 'var(--glass)';
-    modal.style.padding = '2rem';
-    modal.style.borderRadius = '20px';
-    modal.style.zIndex = '1000';
-    modal.style.textAlign = 'center';
-    
-    document.body.appendChild(modal);
-}
-
-function closeUpgradeModal() {
-    const modal = document.querySelector('.upgrade-success-modal');
-    if (modal) {
-        document.body.removeChild(modal);
-    }
-    // Return to welcome screen or current game screen
-    showScreen('welcome-screen');
 }
 
 </script>
