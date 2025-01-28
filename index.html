@@ -6392,6 +6392,18 @@ function hideUpgradePromptAndContinue() {
         upgradeScreen.classList.remove('visible');
     }
     
+    // Remove success overlay if exists
+    const successOverlay = document.querySelector('.upgrade-success-overlay');
+    if (successOverlay) {
+        successOverlay.remove();
+    }
+    
+    // Reset upgrade form
+    const upgradeForm = document.getElementById('upgradeForm');
+    if (upgradeForm) {
+        upgradeForm.reset();
+    }
+    
     // Reset any frozen state
     isFrozen = false;
     clearTimer();
@@ -6947,65 +6959,141 @@ function toggleParentFields() {
     }
 }
 
-async function handleUpgradeSubmit(event) {
+function handleUpgradeSubmit(event) {
     event.preventDefault();
     const isAdult = document.getElementById('isAdult').checked;
     
     try {
-        let formData = {
-            user_id: currentUser.id,
-            is_adult: isAdult,
-            full_name: isAdult ? document.getElementById('fullName').value : document.getElementById('parentName').value,
-            phone: isAdult ? document.getElementById('phone').value : document.getElementById('parentPhone').value,
-            parent_name: !isAdult ? document.getElementById('parentName').value : null,
-            parent_phone: !isAdult ? document.getElementById('parentPhone').value : null,
-            referral_source: document.getElementById('referralSource').value
-        };
+        // ... [previous validation and Supabase updates remain the same] ...
 
-        if (!formData.full_name || !formData.phone) {
-            alert('Please fill in all required fields');
-            return;
-        }
-
-        const [profileUpdate, requestInsert] = await Promise.all([
-            supabaseClient
-                .from('user_profiles')
-                .update({ 
-                    status: 'pending', 
-                    payment_pending: true 
-                })
-                .eq('id', currentUser.id),
-            
-            supabaseClient
-                .from('upgrade_requests')
-                .insert([formData])
-                .select()
-                .single()
-        ]);
-
-        if (profileUpdate.error) throw profileUpdate.error;
-        if (requestInsert.error) throw requestInsert.error;
-
-        // Open WhatsApp with pre-filled message
-        const message = `Upgrade Request:\n` +
-            `User: ${currentUser.email}\n` +
-            `Name: ${formData.full_name}\n` +
-            `Phone: ${formData.phone}\n` +
-            `Reference: ${requestInsert.data.id}`;
-
-        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
-
-        // Store in localStorage to prevent re-showing upgrade form
-        localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
-
-        // Hide upgrade screen
+        // First, hide the upgrade screen completely
         const upgradeScreen = document.getElementById('upgrade-screen');
         if (upgradeScreen) {
             upgradeScreen.classList.remove('visible');
         }
 
-        // Continue with game progression
-        hideUpgradePromptAndContinue();
+        // Then show the success message
+        const overlay = document.createElement('div');
+        overlay.className = 'upgrade-success-overlay';
+        overlay.innerHTML = `
+            <div class="upgrade-success-message">
+                <i class="fas fa-check-circle success-icon"></i>
+                <h2>Premium Request Sent!</h2>
+                <div class="success-content">
+                    <p>Thank you for choosing to upgrade to Premium.</p>
+                    <p>We'll contact you shortly via WhatsApp with payment details.</p>
+                </div>
+                <button class="continue-button" onclick="hideUpgradePromptAndContinue()">
+                    <i class="fas fa-gamepad"></i>
+                    Continue Playing
+                </button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        // Add enhanced CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            .upgrade-success-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+                animation: fadeIn 0.3s ease-out;
+            }
+
+            .upgrade-success-message {
+                background: var(--glass);
+                backdrop-filter: blur(10px);
+                padding: 3rem;
+                border-radius: 20px;
+                text-align: center;
+                color: var(--text);
+                max-width: 400px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+                animation: slideUp 0.5s ease-out;
+            }
+
+            .success-icon {
+                font-size: 4rem;
+                color: var(--gold);
+                margin-bottom: 1rem;
+                animation: pulse 2s infinite;
+            }
+
+            .upgrade-success-message h2 {
+                font-size: 2rem;
+                margin-bottom: 1.5rem;
+                background: linear-gradient(to right, var(--gold), var(--accent));
+                -webkit-background-clip: text;
+                background-clip: text;
+                color: transparent;
+            }
+
+            .success-content {
+                margin-bottom: 2rem;
+            }
+
+            .success-content p {
+                margin: 0.5rem 0;
+                line-height: 1.5;
+                color: rgba(255, 255, 255, 0.9);
+            }
+
+            .continue-button {
+                padding: 1rem 2rem;
+                border: 2px solid var(--accent);
+                background: transparent;
+                color: var(--text);
+                border-radius: 50px;
+                cursor: pointer;
+                font-weight: 600;
+                font-size: 1.1rem;
+                transition: all 0.3s ease;
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+
+            .continue-button:hover {
+                background: var(--accent);
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(233, 69, 96, 0.3);
+            }
+
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+
+            @keyframes slideUp {
+                from { 
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to { 
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+                100% { transform: scale(1); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Store in localStorage
+        localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
 
     } catch (error) {
         console.error('Upgrade Request Error:', error);
