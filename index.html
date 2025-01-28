@@ -4249,9 +4249,12 @@ function calculateWordsForLevel(level, vocabulary) {
 }
 
 async function startLevel(levelId) {
+    gameState.currentStage = gameState.currentStage || 1;
+    gameState.currentSet = gameState.currentSet || 1;
+    gameState.currentLevel = levelId;
+
     const userStatus = currentUser ? currentUser.status : 'unregistered';
-    const triggerLevels = [2, 7, 11, 15, 20];
-    
+    const triggerLevels = [2, 7, 11, 15, 20];    
     if (gameState.currentStage === 1 && 
         gameState.currentSet === 1 && 
         triggerLevels.includes(levelId) && 
@@ -4264,7 +4267,7 @@ async function startLevel(levelId) {
                 proceedWithLevel(continueLevelId);
             });
             return;
-        } else {
+        } else if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
             showUpgradePrompt(() => {
                 proceedWithLevel(continueLevelId);
             });
@@ -6272,54 +6275,7 @@ async function showShareModal(listId) {
     modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
 
-async function checkUserAccess() {
-    if (!currentUser) {
-        return {
-            fullAccess: false,
-            unlockedStages: {
-                1: 'full',     
-                2: [1],        
-                3: [1],        
-                4: [1],
-                5: [1]          
-            },
-            isUnregistered: true
-        };
-    }
 
-    const { data: userProfile } = await supabaseClient
-        .from('user_profiles')
-        .select('status')
-        .eq('id', currentUser.id)
-        .single();
-
-    if (userProfile?.status === 'premium') {
-        return {
-            fullAccess: true,
-            unlockedStages: {
-                1: 'full',
-                2: 'full',
-                3: 'full',
-                4: 'full',
-                5: 'full'
-            },
-            isUnregistered: false
-        };
-    }
-
-    // Pending users get same access as free users
-    return {
-        fullAccess: false,
-        unlockedStages: {
-            1: 'full',
-            2: [1],
-            3: [1],
-            4: [1],
-            5: [1]
-        },
-        isUnregistered: false
-    };
-}
 
 function handleProgressionAfterCompletion(isLevelCompleted) {
     if (!isLevelCompleted && currentGame.streakBonus) {
@@ -6392,39 +6348,7 @@ function showSetScreen(stageId) {
     });
 }
 
-function showUpgradePrompt() {
-    const isUnregistered = !currentUser;
-    const promptContent = isUnregistered ? {
-        title: "Sign Up to Save Progress",
-        message: "Create a free account to save your progress and unlock more content!",
-        buttons: [
-            {text: "Sign Up", action: () => showScreen('welcome-screen'), class: 'start-button'},
-            {text: "Continue Playing", action: hideUpgradePrompt, class: 'start-button'}
-        ]
-    } : {
-        title: "Unlock Full Access",
-        message: "Upgrade to premium to access all stages and sets!",
-        buttons: [
-            {text: "Upgrade Now", action: showPaymentScreen, class: 'start-button'},
-            {text: "Maybe Later", action: hideUpgradePrompt, class: 'start-button'}
-        ]
-    };
 
-    const prompt = document.createElement('div');
-    prompt.className = 'upgrade-prompt';
-    prompt.innerHTML = `
-        <h2>${promptContent.title}</h2>
-        <p>${promptContent.message}</p>
-        <div class="upgrade-prompt-buttons">
-            ${promptContent.buttons.map(btn => 
-                `<button class="${btn.class}" onclick="(${btn.action})()">${btn.text}</button>`
-            ).join('')}
-        </div>
-    `;
-
-    document.body.appendChild(prompt);
-    setTimeout(() => prompt.classList.add('show'), 100);
-}
 
 function hideUpgradePrompt() {
     const prompt = document.querySelector('.upgrade-prompt');
@@ -6437,24 +6361,54 @@ function hideUpgradePrompt() {
 
 
 function showUpgradePrompt(callback) {
+    // Store the current screen and level info
+    const gameContext = {
+        screen: document.querySelector('.screen.visible')?.id,
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: gameState.currentLevel
+    };
+    
+    if (gameContext.screen) {
+        localStorage.setItem('gameContext', JSON.stringify(gameContext));
+    }
+
     if (!currentUser) {
         showUnregisteredWarning(() => {
             if (callback) callback();
         });
-    } else {
+    } else if (!checkUpgradeStatus()) {
         showUpgradeScreen();
+    } else {
+        // Already requested upgrade, continue with game
+        if (callback) callback();
     }
 }
 
 function hideUpgradePromptAndContinue() {
-    hideUpgradePrompt();
-    proceedWithLevel(gameState.currentLevel + 1);
+    // Hide upgrade screen
+    const upgradeScreen = document.getElementById('upgrade-screen');
+    if (upgradeScreen) {
+        upgradeScreen.classList.remove('visible');
+    }
+    
+    // Reset any frozen state
+    isFrozen = false;
+    clearTimer();
+    
+    // Continue to the next level using the current level as reference
+    if (gameState.currentLevel) {
+        proceedWithLevel(gameState.currentLevel);
+    } else {
+        showScreen('welcome-screen');
+    }
 }
 
 function handleUpgradeClick() {
     hideUpgradePrompt();
     showPaymentScreen();
 }
+
 
 async function checkUserAccess() {
     // For unregistered users
@@ -6466,7 +6420,7 @@ async function checkUserAccess() {
                 2: [1],         // Set 1 only
                 3: [1],         // Set 1 only
                 4: [1],         // Set 1 only
-                5: [1]   // Coming soon
+                5: [1]          // Coming soon
             }
         };
     }
@@ -6474,13 +6428,27 @@ async function checkUserAccess() {
     // Check user access level
     const { data, error } = await supabaseClient
         .from('user_profiles')
-        .select('access_level')
-        .eq('user_id', currentUser.id)
+        .select('status, payment_pending')
+        .eq('id', currentUser.id)
         .single();
 
     if (error) return null;
 
-    if (data.access_level === 'premium') {
+    // If payment is pending, restrict access
+    if (data.payment_pending) {
+        return {
+            fullAccess: false,
+            unlockedStages: {
+                1: 'full',
+                2: [1],
+                3: [1],
+                4: [1],
+                5: [1]
+            }
+        };
+    }
+
+    if (data.status === 'premium') {
         return {
             fullAccess: true,
             unlockedStages: {
@@ -6505,7 +6473,6 @@ async function checkUserAccess() {
         },
     };
 }
-
 
 async function showSetScreen(stageId) {
     gameState.currentStage = stageId;
@@ -6824,6 +6791,12 @@ function toggleParentPhone() {
 }
 
 function showUpgradeScreen() {
+    // Check if user already submitted upgrade request
+    if (localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
+        hideUpgradePromptAndContinue();
+        return;
+    }
+    
     showScreen('upgrade-screen');
 }
 
@@ -6989,45 +6962,53 @@ async function handleUpgradeSubmit(event) {
             referral_source: document.getElementById('referralSource').value
         };
 
-        // Validate required fields
         if (!formData.full_name || !formData.phone) {
             alert('Please fill in all required fields');
             return;
         }
 
-        // Update user status to pending
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .update({ status: 'pending' })
-            .eq('id', currentUser.id);
+        const [profileUpdate, requestInsert] = await Promise.all([
+            supabaseClient
+                .from('user_profiles')
+                .update({ 
+                    status: 'pending', 
+                    payment_pending: true 
+                })
+                .eq('id', currentUser.id),
+            
+            supabaseClient
+                .from('upgrade_requests')
+                .insert([formData])
+                .select()
+                .single()
+        ]);
 
-        if (profileError) throw profileError;
+        if (profileUpdate.error) throw profileUpdate.error;
+        if (requestInsert.error) throw requestInsert.error;
 
-        // Insert request
-        const { data, error } = await supabaseClient
-            .from('upgrade_requests')
-            .insert([formData])
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        // Open WhatsApp
-        const message = `New upgrade request!\n` +
+        // Open WhatsApp with pre-filled message
+        const message = `Upgrade Request:\n` +
             `User: ${currentUser.email}\n` +
             `Name: ${formData.full_name}\n` +
             `Phone: ${formData.phone}\n` +
-            (formData.parent_name ? `Parent: ${formData.parent_name}\n` : '') +
-            `Reference ID: ${data.id}`;
+            `Reference: ${requestInsert.data.id}`;
 
         window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
 
-        // Show success and return to game
-        alert('Thank you! Your request has been submitted. We will contact you shortly.');
-        showScreen('welcome-screen');
+        // Store in localStorage to prevent re-showing upgrade form
+        localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
+
+        // Hide upgrade screen
+        const upgradeScreen = document.getElementById('upgrade-screen');
+        if (upgradeScreen) {
+            upgradeScreen.classList.remove('visible');
+        }
+
+        // Continue with game progression
+        hideUpgradePromptAndContinue();
 
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Upgrade Request Error:', error);
         alert('Error processing request. Please try again.');
     }
 }
@@ -7093,6 +7074,32 @@ function setupUserStatusSubscription() {
         .subscribe();
 
     return subscription;
+}
+
+function restoreGameContext() {
+    const savedContext = localStorage.getItem('gameContext');
+    if (savedContext) {
+        const context = JSON.parse(savedContext);
+        gameState.currentStage = context.stage || 1;
+        gameState.currentSet = context.set || 1;
+        gameState.currentLevel = context.level;
+        
+        // Clear the saved context
+        localStorage.removeItem('gameContext');
+        
+        return true;
+    }
+    return false;
+}
+
+function checkUpgradeStatus() {
+    if (!currentUser) return false;
+    
+    const hasRequestedUpgrade = localStorage.getItem(`upgradeRequested_${currentUser.id}`);
+    const isPremium = currentUser.status === 'premium';
+    const isPending = currentUser.status === 'pending';
+    
+    return hasRequestedUpgrade || isPremium || isPending;
 }
 
 </script>
