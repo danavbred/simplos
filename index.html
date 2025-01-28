@@ -75,9 +75,6 @@ body {
   left: 0;
   width: 100%;
   background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%);
-  opacity: 1;
-    transition: opacity 0.3s;
-    will-change: opacity;
 }
 
 .screen.visible {
@@ -310,41 +307,6 @@ body {
     background: linear-gradient(to right, var(--gold), var(--accent));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-}
-
-.skip-button {
-    position: absolute;
-    top: 1rem;
-    left: 1rem;
-    padding: 0.5rem 1rem;
-    border: none;
-    background: rgba(255,255,255,0.1);
-    color: var(--text);
-    border-radius: 20px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.skip-button:hover {
-    background: rgba(255,255,255,0.2);
-}
-
-.pending-status {
-    color: #00bfff;
-    animation: pendingBlink 2s infinite;
-    font-size: 0.9rem;
-    margin-top: 0.25rem;
-}
-
-@keyframes pendingBlink {
-    0%, 100% { opacity: 0.7; }
-    50% { opacity: 1; }
-}
-
-.premium-status {
-    color: #50C878;
-    font-size: 0.9rem;
-    margin-top: 0.25rem;
 }
 
 .form-group {
@@ -1136,20 +1098,41 @@ body {
   animation: coinPulse 0.5s ease-in-out 3;
 }
 
-/* Use transform instead of top/left for animations */
-.particle {
-    transform: translate(var(--x), var(--y));
-    will-change: transform;
+.skip-button {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    padding: 0.5rem 1rem;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: var(--text);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
 }
 
-/* Use opacity for fade effects */
-
-
-/* Hardware acceleration for smooth animations */
-.animated-element {
-    transform: translateZ(0);
-    backface-visibility: hidden;
+.skip-button:hover {
+    background: rgba(255,255,255,0.2);
 }
+
+.pending-status {
+    color: #00bfff;
+    animation: pendingBlink 2s infinite;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+
+@keyframes pendingBlink {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+.premium-status {
+    color: #50C878;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+}
+
 
 /* Shop Styles */
 .shop-container {
@@ -2807,54 +2790,55 @@ body {
     <form id="upgradeForm" onsubmit="handleUpgradeSubmit(event)">
         <div class="form-group">
             <label>
-                <input type="checkbox" id="isAdult" onchange="toggleParentFields()">
+                <input type="checkbox" id="isAdult" onchange="toggleParentFields()" name="isAdult">
                 אני מעל גיל 18
             </label>
         </div>
         
-        <!-- Parent/User Info Section -->
-        <!-- Parent/User Info Section -->
-<div id="parentInfoSection">
-    <div class="form-group">
-        <label>שם מלא של הורה</label>
-        <input type="text" id="parentName" name="parentName" required>
-    </div>
-    <div class="form-group">
-        <label>מספר טלפון של הורה</label>
-        <input type="tel" id="parentPhone" name="parentPhone" 
-               pattern="[0-9]{10}" placeholder="הזן מספר טלפון של הורה" required>
-    </div>
-</div>
+        <!-- Parent Info Section -->
+        <div id="parentInfoSection">
+            <div class="form-group">
+                <label>שם מלא של הורה</label>
+                <input type="text" id="parentName" name="parentName">
+            </div>
+            <div class="form-group">
+                <label>מספר טלפון של הורה</label>
+                <input type="tel" id="parentPhone" name="parentPhone" 
+                       pattern="[0-9]{10}" placeholder="הזן מספר טלפון של הורה">
+            </div>
+        </div>
 
-<div id="adultInfoSection" style="display:none;">
-    <div class="form-group">
-        <label>שם מלא</label>
-        <input type="text" id="fullName" name="fullName" required>
-    </div>
-    <div class="form-group">
-        <label>מספר טלפון</label>
-        <input type="tel" id="phone" name="phone" 
-               pattern="[0-9]{10}" placeholder="הזן מספר טלפון" required>
-    </div>
-</div>
+        <!-- Adult Info Section -->
+        <div id="adultInfoSection" style="display:none;">
+            <div class="form-group">
+                <label>שם מלא</label>
+                <input type="text" id="fullName" name="fullName">
+            </div>
+            <div class="form-group">
+                <label>מספר טלפון</label>
+                <input type="tel" id="phone" name="phone" 
+                       pattern="[0-9]{10}" placeholder="הזן מספר טלפון">
+            </div>
+        </div>
 
-<div class="form-group">
-    <label>איך שמעת עלינו?</label>
-    <select id="referralSource" name="referralSource">
-        <option value="friend">חבר/ה</option>
-        <option value="teacher">מורה</option>
-        <option value="social">רשתות חברתיות</option>
-        <option value="other">אחר</option>
-    </select>
-</div>
+        <div class="form-group">
+            <label>איך שמעת עלינו?</label>
+            <select id="referralSource" name="referralSource">
+                <option value="friend">חבר/ה</option>
+                <option value="teacher">מורה</option>
+                <option value="social">רשתות חברתיות</option>
+                <option value="other">אחר</option>
+            </select>
+        </div>
 
         <button type="submit" class="submit-button">שלח/י בקשה</button>
-        <button type="button" class="skip-button" onclick="hideUpgradePromptAndContinue()">Skip</button>
+        <button type="button" class="skip-button" onclick="skipUpgrade()">דלג</button>
     </form>
     <p>לאחר שליחת הבקשה ניצור איתך קשר בווטסאפ</p>
-</div>    
 </div>
+    </div>
 </div>
+
 
 <script>
 
@@ -3244,7 +3228,6 @@ async function checkExistingSession() {
         updateAuthUI();
     }
 }
-
 
 document.addEventListener('DOMContentLoaded', function() {
     currentUser = null;
@@ -3906,24 +3889,8 @@ function showScreen(screenId) {
             break;
     }
 
-    // Update status display if user is logged in
-    if (currentUser) {
-        supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single()
-            .then(({ data }) => {
-                if (data) {
-                    updateUserStatusDisplay(data.status);
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching user status:', error);
-            });
-    }
-
-    // Navigation icon logic if needed
+    // Navigation icon logic
+    
 }
 
 // Add full-screen event listener
@@ -4144,30 +4111,23 @@ function calculateWordsForLevel(level, vocabulary) {
 
 async function startLevel(levelId) {
     const userStatus = currentUser ? currentUser.status : 'unregistered';
-    const triggerLevels = [4, 7, 11, 15, 20];
+    const triggerLevels = [2, 7, 11, 15, 20];
     
-    // Only show prompts if user is unregistered or free (not pending or premium)
     if (gameState.currentStage === 1 && 
         gameState.currentSet === 1 && 
         triggerLevels.includes(levelId) && 
-        userStatus !== 'premium' && 
-        userStatus !== 'pending') {
+        userStatus !== 'premium') {
             
-        gameState.upgradePromptState = {
-            currentStage: gameState.currentStage,
-            currentSet: gameState.currentSet,
-            currentLevel: levelId,
-            nextLevel: levelId
-        };
+        const continueLevelId = levelId; // Store levelId for callback
             
         if (!currentUser) {
             showUnregisteredWarning(() => {
-                proceedWithLevel(levelId);
+                proceedWithLevel(continueLevelId);
             });
             return;
-        } else if (userStatus === 'free') {
+        } else {
             showUpgradePrompt(() => {
-                proceedWithLevel(levelId);
+                proceedWithLevel(continueLevelId);
             });
             return;
         }
@@ -4748,26 +4708,46 @@ function handleLevelCompletion() {
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     const isLevelCompleted = gameState.perfectLevels.has(levelKey);
     
-    if (!isLevelCompleted && currentGame.streakBonus) {
-        if (gameState.currentStage === 1 && 
-            gameState.currentSet === 1 && 
-            gameState.currentLevel === 1) {
-            
-            const userStatus = currentUser ? currentUser.status : 'unregistered';
-            
-            // Only show prompts if user is unregistered or free
-            if (userStatus !== 'premium' && userStatus !== 'pending') {
-                if (!currentUser) {
-                    showUnregisteredWarning(() => handleProgression(levelKey));
-                    return;
-                } else if (userStatus === 'free') {
-                    showUpgradePrompt(() => handleProgression(levelKey));
-                    return;
-                }
-            }
-        }
-        }
+    // Disable buttons immediately
+    const buttons = document.querySelectorAll('.buttons button');
+    buttons.forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+    });
+
+    // Handle custom practice mode first
+    if (currentGame.isCustomPractice) {
+        handleCustomPracticeCompletion();
+        return;
+    }
+
+    // STRICT CHECK: Perfect completion requires:
+    // 1. Level not previously completed
+    // 2. Maintained streak (no wrong answers)
+    // 3. All words answered correctly
+    const isPerfectRun = !isLevelCompleted && 
+                        currentGame.streakBonus && 
+                        currentGame.correctAnswers === currentGame.words.length;
+
+    if (!isPerfectRun) {
+        // If not perfect, restart level after delay
+        setTimeout(() => startLevel(gameState.currentLevel), 1500);
+        return;
+    }
+
+    // For level 1-1 completion, check registration/upgrade status
+    if (gameState.currentStage === 1 && gameState.currentSet === 1 && 
+        gameState.currentLevel === 1) {
         
+        if (!currentUser) {
+            showUnregisteredWarning(() => handleProgression(levelKey));
+            return;
+        } else if (currentUser?.status === 'free') {
+            showUpgradePrompt(() => handleProgression(levelKey));
+            return;
+        }
+    }
+
     // If we get here, level was completed perfectly
     // Award completion bonus
     gameState.coins += 5;
@@ -6318,14 +6298,6 @@ function hideUpgradePrompt() {
 
 
 function showUpgradePrompt(callback) {
-    // Store exact game state before showing upgrade screen
-    gameState.upgradePromptState = {
-        currentStage: gameState.currentStage,
-        currentSet: gameState.currentSet,
-        currentLevel: gameState.currentLevel,
-        nextLevel: gameState.currentLevel + 1
-    };
-    
     if (!currentUser) {
         showUnregisteredWarning(() => {
             if (callback) callback();
@@ -6703,141 +6675,6 @@ async function rejectPayment(paymentId) {
     loadPendingPayments();
 }
 
-async function handleUpgradeSubmit(event) {
-    event.preventDefault();
-    const isAdult = document.getElementById('isAdult').checked;
-    
-    try {
-        let formData;
-        if (isAdult) {
-            formData = {
-                user_id: currentUser.id,
-                is_adult: true,
-                full_name: document.getElementById('fullName').value,
-                phone: document.getElementById('phone').value,
-                parent_name: null,
-                parent_phone: null,
-                referral_source: document.getElementById('referralSource').value
-            };
-        } else {
-            formData = {
-                user_id: currentUser.id,
-                is_adult: false,
-                full_name: null,
-                phone: null,
-                parent_name: document.getElementById('parentName').value,
-                parent_phone: document.getElementById('parentPhone').value,
-                referral_source: document.getElementById('referralSource').value
-            };
-        }
-
-        // Update user status to pending
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .update({ status: 'pending' })
-            .eq('id', currentUser.id);
-
-        if (profileError) throw profileError;
-
-        // Insert request
-        const { data, error } = await supabaseClient
-            .from('upgrade_requests')
-            .insert([formData])
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        // Open WhatsApp
-        const message = `New upgrade request!\n` +
-            `User: ${currentUser.email}\n` +
-            (isAdult ? 
-                `Name: ${formData.full_name}\nPhone: ${formData.phone}` : 
-                `Parent Name: ${formData.parent_name}\nParent Phone: ${formData.parent_phone}`
-            ) +
-            `\nReference ID: ${data.id}`;
-
-        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
-
-        // Show success and return to game
-        alert('Thank you! Your request has been submitted. We will contact you shortly.');
-        showScreen('welcome-screen');
-
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error processing request. Please try again.');
-    }
-}
-
-function skipUpgrade() {
-    hideUpgradePromptAndContinue();
-}
-
-function updateUserStatusDisplay(status) {
-    const userInfo = document.getElementById('userInfo');
-    if (!userInfo) return;
-
-    // Remove any existing status text
-    const existingStatus = userInfo.querySelector('.status-text');
-    if (existingStatus) {
-        existingStatus.remove();
-    }
-
-    // Create new status text
-    const statusText = document.createElement('span');
-    statusText.classList.add('status-text');
-    
-    switch(status) {
-        case 'pending':
-            statusText.classList.add('pending-status');
-            statusText.textContent = 'Premium Order Pending';
-            break;
-        case 'premium':
-            statusText.classList.add('premium-status');
-            statusText.textContent = 'Premium Account';
-            break;
-    }
-    
-    userInfo.appendChild(statusText);
-}
-
-function toggleParentFields() {
-    const isAdult = document.getElementById('isAdult').checked;
-    const parentSection = document.getElementById('parentInfoSection');
-    const adultSection = document.getElementById('adultInfoSection');
-    
-    // Parent fields
-    const parentName = document.getElementById('parentName');
-    const parentPhone = document.getElementById('parentPhone');
-    
-    // Adult fields
-    const fullName = document.getElementById('fullName');
-    const phone = document.getElementById('phone');
-    
-    if (isAdult) {
-        // Switch to adult fields
-        parentSection.style.display = 'none';
-        adultSection.style.display = 'block';
-        
-        // Make adult fields required, remove requirement from parent fields
-        parentName.removeAttribute('required');
-        parentPhone.removeAttribute('required');
-        fullName.setAttribute('required', '');
-        phone.setAttribute('required', '');
-        
-    } else {
-        // Switch to parent fields
-        parentSection.style.display = 'block';
-        adultSection.style.display = 'none';
-        
-        // Make parent fields required, remove requirement from adult fields
-        parentName.setAttribute('required', '');
-        parentPhone.setAttribute('required', '');
-        fullName.removeAttribute('required');
-        phone.removeAttribute('required');
-    }
-}
-
 function toggleParentPhone() {
     const isAdult = document.getElementById('isAdult').checked;
     const parentPhoneGroup = document.getElementById('parentPhoneGroup');
@@ -6847,112 +6684,8 @@ function toggleParentPhone() {
     parentPhoneInput.required = !isAdult;
 }
 
-async function handleUpgradeSubmit(event) {
-    event.preventDefault();
-    
-    const isAdult = document.getElementById('isAdult').checked;
-    
-    try {
-        // First update user status to pending
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .update({ status: 'pending' })
-            .eq('id', currentUser.id);
-
-        if (profileError) {
-            console.error('Error updating profile:', profileError);
-            alert('Error updating user status. Please try again.');
-            return;
-        }
-
-        // Get form values
-        const formData = {
-            user_id: currentUser.id,
-            is_adult: isAdult,
-            full_name: isAdult ? 
-                document.getElementById('fullName').value : '',
-            phone: isAdult ? 
-                document.getElementById('phone').value : '',
-            parent_name: !isAdult ? 
-                document.getElementById('parentName').value : '',
-            parent_phone: !isAdult ? 
-                document.getElementById('parentPhone').value : '',
-            referral_source: document.getElementById('referralSource').value,
-            created_at: new Date()
-        };
-
-        // Insert upgrade request
-        const { data, error } = await supabaseClient
-            .from('upgrade_requests')
-            .insert([formData])
-            .select()
-            .single();
-
-        if (error) {
-            throw error;
-        }
-
-        // Update UI to show pending status
-        updateUserStatusDisplay('pending');
-
-        // Open WhatsApp with details
-        const whatsappMessage = `New Premium Request
-User Email: ${currentUser.email}
-${isAdult ? `Name: ${formData.full_name}
-Phone: ${formData.phone}` : 
-`Parent Name: ${formData.parent_name}
-Parent Phone: ${formData.parent_phone}`}
-Referral: ${formData.referral_source}
-Request ID: ${data.id}`;
-
-        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(whatsappMessage)}`);
-
-        // Return to game
-        alert('Thank you! Your request has been submitted. We will contact you shortly.');
-        showScreen('welcome-screen');
-
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error processing request. Please try again.');
-    }
-}
-
 function showUpgradeScreen() {
-    // Store current game state BEFORE switching screens
-    gameState.upgradePromptState = {
-        currentStage: gameState.currentStage,
-        currentSet: gameState.currentSet,
-        currentLevel: gameState.currentLevel,
-        nextLevel: gameState.currentLevel + 1,
-        returnScreen: 'question-screen' // Add this to track where to return
-    };
-
-    console.log('Storing game state:', gameState.upgradePromptState); // Debug log
     showScreen('upgrade-screen');
-}
-
-function skipUpgrade() {
-    const savedState = gameState.upgradePromptState;
-    console.log('Retrieved state:', savedState); // Debug log
-
-    if (!savedState) {
-        console.error('No saved state found');
-        return; // Don't redirect to welcome screen
-    }
-
-    // Hide upgrade screen
-    const upgradeScreen = document.getElementById('upgrade-screen');
-    upgradeScreen.classList.remove('visible');
-
-    // Proceed with next level
-    if (savedState.nextLevel) {
-        gameState.currentStage = savedState.currentStage;
-        gameState.currentSet = savedState.currentSet;
-        startLevel(savedState.nextLevel);
-    }
-
-    // Clean up
-    delete gameState.upgradePromptState;
 }
 
 class RateLimiter {
@@ -7076,7 +6809,136 @@ const ErrorHandler = {
     }
 };
 
+function toggleParentFields() {
+    const isAdult = document.getElementById('isAdult').checked;
+    const parentSection = document.getElementById('parentInfoSection');
+    const adultSection = document.getElementById('adultInfoSection');
+    
+    // Get input elements
+    const parentInputs = parentSection.querySelectorAll('input');
+    const adultInputs = adultSection.querySelectorAll('input');
+    
+    if (isAdult) {
+        parentSection.style.display = 'none';
+        adultSection.style.display = 'block';
+        
+        // Toggle required attributes
+        parentInputs.forEach(input => input.required = false);
+        adultInputs.forEach(input => input.required = true);
+    } else {
+        parentSection.style.display = 'block';
+        adultSection.style.display = 'none';
+        
+        // Toggle required attributes
+        parentInputs.forEach(input => input.required = true);
+        adultInputs.forEach(input => input.required = false);
+    }
+}
 
+async function handleUpgradeSubmit(event) {
+    event.preventDefault();
+    const isAdult = document.getElementById('isAdult').checked;
+    
+    try {
+        let formData;
+        if (isAdult) {
+            formData = {
+                user_id: currentUser.id,
+                is_adult: true,
+                full_name: document.getElementById('fullName').value,
+                phone: document.getElementById('phone').value,
+                parent_name: null,
+                parent_phone: null,
+                referral_source: document.getElementById('referralSource').value
+            };
+        } else {
+            formData = {
+                user_id: currentUser.id,
+                is_adult: false,
+                full_name: null,
+                phone: null,
+                parent_name: document.getElementById('parentName').value,
+                parent_phone: document.getElementById('parentPhone').value,
+                referral_source: document.getElementById('referralSource').value
+            };
+        }
+
+        // Update user status to pending
+        const { error: profileError } = await supabaseClient
+            .from('user_profiles')
+            .update({ status: 'pending' })
+            .eq('id', currentUser.id);
+
+        if (profileError) throw profileError;
+
+        // Insert request
+        const { data, error } = await supabaseClient
+            .from('upgrade_requests')
+            .insert([formData])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Open WhatsApp
+        const message = `New upgrade request!\n` +
+            `User: ${currentUser.email}\n` +
+            (isAdult ? 
+                `Name: ${formData.full_name}\nPhone: ${formData.phone}` : 
+                `Parent Name: ${formData.parent_name}\nParent Phone: ${formData.parent_phone}`
+            ) +
+            `\nReference ID: ${data.id}`;
+
+        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
+
+        // Show success and return to game
+        alert('Thank you! Your request has been submitted. We will contact you shortly.');
+        showScreen('welcome-screen');
+
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error processing request. Please try again.');
+    }
+}
+
+function validateForm(isAdult) {
+    if (isAdult) {
+        return document.getElementById('fullName').value && 
+               document.getElementById('phone').value;
+    } else {
+        return document.getElementById('parentName').value && 
+               document.getElementById('parentPhone').value;
+    }
+}
+
+function skipUpgrade() {
+    hideUpgradePromptAndContinue();
+}
+
+function updateUserStatusDisplay(status) {
+    const userInfo = document.getElementById('userInfo');
+    const existingStatus = userInfo.querySelector('.status-text');
+    
+    if (existingStatus) {
+        existingStatus.remove();
+    }
+
+    const statusText = document.createElement('span');
+    statusText.classList.add('status-text');
+    
+    switch(status) {
+        case 'pending':
+            statusText.classList.add('pending-status');
+            statusText.textContent = 'Premium Order Pending';
+            break;
+        case 'premium':
+            statusText.classList.add('premium-status');
+            statusText.textContent = 'Premium Account';
+            break;
+    }
+    
+    userInfo.appendChild(statusText);
+}
 
 </script>
 </body>
