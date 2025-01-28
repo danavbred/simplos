@@ -361,9 +361,9 @@ body {
 /* Maintain active state for auth tabs */
 .auth-container {
     position: fixed;
-    top: 2rem;
+    top: 20%;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
     background: rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(10px);
     padding: 1rem 2rem;
@@ -372,6 +372,8 @@ body {
     gap: 1rem;
     align-items: center;
     z-index: 100;
+    width: 90%;
+    max-width: 320px; /* Added to ensure consistent width */
 }
 
 .auth-input {
@@ -403,6 +405,29 @@ body {
 
 .auth-button:hover {
     background: rgba(233, 69, 96, 0.1);
+}
+
+@keyframes pulse-glow {
+    0%, 100% { 
+        box-shadow: 0 0 10px var(--accent), 0 0 5px var(--accent); 
+        transform: translate(-50%, -50%) scale(1.02);
+    }
+    50% { 
+        box-shadow: 0 0 20px var(--accent), 0 0 10px var(--accent); 
+        transform: translate(-50%, -50%) scale(1.05);
+    }
+}
+
+.auth-container.highlight {
+    animation: pulse-glow 1.5s ease-in-out infinite;
+    background: rgba(233, 69, 96, 0.1);
+}
+
+/* Continues with next CSS block */
+@media (max-width: 768px) {
+    .auth-container {
+        /* existing responsive styles */
+    }
 }
 
 .auth-toggle {
@@ -6530,11 +6555,14 @@ function toggleAuthMode() {
 }
 
 function showUnregisteredWarning(callback) {
-    // Check if warning has been shown or bypassed in this session
-    if (sessionStorage.getItem('unregisteredWarningShown') === 'true') {
+    // Prevent multiple popups in the same page load
+    if (window.unregisteredWarningShown) {
         if (callback) callback();
         return;
     }
+
+    // Mark that the warning has been shown
+    window.unregisteredWarningShown = true;
 
     const prompt = document.createElement('div');
     prompt.className = 'upgrade-prompt';
@@ -6557,9 +6585,6 @@ function showUnregisteredWarning(callback) {
     });
 
     function hidePrompt(continueCallback) {
-        // Mark that warning has been shown
-        sessionStorage.setItem('unregisteredWarningShown', 'true');
-        
         prompt.classList.remove('show');
         setTimeout(() => {
             document.body.removeChild(prompt);
@@ -6570,6 +6595,24 @@ function showUnregisteredWarning(callback) {
     prompt.querySelector('.signup-now').onclick = () => {
         hidePrompt(() => {
             showScreen('welcome-screen');
+            
+            // Target the auth container
+            const authContainer = document.getElementById('authBox');
+            
+            // Add highlight class
+            authContainer.classList.add('highlight');
+            
+            // Switch to signup tab
+            const signupForm = document.getElementById('signupForm');
+            const loginForm = document.getElementById('loginForm');
+            
+            signupForm.classList.remove('hidden');
+            loginForm.classList.add('hidden');
+            
+            // Remove highlight after 5 seconds
+            setTimeout(() => {
+                authContainer.classList.remove('highlight');
+            }, 5000);
         });
     };
 
