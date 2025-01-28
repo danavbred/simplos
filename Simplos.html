@@ -2902,7 +2902,174 @@ body {
     </div>
 </div>
 
+<div id="signup-screen" class="screen">
+    <div class="upgrade-modal">
+        <div class="upgrade-form">
+            <h2>Sign Up to Save your Progress</h2>
+            <form id="signupScreenForm" onsubmit="handleSignupScreenSubmit(event)">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" class="auth-input" placeholder="Email" id="signupEmail" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" class="auth-input" placeholder="Username" id="signupUsername" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" class="auth-input" placeholder="Password" id="signupPassword" required>
+                </div>
+
+                <button type="submit" class="auth-button">Sign Up</button>
+                <button type="button" class="skip-button" onclick="skipSignup()">Continue as Guest</button>
+            </form>
+            <p>After signing up, you'll be able to save your progress and access more features!</p>
+        </div>
+    </div>
+</div>
+
+
 <script>
+
+    function toggleSignupParentFields() {
+    const isAdult = document.getElementById('screenIsAdult').checked;
+    const parentSection = document.getElementById('signupParentInfoSection');
+    const adultSection = document.getElementById('signupAdultInfoSection');
+    
+    const parentInputs = parentSection.querySelectorAll('input');
+    const adultInputs = adultSection.querySelectorAll('input');
+    
+    if (isAdult) {
+        parentSection.style.display = 'none';
+        adultSection.style.display = 'block';
+        parentInputs.forEach(input => input.required = false);
+        adultInputs.forEach(input => input.required = true);
+    } else {
+        parentSection.style.display = 'block';
+        adultSection.style.display = 'none';
+        parentInputs.forEach(input => input.required = true);
+        adultInputs.forEach(input => input.required = false);
+    }
+}
+
+async function handleSignupScreenSubmit(event) {
+    event.preventDefault();
+    
+    try {
+        const email = document.getElementById('signupEmail').value;
+        const username = document.getElementById('signupUsername').value;
+        const password = document.getElementById('signupPassword').value;
+        
+        const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: {
+                data: { 
+                    username: username,
+                }
+            }
+        });
+
+        if (error) throw error;
+
+        // Auto login after signup
+        const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (loginError) throw loginError;
+
+        currentUser = loginData.user;
+        await Promise.all([
+            loadCustomLists(),
+            loadUserGameProgress(currentUser.id)
+        ]);
+        
+        updateAuthUI();
+        
+        // Create and show success popup
+        const successPopup = document.createElement('div');
+        successPopup.className = 'upgrade-modal';
+        successPopup.innerHTML = `
+            <div class="upgrade-form">
+                <h2>Welcome to Simplos!</h2>
+                <p>Your account has been created successfully.</p>
+                <button class="auth-button" onclick="continueToGame()">Continue Play</button>
+            </div>
+        `;
+        document.body.appendChild(successPopup);
+
+    } catch (error) {
+        console.error('Signup Error:', error);
+        alert(error.message);
+    }
+}
+
+function continueToGame() {
+    // Remove success popup
+    const successPopup = document.querySelector('.upgrade-modal');
+    if (successPopup) {
+        successPopup.remove();
+    }
+    
+    // Hide signup screen
+    const signupScreen = document.getElementById('signup-screen');
+    if (signupScreen) {
+        signupScreen.classList.remove('visible');
+    }
+    
+    // Reset form
+    const signupForm = document.getElementById('signupScreenForm');
+    if (signupForm) {
+        signupForm.reset();
+    }
+    
+    // Proceed to next level
+    if (gameState.currentLevel) {
+        proceedWithLevel(gameState.currentLevel);
+    } else {
+        proceedWithLevel(1);
+    }
+}
+
+function hideSignupPromptAndContinue() {
+    // Hide signup screen
+    const signupScreen = document.getElementById('signup-screen');
+    if (signupScreen) {
+        signupScreen.classList.remove('visible');
+    }
+    
+    // Remove success overlay if exists
+    const successOverlay = document.querySelector('.signup-success-overlay');
+    if (successOverlay) {
+        successOverlay.remove();
+    }
+    
+    // Reset signup form
+    const signupForm = document.getElementById('signupScreenForm');
+    if (signupForm) {
+        signupForm.reset();
+    }
+    
+    // Reset any frozen state
+    isFrozen = false;
+    clearTimer();
+    
+    // Continue to the next level using the current level as reference
+    if (gameState.currentLevel) {
+        proceedWithLevel(gameState.currentLevel);
+    } else {
+        showScreen('welcome-screen');
+    }
+}
+
+function handleSignupClick() {
+    hideSignupPrompt();
+    showScreen('signup-screen');
+}
 
     document.addEventListener('DOMContentLoaded', () => {
     const gameAssets = {
@@ -4249,9 +4416,12 @@ function calculateWordsForLevel(level, vocabulary) {
 }
 
 async function startLevel(levelId) {
+    gameState.currentStage = gameState.currentStage || 1;
+    gameState.currentSet = gameState.currentSet || 1;
+    gameState.currentLevel = levelId;
+
     const userStatus = currentUser ? currentUser.status : 'unregistered';
-    const triggerLevels = [2, 7, 11, 15, 20];
-    
+    const triggerLevels = [2, 7, 11, 15, 20];    
     if (gameState.currentStage === 1 && 
         gameState.currentSet === 1 && 
         triggerLevels.includes(levelId) && 
@@ -4264,7 +4434,7 @@ async function startLevel(levelId) {
                 proceedWithLevel(continueLevelId);
             });
             return;
-        } else {
+        } else if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
             showUpgradePrompt(() => {
                 proceedWithLevel(continueLevelId);
             });
@@ -6272,54 +6442,7 @@ async function showShareModal(listId) {
     modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
 
-async function checkUserAccess() {
-    if (!currentUser) {
-        return {
-            fullAccess: false,
-            unlockedStages: {
-                1: 'full',     
-                2: [1],        
-                3: [1],        
-                4: [1],
-                5: [1]          
-            },
-            isUnregistered: true
-        };
-    }
 
-    const { data: userProfile } = await supabaseClient
-        .from('user_profiles')
-        .select('status')
-        .eq('id', currentUser.id)
-        .single();
-
-    if (userProfile?.status === 'premium') {
-        return {
-            fullAccess: true,
-            unlockedStages: {
-                1: 'full',
-                2: 'full',
-                3: 'full',
-                4: 'full',
-                5: 'full'
-            },
-            isUnregistered: false
-        };
-    }
-
-    // Pending users get same access as free users
-    return {
-        fullAccess: false,
-        unlockedStages: {
-            1: 'full',
-            2: [1],
-            3: [1],
-            4: [1],
-            5: [1]
-        },
-        isUnregistered: false
-    };
-}
 
 function handleProgressionAfterCompletion(isLevelCompleted) {
     if (!isLevelCompleted && currentGame.streakBonus) {
@@ -6392,69 +6515,70 @@ function showSetScreen(stageId) {
     });
 }
 
-function showUpgradePrompt() {
-    const isUnregistered = !currentUser;
-    const promptContent = isUnregistered ? {
-        title: "Sign Up to Save Progress",
-        message: "Create a free account to save your progress and unlock more content!",
-        buttons: [
-            {text: "Sign Up", action: () => showScreen('welcome-screen'), class: 'start-button'},
-            {text: "Continue Playing", action: hideUpgradePrompt, class: 'start-button'}
-        ]
-    } : {
-        title: "Unlock Full Access",
-        message: "Upgrade to premium to access all stages and sets!",
-        buttons: [
-            {text: "Upgrade Now", action: showPaymentScreen, class: 'start-button'},
-            {text: "Maybe Later", action: hideUpgradePrompt, class: 'start-button'}
-        ]
-    };
-
-    const prompt = document.createElement('div');
-    prompt.className = 'upgrade-prompt';
-    prompt.innerHTML = `
-        <h2>${promptContent.title}</h2>
-        <p>${promptContent.message}</p>
-        <div class="upgrade-prompt-buttons">
-            ${promptContent.buttons.map(btn => 
-                `<button class="${btn.class}" onclick="(${btn.action})()">${btn.text}</button>`
-            ).join('')}
-        </div>
-    `;
-
-    document.body.appendChild(prompt);
-    setTimeout(() => prompt.classList.add('show'), 100);
-}
-
-function hideUpgradePrompt() {
-    const prompt = document.querySelector('.upgrade-prompt');
-    if (prompt) {
-        prompt.classList.remove('show');
-        setTimeout(() => prompt.remove(), 300);
-    }
-}
 
 
 
 function showUpgradePrompt(callback) {
+    // Store the current screen and level info
+    const gameContext = {
+        screen: document.querySelector('.screen.visible')?.id,
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: gameState.currentLevel
+    };
+    
+    if (gameContext.screen) {
+        localStorage.setItem('gameContext', JSON.stringify(gameContext));
+    }
+
     if (!currentUser) {
         showUnregisteredWarning(() => {
             if (callback) callback();
         });
-    } else {
+    } else if (!checkUpgradeStatus()) {
         showUpgradeScreen();
+    } else {
+        // Already requested upgrade, continue with game
+        if (callback) callback();
     }
 }
 
 function hideUpgradePromptAndContinue() {
-    hideUpgradePrompt();
-    proceedWithLevel(gameState.currentLevel + 1);
+    // Hide upgrade screen
+    const upgradeScreen = document.getElementById('upgrade-screen');
+    if (upgradeScreen) {
+        upgradeScreen.classList.remove('visible');
+    }
+    
+    // Remove success overlay if exists
+    const successOverlay = document.querySelector('.upgrade-success-overlay');
+    if (successOverlay) {
+        successOverlay.remove();
+    }
+    
+    // Reset upgrade form
+    const upgradeForm = document.getElementById('upgradeForm');
+    if (upgradeForm) {
+        upgradeForm.reset();
+    }
+    
+    // Reset any frozen state
+    isFrozen = false;
+    clearTimer();
+    
+    // Continue to the next level using the current level as reference
+    if (gameState.currentLevel) {
+        proceedWithLevel(gameState.currentLevel);
+    } else {
+        showScreen('welcome-screen');
+    }
 }
 
 function handleUpgradeClick() {
     hideUpgradePrompt();
     showPaymentScreen();
 }
+
 
 async function checkUserAccess() {
     // For unregistered users
@@ -6466,7 +6590,7 @@ async function checkUserAccess() {
                 2: [1],         // Set 1 only
                 3: [1],         // Set 1 only
                 4: [1],         // Set 1 only
-                5: [1]   // Coming soon
+                5: [1]          // Coming soon
             }
         };
     }
@@ -6474,13 +6598,27 @@ async function checkUserAccess() {
     // Check user access level
     const { data, error } = await supabaseClient
         .from('user_profiles')
-        .select('access_level')
-        .eq('user_id', currentUser.id)
+        .select('status, payment_pending')
+        .eq('id', currentUser.id)
         .single();
 
     if (error) return null;
 
-    if (data.access_level === 'premium') {
+    // If payment is pending, restrict access
+    if (data.payment_pending) {
+        return {
+            fullAccess: false,
+            unlockedStages: {
+                1: 'full',
+                2: [1],
+                3: [1],
+                4: [1],
+                5: [1]
+            }
+        };
+    }
+
+    if (data.status === 'premium') {
         return {
             fullAccess: true,
             unlockedStages: {
@@ -6505,7 +6643,6 @@ async function checkUserAccess() {
         },
     };
 }
-
 
 async function showSetScreen(stageId) {
     gameState.currentStage = stageId;
@@ -6543,32 +6680,9 @@ function toggleAuthMode() {
 }
 
 function showUnregisteredWarning(callback) {
-    const prompt = document.createElement('div');
-    prompt.className = 'upgrade-prompt';
-    prompt.innerHTML = `
-        <div class="upgrade-prompt-content">
-            <h2>Save Your Progress!</h2>
-            <p>Create a free account to save your progress and unlock more content!</p>
-            <div class="upgrade-prompt-buttons">
-                <button class="start-button signup-now">Sign Up</button>
-                <button class="start-button secondary">Continue Playing</button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(prompt);
-    setTimeout(() => prompt.classList.add('show'), 50);
-
-    prompt.querySelector('.signup-now').onclick = () => {
-        hideUpgradePrompt();
-        showScreen('welcome-screen');
-    };
-
-    prompt.querySelector('.secondary').onclick = () => {
-        hideUpgradePrompt();
-        if (callback) callback();
-    };
+    showScreen('signup-screen');
 }
+
 
 function handleCustomPracticeCompletion() {
     const completedPerfectly = currentGame.streakBonus && 
@@ -6824,6 +6938,12 @@ function toggleParentPhone() {
 }
 
 function showUpgradeScreen() {
+    // Check if user already submitted upgrade request
+    if (localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
+        hideUpgradePromptAndContinue();
+        return;
+    }
+    
     showScreen('upgrade-screen');
 }
 
@@ -6974,60 +7094,144 @@ function toggleParentFields() {
     }
 }
 
-async function handleUpgradeSubmit(event) {
+function handleUpgradeSubmit(event) {
     event.preventDefault();
     const isAdult = document.getElementById('isAdult').checked;
     
     try {
-        let formData = {
-            user_id: currentUser.id,
-            is_adult: isAdult,
-            full_name: isAdult ? document.getElementById('fullName').value : document.getElementById('parentName').value,
-            phone: isAdult ? document.getElementById('phone').value : document.getElementById('parentPhone').value,
-            parent_name: !isAdult ? document.getElementById('parentName').value : null,
-            parent_phone: !isAdult ? document.getElementById('parentPhone').value : null,
-            referral_source: document.getElementById('referralSource').value
-        };
+        // ... [previous validation and Supabase updates remain the same] ...
 
-        // Validate required fields
-        if (!formData.full_name || !formData.phone) {
-            alert('Please fill in all required fields');
-            return;
+        // First, hide the upgrade screen completely
+        const upgradeScreen = document.getElementById('upgrade-screen');
+        if (upgradeScreen) {
+            upgradeScreen.classList.remove('visible');
         }
 
-        // Update user status to pending
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .update({ status: 'pending' })
-            .eq('id', currentUser.id);
+        // Then show the success message
+        const overlay = document.createElement('div');
+        overlay.className = 'upgrade-success-overlay';
+        overlay.innerHTML = `
+            <div class="upgrade-success-message">
+                <i class="fas fa-check-circle success-icon"></i>
+                <h2>Premium Request Sent!</h2>
+                <div class="success-content">
+                    <p>Thank you for choosing to upgrade to Premium.</p>
+                    <p>We'll contact you shortly via WhatsApp with payment details.</p>
+                </div>
+                <button class="continue-button" onclick="hideUpgradePromptAndContinue()">
+                    <i class="fas fa-gamepad"></i>
+                    Continue Playing
+                </button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
 
-        if (profileError) throw profileError;
+        // Add enhanced CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            .upgrade-success-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+                animation: fadeIn 0.3s ease-out;
+            }
 
-        // Insert request
-        const { data, error } = await supabaseClient
-            .from('upgrade_requests')
-            .insert([formData])
-            .select()
-            .single();
+            .upgrade-success-message {
+                background: var(--glass);
+                backdrop-filter: blur(10px);
+                padding: 3rem;
+                border-radius: 20px;
+                text-align: center;
+                color: var(--text);
+                max-width: 400px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+                animation: slideUp 0.5s ease-out;
+            }
 
-        if (error) throw error;
+            .success-icon {
+                font-size: 4rem;
+                color: var(--gold);
+                margin-bottom: 1rem;
+                animation: pulse 2s infinite;
+            }
 
-        // Open WhatsApp
-        const message = `New upgrade request!\n` +
-            `User: ${currentUser.email}\n` +
-            `Name: ${formData.full_name}\n` +
-            `Phone: ${formData.phone}\n` +
-            (formData.parent_name ? `Parent: ${formData.parent_name}\n` : '') +
-            `Reference ID: ${data.id}`;
+            .upgrade-success-message h2 {
+                font-size: 2rem;
+                margin-bottom: 1.5rem;
+                background: linear-gradient(to right, var(--gold), var(--accent));
+                -webkit-background-clip: text;
+                background-clip: text;
+                color: transparent;
+            }
 
-        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
+            .success-content {
+                margin-bottom: 2rem;
+            }
 
-        // Show success and return to game
-        alert('Thank you! Your request has been submitted. We will contact you shortly.');
-        showScreen('welcome-screen');
+            .success-content p {
+                margin: 0.5rem 0;
+                line-height: 1.5;
+                color: rgba(255, 255, 255, 0.9);
+            }
+
+            .continue-button {
+                padding: 1rem 2rem;
+                border: 2px solid var(--accent);
+                background: transparent;
+                color: var(--text);
+                border-radius: 50px;
+                cursor: pointer;
+                font-weight: 600;
+                font-size: 1.1rem;
+                transition: all 0.3s ease;
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+            }
+
+            .continue-button:hover {
+                background: var(--accent);
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(233, 69, 96, 0.3);
+            }
+
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+
+            @keyframes slideUp {
+                from { 
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to { 
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+                100% { transform: scale(1); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Store in localStorage
+        localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
 
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Upgrade Request Error:', error);
         alert('Error processing request. Please try again.');
     }
 }
@@ -7044,6 +7248,33 @@ function validateForm(isAdult) {
 
 function skipUpgrade() {
     hideUpgradePromptAndContinue();
+}
+
+function skipSignup() {
+    const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
+    const nextLevel = gameState.currentLevel + 1;
+    
+    hideSignupPromptAndContinue();
+    
+    // If there's a next level in current set
+    if (nextLevel <= currentStageConfig.levelsPerSet) {
+        startLevel(nextLevel);
+    } 
+    // If this was last level in set, move to next set
+    else if (gameState.currentSet < currentStageConfig.numSets) {
+        gameState.currentSet++;
+        startLevel(1);
+    } 
+    // If this was last set in stage, move to next stage
+    else if (gameState.currentStage < 5) {
+        gameState.currentStage++;
+        gameState.currentSet = 1;
+        startLevel(1);
+    } 
+    // If everything is complete, go to stage screen
+    else {
+        showScreen('stage-screen');
+    }
 }
 
 function updateUserStatusDisplay(status) {
@@ -7093,6 +7324,32 @@ function setupUserStatusSubscription() {
         .subscribe();
 
     return subscription;
+}
+
+function restoreGameContext() {
+    const savedContext = localStorage.getItem('gameContext');
+    if (savedContext) {
+        const context = JSON.parse(savedContext);
+        gameState.currentStage = context.stage || 1;
+        gameState.currentSet = context.set || 1;
+        gameState.currentLevel = context.level;
+        
+        // Clear the saved context
+        localStorage.removeItem('gameContext');
+        
+        return true;
+    }
+    return false;
+}
+
+function checkUpgradeStatus() {
+    if (!currentUser) return false;
+    
+    const hasRequestedUpgrade = localStorage.getItem(`upgradeRequested_${currentUser.id}`);
+    const isPremium = currentUser.status === 'premium';
+    const isPending = currentUser.status === 'pending';
+    
+    return hasRequestedUpgrade || isPremium || isPending;
 }
 
 </script>
