@@ -2902,7 +2902,195 @@ body {
     </div>
 </div>
 
+<div id="signup-screen" class="screen">
+    <div class="upgrade-modal">
+        <div class="upgrade-form">
+            <h2>Sign Up to Save your Progress</h2>
+            <form id="signupScreenForm" onsubmit="handleSignupScreenSubmit(event)">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="screenEmail" name="email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="screenUsername" name="username" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="screenPassword" name="password" required>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="screenIsAdult" onchange="toggleSignupParentFields()" name="isAdult">
+                        I am over 18
+                    </label>
+                </div>
+                
+                <!-- Parent Info Section -->
+                <div id="signupParentInfoSection">
+                    <div class="form-group">
+                        <label>Parent's Full Name</label>
+                        <input type="text" id="screenParentName" name="parentName">
+                    </div>
+                    <div class="form-group">
+                        <label>Parent's Phone Number</label>
+                        <input type="tel" id="screenParentPhone" name="parentPhone" 
+                               pattern="[0-9]{10}" placeholder="Enter parent's phone number">
+                    </div>
+                </div>
+
+                <!-- Adult Info Section -->
+                <div id="signupAdultInfoSection" style="display:none;">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" id="screenFullName" name="fullName">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input type="tel" id="screenPhone" name="phone" 
+                               pattern="[0-9]{10}" placeholder="Enter phone number">
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-button">Sign Up</button>
+                <button type="button" class="skip-button" onclick="skipSignup()">דלג</button>
+            </form>
+            <p>After signing up, you'll be able to save your progress and access more features!</p>
+        </div>
+    </div>
+</div>
+
+
 <script>
+
+    function toggleSignupParentFields() {
+    const isAdult = document.getElementById('screenIsAdult').checked;
+    const parentSection = document.getElementById('signupParentInfoSection');
+    const adultSection = document.getElementById('signupAdultInfoSection');
+    
+    const parentInputs = parentSection.querySelectorAll('input');
+    const adultInputs = adultSection.querySelectorAll('input');
+    
+    if (isAdult) {
+        parentSection.style.display = 'none';
+        adultSection.style.display = 'block';
+        parentInputs.forEach(input => input.required = false);
+        adultInputs.forEach(input => input.required = true);
+    } else {
+        parentSection.style.display = 'block';
+        adultSection.style.display = 'none';
+        parentInputs.forEach(input => input.required = true);
+        adultInputs.forEach(input => input.required = false);
+    }
+}
+
+async function handleSignupScreenSubmit(event) {
+    event.preventDefault();
+    const isAdult = document.getElementById('screenIsAdult').checked;
+    
+    try {
+        const email = document.getElementById('screenEmail').value;
+        const username = document.getElementById('screenUsername').value;
+        const password = document.getElementById('screenPassword').value;
+        
+        const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: {
+                data: { 
+                    username: username,
+                    full_name: isAdult ? 
+                        document.getElementById('screenFullName').value : 
+                        document.getElementById('screenParentName').value
+                }
+            }
+        });
+
+        if (error) throw error;
+
+        // Create additional user data
+        const userData = {
+            user_id: data.user.id,
+            is_adult: isAdult,
+            full_name: isAdult ? 
+                document.getElementById('screenFullName').value : 
+                document.getElementById('screenParentName').value,
+            phone: isAdult ? 
+                document.getElementById('screenPhone').value : 
+                document.getElementById('screenParentPhone').value,
+            parent_name: !isAdult ? document.getElementById('screenParentName').value : null,
+            parent_phone: !isAdult ? document.getElementById('screenParentPhone').value : null
+        };
+
+        const { error: profileError } = await supabaseClient
+            .from('user_profiles')
+            .update(userData)
+            .eq('id', data.user.id);
+
+        if (profileError) throw profileError;
+
+        // Auto login after signup
+        const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (loginError) throw loginError;
+
+        currentUser = loginData.user;
+        await Promise.all([
+            loadCustomLists(),
+            loadUserGameProgress(currentUser.id)
+        ]);
+        
+        updateAuthUI();
+        hideSignupScreen();
+        showScreen('welcome-screen');
+
+    } catch (error) {
+        console.error('Signup Error:', error);
+        alert(error.message);
+    }
+}
+
+function hideSignupPromptAndContinue() {
+    // Hide signup screen
+    const signupScreen = document.getElementById('signup-screen');
+    if (signupScreen) {
+        signupScreen.classList.remove('visible');
+    }
+    
+    // Remove success overlay if exists
+    const successOverlay = document.querySelector('.signup-success-overlay');
+    if (successOverlay) {
+        successOverlay.remove();
+    }
+    
+    // Reset signup form
+    const signupForm = document.getElementById('signupScreenForm');
+    if (signupForm) {
+        signupForm.reset();
+    }
+    
+    // Reset any frozen state
+    isFrozen = false;
+    clearTimer();
+    
+    // Continue to the next level using the current level as reference
+    if (gameState.currentLevel) {
+        proceedWithLevel(gameState.currentLevel);
+    } else {
+        showScreen('welcome-screen');
+    }
+}
+
+function handleSignupClick() {
+    hideSignupPrompt();
+    showScreen('signup-screen');
+}
 
     document.addEventListener('DOMContentLoaded', () => {
     const gameAssets = {
@@ -6350,15 +6538,6 @@ function showSetScreen(stageId) {
 
 
 
-function hideUpgradePrompt() {
-    const prompt = document.querySelector('.upgrade-prompt');
-    if (prompt) {
-        prompt.classList.remove('show');
-        setTimeout(() => prompt.remove(), 300);
-    }
-}
-
-
 
 function showUpgradePrompt(callback) {
     // Store the current screen and level info
@@ -6522,32 +6701,9 @@ function toggleAuthMode() {
 }
 
 function showUnregisteredWarning(callback) {
-    const prompt = document.createElement('div');
-    prompt.className = 'upgrade-prompt';
-    prompt.innerHTML = `
-        <div class="upgrade-prompt-content">
-            <h2>Save Your Progress!</h2>
-            <p>Create a free account to save your progress and unlock more content!</p>
-            <div class="upgrade-prompt-buttons">
-                <button class="start-button signup-now">Sign Up</button>
-                <button class="start-button secondary">Continue Playing</button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(prompt);
-    setTimeout(() => prompt.classList.add('show'), 50);
-
-    prompt.querySelector('.signup-now').onclick = () => {
-        hideUpgradePrompt();
-        showScreen('welcome-screen');
-    };
-
-    prompt.querySelector('.secondary').onclick = () => {
-        hideUpgradePrompt();
-        if (callback) callback();
-    };
+    showScreen('signup-screen');
 }
+
 
 function handleCustomPracticeCompletion() {
     const completedPerfectly = currentGame.streakBonus && 
@@ -7113,6 +7269,10 @@ function validateForm(isAdult) {
 
 function skipUpgrade() {
     hideUpgradePromptAndContinue();
+}
+
+function skipSignup() {
+    hideSignupPromptAndContinue();
 }
 
 function updateUserStatusDisplay(status) {
