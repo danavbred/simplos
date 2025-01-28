@@ -1177,6 +1177,33 @@ body {
     50% { opacity: 1; }
 }
 
+.upgrade-success-modal {
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.upgrade-success-modal h2 {
+    color: var(--gold);
+    margin-bottom: 1rem;
+}
+
+.upgrade-success-modal button {
+    margin-top: 1rem;
+    padding: 0.75rem 1.5rem;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.upgrade-success-modal button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
 /* Shop Styles */
 .shop-container {
   display: flex;
@@ -4249,9 +4276,12 @@ function calculateWordsForLevel(level, vocabulary) {
 }
 
 async function startLevel(levelId) {
+    gameState.currentStage = gameState.currentStage || 1;
+    gameState.currentSet = gameState.currentSet || 1;
+    gameState.currentLevel = levelId;
+
     const userStatus = currentUser ? currentUser.status : 'unregistered';
-    const triggerLevels = [2, 7, 11, 15, 20];
-    
+    const triggerLevels = [2, 7, 11, 15, 20];    
     if (gameState.currentStage === 1 && 
         gameState.currentSet === 1 && 
         triggerLevels.includes(levelId) && 
@@ -6272,54 +6302,7 @@ async function showShareModal(listId) {
     modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
 
-async function checkUserAccess() {
-    if (!currentUser) {
-        return {
-            fullAccess: false,
-            unlockedStages: {
-                1: 'full',     
-                2: [1],        
-                3: [1],        
-                4: [1],
-                5: [1]          
-            },
-            isUnregistered: true
-        };
-    }
 
-    const { data: userProfile } = await supabaseClient
-        .from('user_profiles')
-        .select('status')
-        .eq('id', currentUser.id)
-        .single();
-
-    if (userProfile?.status === 'premium') {
-        return {
-            fullAccess: true,
-            unlockedStages: {
-                1: 'full',
-                2: 'full',
-                3: 'full',
-                4: 'full',
-                5: 'full'
-            },
-            isUnregistered: false
-        };
-    }
-
-    // Pending users get same access as free users
-    return {
-        fullAccess: false,
-        unlockedStages: {
-            1: 'full',
-            2: [1],
-            3: [1],
-            4: [1],
-            5: [1]
-        },
-        isUnregistered: false
-    };
-}
 
 function handleProgressionAfterCompletion(isLevelCompleted) {
     if (!isLevelCompleted && currentGame.streakBonus) {
@@ -6392,39 +6375,7 @@ function showSetScreen(stageId) {
     });
 }
 
-function showUpgradePrompt() {
-    const isUnregistered = !currentUser;
-    const promptContent = isUnregistered ? {
-        title: "Sign Up to Save Progress",
-        message: "Create a free account to save your progress and unlock more content!",
-        buttons: [
-            {text: "Sign Up", action: () => showScreen('welcome-screen'), class: 'start-button'},
-            {text: "Continue Playing", action: hideUpgradePrompt, class: 'start-button'}
-        ]
-    } : {
-        title: "Unlock Full Access",
-        message: "Upgrade to premium to access all stages and sets!",
-        buttons: [
-            {text: "Upgrade Now", action: showPaymentScreen, class: 'start-button'},
-            {text: "Maybe Later", action: hideUpgradePrompt, class: 'start-button'}
-        ]
-    };
 
-    const prompt = document.createElement('div');
-    prompt.className = 'upgrade-prompt';
-    prompt.innerHTML = `
-        <h2>${promptContent.title}</h2>
-        <p>${promptContent.message}</p>
-        <div class="upgrade-prompt-buttons">
-            ${promptContent.buttons.map(btn => 
-                `<button class="${btn.class}" onclick="(${btn.action})()">${btn.text}</button>`
-            ).join('')}
-        </div>
-    `;
-
-    document.body.appendChild(prompt);
-    setTimeout(() => prompt.classList.add('show'), 100);
-}
 
 function hideUpgradePrompt() {
     const prompt = document.querySelector('.upgrade-prompt');
@@ -6437,6 +6388,12 @@ function hideUpgradePrompt() {
 
 
 function showUpgradePrompt(callback) {
+    // Store the current screen before showing upgrade prompt
+    const currentScreen = document.querySelector('.screen.visible');
+    if (currentScreen) {
+        gameState.previousScreen = currentScreen.id;
+    }
+
     if (!currentUser) {
         showUnregisteredWarning(() => {
             if (callback) callback();
@@ -6456,6 +6413,7 @@ function handleUpgradeClick() {
     showPaymentScreen();
 }
 
+
 async function checkUserAccess() {
     // For unregistered users
     if (!currentUser) {
@@ -6466,7 +6424,7 @@ async function checkUserAccess() {
                 2: [1],         // Set 1 only
                 3: [1],         // Set 1 only
                 4: [1],         // Set 1 only
-                5: [1]   // Coming soon
+                5: [1]          // Coming soon
             }
         };
     }
@@ -6474,13 +6432,27 @@ async function checkUserAccess() {
     // Check user access level
     const { data, error } = await supabaseClient
         .from('user_profiles')
-        .select('access_level')
-        .eq('user_id', currentUser.id)
+        .select('status, payment_pending')
+        .eq('id', currentUser.id)
         .single();
 
     if (error) return null;
 
-    if (data.access_level === 'premium') {
+    // If payment is pending, restrict access
+    if (data.payment_pending) {
+        return {
+            fullAccess: false,
+            unlockedStages: {
+                1: 'full',
+                2: [1],
+                3: [1],
+                4: [1],
+                5: [1]
+            }
+        };
+    }
+
+    if (data.status === 'premium') {
         return {
             fullAccess: true,
             unlockedStages: {
@@ -6505,7 +6477,6 @@ async function checkUserAccess() {
         },
     };
 }
-
 
 async function showSetScreen(stageId) {
     gameState.currentStage = stageId;
@@ -6637,7 +6608,7 @@ async function processPayment(plan) {
 
 
 async function processPayment(method) {
-    const prices = {bit: 299.99, paybox: 299.99, kashkash: 299.99, bank: 299.99};
+    const prices = {lifetime: 299.99};
     const referenceCode = generateReferenceCode();
     
     try {
@@ -6646,7 +6617,7 @@ async function processPayment(method) {
             .insert({
                 user_id: currentUser.id,
                 payment_method: method,
-                amount: prices[method],
+                amount: prices.lifetime,
                 reference_code: referenceCode,
                 status: 'pending',
                 submission_time: new Date()
@@ -6654,10 +6625,16 @@ async function processPayment(method) {
             .select();
 
         if (error) throw error;
+
+        // Show payment details with reference code
         showPaymentDetails(method, referenceCode);
     } catch (error) {
         console.error('Payment error:', error);
     }
+}
+
+function generateReferenceCode() {
+    return Math.random().toString(36).substring(2, 10).toUpperCase();
 }
 
 
@@ -6995,39 +6972,46 @@ async function handleUpgradeSubmit(event) {
             return;
         }
 
-        // Update user status to pending
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .update({ status: 'pending' })
-            .eq('id', currentUser.id);
+        // Generate reference code
+        const referenceCode = Math.random().toString(36).substring(2, 10).toUpperCase();
 
-        if (profileError) throw profileError;
-
-        // Insert request
-        const { data, error } = await supabaseClient
-            .from('upgrade_requests')
-            .insert([formData])
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        // Open WhatsApp
-        const message = `New upgrade request!\n` +
+        // Prepare WhatsApp message
+        const message = encodeURIComponent(
+            `Upgrade Request:\n` +
             `User: ${currentUser.email}\n` +
             `Name: ${formData.full_name}\n` +
             `Phone: ${formData.phone}\n` +
-            (formData.parent_name ? `Parent: ${formData.parent_name}\n` : '') +
-            `Reference ID: ${data.id}`;
+            `Reference: ${referenceCode}`
+        );
 
-        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
+        // Update user profile and insert upgrade request
+        const [profileUpdate, requestInsert] = await Promise.all([
+            supabaseClient
+                .from('user_profiles')
+                .update({ 
+                    status: 'pending', 
+                    payment_pending: true 
+                })
+                .eq('id', currentUser.id),
+            
+            supabaseClient
+                .from('upgrade_requests')
+            .insert([{
+                    ...formData,
+                    reference_code: referenceCode
+                }])
+                .select()
+                .single()
+        ]);
 
-        // Show success and return to game
-        alert('Thank you! Your request has been submitted. We will contact you shortly.');
-        showScreen('welcome-screen');
+        if (profileUpdate.error) throw profileUpdate.error;
+        if (requestInsert.error) throw requestInsert.error;
+
+        // Show success modal
+        showUpgradeSuccessModal(referenceCode);
 
     } catch (error) {
-        console.error('Error:', error);
+        console.error('Upgrade Request Error:', error);
         alert('Error processing request. Please try again.');
     }
 }
@@ -7093,6 +7077,61 @@ function setupUserStatusSubscription() {
         .subscribe();
 
     return subscription;
+}
+
+function showUpgradeSuccessModal(referenceCode) {
+    // Create a modal with success message and continue button
+    const modal = document.createElement('div');
+    modal.className = 'upgrade-success-modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h2>Upgrade Request Sent!</h2>
+            <p>Your upgrade request has been submitted successfully.</p>
+            <p>Reference Code: <strong>${referenceCode}</strong></p>
+            <p>We'll contact you soon via WhatsApp to complete the process.</p>
+            <button onclick="closeUpgradeModal()">Continue Playing</button>
+        </div>
+    `;
+    
+    // Add some styling
+    modal.style.position = 'fixed';
+    modal.style.top = '50%';
+    modal.style.left = '50%';
+    modal.style.transform = 'translate(-50%, -50%)';
+    modal.style.background = 'var(--glass)';
+    modal.style.padding = '2rem';
+    modal.style.borderRadius = '20px';
+    modal.style.zIndex = '1000';
+    modal.style.textAlign = 'center';
+    
+    document.body.appendChild(modal);
+}
+
+function closeUpgradeModal() {
+    const modal = document.querySelector('.upgrade-success-modal');
+    if (modal) {
+        document.body.removeChild(modal);
+    }
+    
+    // Reset upgrade form
+    const upgradeForm = document.getElementById('upgradeForm');
+    if (upgradeForm) {
+        upgradeForm.reset(); // Clears all form inputs
+        
+        // Reset parent/adult section visibility
+        const isAdultCheckbox = document.getElementById('isAdult');
+        isAdultCheckbox.checked = false;
+        toggleParentFields(); // Ensure correct sections are shown/hidden
+    }
+    
+    // Hide upgrade screen
+    const upgradeScreen = document.getElementById('upgrade-screen');
+    if (upgradeScreen) {
+        upgradeScreen.style.display = 'none';
+    }
+    
+    // Return to welcome screen or continue current game state
+    showScreen('welcome-screen');
 }
 
 </script>
