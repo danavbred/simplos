@@ -4267,7 +4267,7 @@ async function startLevel(levelId) {
                 proceedWithLevel(continueLevelId);
             });
             return;
-        } else {
+        } else if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
             showUpgradePrompt(() => {
                 proceedWithLevel(continueLevelId);
             });
@@ -6361,18 +6361,27 @@ function hideUpgradePrompt() {
 
 
 function showUpgradePrompt(callback) {
-    // Store the current screen before showing upgrade prompt
-    const currentScreen = document.querySelector('.screen.visible');
-    if (currentScreen) {
-        gameState.previousScreen = currentScreen.id;
+    // Store the current screen and level info
+    const gameContext = {
+        screen: document.querySelector('.screen.visible')?.id,
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: gameState.currentLevel
+    };
+    
+    if (gameContext.screen) {
+        localStorage.setItem('gameContext', JSON.stringify(gameContext));
     }
 
     if (!currentUser) {
         showUnregisteredWarning(() => {
             if (callback) callback();
         });
-    } else {
+    } else if (!checkUpgradeStatus()) {
         showUpgradeScreen();
+    } else {
+        // Already requested upgrade, continue with game
+        if (callback) callback();
     }
 }
 
@@ -7065,6 +7074,32 @@ function setupUserStatusSubscription() {
         .subscribe();
 
     return subscription;
+}
+
+function restoreGameContext() {
+    const savedContext = localStorage.getItem('gameContext');
+    if (savedContext) {
+        const context = JSON.parse(savedContext);
+        gameState.currentStage = context.stage || 1;
+        gameState.currentSet = context.set || 1;
+        gameState.currentLevel = context.level;
+        
+        // Clear the saved context
+        localStorage.removeItem('gameContext');
+        
+        return true;
+    }
+    return false;
+}
+
+function checkUpgradeStatus() {
+    if (!currentUser) return false;
+    
+    const hasRequestedUpgrade = localStorage.getItem(`upgradeRequested_${currentUser.id}`);
+    const isPremium = currentUser.status === 'premium';
+    const isPending = currentUser.status === 'pending';
+    
+    return hasRequestedUpgrade || isPremium || isPending;
 }
 
 </script>
