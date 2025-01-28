@@ -361,9 +361,9 @@ body {
 /* Maintain active state for auth tabs */
 .auth-container {
     position: fixed;
-    top: 2rem;
+    top: 20%;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
     background: rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(10px);
     padding: 1rem 2rem;
@@ -372,6 +372,8 @@ body {
     gap: 1rem;
     align-items: center;
     z-index: 100;
+    width: 90%;
+    max-width: 320px; /* Added to ensure consistent width */
 }
 
 .auth-input {
@@ -403,6 +405,29 @@ body {
 
 .auth-button:hover {
     background: rgba(233, 69, 96, 0.1);
+}
+
+@keyframes pulse-glow {
+    0%, 100% { 
+        box-shadow: 0 0 10px var(--accent), 0 0 5px var(--accent); 
+        transform: translate(-50%, -50%) scale(1.02);
+    }
+    50% { 
+        box-shadow: 0 0 20px var(--accent), 0 0 10px var(--accent); 
+        transform: translate(-50%, -50%) scale(1.05);
+    }
+}
+
+.auth-container.highlight {
+    animation: pulse-glow 1.5s ease-in-out infinite;
+    background: rgba(233, 69, 96, 0.1);
+}
+
+/* Continues with next CSS block */
+@media (max-width: 768px) {
+    .auth-container {
+        /* existing responsive styles */
+    }
 }
 
 .auth-toggle {
@@ -1972,20 +1997,26 @@ body {
     position: fixed;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(0.7);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 1000;
+    pointer-events: none;
+    width: 90%;
+    max-width: 500px;
     background: var(--glass);
     backdrop-filter: blur(10px);
     padding: 2rem;
     border-radius: 20px;
-    z-index: 1000;
-    width: 90%;
-    max-width: 500px;
-    display: none;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.1);
 }
 
 .upgrade-prompt.show {
-    display: block;
-    animation: fadeIn 0.3s ease;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    pointer-events: auto;
+    animation: popupAppear 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .upgrade-prompt h2 {
@@ -2020,6 +2051,20 @@ body {
     opacity: 0.8;
 }
 
+@keyframes popupAppear {
+    0% {
+        transform: translate(-50%, -50%) scale(0.7) rotate(-5deg);
+        opacity: 0;
+    }
+    70% {
+        transform: translate(-50%, -50%) scale(1.05) rotate(2deg);
+        opacity: 0.8;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1) rotate(0deg);
+        opacity: 1;
+    }
+}
 
 
 /* Main Custom Practice Container */
@@ -2902,174 +2947,7 @@ body {
     </div>
 </div>
 
-<div id="signup-screen" class="screen">
-    <div class="upgrade-modal">
-        <div class="upgrade-form">
-            <h2>Sign Up to Save your Progress</h2>
-            <form id="signupScreenForm" onsubmit="handleSignupScreenSubmit(event)">
-                <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" class="auth-input" placeholder="Email" id="signupEmail" required>
-                </div>
-                
-                <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" class="auth-input" placeholder="Username" id="signupUsername" required>
-                </div>
-
-                <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" class="auth-input" placeholder="Password" id="signupPassword" required>
-                </div>
-
-                <button type="submit" class="auth-button">Sign Up</button>
-                <button type="button" class="skip-button" onclick="skipSignup()">Continue as Guest</button>
-            </form>
-            <p>After signing up, you'll be able to save your progress and access more features!</p>
-        </div>
-    </div>
-</div>
-
-
 <script>
-
-    function toggleSignupParentFields() {
-    const isAdult = document.getElementById('screenIsAdult').checked;
-    const parentSection = document.getElementById('signupParentInfoSection');
-    const adultSection = document.getElementById('signupAdultInfoSection');
-    
-    const parentInputs = parentSection.querySelectorAll('input');
-    const adultInputs = adultSection.querySelectorAll('input');
-    
-    if (isAdult) {
-        parentSection.style.display = 'none';
-        adultSection.style.display = 'block';
-        parentInputs.forEach(input => input.required = false);
-        adultInputs.forEach(input => input.required = true);
-    } else {
-        parentSection.style.display = 'block';
-        adultSection.style.display = 'none';
-        parentInputs.forEach(input => input.required = true);
-        adultInputs.forEach(input => input.required = false);
-    }
-}
-
-async function handleSignupScreenSubmit(event) {
-    event.preventDefault();
-    
-    try {
-        const email = document.getElementById('signupEmail').value;
-        const username = document.getElementById('signupUsername').value;
-        const password = document.getElementById('signupPassword').value;
-        
-        const { data, error } = await supabaseClient.auth.signUp({
-            email,
-            password,
-            options: {
-                data: { 
-                    username: username,
-                }
-            }
-        });
-
-        if (error) throw error;
-
-        // Auto login after signup
-        const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-        });
-
-        if (loginError) throw loginError;
-
-        currentUser = loginData.user;
-        await Promise.all([
-            loadCustomLists(),
-            loadUserGameProgress(currentUser.id)
-        ]);
-        
-        updateAuthUI();
-        
-        // Create and show success popup
-        const successPopup = document.createElement('div');
-        successPopup.className = 'upgrade-modal';
-        successPopup.innerHTML = `
-            <div class="upgrade-form">
-                <h2>Welcome to Simplos!</h2>
-                <p>Your account has been created successfully.</p>
-                <button class="auth-button" onclick="continueToGame()">Continue Play</button>
-            </div>
-        `;
-        document.body.appendChild(successPopup);
-
-    } catch (error) {
-        console.error('Signup Error:', error);
-        alert(error.message);
-    }
-}
-
-function continueToGame() {
-    // Remove success popup
-    const successPopup = document.querySelector('.upgrade-modal');
-    if (successPopup) {
-        successPopup.remove();
-    }
-    
-    // Hide signup screen
-    const signupScreen = document.getElementById('signup-screen');
-    if (signupScreen) {
-        signupScreen.classList.remove('visible');
-    }
-    
-    // Reset form
-    const signupForm = document.getElementById('signupScreenForm');
-    if (signupForm) {
-        signupForm.reset();
-    }
-    
-    // Proceed to next level
-    if (gameState.currentLevel) {
-        proceedWithLevel(gameState.currentLevel);
-    } else {
-        proceedWithLevel(1);
-    }
-}
-
-function hideSignupPromptAndContinue() {
-    // Hide signup screen
-    const signupScreen = document.getElementById('signup-screen');
-    if (signupScreen) {
-        signupScreen.classList.remove('visible');
-    }
-    
-    // Remove success overlay if exists
-    const successOverlay = document.querySelector('.signup-success-overlay');
-    if (successOverlay) {
-        successOverlay.remove();
-    }
-    
-    // Reset signup form
-    const signupForm = document.getElementById('signupScreenForm');
-    if (signupForm) {
-        signupForm.reset();
-    }
-    
-    // Reset any frozen state
-    isFrozen = false;
-    clearTimer();
-    
-    // Continue to the next level using the current level as reference
-    if (gameState.currentLevel) {
-        proceedWithLevel(gameState.currentLevel);
-    } else {
-        showScreen('welcome-screen');
-    }
-}
-
-function handleSignupClick() {
-    hideSignupPrompt();
-    showScreen('signup-screen');
-}
 
     document.addEventListener('DOMContentLoaded', () => {
     const gameAssets = {
@@ -6517,6 +6395,15 @@ function showSetScreen(stageId) {
 
 
 
+function hideUpgradePrompt() {
+    const prompt = document.querySelector('.upgrade-prompt');
+    if (prompt) {
+        prompt.classList.remove('show');
+        setTimeout(() => prompt.remove(), 300);
+    }
+}
+
+
 
 function showUpgradePrompt(callback) {
     // Store the current screen and level info
@@ -6548,18 +6435,6 @@ function hideUpgradePromptAndContinue() {
     const upgradeScreen = document.getElementById('upgrade-screen');
     if (upgradeScreen) {
         upgradeScreen.classList.remove('visible');
-    }
-    
-    // Remove success overlay if exists
-    const successOverlay = document.querySelector('.upgrade-success-overlay');
-    if (successOverlay) {
-        successOverlay.remove();
-    }
-    
-    // Reset upgrade form
-    const upgradeForm = document.getElementById('upgradeForm');
-    if (upgradeForm) {
-        upgradeForm.reset();
     }
     
     // Reset any frozen state
@@ -6680,9 +6555,71 @@ function toggleAuthMode() {
 }
 
 function showUnregisteredWarning(callback) {
-    showScreen('signup-screen');
-}
+    // Prevent multiple popups in the same page load
+    if (window.unregisteredWarningShown) {
+        if (callback) callback();
+        return;
+    }
 
+    // Mark that the warning has been shown
+    window.unregisteredWarningShown = true;
+
+    const prompt = document.createElement('div');
+    prompt.className = 'upgrade-prompt';
+    prompt.innerHTML = `
+        <div class="upgrade-prompt-content">
+            <h2>Save Your Progress!</h2>
+            <p>Create a free account to save your progress and unlock more content!</p>
+            <div class="upgrade-prompt-buttons">
+                <button class="start-button signup-now">Sign Up</button>
+                <button class="start-button secondary">Continue Playing</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(prompt);
+    
+    // Use requestAnimationFrame to ensure smooth animation
+    requestAnimationFrame(() => {
+        prompt.classList.add('show');
+    });
+
+    function hidePrompt(continueCallback) {
+        prompt.classList.remove('show');
+        setTimeout(() => {
+            document.body.removeChild(prompt);
+            if (continueCallback) continueCallback();
+        }, 300);
+    }
+
+    prompt.querySelector('.signup-now').onclick = () => {
+        hidePrompt(() => {
+            showScreen('welcome-screen');
+            
+            // Target the auth container
+            const authContainer = document.getElementById('authBox');
+            
+            // Add highlight class
+            authContainer.classList.add('highlight');
+            
+            // Switch to signup tab
+            const signupForm = document.getElementById('signupForm');
+            const loginForm = document.getElementById('loginForm');
+            
+            signupForm.classList.remove('hidden');
+            loginForm.classList.add('hidden');
+            
+            // Remove highlight after 5 seconds
+            setTimeout(() => {
+                authContainer.classList.remove('highlight');
+            }, 5000);
+        });
+    };
+
+    prompt.querySelector('.secondary').onclick = () => {
+        hidePrompt(callback);
+    };
+}
 
 function handleCustomPracticeCompletion() {
     const completedPerfectly = currentGame.streakBonus && 
@@ -7094,141 +7031,65 @@ function toggleParentFields() {
     }
 }
 
-function handleUpgradeSubmit(event) {
+async function handleUpgradeSubmit(event) {
     event.preventDefault();
     const isAdult = document.getElementById('isAdult').checked;
     
     try {
-        // ... [previous validation and Supabase updates remain the same] ...
+        let formData = {
+            user_id: currentUser.id,
+            is_adult: isAdult,
+            full_name: isAdult ? document.getElementById('fullName').value : document.getElementById('parentName').value,
+            phone: isAdult ? document.getElementById('phone').value : document.getElementById('parentPhone').value,
+            parent_name: !isAdult ? document.getElementById('parentName').value : null,
+            parent_phone: !isAdult ? document.getElementById('parentPhone').value : null,
+            referral_source: document.getElementById('referralSource').value
+        };
 
-        // First, hide the upgrade screen completely
+        if (!formData.full_name || !formData.phone) {
+            alert('Please fill in all required fields');
+            return;
+        }
+
+        const [profileUpdate, requestInsert] = await Promise.all([
+            supabaseClient
+                .from('user_profiles')
+                .update({ 
+                    status: 'pending', 
+                    payment_pending: true 
+                })
+                .eq('id', currentUser.id),
+            
+            supabaseClient
+                .from('upgrade_requests')
+                .insert([formData])
+                .select()
+                .single()
+        ]);
+
+        if (profileUpdate.error) throw profileUpdate.error;
+        if (requestInsert.error) throw requestInsert.error;
+
+        // Open WhatsApp with pre-filled message
+        const message = `Upgrade Request:\n` +
+            `User: ${currentUser.email}\n` +
+            `Name: ${formData.full_name}\n` +
+            `Phone: ${formData.phone}\n` +
+            `Reference: ${requestInsert.data.id}`;
+
+        window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
+
+        // Store in localStorage to prevent re-showing upgrade form
+        localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
+
+        // Hide upgrade screen
         const upgradeScreen = document.getElementById('upgrade-screen');
         if (upgradeScreen) {
             upgradeScreen.classList.remove('visible');
         }
 
-        // Then show the success message
-        const overlay = document.createElement('div');
-        overlay.className = 'upgrade-success-overlay';
-        overlay.innerHTML = `
-            <div class="upgrade-success-message">
-                <i class="fas fa-check-circle success-icon"></i>
-                <h2>Premium Request Sent!</h2>
-                <div class="success-content">
-                    <p>Thank you for choosing to upgrade to Premium.</p>
-                    <p>We'll contact you shortly via WhatsApp with payment details.</p>
-                </div>
-                <button class="continue-button" onclick="hideUpgradePromptAndContinue()">
-                    <i class="fas fa-gamepad"></i>
-                    Continue Playing
-                </button>
-            </div>
-        `;
-        document.body.appendChild(overlay);
-
-        // Add enhanced CSS
-        const style = document.createElement('style');
-        style.textContent = `
-            .upgrade-success-overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 1000;
-                animation: fadeIn 0.3s ease-out;
-            }
-
-            .upgrade-success-message {
-                background: var(--glass);
-                backdrop-filter: blur(10px);
-                padding: 3rem;
-                border-radius: 20px;
-                text-align: center;
-                color: var(--text);
-                max-width: 400px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-                animation: slideUp 0.5s ease-out;
-            }
-
-            .success-icon {
-                font-size: 4rem;
-                color: var(--gold);
-                margin-bottom: 1rem;
-                animation: pulse 2s infinite;
-            }
-
-            .upgrade-success-message h2 {
-                font-size: 2rem;
-                margin-bottom: 1.5rem;
-                background: linear-gradient(to right, var(--gold), var(--accent));
-                -webkit-background-clip: text;
-                background-clip: text;
-                color: transparent;
-            }
-
-            .success-content {
-                margin-bottom: 2rem;
-            }
-
-            .success-content p {
-                margin: 0.5rem 0;
-                line-height: 1.5;
-                color: rgba(255, 255, 255, 0.9);
-            }
-
-            .continue-button {
-                padding: 1rem 2rem;
-                border: 2px solid var(--accent);
-                background: transparent;
-                color: var(--text);
-                border-radius: 50px;
-                cursor: pointer;
-                font-weight: 600;
-                font-size: 1.1rem;
-                transition: all 0.3s ease;
-                display: inline-flex;
-                align-items: center;
-                gap: 0.5rem;
-            }
-
-            .continue-button:hover {
-                background: var(--accent);
-                transform: translateY(-2px);
-                box-shadow: 0 5px 15px rgba(233, 69, 96, 0.3);
-            }
-
-            @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-
-            @keyframes slideUp {
-                from { 
-                    opacity: 0;
-                    transform: translateY(20px);
-                }
-                to { 
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-
-            @keyframes pulse {
-                0% { transform: scale(1); }
-                50% { transform: scale(1.1); }
-                100% { transform: scale(1); }
-            }
-        `;
-        document.head.appendChild(style);
-
-        // Store in localStorage
-        localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
+        // Continue with game progression
+        hideUpgradePromptAndContinue();
 
     } catch (error) {
         console.error('Upgrade Request Error:', error);
@@ -7248,33 +7109,6 @@ function validateForm(isAdult) {
 
 function skipUpgrade() {
     hideUpgradePromptAndContinue();
-}
-
-function skipSignup() {
-    const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
-    const nextLevel = gameState.currentLevel + 1;
-    
-    hideSignupPromptAndContinue();
-    
-    // If there's a next level in current set
-    if (nextLevel <= currentStageConfig.levelsPerSet) {
-        startLevel(nextLevel);
-    } 
-    // If this was last level in set, move to next set
-    else if (gameState.currentSet < currentStageConfig.numSets) {
-        gameState.currentSet++;
-        startLevel(1);
-    } 
-    // If this was last set in stage, move to next stage
-    else if (gameState.currentStage < 5) {
-        gameState.currentStage++;
-        gameState.currentSet = 1;
-        startLevel(1);
-    } 
-    // If everything is complete, go to stage screen
-    else {
-        showScreen('stage-screen');
-    }
 }
 
 function updateUserStatusDisplay(status) {
