@@ -1972,20 +1972,26 @@ body {
     position: fixed;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(0.7);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 1000;
+    pointer-events: none;
+    width: 90%;
+    max-width: 500px;
     background: var(--glass);
     backdrop-filter: blur(10px);
     padding: 2rem;
     border-radius: 20px;
-    z-index: 1000;
-    width: 90%;
-    max-width: 500px;
-    display: none;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.1);
 }
 
 .upgrade-prompt.show {
-    display: block;
-    animation: fadeIn 0.3s ease;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    pointer-events: auto;
+    animation: popupAppear 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .upgrade-prompt h2 {
@@ -2020,6 +2026,20 @@ body {
     opacity: 0.8;
 }
 
+@keyframes popupAppear {
+    0% {
+        transform: translate(-50%, -50%) scale(0.7) rotate(-5deg);
+        opacity: 0;
+    }
+    70% {
+        transform: translate(-50%, -50%) scale(1.05) rotate(2deg);
+        opacity: 0.8;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1) rotate(0deg);
+        opacity: 1;
+    }
+}
 
 
 /* Main Custom Practice Container */
@@ -6510,6 +6530,12 @@ function toggleAuthMode() {
 }
 
 function showUnregisteredWarning(callback) {
+    // Check if warning has been shown or bypassed in this session
+    if (sessionStorage.getItem('unregisteredWarningShown') === 'true') {
+        if (callback) callback();
+        return;
+    }
+
     const prompt = document.createElement('div');
     prompt.className = 'upgrade-prompt';
     prompt.innerHTML = `
@@ -6524,16 +6550,31 @@ function showUnregisteredWarning(callback) {
     `;
 
     document.body.appendChild(prompt);
-    setTimeout(() => prompt.classList.add('show'), 50);
+    
+    // Use requestAnimationFrame to ensure smooth animation
+    requestAnimationFrame(() => {
+        prompt.classList.add('show');
+    });
+
+    function hidePrompt(continueCallback) {
+        // Mark that warning has been shown
+        sessionStorage.setItem('unregisteredWarningShown', 'true');
+        
+        prompt.classList.remove('show');
+        setTimeout(() => {
+            document.body.removeChild(prompt);
+            if (continueCallback) continueCallback();
+        }, 300);
+    }
 
     prompt.querySelector('.signup-now').onclick = () => {
-        hideUpgradePrompt();
-        showScreen('welcome-screen');
+        hidePrompt(() => {
+            showScreen('welcome-screen');
+        });
     };
 
     prompt.querySelector('.secondary').onclick = () => {
-        hideUpgradePrompt();
-        if (callback) callback();
+        hidePrompt(callback);
     };
 }
 
