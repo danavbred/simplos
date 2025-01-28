@@ -568,19 +568,6 @@ body {
     padding: 0 1rem;
 }
 
-.coins-header {
-  position: fixed;
-  top: 2rem;
-  right: 2rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--glass);
-  padding: 0.75rem 1.5rem;
-  border-radius: 25px;
-  backdrop-filter: blur(10px);
-  z-index: 100;
-}
 
 .coins-header .coin-icon {
   color: var(--gold);
@@ -1133,6 +1120,104 @@ body {
     margin-top: 0.25rem;
 }
 
+
+.user-status {
+    display: block;
+    font-size: 1.1rem;
+    margin-top: 0.5rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.user-info {
+    background: var(--glass);
+    padding: 1rem 2rem;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    margin-bottom: 2rem;
+}
+
+.status-unregistered {
+    color: #ff4444;
+}
+
+.status-free {
+    color: #ffa500;
+}
+
+.status-pending {
+    color: #00bfff;
+    animation: statusBlink 2s infinite;
+}
+
+.status-premium {
+    color: #4CAF50;
+}
+
+@keyframes statusBlink {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+.header-status {
+    position: fixed;
+    top: 2rem;
+    right: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1rem;  /* Increased gap between elements */
+    z-index: 100;
+}
+
+.coins-header {
+  position: fixed;
+  top: 2rem;
+  right: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--glass);
+  padding: 0.75rem 1.5rem;
+  border-radius: 25px;
+  backdrop-filter: blur(10px);
+  z-index: 100;
+}
+
+.user-tier {
+    position: fixed;
+    top: 2rem;
+    right: 2rem;
+    background: var(--glass);
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    backdrop-filter: blur(10px);
+    z-index: 100;
+    min-width: 200px;
+    text-align: center;
+}
+
+.tier-text.unregistered {
+    color: #ff4444;
+}
+
+.tier-text.trial {
+    color: #ffa500;
+}
+
+.tier-text.pending {
+    color: #00bfff;
+    animation: pendingBlink 2s infinite;
+}
+
+.tier-text.premium {
+    color: #4CAF50;
+}
+
+@keyframes pendingBlink {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
 
 /* Shop Styles */
 .shop-container {
@@ -2597,7 +2682,7 @@ body {
 
 <div class="user-info hidden" id="userInfo">
     <span id="userEmail"></span>
-    <span class="student-mode">Student Mode</span>
+    <span class="user-status"></span>
 </div>
 
 <button class="logout-button hidden" onclick="handleLogout()">Logout</button>
@@ -2668,17 +2753,31 @@ body {
 
 <div id="question-screen" class="screen">
     <div class="particle-container"></div>
-<div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">      <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-          <i class="fas fa-home navigation-icon"></i>
-      </button>
-      <button class="navigation-button reset-button" onclick="handleResetProgress()">
-          <i class="fas fa-trash-alt navigation-icon"></i>
-      </button>
-      <button class="navigation-button restart-level" onclick="handleRestartLevel()">
-          <i class="fas fa-redo navigation-icon"></i>
-      </button>
-  </div>
+    
+    <!-- User Status Display -->
+    <div class="user-tier">
+        <span class="tier-text"></span>
+    </div>
+
+    <!-- Navigation Buttons -->
+    <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">
+        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+        <button class="navigation-button reset-button" onclick="handleResetProgress()">
+            <i class="fas fa-trash-alt navigation-icon"></i>
+        </button>
+        <button class="navigation-button restart-level" onclick="handleRestartLevel()">
+            <i class="fas fa-redo navigation-icon"></i>
+        </button>
+    </div>
+
+
+
+    <!-- Question Word -->
     <div class="question-word" id="question-word"></div>
+
+    <!-- Progress Circle with Timer and Coins -->
     <div class="progress-circle">
         <svg width="100%" height="100%" viewBox="0 0 120 120">
             <circle class="bg" cx="60" cy="60" r="54" stroke-width="8"/>
@@ -2691,6 +2790,8 @@ body {
             <span class="coin-count">0</span>
         </div>
     </div>
+
+    <!-- Perks Container -->
     <div class="perks-container">
         <button class="perk-button" id="timeFreezePerk">
             <i class="fas fa-clock perk-icon"></i>
@@ -2709,12 +2810,17 @@ body {
             <span class="perk-count">0</span>
         </button>
     </div>
+
+    <!-- Timer Container -->
     <div class="timer-container">
         <div class="timer-value">00:00</div>
     </div>
+
+    <!-- Answer Buttons -->
     <div class="buttons" id="buttons"></div>
 </div>
 
+<!-- Failure Overlay -->
 <div class="failure-overlay" style="display: none;">
     <div class="failure-content">
         <h2 class="failure-title">Time's Up!</h2>
@@ -2728,7 +2834,6 @@ body {
         </div>
     </div>
 </div>
-
 <div id="custom-practice-screen" class="screen">
     <div class="navigation-container">
         <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
@@ -2838,7 +2943,6 @@ body {
 </div>
     </div>
 </div>
-
 
 <script>
 
@@ -3042,7 +3146,7 @@ async function handleSignup() {
         options: {
             data: { 
                 username: username,
-                full_name: username  // Additional metadata field
+                full_name: username
             }
         }
     });
@@ -3053,20 +3157,8 @@ async function handleSignup() {
         return;
     }
 
-    // Insert username into user_profiles table
-    const { error: profileError } = await supabaseClient
-        .from('user_profiles')
-        .insert({
-            id: data.user.id,
-            username: username,
-            role: 'student',
-            status: 'free'
-        });
-
-    if (profileError) {
-        console.error('Error creating user profile:', profileError);
-    }
-
+    // Skip manual profile creation since it's handled by the trigger
+    // Initialize game progress instead
     const { error: progressError } = await supabaseClient
         .from('game_progress')
         .insert([{
@@ -3129,6 +3221,11 @@ async function handleLogin() {
     const email = document.getElementById('loginUsername').value;
     const password = document.getElementById('loginPassword').value;
     
+    if (!email || !password) {
+        alert('Please enter both email and password');
+        return;
+    }
+
     try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({
             email,
@@ -3141,19 +3238,37 @@ async function handleLogin() {
                 status: error.status,
                 type: error.type
             });
-            alert(error.message); // Show user-friendly error
+            alert(error.message);
             return;
         }
 
-        console.log('Login successful:', data.user);
+        if (data.user) {
+            currentUser = data.user;
+            
+            // Get user profile and status
+            const { data: profile } = await supabaseClient
+                .from('user_profiles')
+                .select('status')
+                .eq('id', currentUser.id)
+                .single();
+                
+            if (profile) {
+                updateUserStatusDisplay(profile.status);
+            }
 
-        currentUser = data.user;
-        await loadCustomLists();
-        await loadUserGameProgress(currentUser.id);
-        updateAuthUI();
-        showScreen('welcome-screen');
-    } catch (catchError) {
-        console.error('Unexpected Login Error:', catchError);
+            // Load user data
+            await Promise.all([
+                loadCustomLists(),
+                loadUserGameProgress(currentUser.id)
+            ]);
+
+            // Update UI
+            updateAuthUI();
+            showScreen('welcome-screen');
+        }
+
+    } catch (error) {
+        console.error('Unexpected Login Error:', error);
         alert('An unexpected error occurred during login');
     }
 }
@@ -3211,6 +3326,8 @@ async function checkExistingSession() {
     
     if (session) {
         currentUser = session.user;
+        
+        // Get initial status
         const { data: profile } = await supabaseClient
             .from('user_profiles')
             .select('status')
@@ -3218,8 +3335,12 @@ async function checkExistingSession() {
             .single();
             
         if (profile) {
+            console.log('Initial status:', profile.status); // Debug log
             updateUserStatusDisplay(profile.status);
         }
+        
+        // Setup real-time updates
+        setupUserStatusSubscription();
         
         await Promise.all([
             loadUserGameProgress(currentUser.id),
@@ -3260,32 +3381,72 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function loadUserGameProgress(userId) {
-    const { data, error } = await supabaseClient
-        .from('game_progress')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
+    try {
+        let progressData;
+        
+        // First try to get existing progress
+        const { data: existingData, error: fetchError } = await supabaseClient
+            .from('game_progress')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
 
-    if (error) {
-        console.error('Error loading game progress:', error);
-        return;
+        if (fetchError) {
+            // If no record exists, create initial progress
+            if (fetchError.code === 'PGRST116') {
+                const initialProgress = {
+                    user_id: userId,
+                    stage: 1,
+                    set_number: 1,
+                    level: 1,
+                    coins: 0,
+                    perks: {},
+                    unlocked_sets: { "1": [1] },
+                    unlocked_levels: { "1_1": [1] },
+                    perfect_levels: [],
+                    completed_levels: []
+                };
+
+                const { data: newData, error: insertError } = await supabaseClient
+                    .from('game_progress')
+                    .upsert([initialProgress])
+                    .select()
+                    .single();
+
+                if (insertError) {
+                    console.error('Error creating initial game progress:', insertError);
+                    return;
+                }
+                progressData = newData;
+            } else {
+                console.error('Error loading game progress:', fetchError);
+                return;
+            }
+        } else {
+            progressData = existingData;
+        }
+
+        // Update game state with loaded/created progress
+        if (progressData) {
+            gameState.currentStage = progressData.stage;
+            gameState.currentSet = progressData.set_number;
+            gameState.coins = progressData.coins;
+            gameState.perks = progressData.perks;
+            gameState.unlockedSets = Object.fromEntries(
+                Object.entries(progressData.unlocked_sets).map(([k, v]) => [k, new Set(v)])
+            );
+            gameState.unlockedLevels = Object.fromEntries(
+                Object.entries(progressData.unlocked_levels).map(([k, v]) => [k, new Set(v)])
+            );
+            gameState.perfectLevels = new Set(progressData.perfect_levels);
+            gameState.completedLevels = new Set(progressData.completed_levels);
+
+            updateAllCoinDisplays();
+        }
+
+    } catch (e) {
+        console.error('Unexpected error in loadUserGameProgress:', e);
     }
-
-    gameState.currentStage = data.stage;
-    gameState.currentSet = data.set_number;
-    gameState.coins = data.coins;
-    gameState.perks = data.perks;
-    
-    gameState.unlockedSets = Object.fromEntries(
-        Object.entries(data.unlocked_sets).map(([k, v]) => [k, new Set(v)])
-    );
-    gameState.unlockedLevels = Object.fromEntries(
-        Object.entries(data.unlocked_levels).map(([k, v]) => [k, new Set(v)])
-    );
-    gameState.perfectLevels = new Set(data.perfect_levels);
-    gameState.completedLevels = new Set(data.completed_levels);
-
-    updateAllCoinDisplays();
 }
 
 async function handleLogout() {
@@ -3501,12 +3662,32 @@ function updateAuthUI() {
     if (currentUser) {
         authBox.classList.add('hidden');
         userInfo.classList.remove('hidden');
-        logoutButton.classList.remove('hidden'); // Show logout button
-        userEmailElement.textContent = currentUser.user_metadata.username;
+        logoutButton.classList.remove('hidden');
+        
+        // Display username from metadata if available, fallback to email
+        userEmailElement.textContent = currentUser.user_metadata?.username || currentUser.email;
+        
+        // Get and display user status
+        supabaseClient
+            .from('user_profiles')
+            .select('status, username')
+            .eq('id', currentUser.id)
+            .single()
+            .then(({ data }) => {
+                if (data) {
+                    // If we have a username in the profile, use it
+                    if (data.username) {
+                        userEmailElement.textContent = data.username;
+                    }
+                    updateUserStatusDisplay(data.status);
+                }
+            })
+            .catch(error => console.error('Error fetching user status:', error));
+            
     } else {
         authBox.classList.remove('hidden');
         userInfo.classList.add('hidden');
-        logoutButton.classList.add('hidden'); // Hide logout button
+        logoutButton.classList.add('hidden');
         userEmailElement.textContent = '';
     }
 }
@@ -6840,27 +7021,20 @@ async function handleUpgradeSubmit(event) {
     const isAdult = document.getElementById('isAdult').checked;
     
     try {
-        let formData;
-        if (isAdult) {
-            formData = {
-                user_id: currentUser.id,
-                is_adult: true,
-                full_name: document.getElementById('fullName').value,
-                phone: document.getElementById('phone').value,
-                parent_name: null,
-                parent_phone: null,
-                referral_source: document.getElementById('referralSource').value
-            };
-        } else {
-            formData = {
-                user_id: currentUser.id,
-                is_adult: false,
-                full_name: null,
-                phone: null,
-                parent_name: document.getElementById('parentName').value,
-                parent_phone: document.getElementById('parentPhone').value,
-                referral_source: document.getElementById('referralSource').value
-            };
+        let formData = {
+            user_id: currentUser.id,
+            is_adult: isAdult,
+            full_name: isAdult ? document.getElementById('fullName').value : document.getElementById('parentName').value,
+            phone: isAdult ? document.getElementById('phone').value : document.getElementById('parentPhone').value,
+            parent_name: !isAdult ? document.getElementById('parentName').value : null,
+            parent_phone: !isAdult ? document.getElementById('parentPhone').value : null,
+            referral_source: document.getElementById('referralSource').value
+        };
+
+        // Validate required fields
+        if (!formData.full_name || !formData.phone) {
+            alert('Please fill in all required fields');
+            return;
         }
 
         // Update user status to pending
@@ -6883,11 +7057,10 @@ async function handleUpgradeSubmit(event) {
         // Open WhatsApp
         const message = `New upgrade request!\n` +
             `User: ${currentUser.email}\n` +
-            (isAdult ? 
-                `Name: ${formData.full_name}\nPhone: ${formData.phone}` : 
-                `Parent Name: ${formData.parent_name}\nParent Phone: ${formData.parent_phone}`
-            ) +
-            `\nReference ID: ${data.id}`;
+            `Name: ${formData.full_name}\n` +
+            `Phone: ${formData.phone}\n` +
+            (formData.parent_name ? `Parent: ${formData.parent_name}\n` : '') +
+            `Reference ID: ${data.id}`;
 
         window.open(`https://wa.me/972545996417?text=${encodeURIComponent(message)}`);
 
@@ -6916,28 +7089,52 @@ function skipUpgrade() {
 }
 
 function updateUserStatusDisplay(status) {
-    const userInfo = document.getElementById('userInfo');
-    const existingStatus = userInfo.querySelector('.status-text');
+    const userTier = document.querySelector('.user-tier');
+    const tierText = userTier.querySelector('.tier-text');
     
-    if (existingStatus) {
-        existingStatus.remove();
+    // Clear existing classes
+    tierText.classList.remove('unregistered', 'trial', 'pending', 'premium');
+    
+    if (!currentUser) {
+        tierText.classList.add('unregistered');
+        tierText.textContent = 'Unregistered Visitor';
+    } else {
+        switch(status) {
+            case 'free':
+                tierText.classList.add('trial');
+                tierText.textContent = 'Trial Account';
+                break;
+            case 'pending':
+                tierText.classList.add('pending');
+                tierText.textContent = 'Premium Pending Confirmation';
+                break;
+            case 'premium':
+                tierText.classList.add('premium');
+                tierText.textContent = 'Active Premium Account';
+                break;
+            default:
+                tierText.classList.add('trial');
+                tierText.textContent = 'Trial Account';
+        }
     }
+}
 
-    const statusText = document.createElement('span');
-    statusText.classList.add('status-text');
-    
-    switch(status) {
-        case 'pending':
-            statusText.classList.add('pending-status');
-            statusText.textContent = 'Premium Order Pending';
-            break;
-        case 'premium':
-            statusText.classList.add('premium-status');
-            statusText.textContent = 'Premium Account';
-            break;
-    }
-    
-    userInfo.appendChild(statusText);
+function setupUserStatusSubscription() {
+    if (!currentUser) return;
+
+    const subscription = supabaseClient
+        .channel('public:user_profiles')
+        .on('UPDATE', 
+            payload => {
+                if (payload.new && payload.new.id === currentUser.id) {
+                    console.log('Profile updated:', payload.new.status); // Debug log
+                    updateUserStatusDisplay(payload.new.status);
+                }
+            }
+        )
+        .subscribe();
+
+    return subscription;
 }
 
 </script>
