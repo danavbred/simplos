@@ -423,7 +423,10 @@ body {
     top: 2rem;
     left: 50%;
     transform: translateX(-50%);
-    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
     z-index: 100;
 }
 
@@ -431,7 +434,6 @@ body {
     font-size: 1.5rem;
     color: var(--gold);
     margin-bottom: 0.5rem;
-    display: block;
 }
 
 .student-mode {
@@ -1102,74 +1104,6 @@ body {
     background: rgba(255,255,255,0.2);
 }
 
-.pending-status {
-    color: #00bfff;
-    animation: pendingBlink 2s infinite;
-    font-size: 0.9rem;
-    margin-top: 0.25rem;
-}
-
-@keyframes pendingBlink {
-    0%, 100% { opacity: 0.7; }
-    50% { opacity: 1; }
-}
-
-.premium-status {
-    color: #50C878;
-    font-size: 0.9rem;
-    margin-top: 0.25rem;
-}
-
-
-.user-status {
-    display: block;
-    font-size: 1.1rem;
-    margin-top: 0.5rem;
-    font-weight: 600;
-    text-align: center;
-}
-
-.user-info {
-    background: var(--glass);
-    padding: 1rem 2rem;
-    border-radius: 15px;
-    backdrop-filter: blur(10px);
-    margin-bottom: 2rem;
-}
-
-.status-unregistered {
-    color: #ff4444;
-}
-
-.status-free {
-    color: #ffa500;
-}
-
-.status-pending {
-    color: #00bfff;
-    animation: statusBlink 2s infinite;
-}
-
-.status-premium {
-    color: #4CAF50;
-}
-
-@keyframes statusBlink {
-    0%, 100% { opacity: 0.7; }
-    50% { opacity: 1; }
-}
-
-.header-status {
-    position: fixed;
-    top: 2rem;
-    right: 2rem;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 1rem;  /* Increased gap between elements */
-    z-index: 100;
-}
-
 .coins-header {
   position: fixed;
   top: 2rem;
@@ -1184,13 +1118,16 @@ body {
   z-index: 100;
 }
 
-.user-tier {
-    position: relative;  /* Changed from fixed */
-    background: var(--glass);
-    padding: 0.75rem 1.5rem;
-    border-radius: 25px;
-    backdrop-filter: blur(10px);
-    margin-left: 1rem;  /* Add some space between buttons and status */
+
+#userEmail {
+    font-size: 1.5rem;
+    color: var(--gold);
+    margin-bottom: 0.5rem;
+}
+
+.tier-text {
+    font-weight: 600;
+    font-size: 1.1rem;
 }
 
 .tier-text.unregistered {
@@ -1835,25 +1772,33 @@ body {
 
 
 .navigation-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 1rem 0;
+    background: var(--glass);
+    padding: 0.75rem;
+    border-radius: 25px;
+    backdrop-filter: blur(10px);
     position: fixed;
     top: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;  /* Increased gap to give more space between elements */
-    background: none;
-    margin: 0;
+    left: 1rem;
     z-index: 100;
 }
 
 .navigation-button {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    box-shadow: none;
 }
 
 .navigation-button:hover {
@@ -2671,6 +2616,9 @@ body {
 <div class="user-info hidden" id="userInfo">
     <span id="userEmail"></span>
     <span class="user-status"></span>
+    <div class="user-tier">
+        <span class="tier-text"></span>
+    </div>
 </div>
 
 <button class="logout-button hidden" onclick="handleLogout()">Logout</button>
@@ -2742,6 +2690,7 @@ body {
 <div id="question-screen" class="screen">
     <div class="particle-container"></div>
     
+    
 
     <!-- Navigation Buttons -->
     <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">
@@ -2754,9 +2703,6 @@ body {
         <button class="navigation-button restart-level" onclick="handleRestartLevel()">
             <i class="fas fa-redo navigation-icon"></i>
         </button>
-        <div class="user-tier">
-        <span class="tier-text"></span>
-    </div>
     </div>
 
 
