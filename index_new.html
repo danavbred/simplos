@@ -2805,8 +2805,8 @@ body {
 <div id="stage-screen" class="screen">
     <div class="particle-container"></div>
     <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">
-        <button class="navigation-button home-button" onclick="showScreen('welcome-screen', true)">
-            <i class="fas fa-home navigation-icon"></i>
+        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
+        <i class="fas fa-home navigation-icon"></i>
     </button>
     <button class="navigation-button reset-button" onclick="handleResetProgress()">
         <i class="fas fa-trash-alt navigation-icon"></i>
@@ -4135,7 +4135,7 @@ function handleTimeUp() {
 }
 
 // Screen Management
-function showScreen(screenId, forceRefresh = false) {
+function showScreen(screenId) {
     // Clear any running timer when leaving question screen
     const currentVisibleScreen = document.querySelector('.screen.visible');
     if (currentVisibleScreen && currentVisibleScreen.id === 'question-screen') {
@@ -4143,13 +4143,7 @@ function showScreen(screenId, forceRefresh = false) {
         isFrozen = false; // Reset freeze state
     }
 
-    // Check if a refresh is requested
-    if (forceRefresh && screenId === 'welcome-screen') {
-        location.reload();
-        return;
-    }
-
-    // Existing screen switching logic remains the same
+    // Remove visible class from all screens
     document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.remove('visible');
         
@@ -4182,6 +4176,9 @@ function showScreen(screenId, forceRefresh = false) {
             // Any stage screen specific logic
             break;
     }
+
+    // Navigation icon logic
+    
 }
 
 // Add full-screen event listener
@@ -7152,35 +7149,42 @@ async function handleUpgradeSubmit(event) {
 
         let formData = {
             user_id: currentUser.id,
+            username: userProfile.username,
             is_adult: isAdult,
             full_name: isAdult ? document.getElementById('fullName').value : document.getElementById('parentName').value,
             phone: isAdult ? document.getElementById('phone').value : document.getElementById('parentPhone').value,
             parent_name: !isAdult ? document.getElementById('parentName').value : null,
             parent_phone: !isAdult ? document.getElementById('parentPhone').value : null,
-            referral_source: document.getElementById('referralSource').value
+            referral_source: document.getElementById('referralSource').value,
+            joined_date: userProfile.created_at,
+            last_active: new Date()
         };
 
-        if (!validateForm(isAdult)) {
+        if (!formData.full_name || !formData.phone) {
             alert('Please fill in all required fields');
             return;
         }
 
-        const { data, error } = await supabaseClient
-            .from('upgrade_requests')
-            .insert([formData])
-            .select();
+        const [profileUpdate, requestInsert] = await Promise.all([
+            supabaseClient
+                .from('user_profiles')
+                .update({ 
+                    status: 'pending', 
+                    payment_pending: true 
+                })
+                .eq('id', currentUser.id),
+            
+            supabaseClient
+                .from('upgrade_requests')
+                .insert([formData])
+                .select()
+                .single()
+        ]);
 
-        if (error) throw error;
+        if (profileUpdate.error) throw profileUpdate.error;
+        if (requestInsert.error) throw requestInsert.error;
 
-        // Update user profile status to pending
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .update({ status: 'pending' })
-            .eq('id', currentUser.id);
-
-        if (profileError) throw profileError;
-
-        // Store in localStorage to prevent repeated prompts
+        // Store in localStorage
         localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
 
         // Show confirmation popup
@@ -7220,10 +7224,8 @@ function continueAfterUpgrade() {
     const form = document.getElementById('upgradeForm');
     if (form) form.reset();
     
-    // Update the display manually
-    if (currentUser) {
-        updateUserStatusDisplay('pending');
-    }
+    // Immediately update status display
+    updateUserStatusDisplay('pending');
     
     // Continue game
     hideUpgradePromptAndContinue();
@@ -7282,8 +7284,23 @@ function setupUserStatusSubscription() {
         .on('UPDATE', 
             payload => {
                 if (payload.new && payload.new.id === currentUser.id) {
-                    console.log('Profile updated:', payload.new.status); // Debug log
-                    updateUserStatusDisplay(payload.new.status);
+                    const newStatus = payload.new.status;
+                    
+                    // Update the display
+                    updateUserStatusDisplay(newStatus);
+                    
+                    // If status changed to premium, show celebration popup
+                    if (newStatus === 'premium') {
+                        const popup = document.createElement('div');
+                        popup.className = 'confirmation-popup';
+                        popup.innerHTML = `
+                            <h2>🎉 Congratulations! 🎉</h2>
+                            <p>Your account has been upgraded to Premium! Enjoy full access to all content.</p>
+                            <button onclick="this.closest('.confirmation-popup').remove()">Continue Playing</button>
+                        `;
+                        document.body.appendChild(popup);
+                        setTimeout(() => popup.classList.add('show'), 100);
+                    }
                 }
             }
         )
