@@ -3143,60 +3143,53 @@ async function handleSignup() {
         return;
     }
 
-    const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-            data: { 
-                username: username,
-                full_name: username
-            }
+    try {
+        console.log('Raw Signup Attempt', { 
+            email, 
+            username, 
+            passwordLength: password.length 
+        });
+
+        // Minimal signup attempt
+        const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password
+        });
+
+        if (error) {
+            console.error('EXACT SIGNUP ERROR:', {
+                name: error.name,
+                message: error.message,
+                status: error.status,
+                type: error.type,
+                fullError: JSON.stringify(error)
+            });
+            alert(`Signup Failed: ${error.message}`);
+            return;
         }
-    });
 
-    if (error) {
-        console.error('Error signing up:', error.message);
-        alert(error.message);
-        return;
+        if (!data.user) {
+            console.error('No user data returned');
+            alert('User creation completely failed');
+            return;
+        }
+
+        console.log('Minimal Signup Success', { 
+            userId: data.user.id, 
+            email: data.user.email 
+        });
+
+        // Minimal post-signup actions
+        alert('Signup Successful! Please log in.');
+
+    } catch (generalError) {
+        console.error('CATASTROPHIC SIGNUP ERROR:', {
+            name: generalError.name,
+            message: generalError.message,
+            stack: generalError.stack
+        });
+        alert(`Unexpected Error: ${generalError.message}`);
     }
-
-    // Skip manual profile creation since it's handled by the trigger
-    // Initialize game progress instead
-    const { error: progressError } = await supabaseClient
-        .from('game_progress')
-        .insert([{
-            user_id: data.user.id,
-            stage: 1,
-            set_number: 1,
-            level: 1,
-            coins: 0,
-            perks: {},
-            unlocked_sets: { "1": [1] },
-            unlocked_levels: { "1_1": [1] },
-            perfect_levels: [],
-            completed_levels: []
-        }]);
-
-    if (progressError) {
-        console.error('Error initializing game progress:', progressError);
-        return;
-    }
-
-    const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-    });
-
-    if (loginError) {
-        alert('Account created but login failed. Please try logging in manually.');
-        return;
-    }
-
-    currentUser = loginData.user;
-    clearCustomPracticeUI();
-    await Promise.all([loadCustomLists(), loadUserGameProgress(currentUser.id)]);
-    updateAuthUI();
-    showScreen('welcome-screen');
 }
 
 async function initializeGameProgressForUser(userId) {
@@ -3230,6 +3223,11 @@ async function handleLogin() {
     }
 
     try {
+        console.log('Login Attempt:', { 
+            email, 
+            timestamp: new Date().toISOString() 
+        });
+
         const { data, error } = await supabaseClient.auth.signInWithPassword({
             email,
             password
@@ -3237,6 +3235,7 @@ async function handleLogin() {
 
         if (error) {
             console.error('Detailed Login Error:', {
+                fullErrorObject: error,
                 message: error.message,
                 status: error.status,
                 type: error.type
@@ -3245,33 +3244,55 @@ async function handleLogin() {
             return;
         }
 
-        if (data.user) {
-            currentUser = data.user;
-            
-            // Get user profile and status
-            const { data: profile } = await supabaseClient
-                .from('user_profiles')
-                .select('status')
-                .eq('id', currentUser.id)
-                .single();
-                
-            if (profile) {
-                updateUserStatusDisplay(profile.status);
-            }
-
-            // Load user data
-            await Promise.all([
-                loadCustomLists(),
-                loadUserGameProgress(currentUser.id)
-            ]);
-
-            // Update UI
-            updateAuthUI();
-            showScreen('welcome-screen');
+        if (!data.user) {
+            console.error('No user data returned on login');
+            alert('Login failed');
+            return;
         }
 
-    } catch (error) {
-        console.error('Unexpected Login Error:', error);
+        console.log('User Logged In:', { 
+            userId: data.user.id, 
+            email: data.user.email 
+        });
+
+        currentUser = data.user;
+        
+        // Verify user profile exists
+        const { data: profile, error: profileError } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+            
+        if (profileError) {
+            console.error('Profile Fetch Error:', {
+                fullErrorObject: profileError,
+                message: profileError.message
+            });
+            alert(`Profile Error: ${profileError.message}`);
+            return;
+        }
+
+        if (profile) {
+            updateUserStatusDisplay(profile.status);
+        }
+
+        // Load user data
+        await Promise.all([
+            loadCustomLists(),
+            loadUserGameProgress(currentUser.id)
+        ]);
+
+        // Update UI
+        updateAuthUI();
+        showScreen('welcome-screen');
+
+    } catch (generalError) {
+        console.error('Catastrophic Login Error:', {
+            fullErrorObject: generalError,
+            message: generalError.message,
+            stack: generalError.stack
+        });
         alert('An unexpected error occurred during login');
     }
 }
