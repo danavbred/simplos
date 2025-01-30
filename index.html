@@ -1358,6 +1358,77 @@ body {
     50% { opacity: 1; }
 }
 
+.leaderboard-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    min-height: 100vh;
+}
+
+.leaderboard-container {
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 800px;
+    margin-top: 2rem;
+}
+
+.leaderboard-header {
+    display: grid;
+    grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
+    padding: 1rem;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    font-weight: bold;
+}
+
+.leaderboard-entry {
+    display: grid;
+    grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
+    padding: 1rem;
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
+    transition: all 0.3s ease;
+    background: rgba(255,255,255,0.05);
+}
+
+.leaderboard-entry:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.1);
+}
+
+.leaderboard-entry.you {
+    background: rgba(233, 69, 96, 0.2);
+    border: 1px solid var(--accent);
+}
+
+.rank-1 {
+    color: var(--gold);
+}
+
+.rank-2 {
+    color: var(--silver);
+}
+
+.rank-3 {
+    color: var(--bronze);
+}
+
+@media (max-width: 768px) {
+    .leaderboard-container {
+        padding: 1rem;
+    }
+    
+    .leaderboard-header, .leaderboard-entry {
+        font-size: 0.9rem;
+        padding: 0.75rem;
+    }
+}
+
 /* Shop Styles */
 .shop-container {
   display: flex;
@@ -2821,7 +2892,9 @@ body {
     <h1 class="welcome-title">Simplos</h1>
     <div class="welcome-buttons">
         <button class="start-button" onclick="startGame()">Play Game</button>
-        <button class="start-button" onclick="showScreen('stage-screen')">Level Map</button>        <button class="start-button custom-lists-button" onclick="showCustomListsManager()">My Lists</button>
+        <button class="start-button" onclick="showScreen('stage-screen')">Level Map</button>        
+        <button class="start-button custom-lists-button" onclick="showCustomListsManager()">My Lists</button>
+        <button class="start-button" onclick="showLeaderboard()">Speedboard</button>
         <div class="auth-container" id="authBox">
         <div class="auth-login" id="loginForm">
         <input type="text" class="auth-input" placeholder="Username" id="loginUsername">
@@ -3099,6 +3172,29 @@ body {
     </form>
     <p>לאחר שליחת הבקשה ניצור איתך קשר בווטסאפ</p>
 </div>
+    </div>
+</div>
+
+<div id="leaderboard-screen" class="screen">
+    <div class="navigation-container">
+        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+    </div>
+    
+    <h1 class="welcome-title">Speedboard</h1>
+    
+    <div class="leaderboard-container">
+        <div class="leaderboard-header">
+            <div>Rank</div>
+            <div>Player</div>
+            <div>Avg Time</div>
+            <div>Best Streak</div>
+            <div>Mistakes</div>
+        </div>
+        <div id="leaderboard-entries">
+            <!-- Entries will be populated here -->
+        </div>
     </div>
 </div>
 
@@ -5134,6 +5230,15 @@ function handleLevelCompletion() {
     clearTimer();
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     const isLevelCompleted = gameState.perfectLevels.has(levelKey);
+    
+    // Calculate and update stats
+    const levelTime = Date.now() - currentGame.levelStartTime;
+    const mistakes = currentGame.wrongStreak;
+    const streak = currentGame.correctAnswers;
+    
+    if (currentUser) {
+        updatePlayerStats(levelTime, mistakes, streak).catch(console.error);
+    }
     
     // Handle custom practice mode first
     if (currentGame.isCustomPractice) {
@@ -7509,6 +7614,61 @@ document.querySelectorAll('.home-button').forEach(button => {
         forceReload();
     };
 });
+
+async function showLeaderboard() {
+    const { data: leaderboard, error } = await supabaseClient
+        .from('player_leaderboard')
+        .select('*')
+        .limit(50);
+        
+    if (error) {
+        console.error('Error fetching leaderboard:', error);
+        return;
+    }
+
+    const entriesContainer = document.getElementById('leaderboard-entries');
+    entriesContainer.innerHTML = '';
+
+    leaderboard.forEach((entry, index) => {
+        const isCurrentUser = entry.user_id === currentUser?.id;
+        const rankClass = index < 3 ? `rank-${index + 1}` : '';
+        
+        const entryDiv = document.createElement('div');
+        entryDiv.className = `leaderboard-entry ${isCurrentUser ? 'you' : ''}`;
+        
+        entryDiv.innerHTML = `
+            <div class="${rankClass}">${index + 1}</div>
+            <div>${isCurrentUser ? 'YOU' : entry.username}</div>
+            <div>${entry.avg_completion_time_seconds}s</div>
+            <div>${entry.best_streak}</div>
+            <div>${entry.total_mistakes}</div>
+        `;
+        
+        entriesContainer.appendChild(entryDiv);
+    });
+
+    showScreen('leaderboard-screen');
+}
+
+async function updatePlayerStats(levelTime, mistakes, currentStreak) {
+    if (!currentUser) return;
+
+    const { data, error } = await supabaseClient
+        .from('player_stats')
+        .upsert({
+            user_id: currentUser.id,
+            total_levels_completed: supabase.sql`total_levels_completed + 1`,
+            total_time_spent: supabase.sql`total_time_spent + ${levelTime}`,
+            total_mistakes: supabase.sql`total_mistakes + ${mistakes}`,
+            best_streak: supabase.sql`GREATEST(best_streak, ${currentStreak})`
+        }, {
+            onConflict: 'user_id'
+        });
+
+    if (error) {
+        console.error('Error updating player stats:', error);
+    }
+}
 
 </script>
 </body>
