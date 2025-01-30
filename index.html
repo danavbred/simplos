@@ -7673,77 +7673,28 @@ document.querySelectorAll('.home-button').forEach(button => {
 });
 
 async function showLeaderboard() {
-    console.log('Leaderboard function called');
     showScreen('leaderboard-screen');
-
     const entriesContainer = document.getElementById('leaderboard-entries');
     
-    if (!entriesContainer) {
-        console.error('Leaderboard entries container not found');
-        return;
-    }
-
-    async function renderLeaderboard(leaderboard) {
-        // Sort leaderboard to ensure correct order
-        const sortedLeaderboard = leaderboard.sort((a, b) => 
-            b.avg_completion_time_seconds - a.avg_completion_time_seconds
-        );
-
-        // Create a new document fragment for smooth updates
-        const fragment = document.createDocumentFragment();
-
-        sortedLeaderboard.forEach((entry, index) => {
-            const existingEntry = entriesContainer.querySelector(`[data-user-id="${entry.user_id}"]`);
-            
-            const entryDiv = document.createElement('div');
-            entryDiv.className = `leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}`;
-            entryDiv.dataset.userId = entry.user_id;
-            
-            entryDiv.innerHTML = `
-                <div>${index + 1}</div>
-                <div>${entry.username || 'Anonymous'}</div>
-                <div>${(entry.avg_completion_time_seconds || 0).toFixed(2)}s</div>
-                <div>${entry.best_streak || 0}</div>
-                <div>${entry.total_mistakes || 0}</div>
-            `;
-
-            // Detect position change
-            if (existingEntry) {
-                const oldIndex = Array.from(entriesContainer.children).indexOf(existingEntry);
-                
-                if (oldIndex !== index) {
-                    // Add movement classes for animation
-                    entryDiv.classList.add(oldIndex > index ? 'moving-up' : 'moving-down');
-                }
-            }
-
-            fragment.appendChild(entryDiv);
-        });
-
-        // Clear and repopulate with animated entries
-        entriesContainer.innerHTML = '';
-        entriesContainer.appendChild(fragment);
-
-        // Remove movement classes after animation
-        setTimeout(() => {
-            document.querySelectorAll('.leaderboard-entry').forEach(entry => {
-                entry.classList.remove('moving-up', 'moving-down');
-            });
-        }, 1000);
-    }
-
     try {
         const { data: leaderboard, error } = await supabaseClient
             .from('player_leaderboard')
             .select('*')
-            .limit(50)
-            .order('avg_completion_time_seconds', { ascending: false });
+            .limit(50);
             
         if (error) throw error;
 
-        await renderLeaderboard(leaderboard);
+        entriesContainer.innerHTML = leaderboard.map((entry, index) => `
+            <div class="leaderboard-entry ${entry.user_id === currentUser?.id ? 'you' : ''} ${index < 3 ? `rank-${index + 1}` : ''}">
+                <div>${entry.player_rank}</div>
+                <div>${entry.username || 'Anonymous'}</div>
+                <div>${entry.avg_time_per_level.toFixed(2)}s</div>
+                <div>${entry.best_streak}</div>
+                <div>${entry.total_mistakes}</div>
+            </div>
+        `).join('');
 
-        // Real-time subscription
+        // Set up real-time subscription
         const leaderboardSubscription = supabaseClient
             .channel('leaderboard-real-time')
             .on('postgres_changes', 
@@ -7752,18 +7703,28 @@ async function showLeaderboard() {
                     schema: 'public', 
                     table: 'player_stats'
                 }, 
-                async (payload) => {
+                async () => {
                     const { data: updatedLeaderboard } = await supabaseClient
                         .from('player_leaderboard')
                         .select('*')
-                        .limit(50)
-                        .order('avg_completion_time_seconds', { ascending: false });
+                        .limit(50);
                     
-                    await renderLeaderboard(updatedLeaderboard);
+                    if (updatedLeaderboard) {
+                        entriesContainer.innerHTML = updatedLeaderboard.map((entry, index) => `
+                            <div class="leaderboard-entry ${entry.user_id === currentUser?.id ? 'you' : ''} ${index < 3 ? `rank-${index + 1}` : ''}">
+                                <div>${entry.player_rank}</div>
+                                <div>${entry.username || 'Anonymous'}</div>
+                                <div>${entry.avg_time_per_level.toFixed(2)}s</div>
+                                <div>${entry.best_streak}</div>
+                                <div>${entry.total_mistakes}</div>
+                            </div>
+                        `).join('');
+                    }
                 }
             )
             .subscribe();
 
+        // Store subscription reference
         const leaderboardScreen = document.getElementById('leaderboard-screen');
         if (leaderboardScreen) {
             leaderboardScreen.dataset.subscription = leaderboardSubscription;
@@ -7778,15 +7739,25 @@ async function showLeaderboard() {
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
 
+    console.log('Updating stats for user:', currentUser.id, {
+        levelTime,
+        mistakes,
+        currentStreak
+    });
+
     try {
         // First get current stats
-        const { data: currentStats } = await supabaseClient
+        const { data: currentStats, error: fetchError } = await supabaseClient
             .from('player_stats')
             .select('*')
             .eq('user_id', currentUser.id)
             .single();
 
-        // Prepare update data with incremented values
+        if (fetchError && fetchError.code !== 'PGRST116') { // Not found is okay
+            throw fetchError;
+        }
+
+        // Calculate new values
         const updateData = {
             user_id: currentUser.id,
             total_levels_completed: (currentStats?.total_levels_completed || 0) + 1,
@@ -7795,17 +7766,19 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
             best_streak: Math.max(currentStats?.best_streak || 0, currentStreak),
             words_practiced_today: (currentStats?.words_practiced_today || 0) + currentGame.words.length,
             time_spent_today_ms: (currentStats?.time_spent_today_ms || 0) + levelTime,
-            last_practice_date: new Date().toISOString(),
+            last_practice_date: new Date().toISOString().split('T')[0],
             last_updated: new Date().toISOString()
         };
 
-        const { error } = await supabaseClient
+        const { error: updateError } = await supabaseClient
             .from('player_stats')
             .upsert(updateData, {
                 onConflict: 'user_id'
             });
 
-        if (error) throw error;
+        if (updateError) throw updateError;
+
+        console.log('Stats updated successfully');
 
     } catch (error) {
         console.error('Error updating player stats:', error);
