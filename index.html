@@ -3674,36 +3674,7 @@ function setupDefaultUnlocks() {
     }
 }
 
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        
-        // Get initial status
-        const { data: profile } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
-            
-        if (profile) {
-            updateUserStatusDisplay(profile.status);
-        }
-        
-        // Setup real-time updates
-        setupUserStatusSubscription();
-        
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists()
-        ]);
-        updateAuthUI();
-    } else {
-        // Update status for non-logged in users
-        updateUserStatusDisplay(null);
-    }
-}
+
 
 document.addEventListener('DOMContentLoaded', function() {
     currentUser = null;
@@ -4050,15 +4021,6 @@ function updateAuthUI() {
     }
 }
 
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        await loadUserGameProgress(currentUser.id);
-        updateAuthUI();
-    }
-}
 
 
 // Game Constants & State Management
@@ -6656,19 +6618,6 @@ function saveListChanges(listId, wordList, listItem) {
     `;
 }
 
-// Add to checkExistingSession()
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists() // Add this
-        ]);
-        updateAuthUI();
-    }
-}
 
 function toggleAuthMode() {
     const loginForm = document.getElementById('loginForm');
@@ -7829,31 +7778,37 @@ async function showLeaderboard() {
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
 
-    console.log('Attempting to update stats:', { 
-        userId: currentUser.id,
-        levelTime, 
-        mistakes, 
-        currentStreak 
-    });
-    
-    const { data, error } = await supabaseClient
-        .from('player_stats')
-        .upsert({
-            user_id: currentUser.id,
-            total_levels_completed: 1,  // Start with simple increment
-            total_time_spent: levelTime,
-            total_mistakes: mistakes,
-            best_streak: currentStreak,
-            last_updated: new Date().toISOString()
-        }, {
-            onConflict: 'user_id'
-        })
-        .select();
+    try {
+        // First get current stats
+        const { data: currentStats } = await supabaseClient
+            .from('player_stats')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .single();
 
-    if (error) {
+        // Prepare update data with incremented values
+        const updateData = {
+            user_id: currentUser.id,
+            total_levels_completed: (currentStats?.total_levels_completed || 0) + 1,
+            total_time_spent: (currentStats?.total_time_spent || 0) + levelTime,
+            total_mistakes: (currentStats?.total_mistakes || 0) + mistakes,
+            best_streak: Math.max(currentStats?.best_streak || 0, currentStreak),
+            words_practiced_today: (currentStats?.words_practiced_today || 0) + currentGame.words.length,
+            time_spent_today_ms: (currentStats?.time_spent_today_ms || 0) + levelTime,
+            last_practice_date: new Date().toISOString(),
+            last_updated: new Date().toISOString()
+        };
+
+        const { error } = await supabaseClient
+            .from('player_stats')
+            .upsert(updateData, {
+                onConflict: 'user_id'
+            });
+
+        if (error) throw error;
+
+    } catch (error) {
         console.error('Error updating player stats:', error);
-    } else {
-        console.log('Stats updated successfully:', data);
     }
 }
 
