@@ -1449,23 +1449,7 @@ body {
     }
 }
 
-.status-refresh-btn {
-    background: none;
-    border: none;
-    color: var(--text);
-    margin-left: 0.5rem;
-    cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.3s ease;
-}
 
-.status-refresh-btn:hover {
-    opacity: 1;
-}
-
-.status-refresh-btn i {
-    font-size: 1rem;
-}
 
 /* Shop Styles */
 .shop-container {
@@ -7647,27 +7631,6 @@ function updateUserStatusDisplay(status) {
 
     // Attach event listener for refresh button
     refreshBtn.onclick = manualStatusRefresh;
-}
-
-async function manualStatusRefresh() {
-    if (!currentUser) return;
-
-    try {
-        const { data, error } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
-
-        if (error) throw error;
-
-        if (data && data.status === 'premium') {
-            updateUserStatusDisplay(data.status);
-            showPremiumUpgradeConfirmation();
-        }
-    } catch (error) {
-        console.error('Manual status refresh failed:', error);
-    }
 }
 
 function showPremiumUpgradeConfirmation() {
