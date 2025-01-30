@@ -5241,16 +5241,23 @@ function handleLevelCompletion() {
     
     // Calculate and update stats
     const levelTime = Date.now() - currentGame.levelStartTime;
-    const mistakes = currentGame.wrongStreak || 0; // Ensure we don't send undefined
-    const streak = currentGame.correctAnswers || 0; // Ensure we don't send undefined
-    
-    if (currentUser) {
-        updatePlayerStats(levelTime, mistakes, streak)
-            .catch(error => {
-                console.error('Stats update failed:', error);
-                // Continue game flow despite stats error
-            });
+const mistakes = currentGame.wrongStreak;
+const streak = currentGame.correctAnswers;
+
+console.log('Level completed with:', {
+    levelTime,
+    mistakes,
+    streak,
+    isUserLoggedIn: !!currentUser
+});
+
+if (currentUser) {
+    try {
+        await updatePlayerStats(levelTime, mistakes, streak);
+    } catch (error) {
+        console.error('Failed to update stats:', error);
     }
+}
     
     // Handle custom practice mode first
     if (currentGame.isCustomPractice) {
@@ -7665,23 +7672,31 @@ async function showLeaderboard() {
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
 
-    console.log('Updating stats with:', { levelTime, mistakes, currentStreak }); // Debug log
+    console.log('Attempting to update stats:', { 
+        userId: currentUser.id,
+        levelTime, 
+        mistakes, 
+        currentStreak 
+    });
     
     const { data, error } = await supabaseClient
         .from('player_stats')
         .upsert({
             user_id: currentUser.id,
-            total_levels_completed: supabase.sql`COALESCE(total_levels_completed, 0) + 1`,
-            total_time_spent: supabase.sql`COALESCE(total_time_spent, 0) + ${levelTime}`,
-            total_mistakes: supabase.sql`COALESCE(total_mistakes, 0) + ${mistakes}`,
-            best_streak: supabase.sql`GREATEST(COALESCE(best_streak, 0), ${currentStreak})`
+            total_levels_completed: 1,  // Start with simple increment
+            total_time_spent: levelTime,
+            total_mistakes: mistakes,
+            best_streak: currentStreak,
+            last_updated: new Date().toISOString()
+        }, {
+            onConflict: 'user_id'
         })
         .select();
 
     if (error) {
         console.error('Error updating player stats:', error);
     } else {
-        console.log('Stats updated successfully:', data); // Debug log
+        console.log('Stats updated successfully:', data);
     }
 }
 
