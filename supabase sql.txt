@@ -1,3 +1,109 @@
+
+LEADERBOARDS
+
+
+
+-- First clean up existing objects
+DROP VIEW IF EXISTS player_leaderboard CASCADE;
+DROP POLICY IF EXISTS "Users can read any player stats" ON player_stats;
+DROP POLICY IF EXISTS "Users can update their own stats" ON player_stats;
+DROP POLICY IF EXISTS "Users can insert their own stats" ON player_stats;
+DROP TABLE IF EXISTS player_stats;
+
+-- Create leaderboard stats table
+CREATE TABLE IF NOT EXISTS player_stats (
+    user_id uuid REFERENCES auth.users PRIMARY KEY,
+    total_levels_completed integer DEFAULT 0,
+    total_time_spent bigint DEFAULT 0,
+    total_mistakes integer DEFAULT 0,
+    best_streak integer DEFAULT 0,
+    unique_words_practiced INTEGER DEFAULT 0,
+    words_practiced_today INTEGER DEFAULT 0,
+    practiced_words TEXT[] DEFAULT '{}',
+    time_spent_today_ms BIGINT DEFAULT 0,
+    last_practice_date DATE DEFAULT CURRENT_DATE,
+    last_updated timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+-- Create index for performance
+CREATE INDEX IF NOT EXISTS idx_player_stats_user ON player_stats(user_id);
+
+-- Enable RLS
+ALTER TABLE player_stats ENABLE ROW LEVEL SECURITY;
+
+-- Set up RLS policies
+CREATE POLICY "Users can read any player stats" 
+    ON player_stats FOR SELECT 
+    USING (true);
+
+CREATE POLICY "Users can update their own stats" 
+    ON player_stats FOR UPDATE 
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own stats" 
+    ON player_stats FOR INSERT 
+    WITH CHECK (auth.uid() = user_id);
+
+-- Create leaderboard view
+CREATE OR REPLACE VIEW player_leaderboard AS
+SELECT 
+    ps.user_id,
+    up.username,
+    ps.words_practiced_today,
+    ps.time_spent_today_ms / 1000 as time_spent_today_seconds,
+    ps.unique_words_practiced,
+    ps.total_time_spent / 1000 as total_practice_time_seconds,
+    ps.best_streak,
+    ps.total_mistakes,
+    ps.total_levels_completed
+FROM player_stats ps
+JOIN user_profiles up ON ps.user_id = up.id
+WHERE ps.last_practice_date = CURRENT_DATE
+ORDER BY ps.words_practiced_today DESC, ps.time_spent_today_ms DESC;
+
+-- Grant permissions
+GRANT SELECT ON player_leaderboard TO authenticated;
+GRANT ALL ON player_stats TO authenticated;
+
+-- Optional: Insert test data
+WITH user_ids AS (
+    SELECT id FROM user_profiles LIMIT 5
+)
+INSERT INTO player_stats (
+    user_id,
+    total_levels_completed,
+    total_time_spent,
+    total_mistakes,
+    best_streak,
+    words_practiced_today,
+    time_spent_today_ms
+)
+SELECT 
+    id,
+    FLOOR(RANDOM() * 50 + 10)::integer,
+    FLOOR(RANDOM() * 500000 + 100000)::bigint,
+    FLOOR(RANDOM() * 20)::integer,
+    FLOOR(RANDOM() * 15 + 5)::integer,
+    FLOOR(RANDOM() * 100)::integer,
+    FLOOR(RANDOM() * 3600000)::bigint
+FROM user_ids
+WHERE id NOT IN (SELECT user_id FROM player_stats);
+
+-- Verify the data
+SELECT * FROM player_leaderboard LIMIT 5;
+
+
+
+
+
+
+GAME LOGIC
+
+
+
+
+
+
 -- Start fresh - Drop existing objects safely
 DROP VIEW IF EXISTS public.user_list CASCADE;
 DROP TABLE IF EXISTS payment_requests CASCADE;

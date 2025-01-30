@@ -1,48 +1,88 @@
-to do
+URGENT: // Add to checkExistingSession() EXISTS 3 TIMES - CONSOLIDATE
 
-move vocab sets
-move supabase secret
-divide css html script
-admin panel as separate app + wp buttons for direct comm
-IMPORTANT! GOING TO PAGE URL ASKS IF USER WANTS TO HAVE APP ICON INSTALLED FOR THEM ON DESKTOP FOR EASIER ACCESS. IT ASKS ONE TIME AND THERE SHOULD BE A MEASURE THAT IT DOESNT ASK WHEN NOT REQUIRED ANYMORE.
+URGENT: LEADERBOARDS ERROR
 
 
 
+Test Level Consistency
 
 
-game improvements: 
+Standardize how all test levels (3,6,9,10,13,16,19,20,21) handle mixed Hebrew/English questions
+Implement consistent speed challenge mechanics across levels 10, 20, and 21
+Add visual indicators for when a level is a test level vs. learning level
+This would make the game's pedagogical structure more clear to players
 
-add shop + buy perks - less money in game, higher prices, less time
-boss level - see below
-
-
-level map: 
-
-
-define roles: teacher, student, free user
-my lists: own lists framed yellow, shared lists blue
-define: only teacher can share, student cant
-define: unregistered can play only 15 minutes every 24 hours, and create only 3 lists. student can create 30 lists of up to 50 words (later: develop flexible game logic)
+Progress and Reward System
 
 
-later: 
+Adjust coin rewards based on level type (learning/test/boss)
+Create special achievements for completing boss levels
+Implement a "mastery" system that tracks performance across test levels
+Add bonus rewards for completing all sets in a stage
+This would make progression more meaningful
 
-optimize for mobile
 
+1. move supabase secret into a separate env file for security.
+2. divide css html script into separate files just for better handling
+3. have a admin panel as separate app + wp buttons for direct comm
+admin panel to manually add/edit/delete users, confirm teacher stat, confirm payments. 
+
+
+4. IMPORTANT! GOING TO PAGE URL ASKS IF USER WANTS TO HAVE APP ICON INSTALLED FOR THEM ON DESKTOP FOR EASIER ACCESS. IT ASKS ONE TIME AND THERE SHOULD BE A MEASURE THAT IT DOESNT ASK WHEN NOT REQUIRED ANYMORE.
+5. consolidate the stage screen + set screen into a single screen where pressing a stage button makes it collapse and show the sets.this uld be the game map.
+
+here is a sketch of it: 
+
+level map: currently the game is built up of levels, contained in sets, contained in stages which are accessed progressively. I want to preserve the current logic and functionality but organize the visibility of the stages and sets better. So the level map button leads to the set screen and clicking each set shows the levels contained within it. In the code, you will notice there is also a stage screen that is currently accessible from nowhere. I want to unify the stage and set screens to a combined one as follows. Each stage is a regtancle, not a square. They are stacked vertically one above the other. Clicking a stage remains in the same screen, but the stage button uncollapses to reveal the sets within it, including how many were so far opened. The game map button from the welcoem screen should lead to this combined screen, and lets preserve its name as set screen, but bring in there the five buttons from the stage screen. For logistical reasons, dont terminate the stage screen to avoid code avalanche.
+
+6. add a shop and more perks users can buy - the actual game should have less money and perks should be higher prices. Game time should be less time for extra stress.
+7. level 21 of each set should be a boss level - see below some ideas 
+8. an xp system where each learned word is an experience point.
+9. leaderboards and player stats.
+
+10. movement between levels: 
+
+in the movement from one level to the next, there is a curtain animation that falls, announces the following level, then lifts and the next level begins. I want to simplify. Instead of this: 
+
+When player is in the welcome screen and  presses start game,  let the curtain show as before. But in-game, the movement between levels should be without curtain at all. Instead, when last level question is answered correctly, the circular progress bar empties, the bar pulses and there is a small particle effect. (current state)  to this I want you to add the following sequence: 
+
+in the place where the last question  word used to be, show the following level, make it pulse once dramatically, and together with it, all the letter particles in the background should shine bright for a moment, together with it. Then, the next level name disappears, and the following level starts. Without any screen transitions. It should be a very smooth transition. Can you handle this?
+
+11. develop a simplos for schools where teachers can share custom lists, students cant.
 create classes, add button "my classes" teacher can see on share panel both individuals and classes, add a filter for quicker browsing. student view: join class with code. teacher view: classes as items, each with code that can be shared + qr. teacher can share list to class, then all students who join this class can see the lists associated with this class.
 
 teacher panel - separate app - track and share
 option to open on screen from teacher's panel a Socrative type screen for ghost updating leaderboard and class competitions. show a graph, or list of usernames - and progress that updates once a minute 
 
-Duolingo ghost tracking
+install a Duolingo-like ghost tracking where students can compete in class after joining a lobby panel like in kahoot or blooket crypto.
 
-one-on-one: two players compete
-welcome screen player personal stats
-admin panel to manually add/edit/delete users, confirm teacher stat, confirm payments.
+12. optimize the entire app better for mobile
+
+13. later, nice to have but not super urgent: 
+
+one-on-one: two players compete, either two friends or two students at school
 
 
 
-boss level
+
+boss level ideas
+
+Boss Level UI Enhancement
+
+
+Add unique visual and audio feedback for the boss level
+Create a special introduction screen/curtain animation specifically for level 21
+Add a "Boss Battle" progress indicator different from the regular circle
+Include a special victory animation for completing a boss level
+This would make level 21 feel more significant and rewarding
+
+Performance Optimization for Boss Level
+
+
+Implement word preloading for level 21 since it uses all words
+Add progress caching for boss battles in case of disconnection
+Optimize the UI rendering for handling large word sets
+This would ensure smooth gameplay even with full vocabulary sets
 
 particle background like warp space
 

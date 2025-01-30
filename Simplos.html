@@ -2976,7 +2976,7 @@ body {
         <button class="start-button" onclick="startGame()">Play Game</button>
         <button class="start-button" onclick="showScreen('stage-screen')">Level Map</button>        
         <button class="start-button custom-lists-button" onclick="showCustomListsManager()">My Lists</button>
-        <button class="start-button" onclick="showLeaderboard()">Speedboard</button>
+        <button class="start-button hidden" onclick="showLeaderboard()">Speedboard</button>
         <div class="auth-container" id="authBox">
         <div class="auth-login" id="loginForm">
         <input type="text" class="auth-input" placeholder="Username" id="loginUsername">
@@ -3269,14 +3269,13 @@ body {
     
     <h1 class="welcome-title">Speedboard</h1>
     
-    <div class="leaderboard-container">
-        <div class="leaderboard-header">
-            <div>Rank</div>
+    <div class="leaderboard-header">
+    <div>Rank</div>
     <div>Player</div>
     <div>Words Today</div>
     <div>Time Today</div>
     <div>Best Streak</div>
-        </div>
+</div>
         <div id="leaderboard-entries">
             <!-- Entries will be populated here -->
         </div>
@@ -7706,110 +7705,7 @@ document.querySelectorAll('.home-button').forEach(button => {
     };
 });
 
-async function showLeaderboard() {
-    showScreen('leaderboard-screen');
 
-    const entriesContainer = document.getElementById('leaderboard-entries');
-    
-    if (!entriesContainer) {
-        console.error('Leaderboard entries container not found');
-        return;
-    }
-
-    function renderLeaderboard(leaderboard) {
-    // Sort leaderboard by words practiced today and then time spent
-    const sortedLeaderboard = leaderboard.sort((a, b) => {
-        if (b.words_practiced_today !== a.words_practiced_today) {
-            return b.words_practiced_today - a.words_practiced_today;
-        }
-        return b.time_spent_today_seconds - a.time_spent_today_seconds;
-    });
-
-    const fragment = document.createDocumentFragment();
-
-    sortedLeaderboard.forEach((entry, index) => {
-        const existingEntry = entriesContainer.querySelector(`[data-user-id="${entry.user_id}"]`);
-        
-        const entryDiv = document.createElement('div');
-        entryDiv.className = `leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}`;
-        entryDiv.dataset.userId = entry.user_id;
-        
-        // Format time to show minutes and seconds
-        const minutes = Math.floor(entry.time_spent_today_seconds / 60);
-        const seconds = Math.floor(entry.time_spent_today_seconds % 60);
-        const timeDisplay = `${minutes}m ${seconds}s`;
-        
-        entryDiv.innerHTML = `
-            <div>${index + 1}</div>
-            <div>${entry.username || 'Anonymous'}</div>
-            <div>${entry.words_practiced_today || 0} words</div>
-            <div>${timeDisplay}</div>
-            <div>${entry.best_streak || 0}</div>
-        `;
-
-        // Handle position changes animation
-        if (existingEntry) {
-            const oldIndex = Array.from(entriesContainer.children).indexOf(existingEntry);
-            if (oldIndex !== index) {
-                entryDiv.classList.add(oldIndex > index ? 'moving-up' : 'moving-down');
-            }
-        }
-
-        fragment.appendChild(entryDiv);
-    });
-
-    entriesContainer.innerHTML = '';
-    entriesContainer.appendChild(fragment);
-
-    // Remove movement classes after animation
-    setTimeout(() => {
-        document.querySelectorAll('.leaderboard-entry').forEach(entry => {
-            entry.classList.remove('moving-up', 'moving-down');
-        });
-    }, 1000);
-}
-    try {
-        const { data: leaderboard, error } = await supabaseClient
-            .from('player_leaderboard')
-            .select('*')
-            .limit(50)
-            .order('avg_completion_time_seconds', { ascending: false });
-            
-        if (error) throw error;
-
-        await renderLeaderboard(leaderboard);
-
-        // Real-time subscription
-        const leaderboardSubscription = supabaseClient
-            .channel('leaderboard-real-time')
-            .on('postgres_changes', 
-                { 
-                    event: '*', 
-                    schema: 'public', 
-                    table: 'player_stats'
-                }, 
-                async (payload) => {
-                    const { data: updatedLeaderboard } = await supabaseClient
-                        .from('player_leaderboard')
-                        .select('*')
-                        .limit(50)
-                        .order('avg_completion_time_seconds', { ascending: false });
-                    
-                    await renderLeaderboard(updatedLeaderboard);
-                }
-            )
-            .subscribe();
-
-        const leaderboardScreen = document.getElementById('leaderboard-screen');
-        if (leaderboardScreen) {
-            leaderboardScreen.dataset.subscription = leaderboardSubscription;
-        }
-
-    } catch (error) {
-        console.error('Leaderboard error:', error);
-        entriesContainer.innerHTML = `<p>Error loading leaderboard: ${error.message}</p>`;
-    }
-}
 
 async function showLeaderboard() {
     console.log('Leaderboard function called');
@@ -7833,11 +7729,62 @@ async function showLeaderboard() {
         // Add this debug log
         console.log('Raw leaderboard data:', leaderboard);
 
-        // Proceed with rendering only if we have data
         if (leaderboard && leaderboard.length > 0) {
-            await renderLeaderboard(leaderboard);
+            // Sort by words practiced and time spent
+            const sortedLeaderboard = leaderboard.sort((a, b) => {
+                if (b.words_practiced_today !== a.words_practiced_today) {
+                    return b.words_practiced_today - a.words_practiced_today;
+                }
+                return b.time_spent_today_seconds - a.time_spent_today_seconds;
+            });
 
-            // Real-time subscription
+            const fragment = document.createDocumentFragment();
+
+            sortedLeaderboard.forEach((entry, index) => {
+                const existingEntry = entriesContainer.querySelector(`[data-user-id="${entry.user_id}"]`);
+                
+                const entryDiv = document.createElement('div');
+                entryDiv.className = `leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}`;
+                if (entry.user_id === currentUser?.id) {
+                    entryDiv.classList.add('you');
+                }
+                entryDiv.dataset.userId = entry.user_id;
+                
+                // Format time display
+                const minutes = Math.floor(entry.time_spent_today_seconds / 60);
+                const seconds = Math.floor(entry.time_spent_today_seconds % 60);
+                const timeDisplay = `${minutes}m ${seconds}s`;
+
+                entryDiv.innerHTML = `
+                    <div>${index + 1}</div>
+                    <div>${entry.username || 'Anonymous'}</div>
+                    <div>${entry.words_practiced_today || 0} words</div>
+                    <div>${timeDisplay}</div>
+                    <div>${entry.best_streak || 0}</div>
+                `;
+
+                // Handle animation for position changes
+                if (existingEntry) {
+                    const oldIndex = Array.from(entriesContainer.children).indexOf(existingEntry);
+                    if (oldIndex !== index) {
+                        entryDiv.classList.add(oldIndex > index ? 'moving-up' : 'moving-down');
+                    }
+                }
+
+                fragment.appendChild(entryDiv);
+            });
+
+            entriesContainer.innerHTML = '';
+            entriesContainer.appendChild(fragment);
+
+            // Remove movement classes after animation
+            setTimeout(() => {
+                document.querySelectorAll('.leaderboard-entry').forEach(entry => {
+                    entry.classList.remove('moving-up', 'moving-down');
+                });
+            }, 1000);
+
+            // Set up real-time updates
             const leaderboardSubscription = supabaseClient
                 .channel('leaderboard-real-time')
                 .on('postgres_changes', 
@@ -7846,21 +7793,26 @@ async function showLeaderboard() {
                         schema: 'public', 
                         table: 'player_stats'
                     }, 
-                    async (payload) => {
+                    async () => {
                         const { data: updatedLeaderboard } = await supabaseClient
                             .from('player_leaderboard')
                             .select('*')
                             .limit(50);
                         
-                        await renderLeaderboard(updatedLeaderboard);
+                        if (updatedLeaderboard) {
+                            // Re-render with updated data
+                            renderLeaderboard(updatedLeaderboard);
+                        }
                     }
                 )
                 .subscribe();
 
+            // Store subscription reference
             const leaderboardScreen = document.getElementById('leaderboard-screen');
             if (leaderboardScreen) {
                 leaderboardScreen.dataset.subscription = leaderboardSubscription;
             }
+
         } else {
             entriesContainer.innerHTML = '<p>No leaderboard data available</p>';
         }
