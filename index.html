@@ -7637,127 +7637,6 @@ document.querySelectorAll('.home-button').forEach(button => {
     };
 });
 
-function showScreen(screenId, forceRefresh = false) {
-    // Extensive logging for debugging
-    console.log('showScreen called with:', {
-        screenId: screenId,
-        forceRefresh: forceRefresh,
-        currentUser: currentUser ? currentUser.id : 'No user'
-    });
-
-    // Clear any running timer when leaving question screen
-    const currentVisibleScreen = document.querySelector('.screen.visible');
-    if (currentVisibleScreen && currentVisibleScreen.id === 'question-screen') {
-        clearTimer();
-        isFrozen = false; // Reset freeze state
-    }
-
-    // Remove any existing leaderboard subscription
-    const leaderboardScreen = document.getElementById('leaderboard-screen');
-    if (leaderboardScreen) {
-        const existingSubscription = leaderboardScreen.dataset.subscription;
-        if (existingSubscription) {
-            try {
-                supabaseClient.removeChannel(existingSubscription);
-                delete leaderboardScreen.dataset.subscription;
-            } catch (error) {
-                console.error('Error removing leaderboard subscription:', error);
-            }
-        }
-    }
-
-    // Comprehensive refresh mechanism
-    if (forceRefresh && screenId === 'welcome-screen') {
-        console.log('Initiating full page reload');
-        
-        // Save any critical state before reload if needed
-        saveProgress(); // Ensure current progress is saved
-        
-        // Use modern reload method with cache bypass
-        window.location.reload(true);
-        return;
-    }
-
-    // Hide all screens
-    document.querySelectorAll('.screen').forEach(screen => {
-        screen.classList.remove('visible');
-        
-        // Remove existing particle containers
-        const existingParticleContainer = screen.querySelector('.particle-container');
-        if (existingParticleContainer) {
-            existingParticleContainer.remove();
-        }
-    });
-
-    // Show target screen
-    const screenElement = document.getElementById(screenId);
-    if (!screenElement) {
-        console.error(`Screen with id ${screenId} not found`);
-        return;
-    }
-    
-    screenElement.classList.add('visible');
-    
-    // Reinitialize particles for current screen
-    initializeParticles(screenElement);
-    
-    // Update UI elements
-    updateAllCoinDisplays();
-    
-    // Screen-specific initialization
-    switch(screenId) {
-        case 'question-screen':
-            updatePerkCounts();
-            break;
-        case 'welcome-screen':
-            // Check for restored game context
-            if (restoreGameContext()) {
-                // If context exists, potentially start game from where it left off
-                startGame();
-            }
-            break;
-        case 'stage-screen':
-            // Any stage screen specific logic
-            break;
-        case 'leaderboard-screen':
-            showLeaderboard();
-            break;
-    }
-
-    console.log(`Switched to screen: ${screenId}`);
-}
-
-async function updatePlayerStats(levelTime, mistakes, currentStreak) {
-    if (!currentUser) return;
-
-    console.log('Attempting to update stats:', { 
-        userId: currentUser.id,
-        levelTime, 
-        mistakes, 
-        currentStreak 
-    });
-    
-    const { data, error } = await supabaseClient
-        .from('player_stats')
-        .upsert({
-            user_id: currentUser.id,
-            total_levels_completed: 1,  // Start with simple increment
-            total_time_spent: levelTime,
-            total_mistakes: mistakes,
-            best_streak: currentStreak,
-            last_updated: new Date().toISOString()
-        }, {
-            onConflict: 'user_id'
-        })
-        .select();
-
-    if (error) {
-        console.error('Error updating player stats:', error);
-    } else {
-        console.log('Stats updated successfully:', data);
-    }
-}
-
 async function showLeaderboard() {
     // Ensure screen is shown first
     showScreen('leaderboard-screen');
@@ -7854,6 +7733,37 @@ async function showLeaderboard() {
     } catch (error) {
         console.error('Unexpected error in showLeaderboard:', error);
         entriesContainer.innerHTML = '<p>An unexpected error occurred. Please try again.</p>';
+    }
+}
+
+async function updatePlayerStats(levelTime, mistakes, currentStreak) {
+    if (!currentUser) return;
+
+    console.log('Attempting to update stats:', { 
+        userId: currentUser.id,
+        levelTime, 
+        mistakes, 
+        currentStreak 
+    });
+    
+    const { data, error } = await supabaseClient
+        .from('player_stats')
+        .upsert({
+            user_id: currentUser.id,
+            total_levels_completed: 1,  // Start with simple increment
+            total_time_spent: levelTime,
+            total_mistakes: mistakes,
+            best_streak: currentStreak,
+            last_updated: new Date().toISOString()
+        }, {
+            onConflict: 'user_id'
+        })
+        .select();
+
+    if (error) {
+        console.error('Error updating player stats:', error);
+    } else {
+        console.log('Stats updated successfully:', data);
     }
 }
 
