@@ -7652,7 +7652,9 @@ async function showLeaderboard() {
 
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
-
+    
+    console.log('Updating stats:', { levelTime, mistakes, currentStreak }); // Debug line
+    
     const { data, error } = await supabaseClient
         .from('player_stats')
         .upsert({
@@ -7668,6 +7670,8 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (error) {
         console.error('Error updating player stats:', error);
     }
+    
+    console.log('Update result:', data); // Debug line
 }
 
 </script>
