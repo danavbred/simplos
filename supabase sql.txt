@@ -1,3 +1,41 @@
+-- Add this trigger to your Supabase SQL
+CREATE OR REPLACE FUNCTION initialize_player_stats()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO player_stats (
+        user_id,
+        total_levels_completed,
+        total_time_spent,
+        total_mistakes,
+        best_streak,
+        current_streak,
+        highest_score,
+        unique_words_practiced,
+        words_practiced_today,
+        practiced_words,
+        time_spent_today_ms,
+        perfect_levels_count,
+        daily_login_streak
+    ) VALUES (
+        NEW.id,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        ARRAY[]::TEXT[],
+        0, 0, 0
+    )
+    ON CONFLICT (user_id) DO NOTHING;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Drop existing trigger if it exists
+DROP TRIGGER IF EXISTS on_user_created ON user_profiles;
+
+-- Create the trigger
+CREATE TRIGGER on_user_created
+    AFTER INSERT ON user_profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION initialize_player_stats();
+
 -- First clean up existing objects
 DROP VIEW IF EXISTS player_leaderboard CASCADE;
 DROP POLICY IF EXISTS "Users can read any player stats" ON player_stats;
@@ -47,28 +85,29 @@ CREATE POLICY "Users can insert their own stats"
     ON player_stats FOR INSERT 
     WITH CHECK (auth.uid() = user_id);
 
+-- Drop and recreate the leaderboard view
+DROP VIEW IF EXISTS player_leaderboard;
+
 CREATE OR REPLACE VIEW player_leaderboard AS
 WITH user_rankings AS (
     SELECT 
-        ps.user_id,
         up.username,
-        ps.words_practiced_today,
-        ps.time_spent_today_ms / 1000.0 as time_spent_today_seconds,
-        ps.unique_words_practiced,
-        ps.total_time_spent / 1000.0 as total_practice_time_seconds,
-        ps.best_streak,
-        ps.total_mistakes,
-        ps.total_levels_completed,
-        CASE 
-            WHEN ps.total_levels_completed > 0 
-            THEN CAST(((ps.total_time_spent::float / ps.total_levels_completed) / 1000.0) AS NUMERIC(10,2))
-            ELSE 0 
-        END as avg_time_per_level,
-        ROW_NUMBER() OVER (ORDER BY ps.best_streak DESC) as player_rank
-    FROM player_stats ps
-    JOIN user_profiles up ON ps.user_id = up.id
+        COALESCE(ps.total_levels_completed, 0) as total_levels_completed,
+        COALESCE(ps.unique_words_practiced, 0) as total_words_learned,
+        ROW_NUMBER() OVER (
+            ORDER BY COALESCE(ps.total_levels_completed, 0) DESC, 
+            COALESCE(ps.unique_words_practiced, 0) DESC
+        ) as player_rank
+    FROM user_profiles up
+    LEFT JOIN player_stats ps ON up.id = ps.user_id
+    WHERE up.username IS NOT NULL
 )
-SELECT * FROM user_rankings
+SELECT 
+    username,
+    total_levels_completed,
+    total_words_learned,
+    player_rank
+FROM user_rankings
 ORDER BY player_rank ASC;
 
 -- Grant permissions
