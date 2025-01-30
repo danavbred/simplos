@@ -4630,6 +4630,14 @@ function calculateWordsForLevel(level, vocabulary) {
 }
 
 async function startLevel(levelId) {
+    // Reset stats tracking
+    currentGame.wrongStreak = 0;
+    currentGame.correctAnswers = 0;
+    currentGame.levelStartTime = Date.now();
+    currentGame.firstAttempt = true;
+    currentGame.streakBonus = true;
+
+    // Regular game initialization
     gameState.currentStage = gameState.currentStage || 1;
     gameState.currentSet = gameState.currentSet || 1;
     gameState.currentLevel = levelId;
@@ -7657,6 +7665,7 @@ async function showLeaderboard() {
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
     
+    // Only update stats if level was completed successfully
     const { error } = await supabaseClient
         .from('player_stats')
         .upsert({
