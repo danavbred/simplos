@@ -3,7 +3,6 @@ CREATE OR REPLACE FUNCTION initialize_player_stats()
 RETURNS TRIGGER AS $$
 BEGIN
     INSERT INTO player_stats (
-        user_id,
         total_levels_completed,
         total_time_spent,
         total_mistakes,
@@ -178,3 +177,210 @@ CREATE TRIGGER daily_stats_reset
 
 -- Verify the data
 SELECT * FROM player_leaderboard LIMIT 5;
+
+
+
+
+
+GAME LOGIC
+
+
+
+
+
+-- Start fresh - Drop existing objects safely
+DROP VIEW IF EXISTS public.user_list CASCADE;
+DROP TABLE IF EXISTS payment_requests CASCADE;
+DROP TABLE IF EXISTS custom_lists CASCADE;
+DROP TABLE IF EXISTS game_progress CASCADE;
+DROP TABLE IF EXISTS user_profiles CASCADE;
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
+-- Create core tables
+CREATE TABLE IF NOT EXISTS public.user_profiles (
+    id uuid REFERENCES auth.users PRIMARY KEY,
+    username text UNIQUE,
+    role text CHECK (role IN ('student', 'teacher', 'admin')),
+    status text DEFAULT 'free' CHECK (status IN ('free', 'pending', 'premium')),
+    payment_pending boolean DEFAULT false,
+    shared_lists INTEGER[] DEFAULT '{}',
+    received_lists INTEGER[] DEFAULT '{}',
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX idx_user_profiles_status ON user_profiles(status);
+
+CREATE TABLE IF NOT EXISTS game_progress (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    stage integer NOT NULL DEFAULT 1,
+    set_number integer NOT NULL DEFAULT 1,
+    level integer NOT NULL DEFAULT 1,
+    coins integer NOT NULL DEFAULT 0,
+    perks jsonb NOT NULL DEFAULT '{}',
+    unlocked_sets jsonb NOT NULL DEFAULT '{}',
+    unlocked_levels jsonb NOT NULL DEFAULT '{}',
+    perfect_levels jsonb NOT NULL DEFAULT '[]',
+    completed_levels jsonb NOT NULL DEFAULT '[]',
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS custom_lists (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    name text NOT NULL,
+    words text[] DEFAULT '{}',
+    translations text[] DEFAULT '{}',
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    local_id BIGINT,
+    is_shared boolean DEFAULT false,
+    shared_with uuid[] DEFAULT '{}'::uuid[],
+    shared_by uuid REFERENCES auth.users(id)
+);
+
+CREATE TABLE IF NOT EXISTS payment_requests (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    payment_method text CHECK (payment_method IN ('bit', 'paybox', 'kashkash', 'bank')),
+    amount decimal(10,2) NOT NULL,
+    reference_code text UNIQUE,
+    status text DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'rejected')),
+    submission_time timestamp with time zone DEFAULT now(),
+    verification_time timestamp with time zone,
+    verification_notes text,
+    whatsapp_number text,
+    admin_verified_by uuid REFERENCES auth.users(id),
+    created_at timestamp with time zone DEFAULT now()
+);
+
+CREATE INDEX idx_payment_reference ON payment_requests(reference_code);
+
+-- Create views
+CREATE OR REPLACE VIEW public.user_list AS
+SELECT DISTINCT ON (up.id)
+    up.id,
+    username,
+    status,
+    role,
+    payment_pending
+FROM public.user_profiles up
+WHERE up.id IS NOT NULL;
+
+-- Create functions and triggers
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+DECLARE
+    extracted_username text;
+BEGIN
+    extracted_username := COALESCE(
+        NEW.raw_user_meta_data->>'username', 
+        NEW.email, 
+        split_part(NEW.email, '@', 1)
+    );
+
+    INSERT INTO public.user_profiles (
+        id, 
+        username, 
+        role, 
+        status
+    )
+    VALUES (
+        NEW.id, 
+        extracted_username,
+        'student',
+        'free'
+    );
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Enable RLS on all tables
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE game_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE custom_lists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies
+CREATE POLICY "Users can view their own profile"
+ON public.user_profiles FOR SELECT
+USING (auth.uid() = id);
+
+CREATE POLICY "Users can update their own profile"
+ON public.user_profiles FOR UPDATE
+USING (auth.uid() = id);
+
+CREATE POLICY "Access control based on user status" ON game_progress
+FOR SELECT USING (
+    CASE 
+        WHEN auth.role() = 'anon' THEN 
+            (stage = 1) OR 
+            (stage IN (2,3,4,5) AND set_number = 1)
+        WHEN EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE id = auth.uid() 
+            AND status = 'free'
+        ) THEN 
+            (stage = 1) OR 
+            (stage IN (2,3,4,5) AND set_number = 1)
+        WHEN EXISTS (
+            SELECT 1 FROM user_profiles 
+            WHERE id = auth.uid() 
+            AND status = 'premium'
+        ) THEN 
+            true
+        ELSE false
+    END
+);
+
+CREATE POLICY "Users can manage own game progress" ON game_progress
+FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view own and shared lists" ON custom_lists
+FOR SELECT USING (
+    auth.uid() = user_id 
+    OR auth.uid() = ANY(shared_with)
+);
+
+CREATE POLICY "Users can manage own lists" ON custom_lists
+FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view own payment requests" ON payment_requests
+FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create payment requests" ON payment_requests
+FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Grant necessary permissions
+GRANT SELECT ON public.user_list TO authenticated;
+GRANT SELECT, UPDATE ON public.user_profiles TO authenticated;
+GRANT ALL ON game_progress TO authenticated;
+GRANT ALL ON custom_lists TO authenticated;
+GRANT ALL ON payment_requests TO authenticated;
+
+-- Verify payment function
+CREATE OR REPLACE FUNCTION verify_payment(
+    payment_id uuid,
+    user_id uuid
+) RETURNS void AS $$
+BEGIN
+    UPDATE payment_requests 
+    SET 
+        status = 'verified',
+        verification_time = NOW()
+    WHERE id = payment_id;
+
+    UPDATE user_profiles 
+    SET 
+        status = 'premium',
+        payment_pending = false
+    WHERE id = user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION verify_payment(uuid, uuid) TO authenticated;
