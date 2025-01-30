@@ -7664,22 +7664,24 @@ async function showLeaderboard() {
 
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
+
+    console.log('Updating stats with:', { levelTime, mistakes, currentStreak }); // Debug log
     
-    // Only update stats if level was completed successfully
-    const { error } = await supabaseClient
+    const { data, error } = await supabaseClient
         .from('player_stats')
         .upsert({
             user_id: currentUser.id,
-            total_levels_completed: supabase.sql`total_levels_completed + 1`,
-            total_time_spent: supabase.sql`total_time_spent + ${levelTime}`,
-            total_mistakes: supabase.sql`total_mistakes + ${mistakes}`,
-            best_streak: supabase.sql`GREATEST(best_streak, ${currentStreak})`
-        }, {
-            onConflict: 'user_id'
-        });
+            total_levels_completed: supabase.sql`COALESCE(total_levels_completed, 0) + 1`,
+            total_time_spent: supabase.sql`COALESCE(total_time_spent, 0) + ${levelTime}`,
+            total_mistakes: supabase.sql`COALESCE(total_mistakes, 0) + ${mistakes}`,
+            best_streak: supabase.sql`GREATEST(COALESCE(best_streak, 0), ${currentStreak})`
+        })
+        .select();
 
     if (error) {
         console.error('Error updating player stats:', error);
+    } else {
+        console.log('Stats updated successfully:', data); // Debug log
     }
 }
 
