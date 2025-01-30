@@ -3271,12 +3271,11 @@ body {
     
     <div class="leaderboard-container">
         <div class="leaderboard-header">
-            <div>Rank</div>
-            <div>Player</div>
-            <div>Avg Time</div>
-            <div>Best Streak</div>
-            <div>Mistakes</div>
-        </div>
+    <div>Rank</div>
+    <div>Player</div>
+    <div>Levels</div>
+    <div>Words</div>
+</div>
         <div id="leaderboard-entries">
             <!-- Entries will be populated here -->
         </div>
@@ -3479,60 +3478,74 @@ async function handleSignup() {
         return;
     }
 
-    const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-            data: { 
-                username: username,
-                full_name: username
+    try {
+        // Sign up with Supabase Auth
+        const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: {
+                data: { 
+                    username: username,
+                    full_name: username
+                }
             }
+        });
+
+        if (authError) throw authError;
+
+        // Explicitly create user profile
+        const { error: profileError } = await supabaseClient
+            .from('user_profiles')
+            .insert([{
+                id: authData.user.id,
+                username: username,
+                email: email,
+                status: 'free'
+            }])
+            .single();
+
+        if (profileError && profileError.code !== '23505') { // Ignore unique constraint violation
+            throw profileError;
         }
-    });
 
-    if (error) {
-        console.error('Error signing up:', error.message);
+        // Initialize game progress
+        const { error: progressError } = await supabaseClient
+            .from('game_progress')
+            .insert([{
+                user_id: authData.user.id,
+                stage: 1,
+                set_number: 1,
+                level: 1,
+                coins: 0,
+                perks: {},
+                unlocked_sets: { "1": [1] },
+                unlocked_levels: { "1_1": [1] },
+                perfect_levels: [],
+                completed_levels: []
+            }]);
+
+        if (progressError) throw progressError;
+
+        // Auto-login after successful signup
+        const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (loginError) throw loginError;
+
+        currentUser = loginData.user;
+        await Promise.all([
+            loadCustomLists(),
+            loadUserGameProgress(currentUser.id)
+        ]);
+        updateAuthUI();
+        showScreen('welcome-screen');
+
+    } catch (error) {
+        console.error('Signup error:', error);
         alert(error.message);
-        return;
     }
-
-    // Skip manual profile creation since it's handled by the trigger
-    // Initialize game progress instead
-    const { error: progressError } = await supabaseClient
-        .from('game_progress')
-        .insert([{
-            user_id: data.user.id,
-            stage: 1,
-            set_number: 1,
-            level: 1,
-            coins: 0,
-            perks: {},
-            unlocked_sets: { "1": [1] },
-            unlocked_levels: { "1_1": [1] },
-            perfect_levels: [],
-            completed_levels: []
-        }]);
-
-    if (progressError) {
-        console.error('Error initializing game progress:', progressError);
-        return;
-    }
-
-    const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-    });
-
-    if (loginError) {
-        alert('Account created but login failed. Please try logging in manually.');
-        return;
-    }
-
-    currentUser = loginData.user;
-    clearCustomPracticeUI();
-    await Promise.all([loadCustomLists(), loadUserGameProgress(currentUser.id)]);
-    updateAuthUI();
-    showScreen('welcome-screen');
 }
 
 async function initializeGameProgressForUser(userId) {
@@ -3674,36 +3687,7 @@ function setupDefaultUnlocks() {
     }
 }
 
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        
-        // Get initial status
-        const { data: profile } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
-            
-        if (profile) {
-            updateUserStatusDisplay(profile.status);
-        }
-        
-        // Setup real-time updates
-        setupUserStatusSubscription();
-        
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists()
-        ]);
-        updateAuthUI();
-    } else {
-        // Update status for non-logged in users
-        updateUserStatusDisplay(null);
-    }
-}
+
 
 document.addEventListener('DOMContentLoaded', function() {
     currentUser = null;
@@ -4050,15 +4034,6 @@ function updateAuthUI() {
     }
 }
 
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        await loadUserGameProgress(currentUser.id);
-        updateAuthUI();
-    }
-}
 
 
 // Game Constants & State Management
@@ -4397,6 +4372,10 @@ function showScreen(screenId, forceRefresh = false) {
         forceRefresh: forceRefresh,
         currentUser: currentUser ? currentUser.id : 'No user'
     });
+
+    if (document.querySelector('.screen.visible')?.id === 'leaderboard-screen') {
+        cleanupLeaderboard();
+    }
 
     // Clear any running timer when leaving question screen
     const currentVisibleScreen = document.querySelector('.screen.visible');
@@ -6656,19 +6635,6 @@ function saveListChanges(listId, wordList, listItem) {
     `;
 }
 
-// Add to checkExistingSession()
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists() // Add this
-        ]);
-        updateAuthUI();
-    }
-}
 
 function toggleAuthMode() {
     const loginForm = document.getElementById('loginForm');
@@ -7724,165 +7690,172 @@ document.querySelectorAll('.home-button').forEach(button => {
 });
 
 async function showLeaderboard() {
-    console.log('Leaderboard function called');
     showScreen('leaderboard-screen');
-
     const entriesContainer = document.getElementById('leaderboard-entries');
     
-    if (!entriesContainer) {
-        console.error('Leaderboard entries container not found');
-        return;
-    }
-
-    async function renderLeaderboard(leaderboard) {
-        // Sort leaderboard to ensure correct order
-        const sortedLeaderboard = leaderboard.sort((a, b) => 
-            b.avg_completion_time_seconds - a.avg_completion_time_seconds
-        );
-
-        // Create a new document fragment for smooth updates
-        const fragment = document.createDocumentFragment();
-
-        sortedLeaderboard.forEach((entry, index) => {
-            const existingEntry = entriesContainer.querySelector(`[data-user-id="${entry.user_id}"]`);
-            
-            const entryDiv = document.createElement('div');
-            entryDiv.className = `leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}`;
-            entryDiv.dataset.userId = entry.user_id;
-            
-            entryDiv.innerHTML = `
-                <div>${index + 1}</div>
-                <div>${entry.username || 'Anonymous'}</div>
-                <div>${(entry.avg_completion_time_seconds || 0).toFixed(2)}s</div>
-                <div>${entry.best_streak || 0}</div>
-                <div>${entry.total_mistakes || 0}</div>
-            `;
-
-            // Detect position change
-            if (existingEntry) {
-                const oldIndex = Array.from(entriesContainer.children).indexOf(existingEntry);
+    try {
+        // Function to fetch and render leaderboard
+        async function fetchAndRenderLeaderboard() {
+            const { data: leaderboard, error } = await supabaseClient
+                .from('player_leaderboard')
+                .select('*');
                 
-                if (oldIndex !== index) {
-                    // Add movement classes for animation
-                    entryDiv.classList.add(oldIndex > index ? 'moving-up' : 'moving-down');
-                }
+            if (error) {
+                console.error('Leaderboard fetch error:', error);
+                return;
             }
 
-            fragment.appendChild(entryDiv);
-        });
+            if (!leaderboard || leaderboard.length === 0) {
+                entriesContainer.innerHTML = '<p>No leaderboard data available yet. Be the first to play!</p>';
+                return;
+            }
 
-        // Clear and repopulate with animated entries
-        entriesContainer.innerHTML = '';
-        entriesContainer.appendChild(fragment);
+            entriesContainer.innerHTML = leaderboard.map((entry, index) => `
+                <div class="leaderboard-entry ${entry.username === currentUser?.user_metadata?.username ? 'you' : ''} ${index < 3 ? `rank-${index + 1}` : ''}">
+                    <div>${entry.player_rank}</div>
+                    <div>${entry.username || 'Anonymous'}</div>
+                    <div>${entry.total_levels_completed}</div>
+                    <div>${entry.total_words_learned}</div>
+                </div>
+            `).join('');
+        }
 
-        // Remove movement classes after animation
-        setTimeout(() => {
-            document.querySelectorAll('.leaderboard-entry').forEach(entry => {
-                entry.classList.remove('moving-up', 'moving-down');
-            });
-        }, 1000);
-    }
+        // Initial load
+        await fetchAndRenderLeaderboard();
 
-    try {
-        const { data: leaderboard, error } = await supabaseClient
-            .from('player_leaderboard')
-            .select('*')
-            .limit(50)
-            .order('avg_completion_time_seconds', { ascending: false });
-            
-        if (error) throw error;
+        // Set up periodic polling
+        const pollInterval = setInterval(fetchAndRenderLeaderboard, 3000); // Poll every 3 seconds
 
-        await renderLeaderboard(leaderboard);
-
-        // Real-time subscription
-        const leaderboardSubscription = supabaseClient
-            .channel('leaderboard-real-time')
+        // Set up real-time subscription as backup
+        const channel = supabaseClient.channel('leaderboard-updates');
+        
+        channel
             .on('postgres_changes', 
                 { 
                     event: '*', 
                     schema: 'public', 
                     table: 'player_stats'
                 }, 
-                async (payload) => {
-                    const { data: updatedLeaderboard } = await supabaseClient
-                        .from('player_leaderboard')
-                        .select('*')
-                        .limit(50)
-                        .order('avg_completion_time_seconds', { ascending: false });
-                    
-                    await renderLeaderboard(updatedLeaderboard);
-                }
+                fetchAndRenderLeaderboard
             )
             .subscribe();
 
+        // Store both channel and interval for cleanup
         const leaderboardScreen = document.getElementById('leaderboard-screen');
         if (leaderboardScreen) {
-            leaderboardScreen.dataset.subscription = leaderboardSubscription;
+            if (leaderboardScreen.dataset.channel) {
+                supabaseClient.removeChannel(leaderboardScreen.dataset.channel);
+            }
+            if (leaderboardScreen.dataset.pollInterval) {
+                clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
+            }
+            leaderboardScreen.dataset.channel = channel;
+            leaderboardScreen.dataset.pollInterval = pollInterval;
         }
 
     } catch (error) {
-        console.error('Leaderboard error:', error);
+        console.error('Detailed leaderboard error:', error);
         entriesContainer.innerHTML = `<p>Error loading leaderboard: ${error.message}</p>`;
+    }
+}
+
+function cleanupLeaderboard() {
+    const leaderboardScreen = document.getElementById('leaderboard-screen');
+    if (leaderboardScreen) {
+        // Cleanup channel
+        if (leaderboardScreen.dataset.channel) {
+            supabaseClient.removeChannel(leaderboardScreen.dataset.channel);
+            delete leaderboardScreen.dataset.channel;
+        }
+        // Cleanup interval
+        if (leaderboardScreen.dataset.pollInterval) {
+            clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
+            delete leaderboardScreen.dataset.pollInterval;
+        }
     }
 }
 
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
 
-    console.log('Attempting to update stats:', { 
-        userId: currentUser.id,
-        levelTime, 
-        mistakes, 
-        currentStreak 
+    console.log('Updating stats:', {
+        levelTime,
+        mistakes,
+        currentStreak,
+        words: currentGame.words.length
     });
-    
-    const { data, error } = await supabaseClient
-        .from('player_stats')
-        .upsert({
-            user_id: currentUser.id,
-            total_levels_completed: 1,  // Start with simple increment
-            total_time_spent: levelTime,
-            total_mistakes: mistakes,
-            best_streak: currentStreak,
-            last_updated: new Date().toISOString()
-        }, {
-            onConflict: 'user_id'
-        })
-        .select();
 
-    if (error) {
+    try {
+        const { data: currentStats, error: fetchError } = await supabaseClient
+            .from('player_stats')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+            throw fetchError;
+        }
+
+        const updateData = {
+            user_id: currentUser.id,
+            total_levels_completed: ((currentStats?.total_levels_completed || 0) + 1),
+            unique_words_practiced: currentStats?.unique_words_practiced 
+                ? currentStats.unique_words_practiced + currentGame.words.length
+                : currentGame.words.length,
+            last_updated: new Date().toISOString()
+        };
+
+        console.log('Sending update with data:', updateData);
+
+        const { error: updateError } = await supabaseClient
+            .from('player_stats')
+            .upsert(updateData, {
+                onConflict: 'user_id',
+                returning: 'minimal' // For faster response
+            });
+
+        if (updateError) throw updateError;
+
+        console.log('Stats update successful');
+
+    } catch (error) {
         console.error('Error updating player stats:', error);
-    } else {
-        console.log('Stats updated successfully:', data);
     }
 }
 
-function showPremiumCelebration() {
-    // Create celebration overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'premium-celebration';
-    overlay.innerHTML = `
-        <div class="celebration-content">
-            <h1 class="celebration-title">Welcome to Premium!</h1>
-            <p class="celebration-message">
-                Congratulations! Your account has been upgraded to Premium.<br>
-                All stages and sets are now unlocked!
-            </p>
-            <button class="celebration-button" onclick="handlePremiumCelebrationComplete()">
-                Start Playing
-            </button>
-        </div>
-    `;
+async function checkExistingSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
     
-    document.body.appendChild(overlay);
-    
-    // Create celebratory particles
-    createParticles(window.innerWidth / 2, window.innerHeight / 2);
-    
-    // Show overlay with animation
-    requestAnimationFrame(() => {
-        overlay.classList.add('show');
-    });
+    if (session) {
+        currentUser = session.user;
+        
+        // Get initial status
+        const { data: profile } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+            
+        if (profile) {
+            currentUser.status = profile.status; // Store status in user object
+            updateUserStatusDisplay(profile.status);
+        }
+        
+        // Initialize real-time updates and periodic check
+        initializeStatusCheck();
+        
+        await Promise.all([
+            loadUserGameProgress(currentUser.id),
+            loadCustomLists()
+        ]);
+        updateAuthUI();
+    } else {
+        // Clear interval if it exists
+        if (window.statusCheckInterval) {
+            clearInterval(window.statusCheckInterval);
+        }
+        updateUserStatusDisplay(null);
+    }
 }
 
 function handlePremiumCelebrationComplete() {
@@ -7920,7 +7893,7 @@ function initializeStatusCheck() {
                 currentUser.status = 'premium';
             }
         }
-    }, 30000); // Check every 30 seconds
+    }, 3000); // Check every 30 seconds
     
     // Store interval ID for cleanup
     window.statusCheckInterval = statusCheckInterval;
