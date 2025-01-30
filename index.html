@@ -3442,28 +3442,23 @@ function initializeGame() {
 }
 
 function setupDefaultUnlocks() {
-    // Stage 1: Level 1 of all sets should be unlocked
-    if (!gameState.unlockedSets[1]) {
-        gameState.unlockedSets[1] = new Set();
-    }
-    for (let i = 1; i <= 9; i++) {
-        gameState.unlockedSets[1].add(i);
-        const setKey = `1_${i}`;
-        if (!gameState.unlockedLevels[setKey]) {
-            gameState.unlockedLevels[setKey] = new Set([1]);
-        }
+    console.log('Setting up default unlocks'); // Debug log
+    
+    // Reset unlocks to a very conservative state
+    gameState.unlockedSets = {};
+    gameState.unlockedLevels = {};
+
+    // Stage 1: Level 1 of Set 1 should be the only thing unlocked
+    gameState.unlockedSets[1] = new Set([1]);
+    gameState.unlockedLevels['1_1'] = new Set([1]);
+
+    // Stages 2-5: Only Set 1, Level 1 unlocked
+    for (let stage = 2; stage <= 5; stage++) {
+        gameState.unlockedSets[stage] = new Set([1]);
+        gameState.unlockedLevels[`${stage}_1`] = new Set([1]);
     }
 
-    // Stages 2-5: Level 1 of Set 1 should be unlocked
-    for (let stage = 2; stage <= 5; stage++) {
-        if (!gameState.unlockedSets[stage]) {
-            gameState.unlockedSets[stage] = new Set([1]);
-        }
-        const setKey = `${stage}_1`;
-        if (!gameState.unlockedLevels[setKey]) {
-            gameState.unlockedLevels[setKey] = new Set([1]);
-        }
-    }
+    console.log('Default unlocks:', gameState.unlockedSets, gameState.unlockedLevels); // Debug log
 }
 
 async function checkExistingSession() {
@@ -3480,7 +3475,7 @@ async function checkExistingSession() {
             .single();
             
         if (profile) {
-            console.log('Initial status:', profile.status); // Debug log
+            console.log('Initial status:', profile.status);
             updateUserStatusDisplay(profile.status);
         }
         
@@ -3535,6 +3530,9 @@ async function loadUserGameProgress(userId) {
             .select('*')
             .eq('user_id', userId)
             .single();
+
+        console.log('Existing progress data:', existingData); // Debug log
+
 
         if (fetchError) {
             // If no record exists, create initial progress
@@ -5536,6 +5534,8 @@ function showStagesFromMenu() {
 }
 
 function findFurthestProgression() {
+    console.log('Current gameState:', gameState); // Debug log
+    
     // Look through all stages
     for (let stage = 1; stage <= 5; stage++) {
         if (!gameState.unlockedSets[stage]) continue;
@@ -5552,6 +5552,8 @@ function findFurthestProgression() {
             // Get all levels in ascending order
             const levelArray = Array.from(levels).sort((a, b) => a - b);
             const maxLevel = Math.max(...levelArray);
+            
+            console.log(`Stage ${stage}, Set ${set}, Max Level: ${maxLevel}`); // Debug log
             
             // Find the first incomplete level in this set
             for (let level = 1; level <= maxLevel + 1; level++) {
@@ -6643,14 +6645,14 @@ async function checkUserAccess() {
         return {
             fullAccess: false,
             unlockedStages: {
-                1: 'full',      // Full access to stage 1
-                2: [1],         // Only set 1
-                3: [1],         // Only set 1
-                4: [1],         // Only set 1
-                5: [1]          // Only set 1
+                1: [1],   // Only set 1 unlocked
+                2: [1],   // Only set 1
+                3: [1],   // Only set 1
+                4: [1],   // Only set 1
+                5: [1]    // Only set 1
             },
             defaultUnlockedLevels: {
-                1: true,        // Level 1 always unlocked in accessible sets
+                1: true,  // Level 1 always unlocked in set 1
             }
         };
     }
@@ -6669,7 +6671,7 @@ async function checkUserAccess() {
         return {
             fullAccess: false,
             unlockedStages: {
-                1: 'full',
+                1: [1],
                 2: [1],
                 3: [1],
                 4: [1],
@@ -6685,14 +6687,14 @@ async function checkUserAccess() {
         return {
             fullAccess: true,
             unlockedStages: {
-                1: 'full',
-                2: 'full',
-                3: 'full',
-                4: 'full',
-                5: 'full'
+                1: [1],  // Only this set unlocked by default
+                2: [1],
+                3: [1],
+                4: [1],
+                5: [1]
             },
             defaultUnlockedLevels: {
-                1: true,
+                1: true,  // Only first level of first set
             }
         };
     }
@@ -6713,36 +6715,22 @@ async function showSetScreen(stageId) {
         
         // Determine if user has access to this set
         let hasAccess = false;
-        if (stageId === 1) {
-            // Stage 1: All sets accessible for everyone
+        const isPremium = currentUser && currentUser.status === 'premium';
+        
+        // Only set 1 is unlocked by default
+        if (i === 1) {
             hasAccess = true;
-        } else if (i === 1) {
-            // Set 1 of any stage: Accessible for everyone
-            hasAccess = true;
-        } else if (access.fullAccess) {
-            // Other sets in stages 2-5: Only accessible for premium
-            hasAccess = true;
+        } else if (isPremium) {
+            // Premium users can access other sets progressively
+            hasAccess = gameState.unlockedSets[stageId]?.has(i);
         }
         
-        // Determine if set is unlocked through gameplay
-        const isUnlocked = gameState.unlockedSets[stageId]?.has(i);
-        
-        // Special case: First level of any accessible set is always playable
-        const isFirstLevelAccessible = hasAccess && !isUnlocked;
-
         // Set appropriate button class
         setButton.className = `set-button ${hasAccess ? 'active' : 'locked'}`;
-        if (!isUnlocked && !isFirstLevelAccessible) {
-            setButton.classList.remove('active');
-            setButton.classList.add('locked');
-        }
-        
         setButton.textContent = `Set ${i}`;
         
         if (hasAccess) {
-            if (isUnlocked || isFirstLevelAccessible) {
-                setButton.onclick = () => showLevelScreen(i);
-            }
+            setButton.onclick = () => showLevelScreen(i);
         } else {
             setButton.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
             setButton.onclick = () => showUpgradePrompt();
@@ -7377,15 +7365,37 @@ function updateUserStatusDisplay(status) {
 }
 
 function setupUserStatusSubscription() {
-    if (!currentUser) return;
+    // Remove any existing subscriptions first
+    const existingSubscription = supabaseClient.getChannels().find(
+        channel => channel.topic === 'public:user_profiles'
+    );
+    if (existingSubscription) {
+        supabaseClient.removeChannel(existingSubscription);
+    }
 
+    // Create a new real-time subscription
     const subscription = supabaseClient
-        .channel('public:user_profiles')
-        .on('UPDATE', 
-            payload => {
-                if (payload.new && payload.new.id === currentUser.id) {
-                    console.log('Profile updated:', payload.new.status); // Debug log
+        .channel('user_status_updates')
+        .on(
+            'postgres_changes', 
+            { 
+                event: 'UPDATE', 
+                schema: 'public', 
+                table: 'user_profiles',
+                filter: `id=eq.${currentUser.id}`
+            },
+            (payload) => {
+                console.log('Status update received:', payload.new.status);
+                
+                // Update local user status
+                if (currentUser) {
+                    currentUser.status = payload.new.status;
+                    
+                    // Update UI
                     updateUserStatusDisplay(payload.new.status);
+                    
+                    // Potential additional actions based on new status
+                    handleStatusChangeEffects(payload.new.status);
                 }
             }
         )
@@ -7394,10 +7404,46 @@ function setupUserStatusSubscription() {
     return subscription;
 }
 
+function handleStatusChangeEffects(newStatus) {
+    switch(newStatus) {
+        case 'premium':
+            // Potentially unlock additional content or show congratulations
+            showPremiumUpgradeConfirmation();
+            break;
+        case 'pending':
+            // Maybe show a waiting screen or additional guidance
+            showPendingStatusNotification();
+            break;
+    }
+}
+
+function showPremiumUpgradeConfirmation() {
+    const popup = document.createElement('div');
+    popup.className = 'confirmation-popup show';
+    popup.innerHTML = `
+        <h2>🎉 Premium Unlocked!</h2>
+        <p>Congratulations! Your account has been upgraded to Premium.</p>
+        <button onclick="this.closest('.confirmation-popup').remove()">Continue</button>
+    `;
+    document.body.appendChild(popup);
+}
+
+function showPendingStatusNotification() {
+    const popup = document.createElement('div');
+    popup.className = 'confirmation-popup show';
+    popup.innerHTML = `
+        <h2>Upgrade Pending</h2>
+        <p>Your upgrade request is being processed. We'll notify you soon!</p>
+        <button onclick="this.closest('.confirmation-popup').remove()">OK</button>
+    `;
+    document.body.appendChild(popup);
+}
+
 function restoreGameContext() {
     const savedContext = localStorage.getItem('gameContext');
     if (savedContext) {
         const context = JSON.parse(savedContext);
+        console.log('Restoring game context:', context); // Debug log
         gameState.currentStage = context.stage || 1;
         gameState.currentSet = context.set || 1;
         gameState.currentLevel = context.level;
@@ -7425,30 +7471,6 @@ function navigateHome() {
     saveProgress();  // Ensure current state is saved
     window.location.reload(true);
 }
-
-function forceReload() {
-    console.log('Force Reload Initiated');
-    
-    // Multiple reload strategies
-    if (window.location) {
-        window.location.href = window.location.href;  // Reload current page
-    }
-    
-    if (window.location.reload) {
-        window.location.reload(true);  // Hard reload with cache bypass
-    }
-    
-    // Fallback reload method
-    window.location.replace(window.location.pathname);
-}
-
-// Replace ALL home button onclick events with this
-document.querySelectorAll('.home-button').forEach(button => {
-    button.onclick = function() {
-        console.log('Home button clicked');
-        forceReload();
-    };
-});
 
 </script>
 </body>
