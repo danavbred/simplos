@@ -1331,6 +1331,33 @@ body {
     padding: 2rem;
 }
 
+.user-tier {
+    display: block; /* Ensure it's always visible */
+    text-align: center;
+    margin-top: 0.5rem;
+}
+
+.tier-text {
+    font-weight: 600;
+    font-size: 1rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 15px;
+    background: rgba(255,255,255,0.1);
+}
+
+.tier-text.unregistered { color: #ff4444; }
+.tier-text.trial { color: #ffa500; }
+.tier-text.pending { 
+    color: #00bfff;
+    animation: pendingBlink 2s infinite;
+}
+.tier-text.premium { color: #4CAF50; }
+
+@keyframes pendingBlink {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
 /* Shop Styles */
 .shop-container {
   display: flex;
@@ -3442,23 +3469,28 @@ function initializeGame() {
 }
 
 function setupDefaultUnlocks() {
-    console.log('Setting up default unlocks'); // Debug log
-    
-    // Reset unlocks to a very conservative state
-    gameState.unlockedSets = {};
-    gameState.unlockedLevels = {};
-
-    // Stage 1: Level 1 of Set 1 should be the only thing unlocked
-    gameState.unlockedSets[1] = new Set([1]);
-    gameState.unlockedLevels['1_1'] = new Set([1]);
-
-    // Stages 2-5: Only Set 1, Level 1 unlocked
-    for (let stage = 2; stage <= 5; stage++) {
-        gameState.unlockedSets[stage] = new Set([1]);
-        gameState.unlockedLevels[`${stage}_1`] = new Set([1]);
+    // Stage 1: Level 1 of all sets should be unlocked
+    if (!gameState.unlockedSets[1]) {
+        gameState.unlockedSets[1] = new Set();
+    }
+    for (let i = 1; i <= 9; i++) {
+        gameState.unlockedSets[1].add(i);
+        const setKey = `1_${i}`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set([1]);
+        }
     }
 
-    console.log('Default unlocks:', gameState.unlockedSets, gameState.unlockedLevels); // Debug log
+    // Stages 2-5: Level 1 of Set 1 should be unlocked
+    for (let stage = 2; stage <= 5; stage++) {
+        if (!gameState.unlockedSets[stage]) {
+            gameState.unlockedSets[stage] = new Set([1]);
+        }
+        const setKey = `${stage}_1`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set([1]);
+        }
+    }
 }
 
 async function checkExistingSession() {
@@ -3475,7 +3507,6 @@ async function checkExistingSession() {
             .single();
             
         if (profile) {
-            console.log('Initial status:', profile.status);
             updateUserStatusDisplay(profile.status);
         }
         
@@ -3487,6 +3518,9 @@ async function checkExistingSession() {
             loadCustomLists()
         ]);
         updateAuthUI();
+    } else {
+        // Update status for non-logged in users
+        updateUserStatusDisplay(null);
     }
 }
 
@@ -3530,9 +3564,6 @@ async function loadUserGameProgress(userId) {
             .select('*')
             .eq('user_id', userId)
             .single();
-
-        console.log('Existing progress data:', existingData); // Debug log
-
 
         if (fetchError) {
             // If no record exists, create initial progress
@@ -5534,8 +5565,6 @@ function showStagesFromMenu() {
 }
 
 function findFurthestProgression() {
-    console.log('Current gameState:', gameState); // Debug log
-    
     // Look through all stages
     for (let stage = 1; stage <= 5; stage++) {
         if (!gameState.unlockedSets[stage]) continue;
@@ -5552,8 +5581,6 @@ function findFurthestProgression() {
             // Get all levels in ascending order
             const levelArray = Array.from(levels).sort((a, b) => a - b);
             const maxLevel = Math.max(...levelArray);
-            
-            console.log(`Stage ${stage}, Set ${set}, Max Level: ${maxLevel}`); // Debug log
             
             // Find the first incomplete level in this set
             for (let level = 1; level <= maxLevel + 1; level++) {
@@ -6645,14 +6672,14 @@ async function checkUserAccess() {
         return {
             fullAccess: false,
             unlockedStages: {
-                1: [1],   // Only set 1 unlocked
-                2: [1],   // Only set 1
-                3: [1],   // Only set 1
-                4: [1],   // Only set 1
-                5: [1]    // Only set 1
+                1: [1],     // Only set 1 of stage 1
+                2: [1],     // Only set 1 of stage 2
+                3: [1],     // Only set 1 of stage 3
+                4: [1],     // Only set 1 of stage 4
+                5: [1]      // Only set 1 of stage 5
             },
             defaultUnlockedLevels: {
-                1: true,  // Level 1 always unlocked in set 1
+                1: true,    // Level 1 always unlocked in set 1
             }
         };
     }
@@ -6666,35 +6693,36 @@ async function checkUserAccess() {
 
     if (error) return null;
 
-    // If payment is pending or free, same access as unregistered
+    // Free/Pending/Unregistered users
     if (data.payment_pending || data.status === 'free') {
         return {
             fullAccess: false,
             unlockedStages: {
-                1: [1],
-                2: [1],
-                3: [1],
-                4: [1],
-                5: [1]
+                1: [1],     // Only set 1 of stage 1
+                2: [1],     // Only set 1 of stage 2
+                3: [1],     // Only set 1 of stage 3
+                4: [1],     // Only set 1 of stage 4
+                5: [1]      // Only set 1 of stage 5
             },
             defaultUnlockedLevels: {
-                1: true,
+                1: true,    // Level 1 always unlocked in set 1
             }
         };
     }
 
+    // Premium users
     if (data.status === 'premium') {
         return {
             fullAccess: true,
             unlockedStages: {
-                1: [1],  // Only this set unlocked by default
-                2: [1],
-                3: [1],
-                4: [1],
-                5: [1]
+                1: [1],     // Only set 1 initially unlocked
+                2: [1],     // Only set 1 initially unlocked
+                3: [1],     // Only set 1 initially unlocked
+                4: [1],     // Only set 1 initially unlocked
+                5: [1]      // Only set 1 initially unlocked
             },
             defaultUnlockedLevels: {
-                1: true,  // Only first level of first set
+                1: true,    // Level 1 always unlocked in set 1
             }
         };
     }
@@ -6713,27 +6741,32 @@ async function showSetScreen(stageId) {
     for (let i = 1; i <= stage.numSets; i++) {
         const setButton = document.createElement('div');
         
-        // Determine if user has access to this set
-        let hasAccess = false;
+        // Determine if set is accessible
+        const isSetAccessible = (
+            (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i)) ||
+            (i === 1)  // First set always accessible
+        );
+        
+        // Determine if user is premium
         const isPremium = currentUser && currentUser.status === 'premium';
         
-        // Only set 1 is unlocked by default
-        if (i === 1) {
-            hasAccess = true;
-        } else if (isPremium) {
-            // Premium users can access other sets progressively
-            hasAccess = gameState.unlockedSets[stageId]?.has(i);
-        }
-        
-        // Set appropriate button class
-        setButton.className = `set-button ${hasAccess ? 'active' : 'locked'}`;
+        // Set button classes
+        setButton.className = `set-button ${isSetAccessible ? 'active' : 'locked'}`;
         setButton.textContent = `Set ${i}`;
         
-        if (hasAccess) {
-            setButton.onclick = () => showLevelScreen(i);
+        if (isSetAccessible) {
+            // Only allow clicking if set is truly unlocked
+            if (gameState.unlockedSets[stageId]?.has(i)) {
+                setButton.onclick = () => showLevelScreen(i);
+            }
         } else {
+            // Add lock overlay for non-accessible sets
             setButton.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
-            setButton.onclick = () => showUpgradePrompt();
+            
+            // For non-premium users, show upgrade prompt
+            if (!isPremium) {
+                setButton.onclick = () => showUpgradePrompt();
+            }
         }
         
         container.appendChild(setButton);
@@ -7335,6 +7368,18 @@ function skipUpgrade() {
 
 function updateUserStatusDisplay(status) {
     const userTier = document.querySelector('.user-tier');
+    if (!userTier) {
+        console.warn('User tier element not found. Creating it.');
+        const userInfo = document.getElementById('userInfo');
+        const newUserTier = document.createElement('div');
+        newUserTier.className = 'user-tier';
+        const tierText = document.createElement('span');
+        tierText.className = 'tier-text';
+        newUserTier.appendChild(tierText);
+        userInfo.appendChild(newUserTier);
+        return updateUserStatusDisplay(status);
+    }
+    
     const tierText = userTier.querySelector('.tier-text');
     
     // Clear existing classes
@@ -7362,40 +7407,21 @@ function updateUserStatusDisplay(status) {
                 tierText.textContent = 'Trial Account';
         }
     }
+    
+    // Ensure visibility
+    userTier.style.display = 'block';
 }
 
 function setupUserStatusSubscription() {
-    // Remove any existing subscriptions first
-    const existingSubscription = supabaseClient.getChannels().find(
-        channel => channel.topic === 'public:user_profiles'
-    );
-    if (existingSubscription) {
-        supabaseClient.removeChannel(existingSubscription);
-    }
+    if (!currentUser) return;
 
-    // Create a new real-time subscription
     const subscription = supabaseClient
-        .channel('user_status_updates')
-        .on(
-            'postgres_changes', 
-            { 
-                event: 'UPDATE', 
-                schema: 'public', 
-                table: 'user_profiles',
-                filter: `id=eq.${currentUser.id}`
-            },
-            (payload) => {
-                console.log('Status update received:', payload.new.status);
-                
-                // Update local user status
-                if (currentUser) {
-                    currentUser.status = payload.new.status;
-                    
-                    // Update UI
+        .channel('public:user_profiles')
+        .on('UPDATE', 
+            payload => {
+                if (payload.new && payload.new.id === currentUser.id) {
+                    console.log('Profile updated:', payload.new.status); // Debug log
                     updateUserStatusDisplay(payload.new.status);
-                    
-                    // Potential additional actions based on new status
-                    handleStatusChangeEffects(payload.new.status);
                 }
             }
         )
@@ -7404,46 +7430,10 @@ function setupUserStatusSubscription() {
     return subscription;
 }
 
-function handleStatusChangeEffects(newStatus) {
-    switch(newStatus) {
-        case 'premium':
-            // Potentially unlock additional content or show congratulations
-            showPremiumUpgradeConfirmation();
-            break;
-        case 'pending':
-            // Maybe show a waiting screen or additional guidance
-            showPendingStatusNotification();
-            break;
-    }
-}
-
-function showPremiumUpgradeConfirmation() {
-    const popup = document.createElement('div');
-    popup.className = 'confirmation-popup show';
-    popup.innerHTML = `
-        <h2>🎉 Premium Unlocked!</h2>
-        <p>Congratulations! Your account has been upgraded to Premium.</p>
-        <button onclick="this.closest('.confirmation-popup').remove()">Continue</button>
-    `;
-    document.body.appendChild(popup);
-}
-
-function showPendingStatusNotification() {
-    const popup = document.createElement('div');
-    popup.className = 'confirmation-popup show';
-    popup.innerHTML = `
-        <h2>Upgrade Pending</h2>
-        <p>Your upgrade request is being processed. We'll notify you soon!</p>
-        <button onclick="this.closest('.confirmation-popup').remove()">OK</button>
-    `;
-    document.body.appendChild(popup);
-}
-
 function restoreGameContext() {
     const savedContext = localStorage.getItem('gameContext');
     if (savedContext) {
         const context = JSON.parse(savedContext);
-        console.log('Restoring game context:', context); // Debug log
         gameState.currentStage = context.stage || 1;
         gameState.currentSet = context.set || 1;
         gameState.currentLevel = context.level;
@@ -7471,6 +7461,30 @@ function navigateHome() {
     saveProgress();  // Ensure current state is saved
     window.location.reload(true);
 }
+
+function forceReload() {
+    console.log('Force Reload Initiated');
+    
+    // Multiple reload strategies
+    if (window.location) {
+        window.location.href = window.location.href;  // Reload current page
+    }
+    
+    if (window.location.reload) {
+        window.location.reload(true);  // Hard reload with cache bypass
+    }
+    
+    // Fallback reload method
+    window.location.replace(window.location.pathname);
+}
+
+// Replace ALL home button onclick events with this
+document.querySelectorAll('.home-button').forEach(button => {
+    button.onclick = function() {
+        console.log('Home button clicked');
+        forceReload();
+    };
+});
 
 </script>
 </body>
