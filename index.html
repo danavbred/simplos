@@ -5565,26 +5565,48 @@ function showStagesFromMenu() {
 }
 
 function findFurthestProgression() {
-    // Look through all stages
+    // First, check the most recent completed level in Stage 1
+    for (let set = 1; set <= 9; set++) {
+        const setKey = `1_${set}`;
+        const levels = gameState.unlockedLevels[setKey];
+        
+        if (!levels) continue;
+        
+        // Get all levels in ascending order
+        const levelArray = Array.from(levels).sort((a, b) => a - b);
+        const maxLevel = Math.max(...levelArray);
+        
+        // Find the first incomplete level in this set
+        for (let level = 1; level <= maxLevel; level++) {
+            const levelKey = `1_${set}_${level}`;
+            if (!gameState.perfectLevels.has(levelKey)) {
+                return {
+                    stage: 1,
+                    set: set,
+                    level: level
+                };
+            }
+        }
+    }
+    
+    // If no incomplete level found in Stage 1, proceed with other stages
     for (let stage = 1; stage <= 5; stage++) {
         if (!gameState.unlockedSets[stage]) continue;
         
-        const sets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => b - a); // Sort in descending order
+        const sets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => a - b);
         
-        // For each set in the stage
         for (const set of sets) {
             const setKey = `${stage}_${set}`;
             const levels = gameState.unlockedLevels[setKey];
             
             if (!levels) continue;
             
-            // Get all levels in ascending order
             const levelArray = Array.from(levels).sort((a, b) => a - b);
             const maxLevel = Math.max(...levelArray);
             
-            // Find the first incomplete level in this set
-            for (let level = 1; level <= maxLevel + 1; level++) {
-                if (!gameState.perfectLevels.has(`${stage}_${set}_${level}`)) {
+            for (let level = 1; level <= maxLevel; level++) {
+                const levelKey = `${stage}_${set}_${level}`;
+                if (!gameState.perfectLevels.has(levelKey)) {
                     return {
                         stage: stage,
                         set: set,
@@ -5595,7 +5617,7 @@ function findFurthestProgression() {
         }
     }
     
-    // If no incomplete level found, return stage 1, set 1, level 1
+    // If no incomplete level found anywhere, return stage 1, set 1, level 1
     return { stage: 1, set: 1, level: 1 };
 }
 
@@ -5614,6 +5636,8 @@ function startGame() {
     }
     
     const furthestPoint = findFurthestProgression();
+    console.log('Furthest Progression:', furthestPoint); // Diagnostic log
+    
     gameState.currentStage = furthestPoint.stage;
     gameState.currentSet = furthestPoint.set;
     startLevel(furthestPoint.level);
@@ -6694,7 +6718,7 @@ async function checkUserAccess() {
     if (error) return null;
 
     // Free/Pending/Unregistered users
-    if (data.payment_pending || data.status === 'free') {
+    if (data.payment_pending || data.status === 'free' || data.status === 'pending') {
         return {
             fullAccess: false,
             unlockedStages: {
@@ -6755,8 +6779,8 @@ async function showSetScreen(stageId) {
         setButton.textContent = `Set ${i}`;
         
         if (isSetAccessible) {
-            // Only allow clicking if set is truly unlocked
-            if (gameState.unlockedSets[stageId]?.has(i)) {
+            // Always allow clicking on first set
+            if (i === 1 || gameState.unlockedSets[stageId]?.has(i)) {
                 setButton.onclick = () => showLevelScreen(i);
             }
         } else {
@@ -6764,7 +6788,7 @@ async function showSetScreen(stageId) {
             setButton.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
             
             // For non-premium users, show upgrade prompt
-            if (!isPremium) {
+            if (!isPremium && i !== 1) {
                 setButton.onclick = () => showUpgradePrompt();
             }
         }
