@@ -2769,8 +2769,7 @@ body {
     <h1 class="welcome-title">Simplos</h1>
     <div class="welcome-buttons">
         <button class="start-button" onclick="startGame()">Play Game</button>
-        <button class="start-button" onclick="showSetScreen(gameState.currentStage || 1)">Level Map</button>
-        <button class="start-button custom-lists-button" onclick="showCustomListsManager()">My Lists</button>
+        <button class="start-button" onclick="showScreen('stage-screen')">Level Map</button>        <button class="start-button custom-lists-button" onclick="showCustomListsManager()">My Lists</button>
         <div class="auth-container" id="authBox">
         <div class="auth-login" id="loginForm">
         <input type="text" class="auth-input" placeholder="Username" id="loginUsername">
@@ -6639,10 +6638,10 @@ async function checkUserAccess() {
             fullAccess: true,
             unlockedStages: {
                 1: 'full',
-                2: 'full',
-                3: 'full',
-                4: 'full',
-                5: 'full'
+                2: 'full',    // Full access to ALL sets
+                3: 'full',    // Full access to ALL sets
+                4: 'full',    // Full access to ALL sets
+                5: 'full'     // Full access to ALL sets
             }
         };
     }
@@ -6665,19 +6664,24 @@ async function showSetScreen(stageId) {
     const container = document.getElementById('set-container');
     container.innerHTML = '';
     
-    const access = await checkUserAccess();
     const stage = gameStructure.stages[stageId - 1];
+
+    const access = await checkUserAccess();
+    if (!access) return;
 
     for (let i = 1; i <= stage.numSets; i++) {
         const setButton = document.createElement('div');
         const hasAccess = access.unlockedStages[stageId] === 'full' || 
-                         access.unlockedStages[stageId].includes(i);
+                         (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
         
-        setButton.className = `set-button ${hasAccess ? 'active' : ''}`;
+        setButton.className = `set-button ${hasAccess ? 'active' : 'locked'}`;
         setButton.textContent = `Set ${i}`;
         
-        if (hasAccess && gameState.unlockedSets[stageId]?.has(i)) {
+        if (hasAccess) {
             setButton.onclick = () => showLevelScreen(i);
+        } else {
+            setButton.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
+            setButton.onclick = () => showUpgradePrompt();
         }
         
         container.appendChild(setButton);
