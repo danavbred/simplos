@@ -1358,6 +1358,159 @@ body {
     50% { opacity: 1; }
 }
 
+.leaderboard-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    min-height: 100vh;
+}
+
+.leaderboard-container {
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 800px;
+    margin-top: 2rem;
+}
+
+.leaderboard-header {
+    display: grid;
+    grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
+    padding: 1rem;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    font-weight: bold;
+}
+
+.leaderboard-entry {
+    display: grid;
+    grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
+    padding: 1rem;
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
+    transition: 
+        transform 0.5s ease, 
+        background-color 0.5s ease;
+    background: rgba(255,255,255,0.05);
+}
+
+.leaderboard-entry.moving-up {
+    background: rgba(76, 175, 80, 0.2);
+    transform: translateY(-100%);
+    transition: 
+        transform 1s cubic-bezier(0.25, 0.1, 0.25, 1), 
+        background-color 1s ease;
+}
+
+.leaderboard-entry.moving-down {
+    background: rgba(244, 67, 54, 0.2);
+    transform: translateY(100%);
+    transition: 
+        transform 1s cubic-bezier(0.25, 0.1, 0.25, 1), 
+        background-color 1s ease;
+}
+
+.leaderboard-entry:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.1);
+}
+
+.leaderboard-entry.you {
+    background: rgba(233, 69, 96, 0.2);
+    border: 1px solid var(--accent);
+}
+
+.leaderboard-entry.rank-1 {
+    color: var(--gold);
+}
+
+.leaderboard-entry.rank-2 {
+    color: var(--silver);
+}
+
+.leaderboard-entry.rank-3 {
+    color: var(--bronze);
+}
+
+@media (max-width: 768px) {
+    .leaderboard-container {
+        padding: 1rem;
+    }
+    
+    .leaderboard-header, 
+    .leaderboard-entry {
+        grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
+        font-size: 0.9rem;
+        padding: 0.75rem;
+    }
+}
+
+.premium-celebration {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(22, 33, 62, 0.95));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
+
+.premium-celebration.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.celebration-content {
+    text-align: center;
+    transform: translateY(30px);
+    transition: transform 0.5s ease;
+}
+
+.premium-celebration.show .celebration-content {
+    transform: translateY(0);
+}
+
+.celebration-title {
+    font-size: 3rem;
+    color: var(--gold);
+    margin-bottom: 2rem;
+    text-shadow: 0 2px 10px rgba(255,215,0,0.3);
+}
+
+.celebration-message {
+    font-size: 1.5rem;
+    color: var(--text);
+    margin-bottom: 2rem;
+    line-height: 1.5;
+}
+
+.celebration-button {
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+    background: var(--gold);
+    color: var(--primary-dark);
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.celebration-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255,215,0,0.3);
+}
+
 /* Shop Styles */
 .shop-container {
   display: flex;
@@ -2821,7 +2974,9 @@ body {
     <h1 class="welcome-title">Simplos</h1>
     <div class="welcome-buttons">
         <button class="start-button" onclick="startGame()">Play Game</button>
-        <button class="start-button" onclick="showScreen('stage-screen')">Level Map</button>        <button class="start-button custom-lists-button" onclick="showCustomListsManager()">My Lists</button>
+        <button class="start-button" onclick="showScreen('stage-screen')">Level Map</button>        
+        <button class="start-button custom-lists-button" onclick="showCustomListsManager()">My Lists</button>
+        <button class="start-button" onclick="showLeaderboard()">Speedboard</button>
         <div class="auth-container" id="authBox">
         <div class="auth-login" id="loginForm">
         <input type="text" class="auth-input" placeholder="Username" id="loginUsername">
@@ -2843,6 +2998,9 @@ body {
     <span class="user-status"></span>
     <div class="user-tier">
         <span class="tier-text"></span>
+        <button class="status-refresh-btn" id="statusRefreshBtn" style="display: none;">
+    <i class="fas fa-sync-alt"></i>
+</button>
     </div>
 </div>
 
@@ -3099,6 +3257,29 @@ body {
     </form>
     <p>לאחר שליחת הבקשה ניצור איתך קשר בווטסאפ</p>
 </div>
+    </div>
+</div>
+
+<div id="leaderboard-screen" class="screen">
+    <div class="navigation-container">
+        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+    </div>
+    
+    <h1 class="welcome-title">Speedboard</h1>
+    
+    <div class="leaderboard-container">
+        <div class="leaderboard-header">
+            <div>Rank</div>
+    <div>Player</div>
+    <div>Words Today</div>
+    <div>Time Today</div>
+    <div>Best Streak</div>
+        </div>
+        <div id="leaderboard-entries">
+            <!-- Entries will be populated here -->
+        </div>
     </div>
 </div>
 
@@ -3493,36 +3674,7 @@ function setupDefaultUnlocks() {
     }
 }
 
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        
-        // Get initial status
-        const { data: profile } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
-            
-        if (profile) {
-            updateUserStatusDisplay(profile.status);
-        }
-        
-        // Setup real-time updates
-        setupUserStatusSubscription();
-        
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists()
-        ]);
-        updateAuthUI();
-    } else {
-        // Update status for non-logged in users
-        updateUserStatusDisplay(null);
-    }
-}
+
 
 document.addEventListener('DOMContentLoaded', function() {
     currentUser = null;
@@ -3874,8 +4026,33 @@ async function checkExistingSession() {
     
     if (session) {
         currentUser = session.user;
-        await loadUserGameProgress(currentUser.id);
+        
+        // Get initial status
+        const { data: profile } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+            
+        if (profile) {
+            currentUser.status = profile.status; // Store status in user object
+            updateUserStatusDisplay(profile.status);
+        }
+        
+        // Initialize real-time updates and periodic check
+        initializeStatusCheck();
+        
+        await Promise.all([
+            loadUserGameProgress(currentUser.id),
+            loadCustomLists()
+        ]);
         updateAuthUI();
+    } else {
+        // Clear interval if it exists
+        if (window.statusCheckInterval) {
+            clearInterval(window.statusCheckInterval);
+        }
+        updateUserStatusDisplay(null);
     }
 }
 
@@ -4534,6 +4711,14 @@ function calculateWordsForLevel(level, vocabulary) {
 }
 
 async function startLevel(levelId) {
+    // Reset stats tracking
+    currentGame.wrongStreak = 0;
+    currentGame.correctAnswers = 0;
+    currentGame.levelStartTime = Date.now();
+    currentGame.firstAttempt = true;
+    currentGame.streakBonus = true;
+
+    // Regular game initialization
     gameState.currentStage = gameState.currentStage || 1;
     gameState.currentSet = gameState.currentSet || 1;
     gameState.currentLevel = levelId;
@@ -5134,6 +5319,19 @@ function handleLevelCompletion() {
     clearTimer();
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     const isLevelCompleted = gameState.perfectLevels.has(levelKey);
+    
+    // Calculate and update stats
+    const levelTime = Date.now() - currentGame.levelStartTime;
+    const mistakes = currentGame.wrongStreak || 0; // Ensure we don't send undefined
+    const streak = currentGame.correctAnswers || 0; // Ensure we don't send undefined
+    
+    if (currentUser) {
+        updatePlayerStats(levelTime, mistakes, streak)
+            .catch(error => {
+                console.error('Stats update failed:', error);
+                // Continue game flow despite stats error
+            });
+    }
     
     // Handle custom practice mode first
     if (currentGame.isCustomPractice) {
@@ -6454,19 +6652,6 @@ function saveListChanges(listId, wordList, listItem) {
     `;
 }
 
-// Add to checkExistingSession()
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists() // Add this
-        ]);
-        updateAuthUI();
-    }
-}
 
 function toggleAuthMode() {
     const loginForm = document.getElementById('loginForm');
@@ -7440,16 +7625,27 @@ function setupUserStatusSubscription() {
     if (!currentUser) return;
 
     const subscription = supabaseClient
-        .channel('public:user_profiles')
-        .on('UPDATE', 
-            payload => {
-                if (payload.new && payload.new.id === currentUser.id) {
-                    console.log('Profile updated:', payload.new.status); // Debug log
-                    updateUserStatusDisplay(payload.new.status);
+        .channel('user-status-' + currentUser.id)  // Unique channel per user
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'user_profiles',
+            filter: `id=eq.${currentUser.id}`
+        }, 
+        payload => {
+            console.log('Profile update received:', payload.new); // Debug log
+            if (payload.new && payload.new.status) {
+                updateUserStatusDisplay(payload.new.status);
+                
+                // If status changed to premium, trigger celebration
+                if (payload.new.status === 'premium') {
+                    showPremiumCelebration();
                 }
             }
-        )
-        .subscribe();
+        })
+        .subscribe(status => {
+            console.log('Subscription status:', status); // Debug log
+        });
 
     return subscription;
 }
@@ -7509,6 +7705,240 @@ document.querySelectorAll('.home-button').forEach(button => {
         forceReload();
     };
 });
+
+async function showLeaderboard() {
+    showScreen('leaderboard-screen');
+
+    const entriesContainer = document.getElementById('leaderboard-entries');
+    
+    if (!entriesContainer) {
+        console.error('Leaderboard entries container not found');
+        return;
+    }
+
+    function renderLeaderboard(leaderboard) {
+    // Sort leaderboard by words practiced today and then time spent
+    const sortedLeaderboard = leaderboard.sort((a, b) => {
+        if (b.words_practiced_today !== a.words_practiced_today) {
+            return b.words_practiced_today - a.words_practiced_today;
+        }
+        return b.time_spent_today_seconds - a.time_spent_today_seconds;
+    });
+
+    const fragment = document.createDocumentFragment();
+
+    sortedLeaderboard.forEach((entry, index) => {
+        const existingEntry = entriesContainer.querySelector(`[data-user-id="${entry.user_id}"]`);
+        
+        const entryDiv = document.createElement('div');
+        entryDiv.className = `leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}`;
+        entryDiv.dataset.userId = entry.user_id;
+        
+        // Format time to show minutes and seconds
+        const minutes = Math.floor(entry.time_spent_today_seconds / 60);
+        const seconds = Math.floor(entry.time_spent_today_seconds % 60);
+        const timeDisplay = `${minutes}m ${seconds}s`;
+        
+        entryDiv.innerHTML = `
+            <div>${index + 1}</div>
+            <div>${entry.username || 'Anonymous'}</div>
+            <div>${entry.words_practiced_today || 0} words</div>
+            <div>${timeDisplay}</div>
+            <div>${entry.best_streak || 0}</div>
+        `;
+
+        // Handle position changes animation
+        if (existingEntry) {
+            const oldIndex = Array.from(entriesContainer.children).indexOf(existingEntry);
+            if (oldIndex !== index) {
+                entryDiv.classList.add(oldIndex > index ? 'moving-up' : 'moving-down');
+            }
+        }
+
+        fragment.appendChild(entryDiv);
+    });
+
+    entriesContainer.innerHTML = '';
+    entriesContainer.appendChild(fragment);
+
+    // Remove movement classes after animation
+    setTimeout(() => {
+        document.querySelectorAll('.leaderboard-entry').forEach(entry => {
+            entry.classList.remove('moving-up', 'moving-down');
+        });
+    }, 1000);
+}
+    try {
+        const { data: leaderboard, error } = await supabaseClient
+            .from('player_leaderboard')
+            .select('*')
+            .limit(50)
+            .order('avg_completion_time_seconds', { ascending: false });
+            
+        if (error) throw error;
+
+        await renderLeaderboard(leaderboard);
+
+        // Real-time subscription
+        const leaderboardSubscription = supabaseClient
+            .channel('leaderboard-real-time')
+            .on('postgres_changes', 
+                { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'player_stats'
+                }, 
+                async (payload) => {
+                    const { data: updatedLeaderboard } = await supabaseClient
+                        .from('player_leaderboard')
+                        .select('*')
+                        .limit(50)
+                        .order('avg_completion_time_seconds', { ascending: false });
+                    
+                    await renderLeaderboard(updatedLeaderboard);
+                }
+            )
+            .subscribe();
+
+        const leaderboardScreen = document.getElementById('leaderboard-screen');
+        if (leaderboardScreen) {
+            leaderboardScreen.dataset.subscription = leaderboardSubscription;
+        }
+
+    } catch (error) {
+        console.error('Leaderboard error:', error);
+        entriesContainer.innerHTML = `<p>Error loading leaderboard: ${error.message}</p>`;
+    }
+}
+
+async function showLeaderboard() {
+    console.log('Leaderboard function called');
+    showScreen('leaderboard-screen');
+
+    const entriesContainer = document.getElementById('leaderboard-entries');
+    
+    if (!entriesContainer) {
+        console.error('Leaderboard entries container not found');
+        return;
+    }
+
+    try {
+        const { data: leaderboard, error } = await supabaseClient
+            .from('player_leaderboard')
+            .select('*')
+            .limit(50);
+            
+        if (error) throw error;
+
+        // Add this debug log
+        console.log('Raw leaderboard data:', leaderboard);
+
+        // Proceed with rendering only if we have data
+        if (leaderboard && leaderboard.length > 0) {
+            await renderLeaderboard(leaderboard);
+
+            // Real-time subscription
+            const leaderboardSubscription = supabaseClient
+                .channel('leaderboard-real-time')
+                .on('postgres_changes', 
+                    { 
+                        event: '*', 
+                        schema: 'public', 
+                        table: 'player_stats'
+                    }, 
+                    async (payload) => {
+                        const { data: updatedLeaderboard } = await supabaseClient
+                            .from('player_leaderboard')
+                            .select('*')
+                            .limit(50);
+                        
+                        await renderLeaderboard(updatedLeaderboard);
+                    }
+                )
+                .subscribe();
+
+            const leaderboardScreen = document.getElementById('leaderboard-screen');
+            if (leaderboardScreen) {
+                leaderboardScreen.dataset.subscription = leaderboardSubscription;
+            }
+        } else {
+            entriesContainer.innerHTML = '<p>No leaderboard data available</p>';
+        }
+
+    } catch (error) {
+        console.error('Leaderboard error:', error);
+        entriesContainer.innerHTML = `<p>Error loading leaderboard: ${error.message}</p>`;
+    }
+}
+
+function showPremiumCelebration() {
+    // Create celebration overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'premium-celebration';
+    overlay.innerHTML = `
+        <div class="celebration-content">
+            <h1 class="celebration-title">Welcome to Premium!</h1>
+            <p class="celebration-message">
+                Congratulations! Your account has been upgraded to Premium.<br>
+                All stages and sets are now unlocked!
+            </p>
+            <button class="celebration-button" onclick="handlePremiumCelebrationComplete()">
+                Start Playing
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Create celebratory particles
+    createParticles(window.innerWidth / 2, window.innerHeight / 2);
+    
+    // Show overlay with animation
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
+}
+
+function handlePremiumCelebrationComplete() {
+    const overlay = document.querySelector('.premium-celebration');
+    if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            overlay.remove();
+            // Refresh game state with new premium access
+            showScreen('welcome-screen');
+        }, 500);
+    }
+}
+
+function initializeStatusCheck() {
+    if (!currentUser) return;
+    
+    // Initial setup of realtime subscription
+    setupUserStatusSubscription();
+    
+    // Periodic status check every 30 seconds as fallback
+    const statusCheckInterval = setInterval(async () => {
+        const { data, error } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+            
+        if (data && !error) {
+            updateUserStatusDisplay(data.status);
+            
+            // If status is premium and it's a new change, show celebration
+            if (data.status === 'premium' && currentUser.status !== 'premium') {
+                showPremiumCelebration();
+                currentUser.status = 'premium';
+            }
+        }
+    }, 3000); // Check every 30 seconds
+    
+    // Store interval ID for cleanup
+    window.statusCheckInterval = statusCheckInterval;
+}
 
 </script>
 </body>
