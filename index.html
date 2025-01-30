@@ -1449,7 +1449,67 @@ body {
     }
 }
 
+.premium-celebration {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(22, 33, 62, 0.95));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+}
 
+.premium-celebration.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.celebration-content {
+    text-align: center;
+    transform: translateY(30px);
+    transition: transform 0.5s ease;
+}
+
+.premium-celebration.show .celebration-content {
+    transform: translateY(0);
+}
+
+.celebration-title {
+    font-size: 3rem;
+    color: var(--gold);
+    margin-bottom: 2rem;
+    text-shadow: 0 2px 10px rgba(255,215,0,0.3);
+}
+
+.celebration-message {
+    font-size: 1.5rem;
+    color: var(--text);
+    margin-bottom: 2rem;
+    line-height: 1.5;
+}
+
+.celebration-button {
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+    background: var(--gold);
+    color: var(--primary-dark);
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.celebration-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255,215,0,0.3);
+}
 
 /* Shop Styles */
 .shop-container {
@@ -3614,36 +3674,7 @@ function setupDefaultUnlocks() {
     }
 }
 
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        
-        // Get initial status
-        const { data: profile } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
-            
-        if (profile) {
-            updateUserStatusDisplay(profile.status);
-        }
-        
-        // Setup real-time updates
-        setupUserStatusSubscription();
-        
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists()
-        ]);
-        updateAuthUI();
-    } else {
-        // Update status for non-logged in users
-        updateUserStatusDisplay(null);
-    }
-}
+
 
 document.addEventListener('DOMContentLoaded', function() {
     currentUser = null;
@@ -3674,35 +3705,6 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeParticles(welcomeScreen);
     }
 });
-
-function initializeStatusCheck() {
-    if (!currentUser) return;
-    
-    // Initial setup of realtime subscription
-    setupUserStatusSubscription();
-    
-    // Periodic status check every 30 seconds as fallback
-    const statusCheckInterval = setInterval(async () => {
-        const { data, error } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
-            
-        if (data && !error) {
-            updateUserStatusDisplay(data.status);
-            
-            // If status is premium and it's a new change, show celebration
-            if (data.status === 'premium' && currentUser.status !== 'premium') {
-                showPremiumCelebration();
-                currentUser.status = 'premium';
-            }
-        }
-    }, 5000); // Check every 30 seconds
-    
-    // Store interval ID for cleanup
-    window.statusCheckInterval = statusCheckInterval;
-}
 
 async function loadUserGameProgress(userId) {
     try {
@@ -4019,6 +4021,40 @@ function updateAuthUI() {
     }
 }
 
+async function checkExistingSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (session) {
+        currentUser = session.user;
+        
+        // Get initial status
+        const { data: profile } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+            
+        if (profile) {
+            currentUser.status = profile.status; // Store status in user object
+            updateUserStatusDisplay(profile.status);
+        }
+        
+        // Initialize real-time updates and periodic check
+        initializeStatusCheck();
+        
+        await Promise.all([
+            loadUserGameProgress(currentUser.id),
+            loadCustomLists()
+        ]);
+        updateAuthUI();
+    } else {
+        // Clear interval if it exists
+        if (window.statusCheckInterval) {
+            clearInterval(window.statusCheckInterval);
+        }
+        updateUserStatusDisplay(null);
+    }
+}
 
 
 // Game Constants & State Management
@@ -6616,40 +6652,6 @@ function saveListChanges(listId, wordList, listItem) {
     `;
 }
 
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        
-        // Get initial status
-        const { data: profile } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
-            
-        if (profile) {
-            currentUser.status = profile.status; // Store status in user object
-            updateUserStatusDisplay(profile.status);
-        }
-        
-        // Initialize real-time updates and periodic check
-        initializeStatusCheck();
-        
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists()
-        ]);
-        updateAuthUI();
-    } else {
-        // Clear interval if it exists
-        if (window.statusCheckInterval) {
-            clearInterval(window.statusCheckInterval);
-        }
-        updateUserStatusDisplay(null);
-    }
-}
 
 function toggleAuthMode() {
     const loginForm = document.getElementById('loginForm');
@@ -7582,24 +7584,15 @@ function updateUserStatusDisplay(status) {
         newUserTier.className = 'user-tier';
         const tierText = document.createElement('span');
         tierText.className = 'tier-text';
-        const refreshBtn = document.createElement('button');
-        refreshBtn.id = 'statusRefreshBtn';
-        refreshBtn.className = 'status-refresh-btn';
-        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
         newUserTier.appendChild(tierText);
-        newUserTier.appendChild(refreshBtn);
         userInfo.appendChild(newUserTier);
         return updateUserStatusDisplay(status);
     }
     
     const tierText = userTier.querySelector('.tier-text');
-    const refreshBtn = userTier.querySelector('#statusRefreshBtn');
     
     // Clear existing classes
     tierText.classList.remove('unregistered', 'trial', 'pending', 'premium');
-    
-    // Hide refresh button by default
-    refreshBtn.style.display = 'none';
     
     if (!currentUser) {
         tierText.classList.add('unregistered');
@@ -7613,8 +7606,6 @@ function updateUserStatusDisplay(status) {
             case 'pending':
                 tierText.classList.add('pending');
                 tierText.textContent = 'Premium Pending Confirmation';
-                // Show refresh button only for pending status
-                refreshBtn.style.display = 'inline-block';
                 break;
             case 'premium':
                 tierText.classList.add('premium');
@@ -7628,20 +7619,6 @@ function updateUserStatusDisplay(status) {
     
     // Ensure visibility
     userTier.style.display = 'block';
-
-    // Attach event listener for refresh button
-    refreshBtn.onclick = manualStatusRefresh;
-}
-
-function showPremiumUpgradeConfirmation() {
-    const popup = document.createElement('div');
-    popup.className = 'confirmation-popup show';
-    popup.innerHTML = `
-        <h2>Congratulations!</h2>
-        <p>Your account has been upgraded to Premium!</p>
-        <button onclick="this.closest('.confirmation-popup').remove()">Continue</button>
-    `;
-    document.body.appendChild(popup);
 }
 
 function setupUserStatusSubscription() {
@@ -7861,6 +7838,75 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     } else {
         console.log('Stats updated successfully:', data);
     }
+}
+
+function showPremiumCelebration() {
+    // Create celebration overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'premium-celebration';
+    overlay.innerHTML = `
+        <div class="celebration-content">
+            <h1 class="celebration-title">Welcome to Premium!</h1>
+            <p class="celebration-message">
+                Congratulations! Your account has been upgraded to Premium.<br>
+                All stages and sets are now unlocked!
+            </p>
+            <button class="celebration-button" onclick="handlePremiumCelebrationComplete()">
+                Start Playing
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Create celebratory particles
+    createParticles(window.innerWidth / 2, window.innerHeight / 2);
+    
+    // Show overlay with animation
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
+}
+
+function handlePremiumCelebrationComplete() {
+    const overlay = document.querySelector('.premium-celebration');
+    if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            overlay.remove();
+            // Refresh game state with new premium access
+            showScreen('welcome-screen');
+        }, 500);
+    }
+}
+
+function initializeStatusCheck() {
+    if (!currentUser) return;
+    
+    // Initial setup of realtime subscription
+    setupUserStatusSubscription();
+    
+    // Periodic status check every 30 seconds as fallback
+    const statusCheckInterval = setInterval(async () => {
+        const { data, error } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+            
+        if (data && !error) {
+            updateUserStatusDisplay(data.status);
+            
+            // If status is premium and it's a new change, show celebration
+            if (data.status === 'premium' && currentUser.status !== 'premium') {
+                showPremiumCelebration();
+                currentUser.status = 'premium';
+            }
+        }
+    }, 3000); // Check every 30 seconds
+    
+    // Store interval ID for cleanup
+    window.statusCheckInterval = statusCheckInterval;
 }
 
 </script>
