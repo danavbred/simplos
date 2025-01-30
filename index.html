@@ -7857,32 +7857,39 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     }
 }
 
-function showPremiumCelebration() {
-    // Create celebration overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'premium-celebration';
-    overlay.innerHTML = `
-        <div class="celebration-content">
-            <h1 class="celebration-title">Welcome to Premium!</h1>
-            <p class="celebration-message">
-                Congratulations! Your account has been upgraded to Premium.<br>
-                All stages and sets are now unlocked!
-            </p>
-            <button class="celebration-button" onclick="handlePremiumCelebrationComplete()">
-                Start Playing
-            </button>
-        </div>
-    `;
+async function checkExistingSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
     
-    document.body.appendChild(overlay);
-    
-    // Create celebratory particles
-    createParticles(window.innerWidth / 2, window.innerHeight / 2);
-    
-    // Show overlay with animation
-    requestAnimationFrame(() => {
-        overlay.classList.add('show');
-    });
+    if (session) {
+        currentUser = session.user;
+        
+        // Get initial status
+        const { data: profile } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+            
+        if (profile) {
+            currentUser.status = profile.status; // Store status in user object
+            updateUserStatusDisplay(profile.status);
+        }
+        
+        // Initialize real-time updates and periodic check
+        initializeStatusCheck();
+        
+        await Promise.all([
+            loadUserGameProgress(currentUser.id),
+            loadCustomLists()
+        ]);
+        updateAuthUI();
+    } else {
+        // Clear interval if it exists
+        if (window.statusCheckInterval) {
+            clearInterval(window.statusCheckInterval);
+        }
+        updateUserStatusDisplay(null);
+    }
 }
 
 function handlePremiumCelebrationComplete() {
