@@ -5233,11 +5233,15 @@ function handleLevelCompletion() {
     
     // Calculate and update stats
     const levelTime = Date.now() - currentGame.levelStartTime;
-    const mistakes = currentGame.wrongStreak;
-    const streak = currentGame.correctAnswers;
+    const mistakes = currentGame.wrongStreak || 0; // Ensure we don't send undefined
+    const streak = currentGame.correctAnswers || 0; // Ensure we don't send undefined
     
     if (currentUser) {
-        updatePlayerStats(levelTime, mistakes, streak).catch(console.error);
+        updatePlayerStats(levelTime, mistakes, streak)
+            .catch(error => {
+                console.error('Stats update failed:', error);
+                // Continue game flow despite stats error
+            });
     }
     
     // Handle custom practice mode first
@@ -7653,9 +7657,7 @@ async function showLeaderboard() {
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
     
-    console.log('Updating stats:', { levelTime, mistakes, currentStreak }); // Debug line
-    
-    const { data, error } = await supabaseClient
+    const { error } = await supabaseClient
         .from('player_stats')
         .upsert({
             user_id: currentUser.id,
@@ -7670,8 +7672,6 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (error) {
         console.error('Error updating player stats:', error);
     }
-    
-    console.log('Update result:', data); // Debug line
 }
 
 </script>
