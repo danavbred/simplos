@@ -1387,23 +1387,19 @@ body {
 }
 
 .leaderboard-entry {
-    display: grid;
-    grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
-    padding: 1rem;
-    border-radius: 10px;
-    margin-bottom: 0.5rem;
-    transition: transform 0.3s ease, background-color 0.3s ease;
-    background: rgba(255,255,255,0.05);
+    transition: 
+        transform 1s ease, 
+        background-color 1s ease;
 }
 
 .leaderboard-entry.moving-up {
     background: rgba(76, 175, 80, 0.2);
-    transform: translateY(-10px);
+    transform: translateY(-100%);
 }
 
 .leaderboard-entry.moving-down {
     background: rgba(244, 67, 54, 0.2);
-    transform: translateY(10px);
+    transform: translateY(100%);
 }
 
 .leaderboard-entry:hover {
@@ -1427,6 +1423,8 @@ body {
 .rank-3 {
     color: var(--bronze);
 }
+
+
 
 @media (max-width: 768px) {
     .leaderboard-container {
@@ -7638,15 +7636,63 @@ document.querySelectorAll('.home-button').forEach(button => {
 });
 
 async function showLeaderboard() {
-    // Ensure screen is shown first
+    console.log('Leaderboard function called');
     showScreen('leaderboard-screen');
 
     const entriesContainer = document.getElementById('leaderboard-entries');
     
-    // Ensure container exists
     if (!entriesContainer) {
         console.error('Leaderboard entries container not found');
         return;
+    }
+
+    async function renderLeaderboard(leaderboard) {
+        // Sort leaderboard to ensure correct order
+        const sortedLeaderboard = leaderboard.sort((a, b) => 
+            b.avg_completion_time_seconds - a.avg_completion_time_seconds
+        );
+
+        // Create a new document fragment for smooth updates
+        const fragment = document.createDocumentFragment();
+
+        sortedLeaderboard.forEach((entry, index) => {
+            const existingEntry = entriesContainer.querySelector(`[data-user-id="${entry.user_id}"]`);
+            
+            const entryDiv = document.createElement('div');
+            entryDiv.className = `leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}`;
+            entryDiv.dataset.userId = entry.user_id;
+            
+            entryDiv.innerHTML = `
+                <div>${index + 1}</div>
+                <div>${entry.username || 'Anonymous'}</div>
+                <div>${(entry.avg_completion_time_seconds || 0).toFixed(2)}s</div>
+                <div>${entry.best_streak || 0}</div>
+                <div>${entry.total_mistakes || 0}</div>
+            `;
+
+            // Detect position change
+            if (existingEntry) {
+                const oldIndex = Array.from(entriesContainer.children).indexOf(existingEntry);
+                
+                if (oldIndex !== index) {
+                    // Add movement classes for animation
+                    entryDiv.classList.add(oldIndex > index ? 'moving-up' : 'moving-down');
+                }
+            }
+
+            fragment.appendChild(entryDiv);
+        });
+
+        // Clear and repopulate with animated entries
+        entriesContainer.innerHTML = '';
+        entriesContainer.appendChild(fragment);
+
+        // Remove movement classes after animation
+        setTimeout(() => {
+            document.querySelectorAll('.leaderboard-entry').forEach(entry => {
+                entry.classList.remove('moving-up', 'moving-down');
+            });
+        }, 1000);
     }
 
     try {
@@ -7654,85 +7700,41 @@ async function showLeaderboard() {
             .from('player_leaderboard')
             .select('*')
             .limit(50)
-            .order('avg_completion_time_seconds', { ascending: true });
+            .order('avg_completion_time_seconds', { ascending: false });
             
-        if (error) {
-            console.error('Error fetching leaderboard:', error);
-            entriesContainer.innerHTML = '<p>Error loading leaderboard. Please try again.</p>';
-            return;
-        }
+        if (error) throw error;
 
-        // Clear previous entries
-        entriesContainer.innerHTML = '';
-
-        // Render leaderboard entries
-        leaderboard.forEach((entry, index) => {
-            const isCurrentUser = currentUser && entry.user_id === currentUser.id;
-            const rankClass = index < 3 ? `rank-${index + 1}` : '';
-            
-            const entryDiv = document.createElement('div');
-            entryDiv.className = `leaderboard-entry ${isCurrentUser ? 'you' : ''} ${rankClass}`;
-            
-            entryDiv.innerHTML = `
-                <div>${index + 1}</div>
-                <div>${isCurrentUser ? 'YOU' : (entry.username || 'Anonymous')}</div>
-                <div>${(entry.avg_completion_time_seconds || 0).toFixed(2)}s</div>
-                <div>${entry.best_streak || 0}</div>
-                <div>${entry.total_mistakes || 0}</div>
-            `;
-            
-            entriesContainer.appendChild(entryDiv);
-        });
+        await renderLeaderboard(leaderboard);
 
         // Real-time subscription
         const leaderboardSubscription = supabaseClient
-            .channel('leaderboard-updates')
+            .channel('leaderboard-real-time')
             .on('postgres_changes', 
                 { 
                     event: '*', 
                     schema: 'public', 
-                    table: 'player_leaderboard' 
+                    table: 'player_stats'
                 }, 
                 async (payload) => {
-                    // Re-fetch leaderboard on any change
                     const { data: updatedLeaderboard } = await supabaseClient
                         .from('player_leaderboard')
                         .select('*')
                         .limit(50)
-                        .order('avg_completion_time_seconds', { ascending: true });
+                        .order('avg_completion_time_seconds', { ascending: false });
                     
-                    // Clear and re-render
-                    entriesContainer.innerHTML = '';
-                    updatedLeaderboard.forEach((entry, index) => {
-                        const isCurrentUser = currentUser && entry.user_id === currentUser.id;
-                        const rankClass = index < 3 ? `rank-${index + 1}` : '';
-                        
-                        const entryDiv = document.createElement('div');
-                        entryDiv.className = `leaderboard-entry ${isCurrentUser ? 'you' : ''} ${rankClass}`;
-                        
-                        entryDiv.innerHTML = `
-                            <div>${index + 1}</div>
-                            <div>${isCurrentUser ? 'YOU' : (entry.username || 'Anonymous')}</div>
-                            <div>${(entry.avg_completion_time_seconds || 0).toFixed(2)}s</div>
-                            <div>${entry.best_streak || 0}</div>
-                            <div>${entry.total_mistakes || 0}</div>
-                        `;
-                        
-                        entriesContainer.appendChild(entryDiv);
-                    });
+                    await renderLeaderboard(updatedLeaderboard);
                 }
             )
             .subscribe();
 
-        // Store subscription on the screen for later cleanup
         const leaderboardScreen = document.getElementById('leaderboard-screen');
         if (leaderboardScreen) {
             leaderboardScreen.dataset.subscription = leaderboardSubscription;
         }
 
     } catch (error) {
-        console.error('Unexpected error in showLeaderboard:', error);
-        entriesContainer.innerHTML = '<p>An unexpected error occurred. Please try again.</p>';
+        console.error('Leaderboard error:', error);
+        entriesContainer.innerHTML = `<p>Error loading leaderboard: ${error.message}</p>`;
     }
 }
 
