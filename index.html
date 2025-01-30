@@ -5241,23 +5241,16 @@ function handleLevelCompletion() {
     
     // Calculate and update stats
     const levelTime = Date.now() - currentGame.levelStartTime;
-const mistakes = currentGame.wrongStreak;
-const streak = currentGame.correctAnswers;
-
-console.log('Level completed with:', {
-    levelTime,
-    mistakes,
-    streak,
-    isUserLoggedIn: !!currentUser
-});
-
-if (currentUser) {
-    try {
-        await updatePlayerStats(levelTime, mistakes, streak);
-    } catch (error) {
-        console.error('Failed to update stats:', error);
+    const mistakes = currentGame.wrongStreak || 0; // Ensure we don't send undefined
+    const streak = currentGame.correctAnswers || 0; // Ensure we don't send undefined
+    
+    if (currentUser) {
+        updatePlayerStats(levelTime, mistakes, streak)
+            .catch(error => {
+                console.error('Stats update failed:', error);
+                // Continue game flow despite stats error
+            });
     }
-}
     
     // Handle custom practice mode first
     if (currentGame.isCustomPractice) {
