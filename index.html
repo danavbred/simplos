@@ -1449,6 +1449,24 @@ body {
     }
 }
 
+.status-refresh-btn {
+    background: none;
+    border: none;
+    color: var(--text);
+    margin-left: 0.5rem;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.status-refresh-btn:hover {
+    opacity: 1;
+}
+
+.status-refresh-btn i {
+    font-size: 1rem;
+}
+
 /* Shop Styles */
 .shop-container {
   display: flex;
@@ -2936,6 +2954,9 @@ body {
     <span class="user-status"></span>
     <div class="user-tier">
         <span class="tier-text"></span>
+        <button class="status-refresh-btn" id="statusRefreshBtn" style="display: none;">
+    <i class="fas fa-sync-alt"></i>
+</button>
     </div>
 </div>
 
@@ -3670,6 +3691,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function initializeStatusCheck() {
+    if (!currentUser) return;
+    
+    // Initial setup of realtime subscription
+    setupUserStatusSubscription();
+    
+    // Periodic status check every 30 seconds as fallback
+    const statusCheckInterval = setInterval(async () => {
+        const { data, error } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+            
+        if (data && !error) {
+            updateUserStatusDisplay(data.status);
+            
+            // If status is premium and it's a new change, show celebration
+            if (data.status === 'premium' && currentUser.status !== 'premium') {
+                showPremiumCelebration();
+                currentUser.status = 'premium';
+            }
+        }
+    }, 5000); // Check every 30 seconds
+    
+    // Store interval ID for cleanup
+    window.statusCheckInterval = statusCheckInterval;
+}
+
 async function loadUserGameProgress(userId) {
     try {
         let progressData;
@@ -3985,15 +4035,6 @@ function updateAuthUI() {
     }
 }
 
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        await loadUserGameProgress(currentUser.id);
-        updateAuthUI();
-    }
-}
 
 
 // Game Constants & State Management
@@ -6591,17 +6632,38 @@ function saveListChanges(listId, wordList, listItem) {
     `;
 }
 
-// Add to checkExistingSession()
 async function checkExistingSession() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     
     if (session) {
         currentUser = session.user;
+        
+        // Get initial status
+        const { data: profile } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+            
+        if (profile) {
+            currentUser.status = profile.status; // Store status in user object
+            updateUserStatusDisplay(profile.status);
+        }
+        
+        // Initialize real-time updates and periodic check
+        initializeStatusCheck();
+        
         await Promise.all([
             loadUserGameProgress(currentUser.id),
-            loadCustomLists() // Add this
+            loadCustomLists()
         ]);
         updateAuthUI();
+    } else {
+        // Clear interval if it exists
+        if (window.statusCheckInterval) {
+            clearInterval(window.statusCheckInterval);
+        }
+        updateUserStatusDisplay(null);
     }
 }
 
@@ -7536,15 +7598,24 @@ function updateUserStatusDisplay(status) {
         newUserTier.className = 'user-tier';
         const tierText = document.createElement('span');
         tierText.className = 'tier-text';
+        const refreshBtn = document.createElement('button');
+        refreshBtn.id = 'statusRefreshBtn';
+        refreshBtn.className = 'status-refresh-btn';
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
         newUserTier.appendChild(tierText);
+        newUserTier.appendChild(refreshBtn);
         userInfo.appendChild(newUserTier);
         return updateUserStatusDisplay(status);
     }
     
     const tierText = userTier.querySelector('.tier-text');
+    const refreshBtn = userTier.querySelector('#statusRefreshBtn');
     
     // Clear existing classes
     tierText.classList.remove('unregistered', 'trial', 'pending', 'premium');
+    
+    // Hide refresh button by default
+    refreshBtn.style.display = 'none';
     
     if (!currentUser) {
         tierText.classList.add('unregistered');
@@ -7558,6 +7629,8 @@ function updateUserStatusDisplay(status) {
             case 'pending':
                 tierText.classList.add('pending');
                 tierText.textContent = 'Premium Pending Confirmation';
+                // Show refresh button only for pending status
+                refreshBtn.style.display = 'inline-block';
                 break;
             case 'premium':
                 tierText.classList.add('premium');
@@ -7571,22 +7644,68 @@ function updateUserStatusDisplay(status) {
     
     // Ensure visibility
     userTier.style.display = 'block';
+
+    // Attach event listener for refresh button
+    refreshBtn.onclick = manualStatusRefresh;
+}
+
+async function manualStatusRefresh() {
+    if (!currentUser) return;
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+
+        if (error) throw error;
+
+        if (data && data.status === 'premium') {
+            updateUserStatusDisplay(data.status);
+            showPremiumUpgradeConfirmation();
+        }
+    } catch (error) {
+        console.error('Manual status refresh failed:', error);
+    }
+}
+
+function showPremiumUpgradeConfirmation() {
+    const popup = document.createElement('div');
+    popup.className = 'confirmation-popup show';
+    popup.innerHTML = `
+        <h2>Congratulations!</h2>
+        <p>Your account has been upgraded to Premium!</p>
+        <button onclick="this.closest('.confirmation-popup').remove()">Continue</button>
+    `;
+    document.body.appendChild(popup);
 }
 
 function setupUserStatusSubscription() {
     if (!currentUser) return;
 
     const subscription = supabaseClient
-        .channel('public:user_profiles')
-        .on('UPDATE', 
-            payload => {
-                if (payload.new && payload.new.id === currentUser.id) {
-                    console.log('Profile updated:', payload.new.status); // Debug log
-                    updateUserStatusDisplay(payload.new.status);
+        .channel('user-status-' + currentUser.id)  // Unique channel per user
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'user_profiles',
+            filter: `id=eq.${currentUser.id}`
+        }, 
+        payload => {
+            console.log('Profile update received:', payload.new); // Debug log
+            if (payload.new && payload.new.status) {
+                updateUserStatusDisplay(payload.new.status);
+                
+                // If status changed to premium, trigger celebration
+                if (payload.new.status === 'premium') {
+                    showPremiumCelebration();
                 }
             }
-        )
-        .subscribe();
+        })
+        .subscribe(status => {
+            console.log('Subscription status:', status); // Debug log
+        });
 
     return subscription;
 }
