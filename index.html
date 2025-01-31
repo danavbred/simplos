@@ -2197,6 +2197,11 @@ body {
     opacity: 0.3;
 }
 
+@keyframes blinkRed {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: var(--error); }
+}
+
 @keyframes particleBurst {
     0% { 
         transform: translate(0, 0) scale(1); 
@@ -3019,11 +3024,14 @@ body {
 <div id="stage-screen" class="screen">
     <div class="particle-container"></div>
     <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">
-        <button class="navigation-button home-button" onclick="navigateHome()">
-            <i class="fas fa-home navigation-icon"></i>
+    <button class="navigation-button home-button" onclick="navigateHome()">
+        <i class="fas fa-home navigation-icon"></i>
     </button>
     <button class="navigation-button reset-button" onclick="handleResetProgress()">
         <i class="fas fa-trash-alt navigation-icon"></i>
+    </button>
+    <button class="navigation-button fullscreen-button" onclick="toggleFullScreen()">
+        <i class="fas fa-expand navigation-icon"></i>
     </button>
 </div>
     <div class="stage-container">
@@ -4526,7 +4534,6 @@ function showSetScreen(stageId) {
 }
 
 function showLevelScreen(setId) {
-    requestFullScreen();
     gameState.currentSet = setId;
     const container = document.getElementById('level-container');
     container.innerHTML = '';
@@ -5611,18 +5618,6 @@ function stopLevelAndGoBack() {
     showSetScreen(gameState.currentStage);
 }
 
-function requestFullScreen() {
-    const docElm = document.documentElement;
-    if (docElm.requestFullscreen) {
-        docElm.requestFullscreen();
-    } else if (docElm.mozRequestFullScreen) { // Firefox
-        docElm.mozRequestFullScreen();
-    } else if (docElm.webkitRequestFullScreen) { // Chrome, Safari and Opera
-        docElm.webkitRequestFullScreen();
-    } else if (docElm.msRequestFullscreen) { // Internet Explorer/Edge
-        docElm.msRequestFullscreen();
-    }
-}
 
 function showGameOverOverlay() {
     clearTimer();
@@ -5680,51 +5675,101 @@ function updateTimerCircle(timeRemaining, totalTime) {
 }
 
 function handleResetProgress() { 
-    if (currentUser) {
-        // Reset Supabase progress
-        supabaseClient
-            .from('game_progress')
-            .update({
-                stage: 1,
-                set_number: 1,
-                level: 1,
-                coins: 0,
-                perks: {},
-                unlocked_sets: { "1": [1] },
-                unlocked_levels: { "1_1": [1] },
-                perfect_levels: [],
-                completed_levels: []
-            })
-            .eq('user_id', currentUser.id)
-            .then(({ error }) => {
-                if (error) console.error('Error resetting progress:', error);
-            });
+    if (!isFirstResetAttempt) {
+        // Reset game state
+        gameState.currentStage = 1;
+        gameState.currentSet = 1;
+        gameState.currentLevel = 1;
+        gameState.coins = 0;
+        gameState.unlockedSets = { "1": new Set([1]) };
+        gameState.unlockedLevels = { "1_1": new Set([1]) };
+        gameState.perfectLevels = new Set();
+        gameState.completedLevels = new Set();
+        gameState.perks = {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        };
+
+        // Clear localStorage
+        localStorage.removeItem('simploxProgress');
+        localStorage.removeItem('simploxCustomCoins');
+        
+        // Update UI
+        updatePerkCounts();
+        updateAllCoinDisplays();
+        showScreen('welcome-screen');
+        
+        // Reset the first attempt flag
+        isFirstResetAttempt = true;
+        return;
     }
 
-    // Reset local game state
-    gameState.currentStage = 1;
-    gameState.currentSet = 1;
-    gameState.currentLevel = 1;
-    gameState.coins = 0;
-    gameState.unlockedSets = { "1": new Set([1]) };
-    gameState.unlockedLevels = { "1_1": new Set([1]) };
-    gameState.perfectLevels = new Set();
-    gameState.completedLevels = new Set();
-    gameState.perks = {
-        timeFreeze: 0,
-        skip: 0,
-        clue: 0,
-        reveal: 0
-    };
+    // First attempt - show warning
+    const resetButton = document.querySelector('.reset-button');
+    resetButton.classList.add('warning');
+    isFirstResetAttempt = false;
 
-    // Clear localStorage
-    localStorage.removeItem('simploxProgress');
-    localStorage.removeItem('simploxCustomCoins');
+    // Clear warning after animation
+    setTimeout(() => {
+        resetButton.classList.remove('warning');
+    }, 1000);
+
+    // Reset the attempt after 10 seconds
+    if (resetProgressTimeout) {
+        clearTimeout(resetProgressTimeout);
+    }
     
-    // Update UI
-    updatePerkCounts();
-    updateAllCoinDisplays();
-    showScreen('welcome-screen');
+    resetProgressTimeout = setTimeout(() => {
+        isFirstResetAttempt = true;
+    }, 10000);
+}
+
+function toggleFullScreen() {
+    const button = document.querySelector('.fullscreen-button i');
+    
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen()
+            .then(() => {
+                button.classList.remove('fa-expand');
+                button.classList.add('fa-compress');
+            })
+            .catch(err => {
+                console.log(`Error attempting to enable fullscreen: ${err.message}`);
+            });
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen()
+                .then(() => {
+                    button.classList.remove('fa-compress');
+                    button.classList.add('fa-expand');
+                })
+                .catch(err => {
+                    console.log(`Error attempting to exit fullscreen: ${err.message}`);
+                });
+        }
+    }
+}
+
+async function handleLogout() {
+    try {
+        const { error } = await supabaseClient.auth.signOut();
+        
+        if (error) {
+            console.error('Supabase logout error:', error.message);
+        }
+
+        currentUser = null;
+        updateAuthUI();
+        showScreen('welcome-screen');
+        
+        // Reload game progress from localStorage
+        initializeGame();
+
+    } catch (error) {
+        console.error('Unexpected error during logout:', error);
+    }
 }
 
 
@@ -5767,7 +5812,6 @@ function handleRestartLevel() {
 }
 
 function showStagesFromMenu() {
-    requestFullScreen();
     showScreen('stage-screen');
 }
 
@@ -5831,7 +5875,6 @@ function findFurthestProgression() {
 
 
 function startGame() {
-    requestFullScreen();
     
     if (!gameState.unlockedSets[1] || !gameState.unlockedLevels['1_1']) {
         gameState.unlockedSets[1] = new Set([1]);
@@ -6229,7 +6272,6 @@ function updateListsDisplay() {
 }
 
 function startCustomListPractice(listId) {
-    requestFullScreen();
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
