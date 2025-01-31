@@ -3492,7 +3492,13 @@ async function handleSignup() {
     }
 
     try {
-        // Step 1: Sign up with Supabase Auth
+        // Additional validation
+        if (username.length < 3) {
+            alert('Username must be at least 3 characters long');
+            return;
+        }
+
+        // Sign up with Supabase Auth
         const { data: authData, error: authError } = await supabaseClient.auth.signUp({
             email,
             password,
@@ -3504,27 +3510,39 @@ async function handleSignup() {
             }
         });
 
-        if (authError) throw authError;
-
-        // Step 2: Create user profile
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .insert([{
-                id: authData.user.id,
-                username: username,
-                status: 'free',
-                role: 'student'
-            }]);
-
-        if (profileError) {
-            console.error('Profile creation error:', profileError);
-            // Continue anyway as the auth was successful
+        if (authError) {
+            console.error('Auth Signup Error:', authError);
+            throw authError;
         }
 
-        // Step 3: Initialize game progress
+        if (!authData.user) {
+            throw new Error('User creation failed');
+        }
+
+        // Explicitly create user profile with more robust handling
+        const { data: profileData, error: profileError } = await supabaseClient
+            .from('user_profiles')
+            .upsert({
+                id: authData.user.id,
+                username: username,
+                email: email,
+                role: 'student',
+                status: 'free'
+            }, {
+                onConflict: 'id'
+            })
+            .select()
+            .single();
+
+        if (profileError) {
+            console.error('Profile Creation Error:', profileError);
+            throw profileError;
+        }
+
+        // Initialize game progress
         const { error: progressError } = await supabaseClient
             .from('game_progress')
-            .insert([{
+            .upsert({
                 user_id: authData.user.id,
                 stage: 1,
                 set_number: 1,
@@ -3535,50 +3553,43 @@ async function handleSignup() {
                 unlocked_levels: { "1_1": [1] },
                 perfect_levels: [],
                 completed_levels: []
-            }]);
+            }, {
+                onConflict: 'user_id'
+            });
 
         if (progressError) {
-            console.error('Progress initialization error:', progressError);
-            // Continue anyway
+            console.error('Progress Initialization Error:', progressError);
+            throw progressError;
         }
 
-        // Step 4: Initialize player stats
-        const { error: statsError } = await supabaseClient
-            .from('player_stats')
-            .insert([{
-                user_id: authData.user.id,
-                total_levels_completed: 0,
-                unique_words_practiced: 0
-            }]);
-
-        if (statsError) {
-            console.error('Stats initialization error:', statsError);
-            // Continue anyway
-        }
-
-        // Step 5: Auto-login
+        // Auto-login after successful signup
         const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
             email,
             password
         });
 
-        if (loginError) throw loginError;
+        if (loginError) {
+            console.error('Login Error:', loginError);
+            throw loginError;
+        }
 
         currentUser = loginData.user;
         await Promise.all([
             loadCustomLists(),
             loadUserGameProgress(currentUser.id)
         ]);
+        
         updateAuthUI();
         showScreen('welcome-screen');
 
     } catch (error) {
-        console.error('Detailed signup error:', error);
-        if (error.message.includes('duplicate key')) {
-            alert('This username or email is already taken. Please try another.');
-        } else {
-            alert('Signup error: ' + error.message);
-        }
+        console.error('Comprehensive Signup Error:', {
+            message: error.message,
+            code: error.code,
+            details: error.details
+        });
+        
+        alert(`Signup failed: ${error.message}. Please try again.`);
     }
 }
 
