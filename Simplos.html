@@ -7724,12 +7724,10 @@ async function showLeaderboard() {
         await fetchAndRenderLeaderboard();
 
         // Set up periodic polling
-        const pollInterval = setInterval(fetchAndRenderLeaderboard, 3000); // Poll every 3 seconds
+        const pollInterval = setInterval(fetchAndRenderLeaderboard, 3000);
 
-        // Set up real-time subscription as backup
-        const channel = supabaseClient.channel('leaderboard-updates');
-        
-        channel
+        // Set up real-time subscription
+        const channel = supabaseClient.channel('leaderboard-updates')
             .on('postgres_changes', 
                 { 
                     event: '*', 
@@ -7775,15 +7773,10 @@ function cleanupLeaderboard() {
     }
 }
 
+
+
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
-
-    console.log('Updating stats:', {
-        levelTime,
-        mistakes,
-        currentStreak,
-        words: currentGame.words.length
-    });
 
     try {
         const { data: currentStats, error: fetchError } = await supabaseClient
@@ -7802,21 +7795,20 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
             unique_words_practiced: currentStats?.unique_words_practiced 
                 ? currentStats.unique_words_practiced + currentGame.words.length
                 : currentGame.words.length,
-            last_updated: new Date().toISOString()
+            best_streak: Math.max(currentStreak, currentStats?.best_streak || 0),
+            total_mistakes: (currentStats?.total_mistakes || 0) + mistakes,
+            last_updated: new Date().toISOString(),
+            last_practice_date: new Date().toISOString()
         };
-
-        console.log('Sending update with data:', updateData);
 
         const { error: updateError } = await supabaseClient
             .from('player_stats')
             .upsert(updateData, {
                 onConflict: 'user_id',
-                returning: 'minimal' // For faster response
+                returning: 'minimal'
             });
 
         if (updateError) throw updateError;
-
-        console.log('Stats update successful');
 
     } catch (error) {
         console.error('Error updating player stats:', error);
