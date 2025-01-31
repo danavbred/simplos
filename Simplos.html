@@ -3479,7 +3479,7 @@ async function handleSignup() {
     }
 
     try {
-        // Sign up with Supabase Auth
+        // Step 1: Sign up with Supabase Auth
         const { data: authData, error: authError } = await supabaseClient.auth.signUp({
             email,
             password,
@@ -3493,22 +3493,22 @@ async function handleSignup() {
 
         if (authError) throw authError;
 
-        // Explicitly create user profile
+        // Step 2: Create user profile
         const { error: profileError } = await supabaseClient
             .from('user_profiles')
             .insert([{
                 id: authData.user.id,
                 username: username,
-                email: email,
-                status: 'free'
-            }])
-            .single();
+                status: 'free',
+                role: 'student'
+            }]);
 
-        if (profileError && profileError.code !== '23505') { // Ignore unique constraint violation
-            throw profileError;
+        if (profileError) {
+            console.error('Profile creation error:', profileError);
+            // Continue anyway as the auth was successful
         }
 
-        // Initialize game progress
+        // Step 3: Initialize game progress
         const { error: progressError } = await supabaseClient
             .from('game_progress')
             .insert([{
@@ -3524,9 +3524,26 @@ async function handleSignup() {
                 completed_levels: []
             }]);
 
-        if (progressError) throw progressError;
+        if (progressError) {
+            console.error('Progress initialization error:', progressError);
+            // Continue anyway
+        }
 
-        // Auto-login after successful signup
+        // Step 4: Initialize player stats
+        const { error: statsError } = await supabaseClient
+            .from('player_stats')
+            .insert([{
+                user_id: authData.user.id,
+                total_levels_completed: 0,
+                unique_words_practiced: 0
+            }]);
+
+        if (statsError) {
+            console.error('Stats initialization error:', statsError);
+            // Continue anyway
+        }
+
+        // Step 5: Auto-login
         const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
             email,
             password
@@ -3543,8 +3560,12 @@ async function handleSignup() {
         showScreen('welcome-screen');
 
     } catch (error) {
-        console.error('Signup error:', error);
-        alert(error.message);
+        console.error('Detailed signup error:', error);
+        if (error.message.includes('duplicate key')) {
+            alert('This username or email is already taken. Please try another.');
+        } else {
+            alert('Signup error: ' + error.message);
+        }
     }
 }
 
@@ -7702,8 +7723,10 @@ async function showLeaderboard() {
                 
             if (error) {
                 console.error('Leaderboard fetch error:', error);
-                return;
+                throw error;
             }
+
+            console.log('Received leaderboard data:', leaderboard);
 
             if (!leaderboard || leaderboard.length === 0) {
                 entriesContainer.innerHTML = '<p>No leaderboard data available yet. Be the first to play!</p>';
@@ -7723,31 +7746,15 @@ async function showLeaderboard() {
         // Initial load
         await fetchAndRenderLeaderboard();
 
-        // Set up periodic polling
+        // Set up polling
         const pollInterval = setInterval(fetchAndRenderLeaderboard, 3000);
 
-        // Set up real-time subscription
-        const channel = supabaseClient.channel('leaderboard-updates')
-            .on('postgres_changes', 
-                { 
-                    event: '*', 
-                    schema: 'public', 
-                    table: 'player_stats'
-                }, 
-                fetchAndRenderLeaderboard
-            )
-            .subscribe();
-
-        // Store both channel and interval for cleanup
+        // Store interval for cleanup
         const leaderboardScreen = document.getElementById('leaderboard-screen');
         if (leaderboardScreen) {
-            if (leaderboardScreen.dataset.channel) {
-                supabaseClient.removeChannel(leaderboardScreen.dataset.channel);
-            }
             if (leaderboardScreen.dataset.pollInterval) {
                 clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
             }
-            leaderboardScreen.dataset.channel = channel;
             leaderboardScreen.dataset.pollInterval = pollInterval;
         }
 
@@ -7773,10 +7780,15 @@ function cleanupLeaderboard() {
     }
 }
 
-
-
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
+
+    console.log('Updating stats:', {
+        levelTime,
+        mistakes,
+        currentStreak,
+        words: currentGame.words.length
+    });
 
     try {
         const { data: currentStats, error: fetchError } = await supabaseClient
@@ -7795,20 +7807,21 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
             unique_words_practiced: currentStats?.unique_words_practiced 
                 ? currentStats.unique_words_practiced + currentGame.words.length
                 : currentGame.words.length,
-            best_streak: Math.max(currentStreak, currentStats?.best_streak || 0),
-            total_mistakes: (currentStats?.total_mistakes || 0) + mistakes,
-            last_updated: new Date().toISOString(),
-            last_practice_date: new Date().toISOString()
+            last_updated: new Date().toISOString()
         };
+
+        console.log('Sending update with data:', updateData);
 
         const { error: updateError } = await supabaseClient
             .from('player_stats')
             .upsert(updateData, {
                 onConflict: 'user_id',
-                returning: 'minimal'
+                returning: 'minimal' // For faster response
             });
 
         if (updateError) throw updateError;
+
+        console.log('Stats update successful');
 
     } catch (error) {
         console.error('Error updating player stats:', error);
