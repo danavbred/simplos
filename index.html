@@ -8,7 +8,7 @@
     <title>Simplos</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="https://unpkg.com/@supabase/supabase-js@2.39.7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>    
     <script src="vocabs.js"></script>
    <style>
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
@@ -3297,6 +3297,17 @@ body {
 
 <script>
 
+    const { createClient } = supabase;
+const supabaseClient = createClient(
+    'https://mczfgzffyyyacisrccqb.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo',
+    {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+    }
+);
+
     document.addEventListener('DOMContentLoaded', () => {
     const gameAssets = {
         stages: {}, // Cache stage data
@@ -3426,16 +3437,34 @@ document.addEventListener('DOMContentLoaded', () => {
     gameInit.init();
 });
 
-const { createClient } = supabase;
-const supabaseClient = createClient(
-    'https://mczfgzffyyyacisrccqb.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo',
-    {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
+
+
+// Add this new function to handle initial user data setup
+async function initializeUserProfile(userId) {
+    const { data: profile, error: profileError } = await supabaseClient
+        .from('user_profiles')
+        .select()
+        .eq('id', userId)
+        .single();
+
+    if (profileError || !profile) {
+        // Profile doesn't exist, create it
+        const { error: insertError } = await supabaseClient
+            .from('user_profiles')
+            .insert([{
+                id: userId,
+                username: currentUser.user_metadata?.username || currentUser.email?.split('@')[0],
+                role: 'student',
+                status: 'free'
+            }]);
+
+        if (insertError) {
+            throw insertError;
+        }
     }
-);
+}
+
+
 
 async function showSetScreen(stageId) {
     gameState.currentStage = stageId;
@@ -3470,12 +3499,186 @@ async function showSetScreen(stageId) {
     showScreen('set-screen');
 }
 
+async function initializeAuth() {
+    // Set up auth state listener
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        console.log('Auth state changed:', event, 'Session:', session);
+        
+        if (event === 'SIGNED_IN') {
+            if (session?.user) {
+                currentUser = session.user;
+                console.log('Setting current user:', currentUser);
+                
+                try {
+                    // Check if profile exists
+                    const { data: existingProfile, error: checkError } = await supabaseClient
+                        .from('user_profiles')
+                        .select('*')
+                        .eq('id', currentUser.id)
+                        .single();
+                    
+                    console.log('Profile check:', { existingProfile, checkError });
 
-// Event listener initialization
-document.addEventListener('DOMContentLoaded', async () => {
-    await checkExistingSession();
-    initializeGame();
-    initializeParticles(document.getElementById('welcome-screen'));
+                    if (!existingProfile) {
+                        // Create new profile with explicit values
+                        const profileData = {
+                            id: currentUser.id,
+                            username: currentUser.user_metadata?.username || currentUser.email?.split('@')[0],
+                            role: 'student',
+                            status: 'free',
+                            created_at: new Date().toISOString()
+                        };
+                        
+                        console.log('Attempting to create profile with:', profileData);
+                        
+                        const { data: newProfile, error: profileError } = await supabaseClient
+                            .from('user_profiles')
+                            .insert([profileData])
+                            .select()
+                            .single();
+                                    
+                        console.log('Profile creation result:', { newProfile, profileError });
+                        
+                        if (profileError) {
+                            console.error('Detailed profile creation error:', {
+                                error: profileError,
+                                sql: profileError.details,
+                                hint: profileError.hint,
+                                code: profileError.code
+                            });
+                            throw profileError;
+                        }
+
+                        // If profile created successfully, create game progress
+                        const { error: progressError } = await supabaseClient
+                            .from('game_progress')
+                            .insert({
+                                user_id: currentUser.id,
+                                stage: 1,
+                                set_number: 1,
+                                level: 1,
+                                coins: 0,
+                                perks: {},
+                                unlocked_sets: { "1": [1] },
+                                unlocked_levels: { "1_1": [1] }
+                            });
+
+                        console.log('Game progress creation result:', progressError ? 'Failed' : 'Success');
+                        if (progressError) throw progressError;
+
+                        // Initialize player stats
+                        const { error: statsError } = await supabaseClient
+                            .from('player_stats')
+                            .insert({
+                                user_id: currentUser.id,
+                                total_levels_completed: 0,
+                                unique_words_practiced: 0
+                            });
+
+                        console.log('Stats creation:', statsError ? 'Failed' : 'Success');
+                        if (statsError) throw statsError;
+                    }
+                    
+                    // Always try to load user data and update UI
+                    await loadUserGameProgress(currentUser.id);
+                    await loadCustomLists();
+                    updateAuthUI();
+                    showScreen('welcome-screen');
+                    
+                } catch (error) {
+                    console.error('Full error in auth state change:', {
+                        message: error.message,
+                        details: error.details,
+                        hint: error.hint,
+                        code: error.code
+                    });
+                    handleLogout();
+                }
+            }
+        } else if (event === 'SIGNED_OUT') {
+            console.log('User signed out');
+            currentUser = null;
+            gameState = {
+                currentStage: 1,
+                currentSet: 1,
+                currentLevel: 1,
+                coins: 0,
+                perks: {
+                    timeFreeze: 0,
+                    skip: 0,
+                    clue: 0,
+                    reveal: 0
+                },
+                unlockedSets: {},
+                unlockedLevels: {},
+                perfectLevels: new Set(),
+                completedLevels: new Set()
+            };
+            updateAuthUI();
+            showScreen('welcome-screen');
+        }
+    });
+
+    // Initial session check
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        console.log('Initial session check:', session ? 'Session exists' : 'No session');
+
+        if (session) {
+            currentUser = session.user;
+            console.log('Initial user set:', currentUser);
+
+            const { data: profile, error: profileError } = await supabaseClient
+                .from('user_profiles')
+                .select('status, username')
+                .eq('id', currentUser.id)
+                .single();
+
+            if (profileError) {
+                console.error('Error loading profile:', profileError);
+                throw profileError;
+            }
+
+            if (profile) {
+                currentUser.status = profile.status;
+                updateUserStatusDisplay(profile.status);
+                await Promise.all([
+                    loadUserGameProgress(currentUser.id),
+                    loadCustomLists()
+                ]);
+            }
+            
+            updateAuthUI();
+        } else {
+            console.log('No existing session');
+            currentUser = null;
+            setupDefaultUnlocks();
+            updateAuthUI();
+        }
+    } catch (error) {
+        console.error('Error during initial session check:', error);
+        currentUser = null;
+        updateAuthUI();
+        showScreen('welcome-screen');
+    }
+}
+
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    initializeAuth()
+        .then(() => {
+            initializeGame();
+            updatePerkCounts();
+            const welcomeScreen = document.getElementById('welcome-screen');
+            if (welcomeScreen) {
+                initializeParticles(welcomeScreen);
+            }
+        })
+        .catch(error => {
+            console.error('Initialization error:', error);
+            showScreen('welcome-screen');
+        });
 });
 
 // Auth UI functions
@@ -3486,14 +3689,21 @@ async function handleSignup() {
     const username = document.getElementById('signupUsername').value;
     const password = document.getElementById('signupPassword').value;
 
+    console.log('Starting signup process...', { email, username });
+
     if (!email || !username || !password) {
         alert('All fields are required');
         return;
     }
 
+    if (username.length < 3) {
+        alert('Username must be at least 3 characters long');
+        return;
+    }
+
     try {
-        // Step 1: Sign up with Supabase Auth
-        const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+        console.log('Attempting Supabase signup...');
+        const { data, error } = await supabaseClient.auth.signUp({
             email,
             password,
             options: {
@@ -3504,83 +3714,30 @@ async function handleSignup() {
             }
         });
 
-        if (authError) throw authError;
-
-        // Step 2: Create user profile
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .insert([{
-                id: authData.user.id,
-                username: username,
-                status: 'free',
-                role: 'student'
-            }]);
-
-        if (profileError) {
-            console.error('Profile creation error:', profileError);
-            // Continue anyway as the auth was successful
+        if (error) {
+            console.error('Signup error:', error);
+            throw error;
         }
 
-        // Step 3: Initialize game progress
-        const { error: progressError } = await supabaseClient
-            .from('game_progress')
-            .insert([{
-                user_id: authData.user.id,
-                stage: 1,
-                set_number: 1,
-                level: 1,
-                coins: 0,
-                perks: {},
-                unlocked_sets: { "1": [1] },
-                unlocked_levels: { "1_1": [1] },
-                perfect_levels: [],
-                completed_levels: []
-            }]);
-
-        if (progressError) {
-            console.error('Progress initialization error:', progressError);
-            // Continue anyway
+        if (!data.user) {
+            throw new Error('Signup failed - no user data returned');
         }
 
-        // Step 4: Initialize player stats
-        const { error: statsError } = await supabaseClient
-            .from('player_stats')
-            .insert([{
-                user_id: authData.user.id,
-                total_levels_completed: 0,
-                unique_words_practiced: 0
-            }]);
-
-        if (statsError) {
-            console.error('Stats initialization error:', statsError);
-            // Continue anyway
-        }
-
-        // Step 5: Auto-login
-        const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-        });
-
-        if (loginError) throw loginError;
-
-        currentUser = loginData.user;
-        await Promise.all([
-            loadCustomLists(),
-            loadUserGameProgress(currentUser.id)
-        ]);
-        updateAuthUI();
-        showScreen('welcome-screen');
+        console.log('Signup successful, auth state change will handle initialization');
+        
+        // The rest is handled by onAuthStateChange listener in initializeAuth
+        // No need to duplicate the initialization here
 
     } catch (error) {
-        console.error('Detailed signup error:', error);
-        if (error.message.includes('duplicate key')) {
-            alert('This username or email is already taken. Please try another.');
-        } else {
-            alert('Signup error: ' + error.message);
-        }
+        console.error('Signup failed:', {
+            message: error.message,
+            code: error.code,
+            details: error.details
+        });
+        alert(`Signup failed: ${error.message}. Please try again.`);
     }
 }
+
 
 async function initializeGameProgressForUser(userId) {
     const { error } = await supabaseClient
@@ -3720,7 +3877,6 @@ function setupDefaultUnlocks() {
         }
     }
 }
-
 
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -3996,13 +4152,14 @@ async function loadCustomLists() {
                 id: item.local_id || Date.now(),
                 supabaseId: item.id,
                 name: item.name,
-                words: item.words,
-                translations: item.translations,
-                is_shared: item.is_shared,
+                words: item.words || [],
+                translations: item.translations || [],
+                is_shared: item.is_shared || false,
                 shared_by: item.shared_by
             }));
         }
     } else {
+        // For guest users, load from localStorage
         const savedLists = localStorage.getItem('simploxCustomLists');
         customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
     }
@@ -4030,18 +4187,33 @@ function switchAuthTab(tab) {
 }
 
 function updateAuthUI() {
+    console.log('Updating Auth UI. Current user:', currentUser);
+    
     const authBox = document.getElementById('authBox');
     const userInfo = document.getElementById('userInfo');
     const userEmailElement = document.getElementById('userEmail');
     const logoutButton = document.querySelector('.logout-button');
 
+    if (!authBox || !userInfo || !userEmailElement || !logoutButton) {
+        console.error('Missing UI elements:', {
+            authBox: !!authBox,
+            userInfo: !!userInfo,
+            userEmailElement: !!userEmailElement,
+            logoutButton: !!logoutButton
+        });
+        return;
+    }
+
     if (currentUser) {
+        console.log('User is logged in, updating UI elements');
         authBox.classList.add('hidden');
         userInfo.classList.remove('hidden');
         logoutButton.classList.remove('hidden');
         
         // Display username from metadata if available, fallback to email
-        userEmailElement.textContent = currentUser.user_metadata?.username || currentUser.email;
+        const displayName = currentUser.user_metadata?.username || currentUser.email;
+        userEmailElement.textContent = displayName;
+        console.log('Set display name:', displayName);
         
         // Get and display user status
         supabaseClient
@@ -4049,9 +4221,9 @@ function updateAuthUI() {
             .select('status, username')
             .eq('id', currentUser.id)
             .single()
-            .then(({ data }) => {
+            .then(({ data, error }) => {
+                console.log('Profile fetch result:', { data, error });
                 if (data) {
-                    // If we have a username in the profile, use it
                     if (data.username) {
                         userEmailElement.textContent = data.username;
                     }
@@ -4061,6 +4233,7 @@ function updateAuthUI() {
             .catch(error => console.error('Error fetching user status:', error));
             
     } else {
+        console.log('No user logged in, showing auth box');
         authBox.classList.remove('hidden');
         userInfo.classList.add('hidden');
         logoutButton.classList.add('hidden');
@@ -7696,19 +7869,10 @@ function skipUpgrade() {
 
 function updateUserStatusDisplay(status) {
     const userTier = document.querySelector('.user-tier');
-    if (!userTier) {
-        console.warn('User tier element not found. Creating it.');
-        const userInfo = document.getElementById('userInfo');
-        const newUserTier = document.createElement('div');
-        newUserTier.className = 'user-tier';
-        const tierText = document.createElement('span');
-        tierText.className = 'tier-text';
-        newUserTier.appendChild(tierText);
-        userInfo.appendChild(newUserTier);
-        return updateUserStatusDisplay(status);
-    }
+    if (!userTier) return;
     
     const tierText = userTier.querySelector('.tier-text');
+    if (!tierText) return;
     
     // Clear existing classes
     tierText.classList.remove('unregistered', 'trial', 'pending', 'premium');
@@ -7724,20 +7888,17 @@ function updateUserStatusDisplay(status) {
                 break;
             case 'pending':
                 tierText.classList.add('pending');
-                tierText.textContent = 'Premium Pending Confirmation';
+                tierText.textContent = 'Premium Pending';
                 break;
             case 'premium':
                 tierText.classList.add('premium');
-                tierText.textContent = 'Active Premium Account';
+                tierText.textContent = 'Premium Account';
                 break;
             default:
                 tierText.classList.add('trial');
                 tierText.textContent = 'Trial Account';
         }
     }
-    
-    // Ensure visibility
-    userTier.style.display = 'block';
 }
 
 function setupUserStatusSubscription() {
@@ -7989,17 +8150,24 @@ async function checkExistingSession() {
         // Initialize real-time updates and periodic check
         initializeStatusCheck();
         
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists()
-        ]);
-        updateAuthUI();
+        // Load user data in sequence rather than parallel to avoid race conditions
+        try {
+            await loadUserGameProgress(currentUser.id);
+            await loadCustomLists();
+            updateAuthUI();
+        } catch (error) {
+            console.error('Error loading user data:', error);
+            // Fall back to default state if loading fails
+            setupDefaultUnlocks();
+        }
     } else {
         // Clear interval if it exists
         if (window.statusCheckInterval) {
             clearInterval(window.statusCheckInterval);
         }
+        currentUser = null;
         updateUserStatusDisplay(null);
+        setupDefaultUnlocks(); // Ensure guest users have basic access
     }
 }
 
@@ -8018,11 +8186,31 @@ function handlePremiumCelebrationComplete() {
 function initializeStatusCheck() {
     if (!currentUser) return;
     
-    // Initial setup of realtime subscription
-    setupUserStatusSubscription();
+    // Setup real-time subscription
+    const subscription = supabaseClient
+        .channel('user-status-' + currentUser.id)
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'user_profiles',
+            filter: `id=eq.${currentUser.id}`
+        }, 
+        payload => {
+            console.log('Profile update received:', payload.new);
+            if (payload.new && payload.new.status) {
+                updateUserStatusDisplay(payload.new.status);
+            }
+        })
+        .subscribe();
     
-    // Periodic status check every 30 seconds as fallback
-    const statusCheckInterval = setInterval(async () => {
+    // Periodic status check (every 30 seconds)
+    if (window.statusCheckInterval) {
+        clearInterval(window.statusCheckInterval);
+    }
+    
+    window.statusCheckInterval = setInterval(async () => {
+        if (!currentUser) return;
+        
         const { data, error } = await supabaseClient
             .from('user_profiles')
             .select('status')
@@ -8031,17 +8219,8 @@ function initializeStatusCheck() {
             
         if (data && !error) {
             updateUserStatusDisplay(data.status);
-            
-            // If status is premium and it's a new change, show celebration
-            if (data.status === 'premium' && currentUser.status !== 'premium') {
-                showPremiumCelebration();
-                currentUser.status = 'premium';
-            }
         }
-    }, 3000); // Check every 30 seconds
-    
-    // Store interval ID for cleanup
-    window.statusCheckInterval = statusCheckInterval;
+    }, 3000);
 }
 
 </script>
