@@ -1387,31 +1387,52 @@ body {
 }
 
 .leaderboard-entry {
+    position: relative;
     display: grid;
     grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
     padding: 1rem;
     border-radius: 10px;
     margin-bottom: 0.5rem;
+    transform: translateY(0);
     transition: 
-        transform 0.5s ease, 
-        background-color 0.5s ease;
+        transform 1.5s cubic-bezier(0.4, 0, 0.2, 1),
+        background-color 1s ease;
     background: rgba(255,255,255,0.05);
+    will-change: transform;
 }
 
 .leaderboard-entry.moving-up {
-    background: rgba(76, 175, 80, 0.2);
-    transform: translateY(-100%);
-    transition: 
-        transform 1s cubic-bezier(0.25, 0.1, 0.25, 1), 
-        background-color 1s ease;
+    background: rgba(76, 175, 80, 0.08);
+    animation: moveUp 1.5s ease-in-out forwards;
+    z-index: 2;
 }
 
 .leaderboard-entry.moving-down {
-    background: rgba(244, 67, 54, 0.2);
-    transform: translateY(100%);
-    transition: 
-        transform 1s cubic-bezier(0.25, 0.1, 0.25, 1), 
-        background-color 1s ease;
+    background: rgba(244, 67, 54, 0.08);
+    animation: moveDown 1.5s ease-in-out forwards;
+    z-index: 1;
+}
+
+@keyframes moveUp {
+    0% { 
+        transform: translateY(0);
+        opacity: 1;
+    }
+    100% { 
+        transform: translateY(calc(-100% - 0.5rem));
+        opacity: 1;
+    }
+}
+
+@keyframes moveDown {
+    0% { 
+        transform: translateY(0);
+        opacity: 1;
+    }
+    100% { 
+        transform: translateY(calc(100% + 0.5rem));
+        opacity: 1;
+    }
 }
 
 .leaderboard-entry:hover {
@@ -7717,31 +7738,58 @@ async function showLeaderboard() {
     try {
         // Function to fetch and render leaderboard
         async function fetchAndRenderLeaderboard() {
-            const { data: leaderboard, error } = await supabaseClient
-                .from('player_leaderboard')
-                .select('*');
-                
-            if (error) {
-                console.error('Leaderboard fetch error:', error);
-                throw error;
+    const { data: leaderboard, error } = await supabaseClient
+        .from('player_leaderboard')
+        .select('*');
+            
+    if (error) {
+        console.error('Leaderboard fetch error:', error);
+        return;
+    }
+
+    const entriesContainer = document.getElementById('leaderboard-entries');
+    const currentEntries = entriesContainer.children;
+    
+    // Store current positions
+    const oldPositions = {};
+    Array.from(currentEntries).forEach(entry => {
+        const username = entry.querySelector('[data-username]').dataset.username;
+        oldPositions[username] = entry.getBoundingClientRect();
+    });
+
+    // Render new entries
+    entriesContainer.innerHTML = leaderboard.map((entry, index) => `
+        <div class="leaderboard-entry ${entry.username === currentUser?.user_metadata?.username ? 'you' : ''} ${index < 3 ? `rank-${index + 1}` : ''}"
+             data-rank="${index + 1}">
+            <div>${entry.player_rank}</div>
+            <div data-username="${entry.username}">${entry.username || 'Anonymous'}</div>
+            <div>${entry.total_levels_completed}</div>
+            <div>${entry.total_words_learned}</div>
+        </div>
+    `).join('');
+
+    // Apply animations
+    const newEntries = entriesContainer.children;
+    Array.from(newEntries).forEach(entry => {
+        const username = entry.querySelector('[data-username]').dataset.username;
+        if (oldPositions[username]) {
+            const oldPos = oldPositions[username];
+            const newPos = entry.getBoundingClientRect();
+            const diff = oldPos.top - newPos.top;
+            
+            if (diff > 0) {
+                entry.classList.add('moving-up');
+            } else if (diff < 0) {
+                entry.classList.add('moving-down');
             }
-
-            console.log('Received leaderboard data:', leaderboard);
-
-            if (!leaderboard || leaderboard.length === 0) {
-                entriesContainer.innerHTML = '<p>No leaderboard data available yet. Be the first to play!</p>';
-                return;
-            }
-
-            entriesContainer.innerHTML = leaderboard.map((entry, index) => `
-                <div class="leaderboard-entry ${entry.username === currentUser?.user_metadata?.username ? 'you' : ''} ${index < 3 ? `rank-${index + 1}` : ''}">
-                    <div>${entry.player_rank}</div>
-                    <div>${entry.username || 'Anonymous'}</div>
-                    <div>${entry.total_levels_completed}</div>
-                    <div>${entry.total_words_learned}</div>
-                </div>
-            `).join('');
+            
+            // Remove animation classes after completion
+            entry.addEventListener('animationend', () => {
+                entry.classList.remove('moving-up', 'moving-down');
+            }, { once: true });
         }
+    });
+}
 
         // Initial load
         await fetchAndRenderLeaderboard();
