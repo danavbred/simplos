@@ -1393,37 +1393,31 @@ body {
     padding: 1rem;
     border-radius: 10px;
     margin-bottom: 0.5rem;
-    transform: translateY(0);
-    transition: 
-        transform 1s cubic-bezier(0.34, 1.56, 0.64, 1),
-        background-color 0.5s ease;
     background: rgba(255,255,255,0.05);
-    will-change: transform;
-    backface-visibility: hidden;
+    transform-origin: center;
+    transition: background-color 0.3s ease;
 }
 
 .leaderboard-entry.moving-up {
-    background: rgba(76, 175, 80, 0.2);
-    animation: moveUp 1s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    background: rgba(76, 175, 80, 0.08);
+    animation: moveUp 0.8s ease-in-out forwards;
     z-index: 2;
 }
 
 .leaderboard-entry.moving-down {
-    background: rgba(244, 67, 54, 0.2);
-    animation: moveDown 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    background: rgba(244, 67, 54, 0.08);
+    animation: moveDown 0.8s ease-in-out forwards;
     z-index: 1;
 }
 
 @keyframes moveUp {
-    0% { transform: translateY(0); }
-    50% { transform: translateY(-110%); }
-    100% { transform: translateY(-100%); }
+    0% { transform: translateY(65px); }
+    100% { transform: translateY(0); }
 }
 
 @keyframes moveDown {
-    0% { transform: translateY(0); }
-    50% { transform: translateY(110%); }
-    100% { transform: translateY(100%); }
+    0% { transform: translateY(-65px); }
+    100% { transform: translateY(0); }
 }
 
 .leaderboard-entry:hover {
@@ -1451,7 +1445,7 @@ body {
     .leaderboard-container {
         padding: 1rem;
     }
-    
+
     .leaderboard-header, 
     .leaderboard-entry {
         grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
@@ -7726,66 +7720,64 @@ async function showLeaderboard() {
     const entriesContainer = document.getElementById('leaderboard-entries');
     
     try {
-        // Function to fetch and render leaderboard
         async function fetchAndRenderLeaderboard() {
-    const { data: leaderboard, error } = await supabaseClient
-        .from('player_leaderboard')
-        .select('*');
-            
-    if (error) {
-        console.error('Leaderboard fetch error:', error);
-        return;
-    }
-
-    const entriesContainer = document.getElementById('leaderboard-entries');
-    const currentEntries = entriesContainer.children;
-    
-    // Store current positions
-    const oldPositions = {};
-    Array.from(currentEntries).forEach(entry => {
-        const username = entry.querySelector('[data-username]').dataset.username;
-        oldPositions[username] = entry.getBoundingClientRect();
-    });
-
-    // Render new entries
-    entriesContainer.innerHTML = leaderboard.map((entry, index) => `
-        <div class="leaderboard-entry ${entry.username === currentUser?.user_metadata?.username ? 'you' : ''} ${index < 3 ? `rank-${index + 1}` : ''}"
-             data-rank="${index + 1}">
-            <div>${entry.player_rank}</div>
-            <div data-username="${entry.username}">${entry.username || 'Anonymous'}</div>
-            <div>${entry.total_levels_completed}</div>
-            <div>${entry.total_words_learned}</div>
-        </div>
-    `).join('');
-
-    // Apply animations
-    const newEntries = entriesContainer.children;
-    Array.from(newEntries).forEach(entry => {
-        const username = entry.querySelector('[data-username]').dataset.username;
-        if (oldPositions[username]) {
-            const oldPos = oldPositions[username];
-            const newPos = entry.getBoundingClientRect();
-            const diff = oldPos.top - newPos.top;
-            
-            if (diff > 0) {
-                entry.classList.add('moving-up');
-            } else if (diff < 0) {
-                entry.classList.add('moving-down');
+            const { data: leaderboard, error } = await supabaseClient
+                .from('player_leaderboard')
+                .select('*');
+                    
+            if (error) {
+                console.error('Leaderboard fetch error:', error);
+                return;
             }
+
+            const currentEntries = entriesContainer.children;
             
-            // Remove animation classes after completion
-            entry.addEventListener('animationend', () => {
-                entry.classList.remove('moving-up', 'moving-down');
-            }, { once: true });
+            // Store current positions
+            const oldPositions = {};
+            Array.from(currentEntries).forEach(entry => {
+                const username = entry.querySelector('[data-username]').dataset.username;
+                oldPositions[username] = entry.getBoundingClientRect();
+            });
+
+            // Render new entries
+            entriesContainer.innerHTML = leaderboard.map((entry, index) => `
+                <div class="leaderboard-entry ${entry.username === currentUser?.user_metadata?.username ? 'you' : ''} ${index < 3 ? `rank-${index + 1}` : ''}"
+                     data-rank="${index + 1}">
+                    <div>${entry.player_rank}</div>
+                    <div data-username="${entry.username}">${entry.username || 'Anonymous'}</div>
+                    <div>${entry.total_levels_completed}</div>
+                    <div>${entry.total_words_learned}</div>
+                </div>
+            `).join('');
+
+            // Apply animations
+            const newEntries = entriesContainer.children;
+            Array.from(newEntries).forEach(entry => {
+                const username = entry.querySelector('[data-username]').dataset.username;
+                if (oldPositions[username]) {
+                    const oldPos = oldPositions[username];
+                    const newPos = entry.getBoundingClientRect();
+                    const diff = oldPos.top - newPos.top;
+                    
+                    if (diff > 0) {
+                        entry.classList.add('moving-up');
+                    } else if (diff < 0) {
+                        entry.classList.add('moving-down');
+                    }
+                    
+                    // Remove animation classes after completion
+                    entry.addEventListener('animationend', () => {
+                        entry.classList.remove('moving-up', 'moving-down');
+                    }, { once: true });
+                }
+            });
         }
-    });
-}
 
         // Initial load
         await fetchAndRenderLeaderboard();
 
         // Set up polling
-        const pollInterval = setInterval(fetchAndRenderLeaderboard, 3000);
+        const pollInterval = setInterval(fetchAndRenderLeaderboard, 1500);
 
         // Store interval for cleanup
         const leaderboardScreen = document.getElementById('leaderboard-screen');
