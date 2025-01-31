@@ -5927,6 +5927,62 @@ const customPracticeLists = {
     maxLists: 5
 };
 
+function getUserListLimits() {
+    if (!currentUser) {
+        return {
+            maxLists: 3,
+            maxWords: 10,
+            maxPlays: 5,
+            canShare: false
+        };
+    }
+
+    // Get user status
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    
+    switch(userStatus) {
+        case 'free':
+            return {
+                maxLists: 5,
+                maxWords: 20,
+                maxPlays: 10,
+                canShare: false
+            };
+        case 'pending':
+        case 'premium':
+            return {
+                maxLists: 30,
+                maxWords: 50,
+                maxPlays: Infinity,
+                canShare: true
+            };
+        default:
+            return {
+                maxLists: 3,
+                maxWords: 10,
+                maxPlays: 5,
+                canShare: false
+            };
+    }
+}
+
+function trackListPlay(listId) {
+    const playCountKey = `listPlays_${listId}`;
+    let plays = parseInt(localStorage.getItem(playCountKey) || '0');
+    plays++;
+    
+    const limits = getUserListLimits();
+    localStorage.setItem(playCountKey, plays);
+
+    if (plays >= limits.maxPlays) {
+        // Remove list if max plays reached
+        deleteCustomList(listId);
+        return false;
+    }
+    
+    return limits.maxPlays - plays;
+}
+
 // Function to add a new word list
 function addCustomWordList(name = null) {
     // Check if we've reached the maximum number of lists
@@ -6002,37 +6058,7 @@ function addNewWord() {
     initializeDragAndDrop(wordItem);
 }
 
-function makeWordListDraggable(listId) {
-    const wordList = document.getElementById(`list-${listId}`);
-    if (!wordList) return;
-    
-    // Add dragover event listener to the container
-    wordList.addEventListener('dragover', e => {
-        e.preventDefault();
-        const draggable = wordList.querySelector('.dragging');
-        if (!draggable) return;
-        
-        const afterElement = getDragAfterElement(wordList, e.clientY);
-        if (afterElement) {
-            wordList.insertBefore(draggable, afterElement);
-        } else {
-            wordList.appendChild(draggable);
-        }
-    });
 
-    wordList.addEventListener('drop', e => {
-        e.preventDefault();
-        const draggingElement = document.querySelector('.dragging');
-        if (draggingElement) {
-            draggingElement.style.opacity = '1';
-            draggingElement.classList.remove('dragging');
-        }
-    });
-
-    // Initialize drag events for all items
-    const items = wordList.querySelectorAll('.word-translation-item');
-    items.forEach(item => initializeDragAndDrop(item));
-}
 
 function createWordTranslationItem(word = '', translation = '', isEditable = false) {
     const wordList = document.getElementById('word-translation-list');
@@ -6117,11 +6143,14 @@ function processCustomWords() {
     const translationResults = document.getElementById('translation-results');
     const wordList = document.getElementById('word-translation-list');
     
+    const limits = getUserListLimits();
+    
     // Split and clean input words
     const words = wordInput.value
         .split(/[,\s\n]+/)
         .map(word => word.trim())
-        .filter(word => word.length > 0);
+        .filter(word => word.length > 0)
+        .slice(0, limits.maxWords);
 
     if (words.length === 0) {
         alert('Please enter at least one word.');
@@ -6158,50 +6187,16 @@ function processCustomWords() {
         `;
         
         wordList.appendChild(wordItem);
+        // Initialize drag functionality for this item
+        initializeDragAndDrop(wordItem);
     });
     
     translationResults.style.display = 'block';
-    makeWordListDraggable();
+    // Initialize drag functionality for the list
+    makeWordListDraggable(wordList);
 }
 
-function initializeDragAndDrop(item) {
-    if (!item) return;
-    
-    item.setAttribute('draggable', 'true');
-    
-    item.addEventListener('dragstart', (e) => {
-        e.stopPropagation();
-        item.classList.add('dragging');
-        item.style.opacity = '0.5';
-    });
-    
-    item.addEventListener('dragend', (e) => {
-        e.stopPropagation();
-        item.classList.remove('dragging');
-        item.style.opacity = '1';
-        
-        // Save the new order
-        const listId = item.closest('.word-translation-list')?.id.split('-')[1];
-        if (listId) {
-            const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
-            const wordList = document.getElementById(`list-${listId}`);
-            if (listItem?.getAttribute('data-in-edit-mode') === 'true') {
-                saveListChanges(listId, wordList, listItem, false);
-            }
-        }
-    });
 
-    const dragHandle = item.querySelector('.drag-handle');
-    if (dragHandle) {
-        dragHandle.addEventListener('mousedown', () => {
-            item.draggable = true;
-        });
-        
-        dragHandle.addEventListener('mouseup', () => {
-            item.draggable = false;
-        });
-    }
-}
 
 
 function saveCurrentList() {
@@ -6369,6 +6364,10 @@ function showCustomListsManager() {
     const container = document.getElementById('custom-lists-container');
     if (!container) return;
     
+    const limits = getUserListLimits();
+    const userStatus = currentUser?.status || 'unregistered';
+    const canShare = userStatus === 'premium' || userStatus === 'pending';
+    
     container.innerHTML = '';
     
     if (customPracticeLists.lists.length === 0) {
@@ -6376,39 +6375,47 @@ function showCustomListsManager() {
         return;
     }
 
-    const seenIds = new Set();
-
     customPracticeLists.lists.forEach(list => {
-        if (seenIds.has(list.id)) return;
-        seenIds.add(list.id);
+        // Get play count
+        const playCountKey = `listPlays_${list.id}`;
+        const playsUsed = parseInt(localStorage.getItem(playCountKey) || '0');
+        const playsLeft = limits.maxPlays - playsUsed;
+
+        if (playsLeft <= 0) return;
         
         const listItem = document.createElement('div');
         listItem.className = `custom-list-item collapsed ${list.is_shared ? 'shared-list' : ''}`;
         listItem.dataset.listId = list.id;
         
         listItem.innerHTML = `
+            <div class="list-actions">
+                <button class="start-button practice-button">Practice</button>
+                ${!list.is_shared ? `
+                    <button class="edit-button" data-list-id="${list.id}">Edit</button>
+                    <button class="start-button delete-button">Delete</button>
+                    ${canShare ? `
+                        <button class="share-button" onclick="showShareModal(${list.id})">
+                            <i class="fas fa-share-alt"></i> Share
+                        </button>
+                    ` : ''}
+                ` : ''}
+            </div>
             <div class="list-header">
-                <h3>${list.name}${list.is_shared ? ' (Shared)' : ''}</h3>
+                <h3>${list.name}</h3>
                 <div class="list-summary">
                     <span>${list.words.length} words</span>
+                    <span style="color: #ff4444; margin-left: 1rem;">
+                        ${playsLeft}/${limits.maxPlays} plays left
+                    </span>
                     <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
                 </div>
             </div>
             <div class="list-content">
                 <div class="word-translation-list" id="list-${list.id}"></div>
             </div>
-            <div class="list-actions">
-                <button class="start-button practice-button">Practice</button>
-                ${!list.is_shared ? `
-                    <button class="edit-button" data-list-id="${list.id}">Edit</button>
-                    <button class="start-button delete-button">Delete</button>
-                    <button class="share-button" onclick="showShareModal(${list.id})">
-                        <i class="fas fa-share-alt"></i> Share
-                    </button>
-                ` : ''}
-            </div>
         `;
 
+        // Add event listeners
         const header = listItem.querySelector('.list-header');
         header.addEventListener('click', () => toggleListCollapse(list.id));
 
@@ -6417,10 +6424,23 @@ function showCustomListsManager() {
 
         if (!list.is_shared) {
             const editButton = listItem.querySelector('.edit-button');
-            editButton.addEventListener('click', () => toggleEditMode(list.id));
+            if (editButton) {
+                editButton.addEventListener('click', () => toggleEditMode(list.id));
+            }
 
             const deleteButton = listItem.querySelector('.delete-button');
-            deleteButton.addEventListener('click', () => deleteCustomList(list.id));
+            if (deleteButton) {
+                deleteButton.addEventListener('click', () => deleteCustomList(list.id));
+            }
+
+            const shareButton = listItem.querySelector('.share-button');
+            if (shareButton && canShare) {
+                shareButton.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showShareModal(list.id);
+                };
+            }
         }
 
         container.appendChild(listItem);
@@ -6588,32 +6608,76 @@ function addWordToList(listId) {
     sourceWord.focus();
 }
 
+
 function makeWordListDraggable(listId) {
     const wordList = document.getElementById(`list-${listId}`);
     if (!wordList) return;
     
-    // Clear existing listeners
-    wordList.replaceWith(wordList.cloneNode(true));
-    
-    // Get fresh reference after clone
-    const freshList = document.getElementById(`list-${listId}`);
-    
-    freshList.addEventListener('dragover', e => {
+    // Add dragover event listener to the container
+    wordList.addEventListener('dragover', e => {
         e.preventDefault();
-        const draggable = document.querySelector('.dragging');
+        const draggable = wordList.querySelector('.dragging');
         if (!draggable) return;
         
-        const afterElement = getDragAfterElement(freshList, e.clientY);
+        const afterElement = getDragAfterElement(wordList, e.clientY);
         if (afterElement) {
-            freshList.insertBefore(draggable, afterElement);
+            wordList.insertBefore(draggable, afterElement);
         } else {
-            freshList.appendChild(draggable);
+            wordList.appendChild(draggable);
         }
     });
-    
+
+    wordList.addEventListener('drop', e => {
+        e.preventDefault();
+        const draggingElement = document.querySelector('.dragging');
+        if (draggingElement) {
+            draggingElement.style.opacity = '1';
+            draggingElement.classList.remove('dragging');
+        }
+    });
+
     // Initialize drag events for all items
-    const items = freshList.querySelectorAll('.word-translation-item');
+    const items = wordList.querySelectorAll('.word-translation-item');
     items.forEach(item => initializeDragAndDrop(item));
+}
+
+function initializeDragAndDrop(item) {
+    if (!item) return;
+    
+    item.setAttribute('draggable', 'true');
+    
+    item.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        item.classList.add('dragging');
+        item.style.opacity = '0.5';
+    });
+    
+    item.addEventListener('dragend', (e) => {
+        e.stopPropagation();
+        item.classList.remove('dragging');
+        item.style.opacity = '1';
+        
+        // Save the new order
+        const listId = item.closest('.word-translation-list')?.id.split('-')[1];
+        if (listId) {
+            const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+            const wordList = document.getElementById(`list-${listId}`);
+            if (listItem?.getAttribute('data-in-edit-mode') === 'true') {
+                saveListChanges(listId, wordList, listItem, false);
+            }
+        }
+    });
+
+    const dragHandle = item.querySelector('.drag-handle');
+    if (dragHandle) {
+        dragHandle.addEventListener('mousedown', () => {
+            item.draggable = true;
+        });
+        
+        dragHandle.addEventListener('mouseup', () => {
+            item.draggable = false;
+        });
+    }
 }
 
 function getDragAfterElement(container, y) {
@@ -6630,6 +6694,7 @@ function getDragAfterElement(container, y) {
         }
     }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
+
 
 
 function toggleEditMode(listId) {
@@ -6710,86 +6775,6 @@ function toggleAuthMode() {
     
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
-}
-async function shareListWithUser(listId, recipientId) {
-    // Find the original list
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
-
-    // Create shared list data
-    const sharedList = {
-        user_id: recipientId,
-        name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
-        words: list.words,
-        translations: list.translations,
-        is_shared: true,
-        local_id: Date.now(),
-        shared_with: [recipientId],
-        shared_by: currentUser.id
-    };
-
-    const { data, error } = await supabaseClient
-        .from('custom_lists')
-        .insert([sharedList]);
-
-    if (error) {
-        console.error('Error sharing list:', error);
-        return;
-    }
-
-    // Close modal and show visual feedback
-    const modal = document.querySelector('.share-modal').parentElement;
-    document.body.removeChild(modal);
-    
-    const listItem = document.querySelector(`[data-list-id="${listId}"]`);
-    if (listItem) {
-        listItem.style.animation = 'pulse 0.5s ease';
-        setTimeout(() => listItem.style.animation = '', 500);
-    }
-}
-
-async function showShareModal(listId) {
-    // Create modal HTML
-    const modal = document.createElement('div');
-    modal.innerHTML = `
-        <div class="modal-backdrop"></div>
-        <div class="share-modal">
-            <h3 class="share-modal-header">Share List</h3>
-            <div class="users-list">Loading users...</div>
-            <button class="share-button modal-close">Cancel</button>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    // Fetch users
-    const { data: users, error } = await supabaseClient
-        .from('user_list')
-        .select('id, username')
-        .neq('id', currentUser.id);
-
-    const usersList = modal.querySelector('.users-list');
-    usersList.innerHTML = '';
-
-    if (error || !users?.length) {
-        usersList.innerHTML = error ? 'Error loading users' : 'No other users found';
-        return;
-    }
-
-    // Create user list
-    users.forEach(user => {
-        const userItem = document.createElement('div');
-        userItem.className = 'user-item';
-        userItem.innerHTML = `
-            <span>${user.username || 'Unnamed User'}</span>
-            <button class="share-button">Share</button>
-        `;
-        userItem.querySelector('button').onclick = () => shareListWithUser(listId, user.id);
-        usersList.appendChild(userItem);
-    });
-
-    // Modal close handlers
-    modal.querySelector('.modal-close').onclick = () => document.body.removeChild(modal);
-    modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
 
 
@@ -7033,6 +7018,89 @@ async function showSetScreen(stageId) {
     }
     
     showScreen('set-screen');
+}
+
+async function showShareModal(listId) {
+    if (!currentUser) return;
+    
+    // Create modal HTML
+    const modal = document.createElement('div');
+    modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="share-modal">
+            <h3 class="share-modal-header">Share List</h3>
+            <div class="users-list">Loading users...</div>
+            <button class="share-button modal-close">Cancel</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Fetch users
+    const { data: users, error } = await supabaseClient
+        .from('user_profiles')
+        .select('id, username')
+        .neq('id', currentUser.id);
+
+    const usersList = modal.querySelector('.users-list');
+    usersList.innerHTML = '';
+
+    if (error || !users?.length) {
+        usersList.innerHTML = error ? 'Error loading users' : 'No other users found';
+        return;
+    }
+
+    // Create user list
+    users.forEach(user => {
+        const userItem = document.createElement('div');
+        userItem.className = 'user-item';
+        userItem.innerHTML = `
+            <span>${user.username || 'Unnamed User'}</span>
+            <button class="share-button">Share</button>
+        `;
+        userItem.querySelector('button').onclick = () => shareListWithUser(listId, user.id);
+        usersList.appendChild(userItem);
+    });
+
+    // Modal close handlers
+    modal.querySelector('.modal-close').onclick = () => document.body.removeChild(modal);
+    modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
+}
+
+async function shareListWithUser(listId, recipientId) {
+    // Find the original list
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
+
+    // Create shared list data
+    const sharedList = {
+        user_id: recipientId,
+        name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
+        words: list.words,
+        translations: list.translations,
+        is_shared: true,
+        local_id: Date.now(),
+        shared_with: [recipientId],
+        shared_by: currentUser.id
+    };
+
+    const { data, error } = await supabaseClient
+        .from('custom_lists')
+        .insert([sharedList]);
+
+    if (error) {
+        console.error('Error sharing list:', error);
+        return;
+    }
+
+    // Close modal and show visual feedback
+    const modal = document.querySelector('.share-modal').parentElement;
+    document.body.removeChild(modal);
+    
+    const listItem = document.querySelector(`[data-list-id="${listId}"]`);
+    if (listItem) {
+        listItem.style.animation = 'pulse 0.5s ease';
+        setTimeout(() => listItem.style.animation = '', 500);
+    }
 }
 
 
