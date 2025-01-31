@@ -1,39 +1,73 @@
--- Add this trigger to your Supabase SQL
-CREATE OR REPLACE FUNCTION initialize_player_stats()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO player_stats (
-        total_levels_completed,
-        total_time_spent,
-        total_mistakes,
-        best_streak,
-        current_streak,
-        highest_score,
-        unique_words_practiced,
-        words_practiced_today,
-        practiced_words,
-        time_spent_today_ms,
-        perfect_levels_count,
-        daily_login_streak
-    ) VALUES (
-        NEW.id,
-        0, 0, 0, 0, 0, 0, 0, 0,
-        ARRAY[]::TEXT[],
-        0, 0, 0
-    )
-    ON CONFLICT (user_id) DO NOTHING;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+CREATE LEADERBOARD VIEW
 
--- Drop existing trigger if it exists
-DROP TRIGGER IF EXISTS on_user_created ON user_profiles;
 
--- Create the trigger
-CREATE TRIGGER on_user_created
-    AFTER INSERT ON user_profiles
-    FOR EACH ROW
-    EXECUTE FUNCTION initialize_player_stats();
+-- Drop view if exists (will not error if it doesn't exist)
+DROP VIEW IF EXISTS player_leaderboard;
+
+-- Create the leaderboard view
+CREATE OR REPLACE VIEW player_leaderboard AS
+WITH user_rankings AS (
+    SELECT 
+        up.username,
+        ps.total_levels_completed,
+        ps.unique_words_practiced as total_words_learned,
+        ROW_NUMBER() OVER (
+            ORDER BY ps.total_levels_completed DESC,
+            ps.unique_words_practiced DESC
+        ) as player_rank
+    FROM user_profiles up
+    LEFT JOIN player_stats ps ON up.id = ps.user_id
+    WHERE up.username IS NOT NULL
+        AND (ps.total_levels_completed > 0 OR ps.unique_words_practiced > 0)
+)
+SELECT 
+    username,
+    COALESCE(total_levels_completed, 0) as total_levels_completed,
+    COALESCE(total_words_learned, 0) as total_words_learned,
+    player_rank
+FROM user_rankings
+ORDER BY player_rank ASC;
+
+-- Grant necessary permissions
+GRANT SELECT ON player_leaderboard TO authenticated;
+
+
+
+USER PROFILES MANAGEMENT
+
+-- Drop existing triggers and functions first
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+
+-- Modify user_profiles to be more lenient
+ALTER TABLE public.user_profiles 
+ALTER COLUMN role DROP NOT NULL,
+ALTER COLUMN status SET DEFAULT 'free',
+ALTER COLUMN username DROP NOT NULL;
+
+-- Ensure RLS is properly set
+ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+
+-- Update RLS policies
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.user_profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.user_profiles;
+
+CREATE POLICY "Users can view their own profile"
+ON public.user_profiles FOR SELECT
+USING (auth.uid() = id);
+
+CREATE POLICY "Users can update their own profile"
+ON public.user_profiles FOR UPDATE
+USING (auth.uid() = id);
+
+CREATE POLICY "Users can insert their own profile"
+ON public.user_profiles FOR INSERT
+WITH CHECK (auth.uid() = id);
+
+
+
+LEADERBOARD
+
 
 -- First clean up existing objects
 DROP VIEW IF EXISTS player_leaderboard CASCADE;
@@ -84,7 +118,7 @@ CREATE POLICY "Users can insert their own stats"
     ON player_stats FOR INSERT 
     WITH CHECK (auth.uid() = user_id);
 
--- Drop and recreate the leaderboard view
+-- Create and update leaderboard view
 DROP VIEW IF EXISTS player_leaderboard;
 
 CREATE OR REPLACE VIEW player_leaderboard AS
@@ -112,38 +146,6 @@ ORDER BY player_rank ASC;
 -- Grant permissions
 GRANT SELECT ON player_leaderboard TO authenticated;
 GRANT ALL ON player_stats TO authenticated;
-
--- Optional: Insert test data
-WITH user_ids AS (
-    SELECT id FROM user_profiles LIMIT 5
-)
-INSERT INTO player_stats (
-    user_id,
-    total_levels_completed,
-    total_time_spent,
-    total_mistakes,
-    best_streak,
-    current_streak,
-    highest_score,
-    words_practiced_today,
-    time_spent_today_ms,
-    perfect_levels_count,
-    daily_login_streak
-)
-SELECT 
-    id,
-    FLOOR(RANDOM() * 50 + 10)::integer,
-    FLOOR(RANDOM() * 500000 + 100000)::bigint,
-    FLOOR(RANDOM() * 20)::integer,
-    FLOOR(RANDOM() * 15 + 5)::integer,
-    FLOOR(RANDOM() * 10)::integer,
-    FLOOR(RANDOM() * 1000)::integer,
-    FLOOR(RANDOM() * 100)::integer,
-    FLOOR(RANDOM() * 3600000)::bigint,
-    FLOOR(RANDOM() * 10)::integer,
-    FLOOR(RANDOM() * 7)::integer
-FROM user_ids
-WHERE id NOT IN (SELECT user_id FROM player_stats);
 
 -- Create function to reset daily stats
 CREATE OR REPLACE FUNCTION reset_daily_stats()
@@ -175,10 +177,6 @@ CREATE TRIGGER daily_stats_reset
     FOR EACH ROW
     EXECUTE FUNCTION trigger_reset_daily_stats();
 
--- Verify the data
-SELECT * FROM player_leaderboard LIMIT 5;
-
-
 
 
 
@@ -187,6 +185,73 @@ GAME LOGIC
 
 
 
+
+-- Drop existing function and trigger
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+
+-- Create new function with better error handling
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Create user profile first
+    INSERT INTO public.user_profiles (
+        id,
+        username,
+        role,
+        status
+    ) VALUES (
+        NEW.id,
+        COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
+        'student',
+        'free'
+    );
+
+    -- Only proceed with game progress if profile was created
+    IF FOUND THEN
+        -- Initialize game progress
+        INSERT INTO game_progress (
+            user_id,
+            stage,
+            set_number,
+            level,
+            unlocked_sets,
+            unlocked_levels
+        ) VALUES (
+            NEW.id,
+            1,
+            1,
+            1,
+            '{"1": [1]}'::jsonb,
+            '{"1_1": [1]}'::jsonb
+        );
+
+        -- Initialize player stats
+        INSERT INTO player_stats (
+            user_id,
+            total_levels_completed,
+            unique_words_practiced
+        ) VALUES (
+            NEW.id,
+            0,
+            0
+        );
+    END IF;
+
+    RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+    -- Log error details if possible
+    RAISE NOTICE 'Error in handle_new_user: %', SQLERRM;
+    -- Still return NEW to allow user creation
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Recreate trigger
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_new_user();
 
 -- Start fresh - Drop existing objects safely
 DROP VIEW IF EXISTS public.user_list CASCADE;
@@ -267,18 +332,20 @@ SELECT DISTINCT ON (up.id)
 FROM public.user_profiles up
 WHERE up.id IS NOT NULL;
 
--- Create functions and triggers
+-- Create consolidated function for new user initialization
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
     extracted_username text;
 BEGIN
+    -- Extract username with fallback options
     extracted_username := COALESCE(
         NEW.raw_user_meta_data->>'username', 
         NEW.email, 
         split_part(NEW.email, '@', 1)
     );
 
+    -- Create user profile
     INSERT INTO public.user_profiles (
         id, 
         username, 
@@ -291,11 +358,59 @@ BEGIN
         'student',
         'free'
     );
-    
+
+    -- Initialize game progress
+    INSERT INTO game_progress (
+        user_id,
+        stage,
+        set_number,
+        level,
+        coins,
+        perks,
+        unlocked_sets,
+        unlocked_levels,
+        perfect_levels,
+        completed_levels
+    ) VALUES (
+        NEW.id,
+        1,
+        1,
+        1,
+        0,
+        '{}',
+        '{"1": [1]}',
+        '{"1_1": [1]}',
+        '[]',
+        '[]'
+    );
+
+    -- Initialize player stats
+    INSERT INTO player_stats (
+        user_id,
+        total_levels_completed,
+        total_time_spent,
+        total_mistakes,
+        best_streak,
+        current_streak,
+        highest_score,
+        unique_words_practiced,
+        words_practiced_today,
+        practiced_words,
+        time_spent_today_ms,
+        perfect_levels_count,
+        daily_login_streak
+    ) VALUES (
+        NEW.id,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        ARRAY[]::TEXT[],
+        0, 0, 0
+    );
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Create trigger for new user initialization
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
