@@ -1387,46 +1387,41 @@ body {
 }
 
 .leaderboard-entry {
-    position: relative;
     display: grid;
     grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
     padding: 1rem;
     border-radius: 10px;
     margin-bottom: 0.5rem;
+    transition: 
+        transform 0.5s ease, 
+        background-color 0.5s ease;
     background: rgba(255,255,255,0.05);
-    transform-origin: center;
-    transition: background-color 0.3s ease;
 }
 
 .leaderboard-entry.moving-up {
-    background: rgba(76, 175, 80, 0.08);
-    animation: moveUp 0.8s ease-in-out forwards;
-    z-index: 2;
+    background: rgba(76, 175, 80, 0.2);
+    transform: translateY(-100%);
+    transition: 
+        transform 1s cubic-bezier(0.25, 0.1, 0.25, 1), 
+        background-color 1s ease;
 }
 
 .leaderboard-entry.moving-down {
-    background: rgba(244, 67, 54, 0.08);
-    animation: moveDown 0.8s ease-in-out forwards;
-    z-index: 1;
-}
-
-@keyframes moveUp {
-    0% { transform: translateY(65px); }
-    100% { transform: translateY(0); }
-}
-
-@keyframes moveDown {
-    0% { transform: translateY(-65px); }
-    100% { transform: translateY(0); }
+    background: rgba(244, 67, 54, 0.2);
+    transform: translateY(100%);
+    transition: 
+        transform 1s cubic-bezier(0.25, 0.1, 0.25, 1), 
+        background-color 1s ease;
 }
 
 .leaderboard-entry:hover {
-    background: hsla(126, 84%, 12%, 0.1);
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.1);
 }
 
 .leaderboard-entry.you {
-    background: rgba(6, 145, 64, 0.5);
-    border: 1px solid var(--gold);
+    background: rgba(233, 69, 96, 0.2);
+    border: 1px solid var(--accent);
 }
 
 .leaderboard-entry.rank-1 {
@@ -1445,7 +1440,7 @@ body {
     .leaderboard-container {
         padding: 1rem;
     }
-
+    
     .leaderboard-header, 
     .leaderboard-entry {
         grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
@@ -2195,11 +2190,6 @@ body {
 .navigation-button.disabled {
     cursor: pointer;
     opacity: 0.3;
-}
-
-@keyframes blinkRed {
-    0%, 100% { background-color: transparent; }
-    50% { background-color: var(--error); }
 }
 
 @keyframes particleBurst {
@@ -3024,14 +3014,11 @@ body {
 <div id="stage-screen" class="screen">
     <div class="particle-container"></div>
     <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">
-    <button class="navigation-button home-button" onclick="navigateHome()">
-        <i class="fas fa-home navigation-icon"></i>
+        <button class="navigation-button home-button" onclick="navigateHome()">
+            <i class="fas fa-home navigation-icon"></i>
     </button>
     <button class="navigation-button reset-button" onclick="handleResetProgress()">
         <i class="fas fa-trash-alt navigation-icon"></i>
-    </button>
-    <button class="navigation-button fullscreen-button" onclick="toggleFullScreen()">
-        <i class="fas fa-expand navigation-icon"></i>
     </button>
 </div>
     <div class="stage-container">
@@ -3284,11 +3271,12 @@ body {
     
     <div class="leaderboard-container">
         <div class="leaderboard-header">
-    <div>Rank</div>
+            <div>Rank</div>
     <div>Player</div>
-    <div>Levels</div>
-    <div>Words</div>
-</div>
+    <div>Words Today</div>
+    <div>Time Today</div>
+    <div>Best Streak</div>
+        </div>
         <div id="leaderboard-entries">
             <!-- Entries will be populated here -->
         </div>
@@ -3429,7 +3417,7 @@ document.addEventListener('DOMContentLoaded', () => {
 const { createClient } = supabase;
 const supabaseClient = createClient(
     'https://mczfgzffyyyacisrccqb.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzgzODYyMDQsImV4cCI6MjA1Mzk2MjIwNH0.rLga_B29Coz1LMeJzFTGLIhckdcojGXnD1ae1bw-QAI',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo',
     {
         persistSession: true,
         autoRefreshToken: true,
@@ -3491,95 +3479,60 @@ async function handleSignup() {
         return;
     }
 
-    try {
-        // Step 1: Sign up with Supabase Auth
-        const { data: authData, error: authError } = await supabaseClient.auth.signUp({
-            email,
-            password,
-            options: {
-                data: { 
-                    username: username,
-                    full_name: username
-                }
-            }
-        });
-
-        if (authError) throw authError;
-
-        // Step 2: Create user profile
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .insert([{
-                id: authData.user.id,
+    const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+            data: { 
                 username: username,
-                status: 'free',
-                role: 'student'
-            }]);
-
-        if (profileError) {
-            console.error('Profile creation error:', profileError);
-            // Continue anyway as the auth was successful
+                full_name: username
+            }
         }
+    });
 
-        // Step 3: Initialize game progress
-        const { error: progressError } = await supabaseClient
-            .from('game_progress')
-            .insert([{
-                user_id: authData.user.id,
-                stage: 1,
-                set_number: 1,
-                level: 1,
-                coins: 0,
-                perks: {},
-                unlocked_sets: { "1": [1] },
-                unlocked_levels: { "1_1": [1] },
-                perfect_levels: [],
-                completed_levels: []
-            }]);
-
-        if (progressError) {
-            console.error('Progress initialization error:', progressError);
-            // Continue anyway
-        }
-
-        // Step 4: Initialize player stats
-        const { error: statsError } = await supabaseClient
-            .from('player_stats')
-            .insert([{
-                user_id: authData.user.id,
-                total_levels_completed: 0,
-                unique_words_practiced: 0
-            }]);
-
-        if (statsError) {
-            console.error('Stats initialization error:', statsError);
-            // Continue anyway
-        }
-
-        // Step 5: Auto-login
-        const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-        });
-
-        if (loginError) throw loginError;
-
-        currentUser = loginData.user;
-        await Promise.all([
-            loadCustomLists(),
-            loadUserGameProgress(currentUser.id)
-        ]);
-        updateAuthUI();
-        showScreen('welcome-screen');
-
-    } catch (error) {
-        console.error('Detailed signup error:', error);
-        if (error.message.includes('duplicate key')) {
-            alert('This username or email is already taken. Please try another.');
-        } else {
-            alert('Signup error: ' + error.message);
-        }
+    if (error) {
+        console.error('Error signing up:', error.message);
+        alert(error.message);
+        return;
     }
+
+    // Skip manual profile creation since it's handled by the trigger
+    // Initialize game progress instead
+    const { error: progressError } = await supabaseClient
+        .from('game_progress')
+        .insert([{
+            user_id: data.user.id,
+            stage: 1,
+            set_number: 1,
+            level: 1,
+            coins: 0,
+            perks: {},
+            unlocked_sets: { "1": [1] },
+            unlocked_levels: { "1_1": [1] },
+            perfect_levels: [],
+            completed_levels: []
+        }]);
+
+    if (progressError) {
+        console.error('Error initializing game progress:', progressError);
+        return;
+    }
+
+    const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password
+    });
+
+    if (loginError) {
+        alert('Account created but login failed. Please try logging in manually.');
+        return;
+    }
+
+    currentUser = loginData.user;
+    clearCustomPracticeUI();
+    await Promise.all([loadCustomLists(), loadUserGameProgress(currentUser.id)]);
+    updateAuthUI();
+    showScreen('welcome-screen');
 }
 
 async function initializeGameProgressForUser(userId) {
@@ -4068,6 +4021,40 @@ function updateAuthUI() {
     }
 }
 
+async function checkExistingSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    
+    if (session) {
+        currentUser = session.user;
+        
+        // Get initial status
+        const { data: profile } = await supabaseClient
+            .from('user_profiles')
+            .select('status')
+            .eq('id', currentUser.id)
+            .single();
+            
+        if (profile) {
+            currentUser.status = profile.status; // Store status in user object
+            updateUserStatusDisplay(profile.status);
+        }
+        
+        // Initialize real-time updates and periodic check
+        initializeStatusCheck();
+        
+        await Promise.all([
+            loadUserGameProgress(currentUser.id),
+            loadCustomLists()
+        ]);
+        updateAuthUI();
+    } else {
+        // Clear interval if it exists
+        if (window.statusCheckInterval) {
+            clearInterval(window.statusCheckInterval);
+        }
+        updateUserStatusDisplay(null);
+    }
+}
 
 
 // Game Constants & State Management
@@ -4407,10 +4394,6 @@ function showScreen(screenId, forceRefresh = false) {
         currentUser: currentUser ? currentUser.id : 'No user'
     });
 
-    if (document.querySelector('.screen.visible')?.id === 'leaderboard-screen') {
-        cleanupLeaderboard();
-    }
-
     // Clear any running timer when leaving question screen
     const currentVisibleScreen = document.querySelector('.screen.visible');
     if (currentVisibleScreen && currentVisibleScreen.id === 'question-screen') {
@@ -4534,6 +4517,7 @@ function showSetScreen(stageId) {
 }
 
 function showLevelScreen(setId) {
+    requestFullScreen();
     gameState.currentSet = setId;
     const container = document.getElementById('level-container');
     container.innerHTML = '';
@@ -5618,6 +5602,18 @@ function stopLevelAndGoBack() {
     showSetScreen(gameState.currentStage);
 }
 
+function requestFullScreen() {
+    const docElm = document.documentElement;
+    if (docElm.requestFullscreen) {
+        docElm.requestFullscreen();
+    } else if (docElm.mozRequestFullScreen) { // Firefox
+        docElm.mozRequestFullScreen();
+    } else if (docElm.webkitRequestFullScreen) { // Chrome, Safari and Opera
+        docElm.webkitRequestFullScreen();
+    } else if (docElm.msRequestFullscreen) { // Internet Explorer/Edge
+        docElm.msRequestFullscreen();
+    }
+}
 
 function showGameOverOverlay() {
     clearTimer();
@@ -5675,101 +5671,51 @@ function updateTimerCircle(timeRemaining, totalTime) {
 }
 
 function handleResetProgress() { 
-    if (!isFirstResetAttempt) {
-        // Reset game state
-        gameState.currentStage = 1;
-        gameState.currentSet = 1;
-        gameState.currentLevel = 1;
-        gameState.coins = 0;
-        gameState.unlockedSets = { "1": new Set([1]) };
-        gameState.unlockedLevels = { "1_1": new Set([1]) };
-        gameState.perfectLevels = new Set();
-        gameState.completedLevels = new Set();
-        gameState.perks = {
-            timeFreeze: 0,
-            skip: 0,
-            clue: 0,
-            reveal: 0
-        };
-
-        // Clear localStorage
-        localStorage.removeItem('simploxProgress');
-        localStorage.removeItem('simploxCustomCoins');
-        
-        // Update UI
-        updatePerkCounts();
-        updateAllCoinDisplays();
-        showScreen('welcome-screen');
-        
-        // Reset the first attempt flag
-        isFirstResetAttempt = true;
-        return;
-    }
-
-    // First attempt - show warning
-    const resetButton = document.querySelector('.reset-button');
-    resetButton.classList.add('warning');
-    isFirstResetAttempt = false;
-
-    // Clear warning after animation
-    setTimeout(() => {
-        resetButton.classList.remove('warning');
-    }, 1000);
-
-    // Reset the attempt after 10 seconds
-    if (resetProgressTimeout) {
-        clearTimeout(resetProgressTimeout);
-    }
-    
-    resetProgressTimeout = setTimeout(() => {
-        isFirstResetAttempt = true;
-    }, 10000);
-}
-
-function toggleFullScreen() {
-    const button = document.querySelector('.fullscreen-button i');
-    
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen()
-            .then(() => {
-                button.classList.remove('fa-expand');
-                button.classList.add('fa-compress');
+    if (currentUser) {
+        // Reset Supabase progress
+        supabaseClient
+            .from('game_progress')
+            .update({
+                stage: 1,
+                set_number: 1,
+                level: 1,
+                coins: 0,
+                perks: {},
+                unlocked_sets: { "1": [1] },
+                unlocked_levels: { "1_1": [1] },
+                perfect_levels: [],
+                completed_levels: []
             })
-            .catch(err => {
-                console.log(`Error attempting to enable fullscreen: ${err.message}`);
+            .eq('user_id', currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error('Error resetting progress:', error);
             });
-    } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen()
-                .then(() => {
-                    button.classList.remove('fa-compress');
-                    button.classList.add('fa-expand');
-                })
-                .catch(err => {
-                    console.log(`Error attempting to exit fullscreen: ${err.message}`);
-                });
-        }
     }
-}
 
-async function handleLogout() {
-    try {
-        const { error } = await supabaseClient.auth.signOut();
-        
-        if (error) {
-            console.error('Supabase logout error:', error.message);
-        }
+    // Reset local game state
+    gameState.currentStage = 1;
+    gameState.currentSet = 1;
+    gameState.currentLevel = 1;
+    gameState.coins = 0;
+    gameState.unlockedSets = { "1": new Set([1]) };
+    gameState.unlockedLevels = { "1_1": new Set([1]) };
+    gameState.perfectLevels = new Set();
+    gameState.completedLevels = new Set();
+    gameState.perks = {
+        timeFreeze: 0,
+        skip: 0,
+        clue: 0,
+        reveal: 0
+    };
 
-        currentUser = null;
-        updateAuthUI();
-        showScreen('welcome-screen');
-        
-        // Reload game progress from localStorage
-        initializeGame();
-
-    } catch (error) {
-        console.error('Unexpected error during logout:', error);
-    }
+    // Clear localStorage
+    localStorage.removeItem('simploxProgress');
+    localStorage.removeItem('simploxCustomCoins');
+    
+    // Update UI
+    updatePerkCounts();
+    updateAllCoinDisplays();
+    showScreen('welcome-screen');
 }
 
 
@@ -5812,6 +5758,7 @@ function handleRestartLevel() {
 }
 
 function showStagesFromMenu() {
+    requestFullScreen();
     showScreen('stage-screen');
 }
 
@@ -5875,6 +5822,7 @@ function findFurthestProgression() {
 
 
 function startGame() {
+    requestFullScreen();
     
     if (!gameState.unlockedSets[1] || !gameState.unlockedLevels['1_1']) {
         gameState.unlockedSets[1] = new Set([1]);
@@ -6272,6 +6220,7 @@ function updateListsDisplay() {
 }
 
 function startCustomListPractice(listId) {
+    requestFullScreen();
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
@@ -7759,180 +7708,188 @@ document.querySelectorAll('.home-button').forEach(button => {
 
 async function showLeaderboard() {
     showScreen('leaderboard-screen');
+
     const entriesContainer = document.getElementById('leaderboard-entries');
     
-    try {
-        async function fetchAndRenderLeaderboard() {
-            const { data: leaderboard, error } = await supabaseClient
-                .from('player_leaderboard')
-                .select('*');
-                    
-            if (error) {
-                console.error('Leaderboard fetch error:', error);
-                return;
+    if (!entriesContainer) {
+        console.error('Leaderboard entries container not found');
+        return;
+    }
+
+    async function renderLeaderboard(leaderboard) {
+        // Sort leaderboard to ensure correct order
+        const sortedLeaderboard = leaderboard.sort((a, b) => 
+            b.avg_completion_time_seconds - a.avg_completion_time_seconds
+        );
+
+        // Create a new document fragment for smooth updates
+        const fragment = document.createDocumentFragment();
+
+        sortedLeaderboard.forEach((entry, index) => {
+            const existingEntry = entriesContainer.querySelector(`[data-user-id="${entry.user_id}"]`);
+            
+            const entryDiv = document.createElement('div');
+            entryDiv.className = `leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}`;
+            entryDiv.dataset.userId = entry.user_id;
+            
+            entryDiv.innerHTML = `
+    <div>${index + 1}</div>
+    <div>${entry.username || 'Anonymous'}</div>
+    <div>${entry.words_practiced_today || 0} words</div>
+    <div>${Math.floor((entry.time_spent_today_seconds || 0) / 60)} mins</div>
+    <div>${entry.best_streak || 0}</div>
+            `;
+
+            // Detect position change
+            if (existingEntry) {
+                const oldIndex = Array.from(entriesContainer.children).indexOf(existingEntry);
+                
+                if (oldIndex !== index) {
+                    // Add movement classes for animation
+                    entryDiv.classList.add(oldIndex > index ? 'moving-up' : 'moving-down');
+                }
             }
 
-            const currentEntries = entriesContainer.children;
+            fragment.appendChild(entryDiv);
+        });
+
+        // Clear and repopulate with animated entries
+        entriesContainer.innerHTML = '';
+        entriesContainer.appendChild(fragment);
+
+        // Remove movement classes after animation
+        setTimeout(() => {
+            document.querySelectorAll('.leaderboard-entry').forEach(entry => {
+                entry.classList.remove('moving-up', 'moving-down');
+            });
+        }, 1000);
+    }
+
+    try {
+        const { data: leaderboard, error } = await supabaseClient
+            .from('player_leaderboard')
+            .select('*')
+            .limit(50)
+            .order('avg_completion_time_seconds', { ascending: false });
             
-            // Store current positions
-            const oldPositions = {};
-            Array.from(currentEntries).forEach(entry => {
-                const username = entry.querySelector('[data-username]').dataset.username;
-                oldPositions[username] = entry.getBoundingClientRect();
-            });
+        if (error) throw error;
 
-            // Render new entries
-            entriesContainer.innerHTML = leaderboard.map((entry, index) => `
-                <div class="leaderboard-entry ${entry.username === currentUser?.user_metadata?.username ? 'you' : ''} ${index < 3 ? `rank-${index + 1}` : ''}"
-                     data-rank="${index + 1}">
-                    <div>${entry.player_rank}</div>
-                    <div data-username="${entry.username}">${entry.username || 'Anonymous'}</div>
-                    <div>${entry.total_levels_completed}</div>
-                    <div>${entry.total_words_learned}</div>
-                </div>
-            `).join('');
+        await renderLeaderboard(leaderboard);
 
-            // Apply animations
-            const newEntries = entriesContainer.children;
-            Array.from(newEntries).forEach(entry => {
-                const username = entry.querySelector('[data-username]').dataset.username;
-                if (oldPositions[username]) {
-                    const oldPos = oldPositions[username];
-                    const newPos = entry.getBoundingClientRect();
-                    const diff = oldPos.top - newPos.top;
+        // Real-time subscription
+        const leaderboardSubscription = supabaseClient
+            .channel('leaderboard-real-time')
+            .on('postgres_changes', 
+                { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'player_stats'
+                }, 
+                async (payload) => {
+                    const { data: updatedLeaderboard } = await supabaseClient
+                        .from('player_leaderboard')
+                        .select('*')
+                        .limit(50)
+                        .order('avg_completion_time_seconds', { ascending: false });
                     
-                    if (diff > 0) {
-                        entry.classList.add('moving-up');
-                    } else if (diff < 0) {
-                        entry.classList.add('moving-down');
-                    }
-                    
-                    // Remove animation classes after completion
-                    entry.addEventListener('animationend', () => {
-                        entry.classList.remove('moving-up', 'moving-down');
-                    }, { once: true });
+                    await renderLeaderboard(updatedLeaderboard);
                 }
-            });
-        }
+            )
+            .subscribe();
 
-        // Initial load
-        await fetchAndRenderLeaderboard();
-
-        // Set up polling
-        const pollInterval = setInterval(fetchAndRenderLeaderboard, 1500);
-
-        // Store interval for cleanup
         const leaderboardScreen = document.getElementById('leaderboard-screen');
         if (leaderboardScreen) {
-            if (leaderboardScreen.dataset.pollInterval) {
-                clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
-            }
-            leaderboardScreen.dataset.pollInterval = pollInterval;
+            leaderboardScreen.dataset.subscription = leaderboardSubscription;
         }
 
     } catch (error) {
-        console.error('Detailed leaderboard error:', error);
+        console.error('Leaderboard error:', error);
         entriesContainer.innerHTML = `<p>Error loading leaderboard: ${error.message}</p>`;
-    }
-}
-
-function cleanupLeaderboard() {
-    const leaderboardScreen = document.getElementById('leaderboard-screen');
-    if (leaderboardScreen) {
-        // Cleanup channel
-        if (leaderboardScreen.dataset.channel) {
-            supabaseClient.removeChannel(leaderboardScreen.dataset.channel);
-            delete leaderboardScreen.dataset.channel;
-        }
-        // Cleanup interval
-        if (leaderboardScreen.dataset.pollInterval) {
-            clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
-            delete leaderboardScreen.dataset.pollInterval;
-        }
     }
 }
 
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
 
-    console.log('Updating stats:', {
-        levelTime,
-        mistakes,
-        currentStreak,
-        words: currentGame.words.length
-    });
+    // Get current level's unique words
+    const uniqueWords = new Set([...currentGame.words]);
+    const wordCount = uniqueWords.size;
+    
+    // Calculate session time
+    const sessionTime = Date.now() - currentGame.levelStartTime;
 
     try {
-        const { data: currentStats, error: fetchError } = await supabaseClient
+        // First get existing stats
+        const { data: existingStats } = await supabaseClient
             .from('player_stats')
-            .select('*')
+            .select('practiced_words, words_practiced_today, time_spent_today_ms, last_practice_date')
             .eq('user_id', currentUser.id)
             .single();
 
-        if (fetchError && fetchError.code !== 'PGRST116') {
-            throw fetchError;
-        }
+        // Check if we need to reset daily stats
+        const today = new Date().toISOString().split('T')[0];
+        const needsReset = existingStats?.last_practice_date !== today;
 
-        const updateData = {
-            user_id: currentUser.id,
-            total_levels_completed: ((currentStats?.total_levels_completed || 0) + 1),
-            unique_words_practiced: currentStats?.unique_words_practiced 
-                ? currentStats.unique_words_practiced + currentGame.words.length
-                : currentGame.words.length,
-            last_updated: new Date().toISOString()
-        };
-
-        console.log('Sending update with data:', updateData);
-
-        const { error: updateError } = await supabaseClient
+        // Convert existing practiced words to Set for easy comparison
+        const practicedWordsSet = new Set(existingStats?.practiced_words || []);
+        
+        // Count only new words for today's practice
+        const newWords = Array.from(uniqueWords).filter(word => !practicedWordsSet.has(word));
+        
+        // Update stats
+        const { data, error } = await supabaseClient
             .from('player_stats')
-            .upsert(updateData, {
-                onConflict: 'user_id',
-                returning: 'minimal' // For faster response
-            });
+            .upsert({
+                user_id: currentUser.id,
+                total_levels_completed: existingStats ? 'total_levels_completed + 1' : 1,
+                total_time_spent: existingStats ? `total_time_spent + ${sessionTime}` : sessionTime,
+                total_mistakes: existingStats ? `total_mistakes + ${mistakes}` : mistakes,
+                best_streak: existingStats ? `GREATEST(best_streak, ${currentStreak})` : currentStreak,
+                words_practiced_today: needsReset ? newWords.length : `words_practiced_today + ${newWords.length}`,
+                time_spent_today_ms: needsReset ? sessionTime : `time_spent_today_ms + ${sessionTime}`,
+                practiced_words: `array_cat(practiced_words, '{${newWords.join(',')}}'::text[])`,
+                last_practice_date: today,
+                last_updated: new Date().toISOString()
+            }, {
+                onConflict: 'user_id'
+            })
+            .select();
 
-        if (updateError) throw updateError;
-
-        console.log('Stats update successful');
+        if (error) throw error;
+        
+        console.log('Stats updated successfully:', data);
 
     } catch (error) {
         console.error('Error updating player stats:', error);
     }
 }
 
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
+function showPremiumCelebration() {
+    // Create celebration overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'premium-celebration';
+    overlay.innerHTML = `
+        <div class="celebration-content">
+            <h1 class="celebration-title">Welcome to Premium!</h1>
+            <p class="celebration-message">
+                Congratulations! Your account has been upgraded to Premium.<br>
+                All stages and sets are now unlocked!
+            </p>
+            <button class="celebration-button" onclick="handlePremiumCelebrationComplete()">
+                Start Playing
+            </button>
+        </div>
+    `;
     
-    if (session) {
-        currentUser = session.user;
-        
-        // Get initial status
-        const { data: profile } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
-            
-        if (profile) {
-            currentUser.status = profile.status; // Store status in user object
-            updateUserStatusDisplay(profile.status);
-        }
-        
-        // Initialize real-time updates and periodic check
-        initializeStatusCheck();
-        
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists()
-        ]);
-        updateAuthUI();
-    } else {
-        // Clear interval if it exists
-        if (window.statusCheckInterval) {
-            clearInterval(window.statusCheckInterval);
-        }
-        updateUserStatusDisplay(null);
-    }
+    document.body.appendChild(overlay);
+    
+    // Create celebratory particles
+    createParticles(window.innerWidth / 2, window.innerHeight / 2);
+    
+    // Show overlay with animation
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
 }
 
 function handlePremiumCelebrationComplete() {
