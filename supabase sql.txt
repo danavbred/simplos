@@ -1,5 +1,10 @@
--- 🔑 USER AUTHENTICATION & PROFILES
--- Comprehensive user profile management with robust policies
+----------------------------------------------------------------------------------------
+-- 🔑 USER PROFILES
+--------------------------------------------------------------------------------------
+-- Drop existing objects to prevent conflicts
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
+DROP TABLE IF EXISTS public.user_profiles CASCADE;
 
 CREATE TABLE IF NOT EXISTS public.user_profiles (
     id uuid PRIMARY KEY REFERENCES auth.users,
@@ -46,6 +51,23 @@ CREATE TRIGGER on_auth_user_created
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_new_user();
 
+----------------------------------------------------------------------------------------
+-- 🛡️ POLICIES
+----------------------------------------------------------------------------------------
+-- Dynamic policy cleanup for user_profiles
+DO $$
+DECLARE 
+    policy_name text;
+BEGIN
+    FOR policy_name IN 
+        SELECT policyname 
+        FROM pg_policies 
+        WHERE schemaname = 'public' AND tablename = 'user_profiles'
+    LOOP
+        EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(policy_name) || ' ON public.user_profiles';
+    END LOOP;
+END $$;
+
 -- Row Level Security Policies
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 
@@ -61,8 +83,35 @@ CREATE POLICY "Users can insert their own profile"
 ON public.user_profiles FOR INSERT
 WITH CHECK (auth.uid() = id);
 
--- 🎮 GAME PROGRESS MANAGEMENT
--- Tracking user's game progression and unlocks
+----------------------------------------------------------------------------------------
+-- 🎮 GAME PROGRESS
+----------------------------------------------------------
+-- First, identify and remove duplicate game progress records
+WITH duplicate_records AS (
+    SELECT 
+        user_id, 
+        ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) as rn
+    FROM game_progress
+)
+DELETE FROM game_progress
+WHERE id IN (
+    SELECT id FROM (
+        SELECT 
+            id,
+            ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) as rn
+        FROM game_progress
+    ) t
+    WHERE rn > 1
+);
+
+
+-- Add a unique constraint to prevent multiple game progress records for a user
+ALTER TABLE game_progress 
+ADD CONSTRAINT unique_user_game_progress 
+UNIQUE (user_id);
+
+-- Drop existing objects
+DROP TABLE IF EXISTS game_progress CASCADE;
 
 CREATE TABLE IF NOT EXISTS game_progress (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -82,13 +131,32 @@ CREATE TABLE IF NOT EXISTS game_progress (
 -- Enable Row Level Security
 ALTER TABLE game_progress ENABLE ROW LEVEL SECURITY;
 
--- Policies for game progress
+-- Dynamic policy cleanup for player_stats
+DO $$
+DECLARE 
+    policy_name text;
+BEGIN
+    FOR policy_name IN 
+        SELECT policyname 
+        FROM pg_policies 
+        WHERE schemaname = 'public' AND tablename = 'player_stats'
+    LOOP
+        EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(policy_name) || ' ON player_stats';
+    END LOOP;
+END $$;
+
 CREATE POLICY "Users can manage own game progress" 
 ON game_progress FOR ALL 
 USING (auth.uid() = user_id);
 
--- 📊 PLAYER STATISTICS & LEADERBOARD
--- Tracking player performance and generating leaderboard
+----------------------------------------------------------------------------------------
+-- 📊 STATS
+----------------------------------------------------------------------------------------
+-- Drop existing objects
+DROP TABLE IF EXISTS player_stats CASCADE;
+DROP VIEW IF EXISTS player_leaderboard CASCADE;
+DROP INDEX IF EXISTS idx_player_stats_user;
+DROP INDEX IF EXISTS idx_player_stats_levels;
 
 CREATE TABLE IF NOT EXISTS player_stats (
     user_id uuid REFERENCES auth.users PRIMARY KEY,
@@ -104,7 +172,20 @@ CREATE INDEX IF NOT EXISTS idx_player_stats_levels ON player_stats(total_levels_
 -- Enable Row Level Security
 ALTER TABLE player_stats ENABLE ROW LEVEL SECURITY;
 
--- Policies for player stats
+-- Dynamic policy cleanup for custom_lists
+DO $$
+DECLARE 
+    policy_name text;
+BEGIN
+    FOR policy_name IN 
+        SELECT policyname 
+        FROM pg_policies 
+        WHERE schemaname = 'public' AND tablename = 'custom_lists'
+    LOOP
+        EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(policy_name) || ' ON custom_lists';
+    END LOOP;
+END $$;
+
 CREATE POLICY "Users can read any player stats" 
     ON player_stats FOR SELECT 
     USING (true);
@@ -144,8 +225,12 @@ ORDER BY player_rank ASC;
 GRANT SELECT ON player_leaderboard TO authenticated;
 GRANT ALL ON player_stats TO authenticated;
 
--- 🧩 CUSTOM LISTS & SHARING
--- Management of user-created word lists
+----------------------------------------------------------------------------------------
+-- 📝 CUSTOM LISTS
+----------------------------------------------------------------------------------------
+
+-- Drop existing objects
+DROP TABLE IF EXISTS custom_lists CASCADE;
 
 CREATE TABLE IF NOT EXISTS custom_lists (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -163,7 +248,20 @@ CREATE TABLE IF NOT EXISTS custom_lists (
 -- Enable Row Level Security
 ALTER TABLE custom_lists ENABLE ROW LEVEL SECURITY;
 
--- Policies for custom lists
+-- Dynamic policy cleanup for custom_lists
+DO $$
+DECLARE 
+    policy_name text;
+BEGIN
+    FOR policy_name IN 
+        SELECT policyname 
+        FROM pg_policies 
+        WHERE schemaname = 'public' AND tablename = 'custom_lists'
+    LOOP
+        EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(policy_name) || ' ON custom_lists';
+    END LOOP;
+END $$;
+
 CREATE POLICY "Users can view own and shared lists" ON custom_lists
 FOR SELECT USING (
     auth.uid() = user_id 
@@ -176,8 +274,11 @@ FOR ALL USING (auth.uid() = user_id);
 -- Grant permissions
 GRANT ALL ON custom_lists TO authenticated;
 
--- 💰 PAYMENT & UPGRADE TRACKING
--- Tracking payment requests and upgrade status
+----------------------------------------------------------------------------------------
+-- 💰 PAYMENTS
+----------------------------------------------------------------------------------------
+-- Drop existing objects
+DROP TABLE IF EXISTS payment_requests CASCADE;
 
 CREATE TABLE IF NOT EXISTS payment_requests (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -194,7 +295,20 @@ CREATE TABLE IF NOT EXISTS payment_requests (
 -- Enable Row Level Security
 ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
 
--- Policies for payment requests
+-- Dynamic policy cleanup for payment_requests
+DO $$
+DECLARE 
+    policy_name text;
+BEGIN
+    FOR policy_name IN 
+        SELECT policyname 
+        FROM pg_policies 
+        WHERE schemaname = 'public' AND tablename = 'payment_requests'
+    LOOP
+        EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(policy_name) || ' ON payment_requests';
+    END LOOP;
+END $$;
+
 CREATE POLICY "Users can view their own payment requests"
 ON payment_requests FOR SELECT
 USING (auth.uid() = user_id);
@@ -207,3 +321,25 @@ USING (
         WHERE role = 'admin'
     )
 );
+
+-- First, identify duplicate records
+WITH duplicate_records AS (
+    SELECT 
+        user_id, 
+        ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) as rn
+    FROM game_progress
+)
+-- Delete all but the most recent record for each user
+DELETE FROM game_progress
+WHERE id IN (
+    SELECT id FROM (
+        SELECT 
+            id,
+            ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) as rn
+        FROM game_progress
+    ) t
+    WHERE rn > 1
+);
+
+-- Now, create the unique index
+CREATE UNIQUE INDEX unique_user_game_progress ON game_progress (user_id);

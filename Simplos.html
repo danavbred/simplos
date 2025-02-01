@@ -8,7 +8,7 @@
     <title>Simplos</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="https://unpkg.com/@supabase/supabase-js@2.39.7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>    
     <script src="vocabs.js"></script>
    <style>
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
@@ -3297,12 +3297,24 @@ body {
 
 <script>
 
-    document.addEventListener('DOMContentLoaded', () => {
-    const gameAssets = {
-        stages: {}, // Cache stage data
-        currentWords: [], // Cache current level words
-        particles: new Set() // Reuse particle elements
-    };
+    const { createClient } = supabase;
+const supabaseClient = createClient(
+    'https://mczfgzffyyyacisrccqb.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo',
+    {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+    }
+);
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await checkExistingSession();
+    initializeGame();
+    updatePerkCounts();
+    const welcomeScreen = document.getElementById('welcome-screen');
+    initializeParticles(welcomeScreen);
+    await loadCustomLists();
 });
 
 const ParticleSystem = {
@@ -3426,16 +3438,34 @@ document.addEventListener('DOMContentLoaded', () => {
     gameInit.init();
 });
 
-const { createClient } = supabase;
-const supabaseClient = createClient(
-    'https://mczfgzffyyyacisrccqb.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo',
-    {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
+
+
+// Add this new function to handle initial user data setup
+async function initializeUserProfile(userId) {
+    const { data: profile, error: profileError } = await supabaseClient
+        .from('user_profiles')
+        .select()
+        .eq('id', userId)
+        .single();
+
+    if (profileError || !profile) {
+        // Profile doesn't exist, create it
+        const { error: insertError } = await supabaseClient
+            .from('user_profiles')
+            .insert([{
+                id: userId,
+                username: currentUser.user_metadata?.username || currentUser.email?.split('@')[0],
+                role: 'student',
+                status: 'free'
+            }]);
+
+        if (insertError) {
+            throw insertError;
+        }
     }
-);
+}
+
+
 
 async function showSetScreen(stageId) {
     gameState.currentStage = stageId;
@@ -3470,12 +3500,148 @@ async function showSetScreen(stageId) {
     showScreen('set-screen');
 }
 
+async function initializeAuth() {
+    // Set up auth state listener
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        console.log('Auth state changed:', event, 'Session:', session);
+        
+        if (event === 'SIGNED_IN') {
+            if (session?.user) {
+                currentUser = session.user;
+                console.log('Setting current user:', currentUser);
+                
+                try {
+                    // First get user profile details
+                    const { data: userProfile } = await supabaseClient
+                        .from('user_profiles')
+                        .select('username, status')
+                        .eq('id', currentUser.id)
+                        .single();
 
-// Event listener initialization
-document.addEventListener('DOMContentLoaded', async () => {
-    await checkExistingSession();
-    initializeGame();
-    initializeParticles(document.getElementById('welcome-screen'));
+                    console.log('Profile data:', userProfile);
+
+                    // Force immediate UI update
+                    const userInfo = document.getElementById('userInfo');
+                    const authBox = document.getElementById('authBox');
+                    const userEmailElement = document.getElementById('userEmail');
+                    const logoutButton = document.querySelector('.logout-button');
+
+                    if (userInfo && authBox && userEmailElement && logoutButton) {
+                        // Use profile username if available, otherwise fallback
+                        const displayName = userProfile?.username || 
+                                         currentUser.user_metadata?.username || 
+                                         currentUser.email?.split('@')[0];
+                        
+                        console.log('Updating UI with displayName:', displayName);
+                        
+                        userEmailElement.textContent = displayName;
+                        authBox.classList.add('hidden');
+                        userInfo.classList.remove('hidden');
+                        logoutButton.classList.remove('hidden');
+                        updateUserStatusDisplay(userProfile?.status || 'free');
+                    }
+
+                    // Then load game data
+                    await Promise.all([
+                        loadUserGameProgress(currentUser.id),
+                        loadCustomLists()
+                    ]);
+                    
+                    showScreen('welcome-screen');
+                    await forceUIUpdate();
+
+                } catch (error) {
+                    console.error('Error in auth state change:', error);
+                    handleLogout();
+                }
+            }
+        } else if (event === 'SIGNED_OUT') {
+            console.log('User signed out');
+            currentUser = null;
+            gameState = {
+                currentStage: 1,
+                currentSet: 1,
+                currentLevel: 1,
+                coins: 0,
+                perks: {
+                    timeFreeze: 0,
+                    skip: 0,
+                    clue: 0,
+                    reveal: 0
+                },
+                unlockedSets: {},
+                unlockedLevels: {},
+                perfectLevels: new Set(),
+                completedLevels: new Set()
+            };
+            updateAuthUI();
+            showScreen('welcome-screen');
+        }
+    });
+
+    // Initial session check
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        console.log('Initial session check:', session ? 'Session exists' : 'No session');
+
+        if (session) {
+            currentUser = session.user;
+            console.log('Initial user set:', currentUser);
+
+            const { data: profile, error: profileError } = await supabaseClient
+                .from('user_profiles')
+                .select('status, username')
+                .eq('id', currentUser.id)
+                .single();
+
+            if (profileError) {
+                console.error('Error loading profile:', profileError);
+                throw profileError;
+            }
+
+            if (profile) {
+                currentUser.status = profile.status;
+                updateUserStatusDisplay(profile.status);
+                await Promise.all([
+                    loadUserGameProgress(currentUser.id),
+                    loadCustomLists()
+                ]);
+            }
+            
+            // Add extra UI update at session check
+            await forceUIUpdate();
+            updateAuthUI();
+            
+        } else {
+            console.log('No existing session');
+            currentUser = null;
+            setupDefaultUnlocks();
+            updateAuthUI();
+        }
+    } catch (error) {
+        console.error('Error during initial session check:', error);
+        currentUser = null;
+        updateAuthUI();
+        showScreen('welcome-screen');
+    }
+}
+
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    initializeAuth()
+        .then(() => {
+            initializeGame();
+            updatePerkCounts();
+            const welcomeScreen = document.getElementById('welcome-screen');
+            if (welcomeScreen) {
+                initializeParticles(welcomeScreen);
+            }
+        })
+        .catch(error => {
+            console.error('Initialization error:', error);
+            showScreen('welcome-screen');
+        });
 });
 
 // Auth UI functions
@@ -3486,14 +3652,16 @@ async function handleSignup() {
     const username = document.getElementById('signupUsername').value;
     const password = document.getElementById('signupPassword').value;
 
+    console.log('Starting signup process...', { email, username });
+
     if (!email || !username || !password) {
         alert('All fields are required');
         return;
     }
 
     try {
-        // Step 1: Sign up with Supabase Auth
-        const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+        console.log('Attempting Supabase signup...');
+        const { data, error } = await supabaseClient.auth.signUp({
             email,
             password,
             options: {
@@ -3504,81 +3672,54 @@ async function handleSignup() {
             }
         });
 
-        if (authError) throw authError;
+        if (error) throw error;
+        console.log('Auth signup successful:', data);
 
-        // Step 2: Create user profile
+        // Manual profile creation as fallback
         const { error: profileError } = await supabaseClient
             .from('user_profiles')
-            .insert([{
-                id: authData.user.id,
+            .insert({
+                id: data.user.id,
                 username: username,
-                status: 'free',
-                role: 'student'
-            }]);
+                role: 'student',
+                status: 'free'
+            });
 
         if (profileError) {
-            console.error('Profile creation error:', profileError);
-            // Continue anyway as the auth was successful
+            console.log('Manual profile creation error:', profileError);
         }
 
-        // Step 3: Initialize game progress
-        const { error: progressError } = await supabaseClient
-            .from('game_progress')
-            .insert([{
-                user_id: authData.user.id,
-                stage: 1,
-                set_number: 1,
-                level: 1,
-                coins: 0,
-                perks: {},
-                unlocked_sets: { "1": [1] },
-                unlocked_levels: { "1_1": [1] },
-                perfect_levels: [],
-                completed_levels: []
-            }]);
+        // Verify profile creation
+        const { data: profile } = await supabaseClient
+            .from('user_profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
 
-        if (progressError) {
-            console.error('Progress initialization error:', progressError);
-            // Continue anyway
+        console.log('Profile check:', profile);
+
+        // Force UI update
+        await forceUIUpdate();
+
+        // Additional UI updates if profile exists
+        if (profile) {
+            const userInfo = document.getElementById('userInfo');
+            const authBox = document.getElementById('authBox');
+            const userEmailElement = document.getElementById('userEmail');
+            const logoutButton = document.querySelector('.logout-button');
+
+            if (userInfo && authBox && userEmailElement && logoutButton) {
+                userEmailElement.textContent = profile.username;
+                authBox.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+                logoutButton.classList.remove('hidden');
+                updateUserStatusDisplay(profile.status);
+            }
         }
-
-        // Step 4: Initialize player stats
-        const { error: statsError } = await supabaseClient
-            .from('player_stats')
-            .insert([{
-                user_id: authData.user.id,
-                total_levels_completed: 0,
-                unique_words_practiced: 0
-            }]);
-
-        if (statsError) {
-            console.error('Stats initialization error:', statsError);
-            // Continue anyway
-        }
-
-        // Step 5: Auto-login
-        const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-        });
-
-        if (loginError) throw loginError;
-
-        currentUser = loginData.user;
-        await Promise.all([
-            loadCustomLists(),
-            loadUserGameProgress(currentUser.id)
-        ]);
-        updateAuthUI();
-        showScreen('welcome-screen');
 
     } catch (error) {
-        console.error('Detailed signup error:', error);
-        if (error.message.includes('duplicate key')) {
-            alert('This username or email is already taken. Please try another.');
-        } else {
-            alert('Signup error: ' + error.message);
-        }
+        console.error('Signup failed:', error);
+        alert(`Signup failed: ${error.message}`);
     }
 }
 
@@ -3720,7 +3861,6 @@ function setupDefaultUnlocks() {
         }
     }
 }
-
 
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -3996,13 +4136,14 @@ async function loadCustomLists() {
                 id: item.local_id || Date.now(),
                 supabaseId: item.id,
                 name: item.name,
-                words: item.words,
-                translations: item.translations,
-                is_shared: item.is_shared,
+                words: item.words || [],
+                translations: item.translations || [],
+                is_shared: item.is_shared || false,
                 shared_by: item.shared_by
             }));
         }
     } else {
+        // For guest users, load from localStorage
         const savedLists = localStorage.getItem('simploxCustomLists');
         customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
     }
@@ -4030,37 +4171,53 @@ function switchAuthTab(tab) {
 }
 
 function updateAuthUI() {
+    console.log('Updating Auth UI. Current user:', currentUser);
+    
     const authBox = document.getElementById('authBox');
     const userInfo = document.getElementById('userInfo');
     const userEmailElement = document.getElementById('userEmail');
     const logoutButton = document.querySelector('.logout-button');
 
+    if (!authBox || !userInfo || !userEmailElement || !logoutButton) {
+        console.error('Missing UI elements:', {
+            authBox: !!authBox,
+            userInfo: !!userInfo,
+            userEmailElement: !!userEmailElement,
+            logoutButton: !!logoutButton
+        });
+        return;
+    }
+
     if (currentUser) {
+        console.log('User is logged in, updating UI elements');
         authBox.classList.add('hidden');
         userInfo.classList.remove('hidden');
         logoutButton.classList.remove('hidden');
         
-        // Display username from metadata if available, fallback to email
-        userEmailElement.textContent = currentUser.user_metadata?.username || currentUser.email;
-        
-        // Get and display user status
+        // Get latest profile data
         supabaseClient
             .from('user_profiles')
-            .select('status, username')
+            .select('username, status')
             .eq('id', currentUser.id)
             .single()
-            .then(({ data }) => {
+            .then(({ data, error }) => {
+                console.log('Profile fetch result:', { data, error });
                 if (data) {
-                    // If we have a username in the profile, use it
                     if (data.username) {
                         userEmailElement.textContent = data.username;
                     }
                     updateUserStatusDisplay(data.status);
+                } else {
+                    // Fallback to metadata if profile not found
+                    userEmailElement.textContent = currentUser.user_metadata?.username || 
+                        currentUser.email?.split('@')[0];
+                    updateUserStatusDisplay('free');
                 }
             })
             .catch(error => console.error('Error fetching user status:', error));
             
     } else {
+        console.log('No user logged in, showing auth box');
         authBox.classList.remove('hidden');
         userInfo.classList.add('hidden');
         logoutButton.classList.add('hidden');
@@ -5927,6 +6084,62 @@ const customPracticeLists = {
     maxLists: 5
 };
 
+function getUserListLimits() {
+    if (!currentUser) {
+        return {
+            maxLists: 3,
+            maxWords: 10,
+            maxPlays: 5,
+            canShare: false
+        };
+    }
+
+    // Get user status
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    
+    switch(userStatus) {
+        case 'free':
+            return {
+                maxLists: 5,
+                maxWords: 20,
+                maxPlays: 10,
+                canShare: false
+            };
+        case 'pending':
+        case 'premium':
+            return {
+                maxLists: 30,
+                maxWords: 50,
+                maxPlays: Infinity,
+                canShare: true
+            };
+        default:
+            return {
+                maxLists: 3,
+                maxWords: 10,
+                maxPlays: 5,
+                canShare: false
+            };
+    }
+}
+
+function trackListPlay(listId) {
+    const playCountKey = `listPlays_${listId}`;
+    let plays = parseInt(localStorage.getItem(playCountKey) || '0');
+    plays++;
+    
+    const limits = getUserListLimits();
+    localStorage.setItem(playCountKey, plays);
+
+    if (plays >= limits.maxPlays) {
+        // Remove list if max plays reached
+        deleteCustomList(listId);
+        return false;
+    }
+    
+    return limits.maxPlays - plays;
+}
+
 // Function to add a new word list
 function addCustomWordList(name = null) {
     // Check if we've reached the maximum number of lists
@@ -6002,37 +6215,7 @@ function addNewWord() {
     initializeDragAndDrop(wordItem);
 }
 
-function makeWordListDraggable(listId) {
-    const wordList = document.getElementById(`list-${listId}`);
-    if (!wordList) return;
-    
-    // Add dragover event listener to the container
-    wordList.addEventListener('dragover', e => {
-        e.preventDefault();
-        const draggable = wordList.querySelector('.dragging');
-        if (!draggable) return;
-        
-        const afterElement = getDragAfterElement(wordList, e.clientY);
-        if (afterElement) {
-            wordList.insertBefore(draggable, afterElement);
-        } else {
-            wordList.appendChild(draggable);
-        }
-    });
 
-    wordList.addEventListener('drop', e => {
-        e.preventDefault();
-        const draggingElement = document.querySelector('.dragging');
-        if (draggingElement) {
-            draggingElement.style.opacity = '1';
-            draggingElement.classList.remove('dragging');
-        }
-    });
-
-    // Initialize drag events for all items
-    const items = wordList.querySelectorAll('.word-translation-item');
-    items.forEach(item => initializeDragAndDrop(item));
-}
 
 function createWordTranslationItem(word = '', translation = '', isEditable = false) {
     const wordList = document.getElementById('word-translation-list');
@@ -6117,11 +6300,14 @@ function processCustomWords() {
     const translationResults = document.getElementById('translation-results');
     const wordList = document.getElementById('word-translation-list');
     
+    const limits = getUserListLimits();
+    
     // Split and clean input words
     const words = wordInput.value
         .split(/[,\s\n]+/)
         .map(word => word.trim())
-        .filter(word => word.length > 0);
+        .filter(word => word.length > 0)
+        .slice(0, limits.maxWords);
 
     if (words.length === 0) {
         alert('Please enter at least one word.');
@@ -6158,50 +6344,16 @@ function processCustomWords() {
         `;
         
         wordList.appendChild(wordItem);
+        // Initialize drag functionality for this item
+        initializeDragAndDrop(wordItem);
     });
     
     translationResults.style.display = 'block';
-    makeWordListDraggable();
+    // Initialize drag functionality for the list
+    makeWordListDraggable(wordList);
 }
 
-function initializeDragAndDrop(item) {
-    if (!item) return;
-    
-    item.setAttribute('draggable', 'true');
-    
-    item.addEventListener('dragstart', (e) => {
-        e.stopPropagation();
-        item.classList.add('dragging');
-        item.style.opacity = '0.5';
-    });
-    
-    item.addEventListener('dragend', (e) => {
-        e.stopPropagation();
-        item.classList.remove('dragging');
-        item.style.opacity = '1';
-        
-        // Save the new order
-        const listId = item.closest('.word-translation-list')?.id.split('-')[1];
-        if (listId) {
-            const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
-            const wordList = document.getElementById(`list-${listId}`);
-            if (listItem?.getAttribute('data-in-edit-mode') === 'true') {
-                saveListChanges(listId, wordList, listItem, false);
-            }
-        }
-    });
 
-    const dragHandle = item.querySelector('.drag-handle');
-    if (dragHandle) {
-        dragHandle.addEventListener('mousedown', () => {
-            item.draggable = true;
-        });
-        
-        dragHandle.addEventListener('mouseup', () => {
-            item.draggable = false;
-        });
-    }
-}
 
 
 function saveCurrentList() {
@@ -6369,6 +6521,10 @@ function showCustomListsManager() {
     const container = document.getElementById('custom-lists-container');
     if (!container) return;
     
+    const limits = getUserListLimits();
+    const userStatus = currentUser?.status || 'unregistered';
+    const canShare = userStatus === 'premium' || userStatus === 'pending';
+    
     container.innerHTML = '';
     
     if (customPracticeLists.lists.length === 0) {
@@ -6376,39 +6532,47 @@ function showCustomListsManager() {
         return;
     }
 
-    const seenIds = new Set();
-
     customPracticeLists.lists.forEach(list => {
-        if (seenIds.has(list.id)) return;
-        seenIds.add(list.id);
+        // Get play count
+        const playCountKey = `listPlays_${list.id}`;
+        const playsUsed = parseInt(localStorage.getItem(playCountKey) || '0');
+        const playsLeft = limits.maxPlays - playsUsed;
+
+        if (playsLeft <= 0) return;
         
         const listItem = document.createElement('div');
         listItem.className = `custom-list-item collapsed ${list.is_shared ? 'shared-list' : ''}`;
         listItem.dataset.listId = list.id;
         
         listItem.innerHTML = `
+            <div class="list-actions">
+                <button class="start-button practice-button">Practice</button>
+                ${!list.is_shared ? `
+                    <button class="edit-button" data-list-id="${list.id}">Edit</button>
+                    <button class="start-button delete-button">Delete</button>
+                    ${canShare ? `
+                        <button class="share-button" onclick="showShareModal(${list.id})">
+                            <i class="fas fa-share-alt"></i> Share
+                        </button>
+                    ` : ''}
+                ` : ''}
+            </div>
             <div class="list-header">
-                <h3>${list.name}${list.is_shared ? ' (Shared)' : ''}</h3>
+                <h3>${list.name}</h3>
                 <div class="list-summary">
                     <span>${list.words.length} words</span>
+                    <span style="color: #ff4444; margin-left: 1rem;">
+                        ${playsLeft}/${limits.maxPlays} plays left
+                    </span>
                     <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
                 </div>
             </div>
             <div class="list-content">
                 <div class="word-translation-list" id="list-${list.id}"></div>
             </div>
-            <div class="list-actions">
-                <button class="start-button practice-button">Practice</button>
-                ${!list.is_shared ? `
-                    <button class="edit-button" data-list-id="${list.id}">Edit</button>
-                    <button class="start-button delete-button">Delete</button>
-                    <button class="share-button" onclick="showShareModal(${list.id})">
-                        <i class="fas fa-share-alt"></i> Share
-                    </button>
-                ` : ''}
-            </div>
         `;
 
+        // Add event listeners
         const header = listItem.querySelector('.list-header');
         header.addEventListener('click', () => toggleListCollapse(list.id));
 
@@ -6417,10 +6581,23 @@ function showCustomListsManager() {
 
         if (!list.is_shared) {
             const editButton = listItem.querySelector('.edit-button');
-            editButton.addEventListener('click', () => toggleEditMode(list.id));
+            if (editButton) {
+                editButton.addEventListener('click', () => toggleEditMode(list.id));
+            }
 
             const deleteButton = listItem.querySelector('.delete-button');
-            deleteButton.addEventListener('click', () => deleteCustomList(list.id));
+            if (deleteButton) {
+                deleteButton.addEventListener('click', () => deleteCustomList(list.id));
+            }
+
+            const shareButton = listItem.querySelector('.share-button');
+            if (shareButton && canShare) {
+                shareButton.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showShareModal(list.id);
+                };
+            }
         }
 
         container.appendChild(listItem);
@@ -6588,32 +6765,76 @@ function addWordToList(listId) {
     sourceWord.focus();
 }
 
+
 function makeWordListDraggable(listId) {
     const wordList = document.getElementById(`list-${listId}`);
     if (!wordList) return;
     
-    // Clear existing listeners
-    wordList.replaceWith(wordList.cloneNode(true));
-    
-    // Get fresh reference after clone
-    const freshList = document.getElementById(`list-${listId}`);
-    
-    freshList.addEventListener('dragover', e => {
+    // Add dragover event listener to the container
+    wordList.addEventListener('dragover', e => {
         e.preventDefault();
-        const draggable = document.querySelector('.dragging');
+        const draggable = wordList.querySelector('.dragging');
         if (!draggable) return;
         
-        const afterElement = getDragAfterElement(freshList, e.clientY);
+        const afterElement = getDragAfterElement(wordList, e.clientY);
         if (afterElement) {
-            freshList.insertBefore(draggable, afterElement);
+            wordList.insertBefore(draggable, afterElement);
         } else {
-            freshList.appendChild(draggable);
+            wordList.appendChild(draggable);
         }
     });
-    
+
+    wordList.addEventListener('drop', e => {
+        e.preventDefault();
+        const draggingElement = document.querySelector('.dragging');
+        if (draggingElement) {
+            draggingElement.style.opacity = '1';
+            draggingElement.classList.remove('dragging');
+        }
+    });
+
     // Initialize drag events for all items
-    const items = freshList.querySelectorAll('.word-translation-item');
+    const items = wordList.querySelectorAll('.word-translation-item');
     items.forEach(item => initializeDragAndDrop(item));
+}
+
+function initializeDragAndDrop(item) {
+    if (!item) return;
+    
+    item.setAttribute('draggable', 'true');
+    
+    item.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        item.classList.add('dragging');
+        item.style.opacity = '0.5';
+    });
+    
+    item.addEventListener('dragend', (e) => {
+        e.stopPropagation();
+        item.classList.remove('dragging');
+        item.style.opacity = '1';
+        
+        // Save the new order
+        const listId = item.closest('.word-translation-list')?.id.split('-')[1];
+        if (listId) {
+            const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+            const wordList = document.getElementById(`list-${listId}`);
+            if (listItem?.getAttribute('data-in-edit-mode') === 'true') {
+                saveListChanges(listId, wordList, listItem, false);
+            }
+        }
+    });
+
+    const dragHandle = item.querySelector('.drag-handle');
+    if (dragHandle) {
+        dragHandle.addEventListener('mousedown', () => {
+            item.draggable = true;
+        });
+        
+        dragHandle.addEventListener('mouseup', () => {
+            item.draggable = false;
+        });
+    }
 }
 
 function getDragAfterElement(container, y) {
@@ -6630,6 +6851,7 @@ function getDragAfterElement(container, y) {
         }
     }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
+
 
 
 function toggleEditMode(listId) {
@@ -6710,86 +6932,6 @@ function toggleAuthMode() {
     
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
-}
-async function shareListWithUser(listId, recipientId) {
-    // Find the original list
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
-
-    // Create shared list data
-    const sharedList = {
-        user_id: recipientId,
-        name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
-        words: list.words,
-        translations: list.translations,
-        is_shared: true,
-        local_id: Date.now(),
-        shared_with: [recipientId],
-        shared_by: currentUser.id
-    };
-
-    const { data, error } = await supabaseClient
-        .from('custom_lists')
-        .insert([sharedList]);
-
-    if (error) {
-        console.error('Error sharing list:', error);
-        return;
-    }
-
-    // Close modal and show visual feedback
-    const modal = document.querySelector('.share-modal').parentElement;
-    document.body.removeChild(modal);
-    
-    const listItem = document.querySelector(`[data-list-id="${listId}"]`);
-    if (listItem) {
-        listItem.style.animation = 'pulse 0.5s ease';
-        setTimeout(() => listItem.style.animation = '', 500);
-    }
-}
-
-async function showShareModal(listId) {
-    // Create modal HTML
-    const modal = document.createElement('div');
-    modal.innerHTML = `
-        <div class="modal-backdrop"></div>
-        <div class="share-modal">
-            <h3 class="share-modal-header">Share List</h3>
-            <div class="users-list">Loading users...</div>
-            <button class="share-button modal-close">Cancel</button>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    // Fetch users
-    const { data: users, error } = await supabaseClient
-        .from('user_list')
-        .select('id, username')
-        .neq('id', currentUser.id);
-
-    const usersList = modal.querySelector('.users-list');
-    usersList.innerHTML = '';
-
-    if (error || !users?.length) {
-        usersList.innerHTML = error ? 'Error loading users' : 'No other users found';
-        return;
-    }
-
-    // Create user list
-    users.forEach(user => {
-        const userItem = document.createElement('div');
-        userItem.className = 'user-item';
-        userItem.innerHTML = `
-            <span>${user.username || 'Unnamed User'}</span>
-            <button class="share-button">Share</button>
-        `;
-        userItem.querySelector('button').onclick = () => shareListWithUser(listId, user.id);
-        usersList.appendChild(userItem);
-    });
-
-    // Modal close handlers
-    modal.querySelector('.modal-close').onclick = () => document.body.removeChild(modal);
-    modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
 
 
@@ -7033,6 +7175,89 @@ async function showSetScreen(stageId) {
     }
     
     showScreen('set-screen');
+}
+
+async function showShareModal(listId) {
+    if (!currentUser) return;
+    
+    // Create modal HTML
+    const modal = document.createElement('div');
+    modal.innerHTML = `
+        <div class="modal-backdrop"></div>
+        <div class="share-modal">
+            <h3 class="share-modal-header">Share List</h3>
+            <div class="users-list">Loading users...</div>
+            <button class="share-button modal-close">Cancel</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Fetch users
+    const { data: users, error } = await supabaseClient
+        .from('user_profiles')
+        .select('id, username')
+        .neq('id', currentUser.id);
+
+    const usersList = modal.querySelector('.users-list');
+    usersList.innerHTML = '';
+
+    if (error || !users?.length) {
+        usersList.innerHTML = error ? 'Error loading users' : 'No other users found';
+        return;
+    }
+
+    // Create user list
+    users.forEach(user => {
+        const userItem = document.createElement('div');
+        userItem.className = 'user-item';
+        userItem.innerHTML = `
+            <span>${user.username || 'Unnamed User'}</span>
+            <button class="share-button">Share</button>
+        `;
+        userItem.querySelector('button').onclick = () => shareListWithUser(listId, user.id);
+        usersList.appendChild(userItem);
+    });
+
+    // Modal close handlers
+    modal.querySelector('.modal-close').onclick = () => document.body.removeChild(modal);
+    modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
+}
+
+async function shareListWithUser(listId, recipientId) {
+    // Find the original list
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
+
+    // Create shared list data
+    const sharedList = {
+        user_id: recipientId,
+        name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
+        words: list.words,
+        translations: list.translations,
+        is_shared: true,
+        local_id: Date.now(),
+        shared_with: [recipientId],
+        shared_by: currentUser.id
+    };
+
+    const { data, error } = await supabaseClient
+        .from('custom_lists')
+        .insert([sharedList]);
+
+    if (error) {
+        console.error('Error sharing list:', error);
+        return;
+    }
+
+    // Close modal and show visual feedback
+    const modal = document.querySelector('.share-modal').parentElement;
+    document.body.removeChild(modal);
+    
+    const listItem = document.querySelector(`[data-list-id="${listId}"]`);
+    if (listItem) {
+        listItem.style.animation = 'pulse 0.5s ease';
+        setTimeout(() => listItem.style.animation = '', 500);
+    }
 }
 
 
@@ -7628,19 +7853,10 @@ function skipUpgrade() {
 
 function updateUserStatusDisplay(status) {
     const userTier = document.querySelector('.user-tier');
-    if (!userTier) {
-        console.warn('User tier element not found. Creating it.');
-        const userInfo = document.getElementById('userInfo');
-        const newUserTier = document.createElement('div');
-        newUserTier.className = 'user-tier';
-        const tierText = document.createElement('span');
-        tierText.className = 'tier-text';
-        newUserTier.appendChild(tierText);
-        userInfo.appendChild(newUserTier);
-        return updateUserStatusDisplay(status);
-    }
+    if (!userTier) return;
     
     const tierText = userTier.querySelector('.tier-text');
+    if (!tierText) return;
     
     // Clear existing classes
     tierText.classList.remove('unregistered', 'trial', 'pending', 'premium');
@@ -7648,29 +7864,81 @@ function updateUserStatusDisplay(status) {
     if (!currentUser) {
         tierText.classList.add('unregistered');
         tierText.textContent = 'Unregistered Visitor';
-    } else {
-        switch(status) {
-            case 'free':
-                tierText.classList.add('trial');
-                tierText.textContent = 'Trial Account';
-                break;
-            case 'pending':
-                tierText.classList.add('pending');
-                tierText.textContent = 'Premium Pending Confirmation';
-                break;
-            case 'premium':
-                tierText.classList.add('premium');
-                tierText.textContent = 'Active Premium Account';
-                break;
-            default:
-                tierText.classList.add('trial');
-                tierText.textContent = 'Trial Account';
-        }
+        return;
+    }
+
+    // Force visibility of user info
+    const userInfo = document.getElementById('userInfo');
+    const authBox = document.getElementById('authBox');
+    if (userInfo && authBox) {
+        userInfo.classList.remove('hidden');
+        authBox.classList.add('hidden');
     }
     
-    // Ensure visibility
-    userTier.style.display = 'block';
+    switch(status) {
+        case 'free':
+            tierText.classList.add('trial');
+            tierText.textContent = 'Trial Account';
+            break;
+        case 'pending':
+            tierText.classList.add('pending');
+            tierText.textContent = 'Premium Pending';
+            break;
+        case 'premium':
+            tierText.classList.add('premium');
+            tierText.textContent = 'Premium Account';
+            break;
+        default:
+            tierText.classList.add('trial');
+            tierText.textContent = 'Trial Account';
+    }
+
+    console.log('Updated user status display:', {
+        status,
+        newText: tierText.textContent,
+        visible: !userInfo?.classList.contains('hidden')
+    });
 }
+
+async function forceUIUpdate() {
+    if (!currentUser) return;
+    
+    const userInfo = document.getElementById('userInfo');
+    const authBox = document.getElementById('authBox');
+    const userEmailElement = document.getElementById('userEmail');
+    const logoutButton = document.querySelector('.logout-button');
+
+    if (!userInfo || !authBox || !userEmailElement || !logoutButton) {
+        console.error('Missing UI elements');
+        return;
+    }
+
+    try {
+        const { data: profile } = await supabaseClient
+            .from('user_profiles')
+            .select('username, status')
+            .eq('id', currentUser.id)
+            .single();
+
+        if (profile) {
+            userEmailElement.textContent = profile.username;
+            userInfo.classList.remove('hidden');
+            authBox.classList.add('hidden');
+            logoutButton.classList.remove('hidden');
+            updateUserStatusDisplay(profile.status);
+            
+            console.log('Forced UI update with:', {
+                username: profile.username,
+                status: profile.status,
+                visible: !userInfo.classList.contains('hidden')
+            });
+        }
+    } catch (error) {
+        console.error('Force UI update failed:', error);
+    }
+}
+
+
 
 function setupUserStatusSubscription() {
     if (!currentUser) return;
@@ -7921,17 +8189,24 @@ async function checkExistingSession() {
         // Initialize real-time updates and periodic check
         initializeStatusCheck();
         
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists()
-        ]);
-        updateAuthUI();
+        // Load user data in sequence rather than parallel to avoid race conditions
+        try {
+            await loadUserGameProgress(currentUser.id);
+            await loadCustomLists();
+            updateAuthUI();
+        } catch (error) {
+            console.error('Error loading user data:', error);
+            // Fall back to default state if loading fails
+            setupDefaultUnlocks();
+        }
     } else {
         // Clear interval if it exists
         if (window.statusCheckInterval) {
             clearInterval(window.statusCheckInterval);
         }
+        currentUser = null;
         updateUserStatusDisplay(null);
+        setupDefaultUnlocks(); // Ensure guest users have basic access
     }
 }
 
@@ -7950,11 +8225,31 @@ function handlePremiumCelebrationComplete() {
 function initializeStatusCheck() {
     if (!currentUser) return;
     
-    // Initial setup of realtime subscription
-    setupUserStatusSubscription();
+    // Setup real-time subscription
+    const subscription = supabaseClient
+        .channel('user-status-' + currentUser.id)
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'user_profiles',
+            filter: `id=eq.${currentUser.id}`
+        }, 
+        payload => {
+            console.log('Profile update received:', payload.new);
+            if (payload.new && payload.new.status) {
+                updateUserStatusDisplay(payload.new.status);
+            }
+        })
+        .subscribe();
     
-    // Periodic status check every 30 seconds as fallback
-    const statusCheckInterval = setInterval(async () => {
+    // Periodic status check (every 30 seconds)
+    if (window.statusCheckInterval) {
+        clearInterval(window.statusCheckInterval);
+    }
+    
+    window.statusCheckInterval = setInterval(async () => {
+        if (!currentUser) return;
+        
         const { data, error } = await supabaseClient
             .from('user_profiles')
             .select('status')
@@ -7963,17 +8258,8 @@ function initializeStatusCheck() {
             
         if (data && !error) {
             updateUserStatusDisplay(data.status);
-            
-            // If status is premium and it's a new change, show celebration
-            if (data.status === 'premium' && currentUser.status !== 'premium') {
-                showPremiumCelebration();
-                currentUser.status = 'premium';
-            }
         }
-    }, 3000); // Check every 30 seconds
-    
-    // Store interval ID for cleanup
-    window.statusCheckInterval = statusCheckInterval;
+    }, 3000);
 }
 
 </script>
