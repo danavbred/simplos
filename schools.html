@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google" content="notranslate">
+    <html lang="en" translate="no">
+    <title>Simplos for Schools</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/@supabase/supabase-js@2.39.7"></script>
+</head>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
+    
+    :root {
+      --primary-dark: #1a1a2e;
+      --primary: #16213e;
+      --secondary: #0f3460;
+      --accent: #e94561;
+      --text: #ffffff;
+      --gold: #ffd700;
+      --silver: #c0c0c0;
+      --bronze: #cd7f32;
+      --success: #4CAF50;
+      --error: #f44336;
+      --gradient: linear-gradient(135deg, var(--secondary), var(--primary-dark));
+      --glass: rgba(255, 255, 255, 0.1);
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Montserrat', sans-serif;
+    }
+    
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      background: var(--gradient);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+    
+    .screen {
+      display: none;
+      min-height: 100vh;
+      padding: 2rem;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%);
+    }
+    
+    .screen.visible {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+    
+    /* Teacher Dashboard Styles */
+    .dashboard-container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    
+    .dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+    
+    .dashboard-title {
+      font-size: 2.5rem;
+      color: var(--gold);
+      font-weight: 700;
+    }
+    
+    .dashboard-nav {
+      display: flex;
+      gap: 1rem;
+      background: var(--glass);
+      padding: 0.5rem;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+    }
+    
+    .nav-button {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .nav-button.active {
+      background: var(--accent);
+    }
+    
+    /* Race Track Styles */
+    .race-container {
+      background: var(--glass);
+      border-radius: 20px;
+      padding: 2rem;
+      margin-top: 2rem;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(10px);
+    }
+    
+    .track-level {
+      height: 80px;
+      margin: 20px 0;
+      position: relative;
+    }
+    
+    .track-path {
+      height: 20px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 10px;
+      position: relative;
+    }
+    
+    .player-marker {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background: var(--accent);
+      border-radius: 50%;
+      transform: translateY(-50%);
+      transition: all 0.5s ease;
+    }
+    
+    /* Event Manager Styles */
+    .event-card {
+      background: var(--glass);
+      border-radius: 15px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      backdrop-filter: blur(10px);
+    }
+    
+    .event-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    
+    .event-title {
+      font-size: 1.2rem;
+      color: var(--gold);
+    }
+    
+    .event-status {
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+    }
+    
+    .status-active {
+      background: var(--success);
+    }
+    
+    .status-pending {
+      background: var(--accent);
+    }
+    
+    /* Common Button Styles */
+    .action-button {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      background: var(--accent);
+      color: var(--text);
+      border-radius: 25px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .action-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(233, 69, 96, 0.4);
+    }
+    
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: var(--primary-dark);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 500px;
+    border: 1px solid var(--glass);
+    backdrop-filter: blur(10px);
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text);
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 10px;
+    border: 1px solid var(--glass);
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+}
+
+.form-group select[multiple] {
+    height: 100px;
+}
+
+.modal-content h2 {
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+}
+
+.cancel {
+    background: var(--glass) !important;
+    margin-left: 1rem;
+}
+
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 1rem 2rem;
+    border-radius: 10px;
+    color: var(--text);
+    z-index: 1100;
+    animation: slideIn 0.3s ease-out;
+}
+
+.notification.success {
+    background: var(--success);
+}
+
+.notification.error {
+    background: var(--error);
+}
+
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* Race Track Enhancements */
+.track-level {
+    height: 100px;
+    margin: 30px 0;
+    position: relative;
+    border-radius: 15px;
+    background: var(--glass);
+}
+
+.word-count {
+    position: absolute;
+    left: -40px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gold);
+    font-weight: bold;
+}
+
+.flag {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.5rem;
+    filter: drop-shadow(0 0 5px rgba(255,215,0,0.5));
+}
+
+.player-marker {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 10;
+}
+
+.player-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: var(--text);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.player-name {
+    margin-top: 5px;
+    font-size: 0.8rem;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.flag-celebration {
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2rem;
+    animation: celebrationBounce 0.5s ease-out;
+}
+
+.celebration-particle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: var(--gold);
+    border-radius: 50%;
+    animation: particleFly 2s ease-out forwards;
+}
+
+@keyframes celebrationBounce {
+    0% { transform: translateX(-50%) scale(0); }
+    50% { transform: translateX(-50%) scale(1.2); }
+    100% { transform: translateX(-50%) scale(1); }
+}
+
+@keyframes particleFly {
+    0% {
+        transform: translate(0, 0);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(
+            calc(cos(var(--angle)) * var(--velocity) * 50px),
+            calc(sin(var(--angle)) * var(--velocity) * 50px)
+        );
+        opacity: 0;
+    }
+}
+
+/* Class Management Styles */
+.class-card {
+    background: var(--glass);
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    backdrop-filter: blur(10px);
+    transition: transform 0.3s ease;
+}
+
+.class-card:hover {
+    transform: translateY(-2px);
+}
+
+.class-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.class-title {
+    font-size: 1.2rem;
+    color: var(--gold);
+}
+
+.grade-level {
+    background: var(--accent);
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.9rem;
+}
+
+.class-stats {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.stat {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stat i {
+    color: var(--gold);
+}
+
+.class-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+/* Student List Styles */
+.student-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin: 1rem 0;
+}
+
+.student-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
+}
+
+.student-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.student-status {
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+}
+
+.student-status.free {
+    background: var(--accent);
+}
+
+.student-status.premium {
+    background: var(--success);
+}
+
+.progress-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.progress-stats .stat {
+    flex-direction: column;
+    text-align: center;
+    padding: 1rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+}
+
+.progress-stats .stat h3 {
+    color: var(--gold);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.progress-stats .stat span {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.lists-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.list-card {
+    background: var(--glass);
+    border-radius: 15px;
+    padding: 1.5rem;
+    backdrop-filter: blur(10px);
+    transition: transform 0.3s ease;
+}
+
+.list-card:hover {
+    transform: translateY(-2px);
+}
+
+.list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.word-count {
+    background: var(--accent);
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+}
+
+.list-preview {
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.word-pair {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.word-pair:last-child {
+    border-bottom: none;
+}
+
+.more-words {
+    text-align: center;
+    padding: 0.5rem;
+    color: var(--accent);
+    font-size: 0.9rem;
+}
+
+.word-pair-input {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.word-pair-input input {
+    padding: 0.5rem;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.1);
+    color: var(--text);
+}
+
+.word-pair-input button {
+    background: none;
+    border: none;
+    color: var(--error);
+    cursor: pointer;
+    padding: 0 0.5rem;
+}
+
+.analytics-overview {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: var(--glass);
+    border-radius: 15px;
+    padding: 1.5rem;
+    text-align: center;
+    backdrop-filter: blur(10px);
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--gold);
+    margin-top: 0.5rem;
+}
+
+.ranking-list {
+    background: var(--glass);
+    border-radius: 15px;
+    padding: 1.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.ranking-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto 2fr;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.ranking-item:last-child {
+    border-bottom: none;
+}
+
+.rank {
+    font-weight: bold;
+    color: var(--gold);
+}
+
+.progress-bar {
+    height: 8px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+}
+
+
+    </style>
+    
+    <body>
+        <!-- Role Selection Screen -->
+        <div id="role-screen" class="screen visible">
+            <h1 class="dashboard-title">Welcome to Simplos for Schools</h1>
+            <div class="dashboard-nav">
+                <button class="nav-button" onclick="selectRole('student')">Student</button>
+                <button class="nav-button" onclick="selectRole('teacher')">Teacher</button>
+            </div>
+        </div>
+    
+        <!-- Teacher Dashboard -->
+        <div id="teacher-dashboard" class="screen">
+            <div class="dashboard-container">
+                <div class="dashboard-header">
+                    <h1 class="dashboard-title">Teacher Dashboard</h1>
+                    <button class="action-button" onclick="createNewEvent()">Create Event</button>
+                </div>
+                
+                <div class="dashboard-nav">
+                    <button class="nav-button active" onclick="switchTab('events')">Events</button>
+                    <button class="nav-button" onclick="switchTab('classes')">Classes</button>
+                    <button class="nav-button" onclick="switchTab('lists')">Word Lists</button>
+                    <button class="nav-button" onclick="switchTab('statistics')">Statistics</button>
+                </div>
+    
+                <div id="events-panel" class="dashboard-panel">
+                    <!-- Event cards will be populated here -->
+                </div>
+            </div>
+        </div>
+    
+        <!-- Arcade Race Screen -->
+        <div id="arcade-screen" class="screen">
+            <div class="race-container">
+                <!-- Track levels will be generated here -->
+            </div>
+        </div>
+    
+<!-- Event Creation Modal -->
+<div id="event-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <h2>Create New Event</h2>
+        <form id="event-form" onsubmit="handleEventSubmit(event)">
+            <div class="form-group">
+                <label>Event Name</label>
+                <input type="text" id="event-name" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Event Type</label>
+                <select id="event-type" required>
+                    <option value="arcade">Arcade Race</option>
+                    <option value="standard">Standard Practice</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Grade Level</label>
+                <select id="grade-level" multiple required>
+                    <option value="1">Elementary (Stage 1-2)</option>
+                    <option value="2">Junior High (Stage 1-3)</option>
+                    <option value="3">High School (Stage 1-4)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Target Class</label>
+                <select id="target-class">
+                    <option value="all">All Classes</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <button type="submit" class="action-button">Create Event</button>
+                <button type="button" class="action-button cancel" onclick="closeEventModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="classes-panel" class="dashboard-panel" style="display: none;">
+    <div class="panel-header">
+        <h2>My Classes</h2>
+        <button onclick="showCreateClassModal()" class="action-button">
+            <i class="fas fa-plus"></i> Create Class
+        </button>
+    </div>
+    <div class="class-list">
+        <!-- Classes will be populated here -->
+    </div>
+</div>
+
+<div id="create-class-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <h2>Create New Class</h2>
+        <form id="class-form" onsubmit="handleClassSubmit(event)">
+            <div class="form-group">
+                <label>Class Name</label>
+                <input type="text" id="class-name" required>
+            </div>
+            <div class="form-group">
+                <label>Grade Level</label>
+                <select id="class-grade" required>
+                    <option value="">Select Grade</option>
+                    <option value="1">Grade 1</option>
+                    <option value="2">Grade 2</option>
+                    <option value="3">Grade 3</option>
+                    <option value="4">Grade 4</option>
+                    <option value="5">Grade 5</option>
+                    <option value="6">Grade 6</option>
+                    <option value="7">Grade 7</option>
+                    <option value="8">Grade 8</option>
+                    <option value="9">Grade 9</option>
+                    <option value="10">Grade 10</option>
+                    <option value="11">Grade 11</option>
+                    <option value="12">Grade 12</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="action-button">Create Class</button>
+                <button type="button" class="action-button cancel" onclick="closeModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+    <script>
+    const { createClient } = supabase;
+    const supabaseClient = createClient(
+        'https://mczfgzffyyyacisrccqb.supabase.co',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzgzODYyMDQsImV4cCI6MjA1Mzk2MjIwNH0.rLga_B29Coz1LMeJzFTGLIhckdcojGXnD1ae1bw-QAI'
+    );
+    
+    let currentUser = null;
+    let currentRole = null;
+    
+    async function checkExistingSession() {
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            
+            if (session) {
+                currentUser = session.user;
+                const { data: profile } = await supabaseClient
+                    .from('user_profiles')
+                    .select('status, role')
+                    .eq('id', currentUser.id)
+                    .single();
+                    
+                if (profile) {
+                    currentUser.status = profile.status;
+                    currentUser.role = profile.role;
+                    if (profile.role === 'teacher') {
+                        showTeacherDashboard();
+                    }
+                }
+                updateAuthUI();
+            }
+        } catch (error) {
+            console.error('Session check error:', error);
+        }
+    }
+    
+    function selectRole(role) {
+    currentRole = role;
+    if (role === 'teacher') {
+        // Remove the existing session check condition
+        showLoginPrompt('teacher'); // This function doesn't exist yet
+    } else {
+        showStudentView();
+    }
+}
+
+function showLoginPrompt(role) {
+    // Create a login modal or redirect to login
+    const loginModal = document.createElement('div');
+    loginModal.className = 'modal';
+    loginModal.innerHTML = `
+        <div class="modal-content">
+            <h2>Teacher Login</h2>
+            <form id="teacher-login-form">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="teacher-email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="teacher-password" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="action-button">Login</button>
+                    <button type="button" class="action-button cancel" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(loginModal);
+
+    // Add login form submission handler
+    document.getElementById('teacher-login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('teacher-email').value;
+        const password = document.getElementById('teacher-password').value;
+
+        try {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+                email,
+                password
+            });
+
+            if (error) throw error;
+
+            // Verify the user is a teacher
+            const { data: profile } = await supabaseClient
+                .from('user_profiles')
+                .select('role')
+                .eq('id', data.user.id)
+                .single();
+
+            if (profile.role !== 'teacher') {
+                throw new Error('Access denied. Not a teacher account.');
+            }
+
+            // Close modal and show teacher dashboard
+            closeModal();
+            showTeacherDashboard();
+        } catch (error) {
+            console.error('Login error:', error);
+            showNotification(error.message, 'error');
+        }
+    });
+}
+    
+function showTeacherDashboard() {
+    // Hide all screens
+    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('visible'));
+    
+    // Show teacher dashboard
+    const teacherDashboard = document.getElementById('teacher-dashboard');
+    teacherDashboard.classList.add('visible');
+
+    // Load initial content
+    loadTeacherEvents();
+}
+
+function closeModal() {
+    const modal = document.querySelector('.modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+    
+    function showStudentView() {
+        document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('visible'));
+        document.getElementById('arcade-screen').classList.add('visible');
+        initializeRaceTrack();
+    }
+    
+    function switchTab(tab) {
+        document.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        loadTabContent(tab);
+    }
+    
+    function loadTabContent(tab) {
+        switch(tab) {
+            case 'events':
+                loadTeacherEvents();
+                break;
+            case 'classes':
+                loadClasses();
+                break;
+            case 'lists':
+                loadWordLists();
+                break;
+            case 'statistics':
+                loadStatistics();
+                break;
+        }
+    }
+    
+    async function loadTeacherEvents() {
+        if (!currentUser) return;
+    
+        try {
+            const { data: events, error } = await supabaseClient
+                .from('events')
+                .select('*')
+                .eq('teacher_id', currentUser.id)
+                .order('created_at', { ascending: false });
+    
+            if (error) throw error;
+    
+            const eventsPanel = document.getElementById('events-panel');
+            eventsPanel.innerHTML = events.map(event => `
+                <div class="event-card">
+                    <div class="event-header">
+                        <h3 class="event-title">${event.name}</h3>
+                        <span class="event-status status-${event.status}">${event.status}</span>
+                    </div>
+                    <div class="event-details">
+                        <p>Students: ${event.participants ? JSON.parse(event.participants).length : 0}</p>
+                        <p>Word List: ${event.list_name}</p>
+                    </div>
+                </div>
+            `).join('');
+    
+        } catch (error) {
+            console.error('Error loading events:', error);
+        }
+    }
+    
+    function initializeRaceTrack() {
+        const raceContainer = document.querySelector('.race-container');
+        // Clear existing content
+        raceContainer.innerHTML = '';
+    
+        // Create 4 levels
+        for (let i = 0; i < 4; i++) {
+            const trackLevel = document.createElement('div');
+            trackLevel.className = 'track-level';
+            
+            const trackPath = document.createElement('div');
+            trackPath.className = 'track-path';
+            
+            // Add direction indicator
+            trackPath.style.transform = i % 2 === 0 ? 'none' : 'scaleX(-1)';
+            
+            trackLevel.appendChild(trackPath);
+            raceContainer.appendChild(trackLevel);
+        }
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        checkExistingSession();
+    });
+
+    function createNewEvent() {
+    // Populate classes dropdown
+    loadTeacherClasses();
+    document.getElementById('event-modal').style.display = 'flex';
+}
+
+async function loadTeacherClasses() {
+    if (!currentUser) return;
+    
+    try {
+        const { data: classes, error } = await supabaseClient
+            .from('classes')
+            .select('*')
+            .eq('teacher_id', currentUser.id);
+
+        if (error) throw error;
+
+        const classSelect = document.getElementById('target-class');
+        classSelect.innerHTML = '<option value="all">All Classes</option>';
+        
+        classes.forEach(cls => {
+            classSelect.innerHTML += `
+                <option value="${cls.id}">${cls.name}</option>
+            `;
+        });
+    } catch (error) {
+        console.error('Error loading classes:', error);
+    }
+}
+
+async function handleEventSubmit(event) {
+    event.preventDefault();
+    
+    const eventData = {
+        name: document.getElementById('event-name').value,
+        type: document.getElementById('event-type').value,
+        grade_levels: Array.from(document.getElementById('grade-level').selectedOptions).map(opt => opt.value),
+        class_id: document.getElementById('target-class').value,
+        teacher_id: currentUser.id,
+        status: 'pending',
+        otp: generateOTP(),
+        created_at: new Date().toISOString()
+    };
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('events')
+            .insert([eventData])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Close modal and refresh events list
+        closeEventModal();
+        loadTeacherEvents();
+        
+        // Show success notification
+        showNotification('Event created successfully!');
+    } catch (error) {
+        console.error('Error creating event:', error);
+        showNotification('Error creating event', 'error');
+    }
+}
+
+function generateOTP() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function closeEventModal() {
+    document.getElementById('event-modal').style.display = 'none';
+    document.getElementById('event-form').reset();
+}
+
+function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+class RaceTrack {
+    constructor() {
+        this.players = new Map();
+        this.totalWords = 200; // 50 words per floor
+        this.floors = 4;
+        this.initialized = false;
+    }
+
+    initialize() {
+        if (this.initialized) return;
+        
+        const raceContainer = document.querySelector('.race-container');
+        raceContainer.innerHTML = ''; // Clear existing content
+
+        // Create floors with flags
+        for (let i = 0; i < this.floors; i++) {
+            const floor = document.createElement('div');
+            floor.className = 'track-level';
+            floor.setAttribute('data-floor', i);
+            
+            // Add word count markers
+            const startCount = (this.floors - i - 1) * 50;
+            const wordCount = document.createElement('div');
+            wordCount.className = 'word-count';
+            wordCount.textContent = startCount;
+            
+            const trackPath = document.createElement('div');
+            trackPath.className = 'track-path';
+            trackPath.style.transform = i % 2 === 0 ? 'none' : 'scaleX(-1)';
+            
+            // Add flag at the end
+            const flag = document.createElement('div');
+            flag.className = 'flag';
+            flag.textContent = '🚩';
+            flag.style.right = i % 2 === 0 ? '0' : 'auto';
+            flag.style.left = i % 2 === 0 ? 'auto' : '0';
+            
+            floor.appendChild(wordCount);
+            floor.appendChild(trackPath);
+            floor.appendChild(flag);
+            raceContainer.appendChild(floor);
+        }
+
+        this.initialized = true;
+    }
+
+    addPlayer(id, name, color) {
+        const playerMarker = document.createElement('div');
+        playerMarker.className = 'player-marker';
+        playerMarker.innerHTML = `
+            <div class="player-avatar" style="background-color: ${color}">
+                ${name[0].toUpperCase()}
+            </div>
+            <div class="player-name">${name}</div>
+        `;
+        
+        this.players.set(id, {
+            element: playerMarker,
+            position: 0,
+            name: name,
+            color: color
+        });
+        
+        document.querySelector('.track-level[data-floor="3"]').appendChild(playerMarker);
+    }
+
+    updatePlayerPosition(playerId, wordCount) {
+        const player = this.players.get(playerId);
+        if (!player) return;
+
+        const floor = Math.floor(wordCount / 50);
+        const progressOnFloor = (wordCount % 50) / 50;
+        const floorElement = document.querySelector(`.track-level[data-floor="${3 - floor}"]`);
+        
+        if (!floorElement) return;
+
+        // Calculate X position based on floor direction
+        const isRightToLeft = floor % 2 !== 0;
+        const xPos = isRightToLeft ? 
+            100 - (progressOnFloor * 100) : 
+            progressOnFloor * 100;
+
+        player.element.style.transition = 'all 0.5s ease-out';
+        player.element.style.left = `${xPos}%`;
+        
+        // Move player to new floor if needed
+        if (floorElement !== player.element.parentElement) {
+            player.element.remove();
+            floorElement.appendChild(player.element);
+        }
+
+        // Add celebration effect at flags
+        if (wordCount % 50 === 0 && wordCount > 0) {
+            this.celebrateFlag(player);
+        }
+    }
+
+    celebrateFlag(player) {
+        const celebration = document.createElement('div');
+        celebration.className = 'flag-celebration';
+        celebration.innerHTML = '🎉';
+        player.element.appendChild(celebration);
+        
+        // Create particle effect
+        for (let i = 0; i < 20; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'celebration-particle';
+            const angle = (i / 20) * Math.PI * 2;
+            const velocity = 2 + Math.random() * 2;
+            particle.style.setProperty('--angle', angle + 'rad');
+            particle.style.setProperty('--velocity', velocity);
+            celebration.appendChild(particle);
+        }
+
+        setTimeout(() => celebration.remove(), 2000);
+    }
+}
+
+class ArcadeGame {
+    constructor() {
+        this.raceTrack = new RaceTrack();
+        this.eventId = null;
+        this.subscription = null;
+        this.wordPool = [];
+        this.currentWord = null;
+    }
+
+    async initialize(eventId) {
+        this.eventId = eventId;
+        this.raceTrack.initialize();
+        
+        // Subscribe to real-time updates
+        this.subscription = supabaseClient
+            .channel(`game:${eventId}`)
+            .on('broadcast', { event: 'player_move' }, ({ payload }) => {
+                this.handlePlayerMove(payload);
+            })
+            .subscribe();
+
+        await this.loadWordPool();
+        await this.loadPlayers();
+    }
+
+    async loadWordPool() {
+        const { data: event } = await supabaseClient
+            .from('events')
+            .select('grade_levels')
+            .eq('id', this.eventId)
+            .single();
+
+        // Load words based on grade levels
+        const gradeLevels = event.grade_levels;
+        // ... load words from vocabulary based on grades
+        // This will connect to your existing vocabulary system
+    }
+
+    async loadPlayers() {
+        const { data: players } = await supabaseClient
+            .from('event_participants')
+            .select('*')
+            .eq('event_id', this.eventId);
+
+        const colors = [
+            '#e94561', '#4CAF50', '#3498db', '#f1c40f',
+            '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c'
+        ];
+
+        players.forEach((player, index) => {
+            this.raceTrack.addPlayer(
+                player.user_id,
+                player.username,
+                colors[index % colors.length]
+            );
+        });
+    }
+
+    handlePlayerMove(payload) {
+        const { playerId, wordCount } = payload;
+        this.raceTrack.updatePlayerPosition(playerId, wordCount);
+    }
+
+    cleanup() {
+        if (this.subscription) {
+            this.subscription.unsubscribe();
+        }
+    }
+}
+
+class ArcadeEventManager {
+    constructor() {
+        this.events = new Map();
+        this.currentEvent = null;
+        this.subscription = null;
+    }
+
+    async createEvent(eventData) {
+        try {
+            const access_code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            
+            const { data, error } = await supabaseClient
+                .from('arcade_events')
+                .insert([{
+                    ...eventData,
+                    access_code,
+                    status: 'pending',
+                    teacher_id: currentUser.id,
+                    created_at: new Date().toISOString()
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.error('Error creating event:', error);
+            throw error;
+        }
+    }
+
+    async startEvent(eventId) {
+        try {
+            const { data: event, error } = await supabaseClient
+                .from('arcade_events')
+                .update({ 
+                    status: 'active',
+                    started_at: new Date().toISOString()
+                })
+                .eq('id', eventId)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            // Initialize game state
+            this.currentEvent = event;
+            this.initializeRealTimeSync(eventId);
+            
+            return event;
+        } catch (error) {
+            console.error('Error starting event:', error);
+            throw error;
+        }
+    }
+
+    async joinEvent(accessCode) {
+        try {
+            const { data: event, error } = await supabaseClient
+                .from('arcade_events')
+                .select('*')
+                .eq('access_code', accessCode)
+                .eq('status', 'active')
+                .single();
+
+            if (error) throw error;
+
+            // Join as participant
+            const { error: joinError } = await supabaseClient
+                .from('arcade_participants')
+                .insert([{
+                    event_id: event.id,
+                    player_id: currentUser.id
+                }]);
+
+            if (joinError) throw joinError;
+
+            this.currentEvent = event;
+            this.initializeRealTimeSync(event.id);
+            
+            return event;
+        } catch (error) {
+            console.error('Error joining event:', error);
+            throw error;
+        }
+    }
+
+    initializeRealTimeSync(eventId) {
+        // Clean up existing subscription
+        if (this.subscription) {
+            this.subscription.unsubscribe();
+        }
+
+        // Subscribe to event changes
+        this.subscription = supabaseClient
+            .channel(`event:${eventId}`)
+            .on('presence', { event: 'sync' }, () => {
+                this.syncGameState();
+            })
+            .on('broadcast', { event: 'player_move' }, ({ payload }) => {
+                this.handlePlayerMove(payload);
+            })
+            .on('broadcast', { event: 'perk_used' }, ({ payload }) => {
+                this.handlePerkUsage(payload);
+            })
+            .subscribe();
+    }
+
+    async syncGameState() {
+        if (!this.currentEvent) return;
+
+        const { data: participants, error } = await supabaseClient
+            .from('arcade_participants')
+            .select('*')
+            .eq('event_id', this.currentEvent.id);
+
+        if (error) {
+            console.error('Error syncing game state:', error);
+            return;
+        }
+
+        participants.forEach(participant => {
+            raceTrack.updatePlayerPosition(
+                participant.player_id,
+                participant.words_completed
+            );
+        });
+    }
+
+    handlePlayerMove(payload) {
+        const { playerId, position, wordsCompleted } = payload;
+        raceTrack.updatePlayerPosition(playerId, wordsCompleted);
+    }
+
+    handlePerkUsage(payload) {
+        const { playerId, perkType, targetId } = payload;
+        // Implement perk effects based on type
+        switch(perkType) {
+            case 'freeze':
+                raceTrack.freezePlayer(targetId, 5000);
+                break;
+            case 'boost':
+                raceTrack.boostPlayer(playerId);
+                break;
+            case 'shuffle':
+                this.shuffleWords(playerId);
+                break;
+        }
+    }
+
+    cleanup() {
+        if (this.subscription) {
+            this.subscription.unsubscribe();
+        }
+        this.currentEvent = null;
+        this.events.clear();
+    }
+}
+
+class ClassroomManager {
+    constructor() {
+        this.classes = new Map();
+        this.activeClass = null;
+    }
+
+    async createClass(className, gradeLevel) {
+        try {
+            const { data: school } = await supabaseClient
+                .from('schools')
+                .select('id')
+                .eq('teacher_id', currentUser.id)
+                .single();
+
+            const { data: newClass, error } = await supabaseClient
+                .from('school_classes')
+                .insert([{
+                    school_id: school.id,
+                    teacher_id: currentUser.id,
+                    name: className,
+                    grade_level: gradeLevel
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            
+            this.classes.set(newClass.id, newClass);
+            this.updateClassList();
+            return newClass;
+        } catch (error) {
+            console.error('Error creating class:', error);
+            throw error;
+        }
+    }
+
+    async loadTeacherClasses() {
+        try {
+            const { data: classes, error } = await supabaseClient
+                .from('school_classes')
+                .select(`
+                    *,
+                    class_enrollments (
+                        student_id,
+                        joined_at
+                    )
+                `)
+                .eq('teacher_id', currentUser.id);
+
+            if (error) throw error;
+
+            this.classes.clear();
+            classes.forEach(cls => this.classes.set(cls.id, cls));
+            this.updateClassList();
+            return classes;
+        } catch (error) {
+            console.error('Error loading classes:', error);
+            throw error;
+        }
+    }
+
+    updateClassList() {
+        const classPanel = document.getElementById('classes-panel');
+        if (!classPanel) return;
+
+        classPanel.innerHTML = Array.from(this.classes.values()).map(cls => `
+            <div class="class-card" data-class-id="${cls.id}">
+                <div class="class-header">
+                    <h3 class="class-title">${cls.name}</h3>
+                    <span class="grade-level">Grade ${cls.grade_level}</span>
+                </div>
+                <div class="class-stats">
+                    <div class="stat">
+                        <i class="fas fa-users"></i>
+                        <span>${cls.class_enrollments?.length || 0} Students</span>
+                    </div>
+                </div>
+                <div class="class-actions">
+                    <button onclick="classManager.viewClass('${cls.id}')" class="action-button">
+                        View Class
+                    </button>
+                    <button onclick="classManager.generateInviteCode('${cls.id}')" class="action-button">
+                        Invite Code
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async viewClass(classId) {
+        try {
+            const { data: students, error } = await supabaseClient
+                .from('class_enrollments')
+                .select(`
+                    *,
+                    user_profiles:student_id (
+                        username,
+                        status
+                    )
+                `)
+                .eq('class_id', classId);
+
+            if (error) throw error;
+
+            const classModal = document.createElement('div');
+            classModal.className = 'modal';
+            classModal.innerHTML = `
+                <div class="modal-content">
+                    <h2>${this.classes.get(classId).name}</h2>
+                    <div class="student-list">
+                        ${students.map(student => `
+                            <div class="student-card">
+                                <div class="student-info">
+                                    <span>${student.user_profiles.username}</span>
+                                    <span class="student-status ${student.user_profiles.status}">
+                                        ${student.user_profiles.status}
+                                    </span>
+                                </div>
+                                <button onclick="classManager.viewStudentProgress('${student.student_id}')" 
+                                        class="action-button">
+                                    View Progress
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button onclick="closeModal()" class="action-button cancel">Close</button>
+                </div>
+            `;
+            document.body.appendChild(classModal);
+        } catch (error) {
+            console.error('Error viewing class:', error);
+            showNotification('Error loading class data', 'error');
+        }
+    }
+
+    async generateInviteCode(classId) {
+        try {
+            const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            
+            const { error } = await supabaseClient
+                .from('school_classes')
+                .update({ invite_code: code })
+                .eq('id', classId);
+
+            if (error) throw error;
+
+            showNotification(`Invite Code: ${code}`, 'success');
+        } catch (error) {
+            console.error('Error generating invite code:', error);
+            showNotification('Error generating invite code', 'error');
+        }
+    }
+
+    async viewStudentProgress(studentId) {
+        try {
+            const { data: progress, error } = await supabaseClient
+                .from('player_stats')
+                .select('*')
+                .eq('user_id', studentId)
+                .single();
+
+            if (error) throw error;
+
+            const progressModal = document.createElement('div');
+            progressModal.className = 'modal';
+            progressModal.innerHTML = `
+                <div class="modal-content">
+                    <h2>Student Progress</h2>
+                    <div class="progress-stats">
+                        <div class="stat">
+                            <h3>Total Words</h3>
+                            <span>${progress.total_words_learned}</span>
+                        </div>
+                        <div class="stat">
+                            <h3>Completed Levels</h3>
+                            <span>${progress.total_levels_completed}</span>
+                        </div>
+                        <div class="stat">
+                            <h3>Average Score</h3>
+                            <span>${progress.average_score || 0}</span>
+                        </div>
+                    </div>
+                    <button onclick="closeModal()" class="action-button cancel">Close</button>
+                </div>
+            `;
+            document.body.appendChild(progressModal);
+        } catch (error) {
+            console.error('Error viewing student progress:', error);
+            showNotification('Error loading student progress', 'error');
+        }
+    }
+}
+
+// Initialize class manager
+const classManager = new ClassroomManager();
+
+class WordListManager {
+    constructor() {
+        this.lists = new Map();
+        this.activeList = null;
+    }
+
+    async createList(name, words, translations, gradeLevel) {
+        try {
+            const { data: list, error } = await supabaseClient
+                .from('teacher_wordlists')
+                .insert([{
+                    teacher_id: currentUser.id,
+                    name,
+                    words,
+                    translations,
+                    grade_level: gradeLevel
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+            this.lists.set(list.id, list);
+            this.updateListDisplay();
+            return list;
+        } catch (error) {
+            console.error('Error creating word list:', error);
+            throw error;
+        }
+    }
+
+    async loadLists() {
+        try {
+            const { data: lists, error } = await supabaseClient
+                .from('teacher_wordlists')
+                .select('*')
+                .eq('teacher_id', currentUser.id);
+
+            if (error) throw error;
+
+            this.lists.clear();
+            lists.forEach(list => this.lists.set(list.id, list));
+            this.updateListDisplay();
+        } catch (error) {
+            console.error('Error loading word lists:', error);
+        }
+    }
+
+    updateListDisplay() {
+        const listsPanel = document.getElementById('lists-panel');
+        if (!listsPanel) return;
+
+        listsPanel.innerHTML = `
+            <div class="panel-header">
+                <h2>Word Lists</h2>
+                <button onclick="wordListManager.showCreateList()" class="action-button">
+                    Create List
+                </button>
+            </div>
+            <div class="lists-grid">
+                ${Array.from(this.lists.values()).map(list => `
+                    <div class="list-card" data-list-id="${list.id}">
+                        <div class="list-header">
+                            <h3>${list.name}</h3>
+                            <span class="word-count">${list.words.length} words</span>
+                        </div>
+                        <div class="list-preview">
+                            ${list.words.slice(0, 3).map((word, i) => `
+                                <div class="word-pair">
+                                    <span>${word}</span>
+                                    <span>${list.translations[i]}</span>
+                                </div>
+                            `).join('')}
+                            ${list.words.length > 3 ? `
+                                <div class="more-words">+${list.words.length - 3} more</div>
+                            ` : ''}
+                        </div>
+                        <div class="list-actions">
+                            <button onclick="wordListManager.editList('${list.id}')" 
+                                    class="action-button">
+                                Edit
+                            </button>
+                            <button onclick="wordListManager.shareList('${list.id}')"
+                                    class="action-button">
+                                Share
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    showCreateList() {
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h2>Create Word List</h2>
+                <form id="word-list-form">
+                    <div class="form-group">
+                        <label>List Name</label>
+                        <input type="text" id="list-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Grade Level</label>
+                        <select id="list-grade" required>
+                            ${Array.from({length: 12}, (_, i) => `
+                                <option value="${i+1}">Grade ${i+1}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Words</label>
+                        <div id="word-pairs">
+                            <div class="word-pair-input">
+                                <input type="text" placeholder="English word" required>
+                                <input type="text" placeholder="Hebrew translation" required>
+                                <button type="button" onclick="this.parentElement.remove()">❌</button>
+                            </div>
+                        </div>
+                        <button type="button" onclick="wordListManager.addWordPair()" 
+                                class="action-button">
+                            Add Word
+                        </button>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="action-button">Create List</button>
+                        <button type="button" onclick="closeModal()" 
+                                class="action-button cancel">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('form').onsubmit = (e) => this.handleListSubmit(e);
+    }
+
+    addWordPair() {
+        const container = document.getElementById('word-pairs');
+        const pair = document.createElement('div');
+        pair.className = 'word-pair-input';
+        pair.innerHTML = `
+            <input type="text" placeholder="English word" required>
+            <input type="text" placeholder="Hebrew translation" required>
+            <button type="button" onclick="this.parentElement.remove()">❌</button>
+        `;
+        container.appendChild(pair);
+    }
+
+    async handleListSubmit(event) {
+        event.preventDefault();
+        const form = event.target;
+        const name = form.querySelector('#list-name').value;
+        const grade = parseInt(form.querySelector('#list-grade').value);
+        
+        const pairs = Array.from(form.querySelectorAll('.word-pair-input')).map(pair => ({
+            word: pair.querySelector('input:first-child').value,
+            translation: pair.querySelector('input:last-of-type').value
+        }));
+
+        await this.createList(
+            name,
+            pairs.map(p => p.word),
+            pairs.map(p => p.translation),
+            grade
+        );
+
+        closeModal();
+        showNotification('Word list created successfully!');
+    }
+}
+
+const wordListManager = new WordListManager();
+
+
+class AnalyticsManager {
+    constructor() {
+        this.data = null;
+    }
+
+    async loadClassStats(classId) {
+        try {
+            const { data: stats, error } = await supabaseClient
+                .from('class_enrollments')
+                .select(`
+                    student_id,
+                    user_profiles!student_id (
+                        username
+                    ),
+                    player_stats!student_id (
+                        total_words_learned,
+                        total_levels_completed,
+                        average_score
+                    )
+                `)
+                .eq('class_id', classId);
+
+            if (error) throw error;
+
+            this.data = stats;
+            this.updateAnalyticsDisplay();
+        } catch (error) {
+            console.error('Error loading class stats:', error);
+        }
+    }
+
+    updateAnalyticsDisplay() {
+        const analyticsPanel = document.getElementById('analytics-panel');
+        if (!analyticsPanel || !this.data) return;
+
+        const averageWords = this.data.reduce((acc, student) => 
+            acc + (student.player_stats?.total_words_learned || 0), 0) / this.data.length;
+
+        const averageScore = this.data.reduce((acc, student) => 
+            acc + (student.player_stats?.average_score || 0), 0) / this.data.length;
+
+        analyticsPanel.innerHTML = `
+            <div class="analytics-overview">
+                <div class="stat-card">
+                    <h3>Class Average Words</h3>
+                    <div class="stat-value">${Math.round(averageWords)}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Class Average Score</h3>
+                    <div class="stat-value">${averageScore.toFixed(1)}%</div>
+                </div>
+            </div>
+            <div class="student-rankings">
+                <h3>Student Rankings</h3>
+                <div class="ranking-list">
+                    ${this.data.sort((a, b) => 
+                        (b.player_stats?.total_words_learned || 0) - 
+                        (a.player_stats?.total_words_learned || 0)
+                    ).map((student, index) => `
+                        <div class="ranking-item">
+                            <span class="rank">#${index + 1}</span>
+                            <span class="student-name">
+                                ${student.user_profiles.username}
+                            </span>
+                            <span class="words-learned">
+                                ${student.player_stats?.total_words_learned || 0} words
+                            </span>
+                            <div class="progress-bar">
+                                <div class="progress" style="width: ${
+                                    (student.player_stats?.total_words_learned || 0) / 
+                                    Math.max(...this.data.map(s => 
+                                        s.player_stats?.total_words_learned || 0
+                                    )) * 100
+                                }%"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+}
+
+const analyticsManager = new AnalyticsManager();
+
+
+    </script>
+    </body>
+    </html>
