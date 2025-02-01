@@ -2448,8 +2448,10 @@ body {
 }
 
 .list-name {
+    font-size: 1.2rem;
     font-weight: 600;
     color: var(--gold);
+    margin-right: 1rem;
 }
 
 .list-details {
@@ -2460,8 +2462,15 @@ body {
     font-size: 0.9rem;
 }
 
-.word-count, .plays-left, .word-preview {
-    color: rgba(255,255,255,0.7);
+.word-count, .plays-left {
+    font-size: 1rem;
+    color: var(--text);
+    opacity: 0.8;
+    margin-right: 1rem;
+}
+
+.word-preview {
+    color: rgba(255,255,255,0.6);
     font-size: 0.9rem;
 }
 
@@ -2699,17 +2708,21 @@ body {
     opacity: 1;
 }
 
-
-
-.custom-list-item {
-    display: grid;
-    grid-template-columns: auto 2fr 1fr 1fr 2fr;
+.list-entry-content {
+    display: flex;
     align-items: center;
     gap: 1rem;
-    background: transparent; /* Remove background */
-    padding: 0.5rem 1rem;
+    flex-grow: 1;
+}
+
+.custom-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: transparent;
     border-radius: 8px;
-    margin-bottom: 0.5rem;
     transition: background 0.3s ease;
 }
 
@@ -2762,14 +2775,12 @@ body {
 }
 
 .action-icon {
-    background: none;
-    border: none;
+    font-size: 1.5rem;
     color: var(--text);
     opacity: 0.7;
     cursor: pointer;
-    transition: opacity 0.3s ease;
-    font-size: 2rem; /* Doubled size */
-    padding: 0.25rem;
+    transition: all 0.3s ease;
+    margin-right: 0.5rem;
 }
 
 .action-icon:hover {
@@ -6282,8 +6293,7 @@ function initializeDragAndDrop(item) {
     item.addEventListener('dragstart', (e) => {
         e.stopPropagation();
         item.classList.add('dragging');
-        e.dataTransfer.setData('text/plain', ''); // For Firefox compatibility
-        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', ''); // Firefox compatibility
     });
     
     item.addEventListener('dragend', (e) => {
@@ -6294,13 +6304,13 @@ function initializeDragAndDrop(item) {
 
 
 
+
 function saveCurrentList() {
+    // Check if we're editing an existing list
+    const existingList = customPracticeLists.currentList;
+    
     const listNameInput = document.getElementById('custom-list-name');
     const wordList = document.getElementById('word-translation-list');
-    const translationResults = document.getElementById('translation-results');
-    
-    // Check if editing an existing list
-    const existingList = customPracticeLists.currentList;
     
     const name = listNameInput.value.trim() || (existingList ? existingList.name : `List ${customPracticeLists.lists.length + 1}`);
     const words = [];
@@ -6337,23 +6347,28 @@ function saveCurrentList() {
         // Reset current list
         customPracticeLists.currentList = null;
     } else {
-        // Create new list
+        // Only create a new list if we're not editing
         const newList = {
             id: Date.now(),
             name: name,
             words: words,
             translations: translations
         };
+        
+        if (!canCreateMoreLists()) {
+            alert(`You can only create ${getUserListLimits().maxLists} custom lists.`);
+            return;
+        }
+        
         customPracticeLists.lists.push(newList);
     }
     
     // Save to localStorage
     localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
     
-    // Clear form and hide translation results
+    // Clear form
     listNameInput.value = '';
     wordList.innerHTML = '';
-    translationResults.style.display = 'none';
     
     // Refresh list manager
     showCustomListsManager();
@@ -6561,7 +6576,6 @@ function showCustomListsManager() {
     if (!container) return;
     
     const limits = getUserListLimits();
-    const userStatus = currentUser?.status || 'unregistered';
     
     container.innerHTML = '';
     
@@ -6571,7 +6585,6 @@ function showCustomListsManager() {
     }
 
     customPracticeLists.lists.forEach(list => {
-        // Get play count
         const playCountKey = `listPlays_${list.id}`;
         const playsUsed = parseInt(localStorage.getItem(playCountKey) || '0');
         const playsLeft = limits.maxPlays - playsUsed;
@@ -6583,26 +6596,21 @@ function showCustomListsManager() {
         listItem.dataset.listId = list.id;
         
         listItem.innerHTML = `
-            <div class="list-actions">
+            <div class="list-entry-content">
                 <button onclick="startCustomListPractice(${list.id})" class="action-icon play">
                     <i class="fas fa-play"></i>
                 </button>
                 <button onclick="editCustomList(${list.id})" class="action-icon edit">
                     <i class="fas fa-edit"></i>
                 </button>
-            </div>
-            <span class="list-name">${list.name}</span>
-            <span class="word-count">${list.words.length} words</span>
-            <span class="plays-left" style="color: ${playsLeft <= 2 ? '#ff4444' : 'inherit'};">
-                ${playsLeft}/${limits.maxPlays} plays
-            </span>
-            <span class="word-preview">
-                ${list.words.slice(0,3).join(', ')}${list.words.length > 3 ? '...' : ''}
-            </span>
-            <div class="list-actions delete-action">
-                <button onclick="deleteCustomList(${list.id})" class="action-icon delete">
-                    <i class="fas fa-trash"></i>
-                </button>
+                <span class="list-name">${list.name}</span>
+                <span class="word-count">${list.words.length} words</span>
+                <span class="plays-left" style="color: ${playsLeft <= 2 ? '#ff4444' : 'inherit'};">
+                    ${playsLeft}
+                </span>
+                <span class="word-preview">
+                    ${list.words.slice(0,3).join(', ')}${list.words.length > 3 ? '...' : ''}
+                </span>
             </div>
         `;
 
@@ -6859,9 +6867,6 @@ function makeWordListDraggable(listId) {
     
     wordList.addEventListener('dragover', (e) => {
         e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = 'move';
-        
         const draggingItem = wordList.querySelector('.dragging');
         if (!draggingItem) return;
         
@@ -6880,9 +6885,9 @@ function makeWordListDraggable(listId) {
 
 
 function getDragAfterElement(container, y) {
-    const draggableItems = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
+    const draggableElements = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
     
-    return draggableItems.reduce((closest, child) => {
+    return draggableElements.reduce((closest, child) => {
         const box = child.getBoundingClientRect();
         const offset = y - box.top - box.height / 2;
         
