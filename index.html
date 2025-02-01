@@ -2447,6 +2447,19 @@ body {
     border: 1px solid rgba(255,255,255,0.1);
 }
 
+.list-name {
+    font-weight: 600;
+    color: var(--gold);
+}
+
+.list-details {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: rgba(255,255,255,0.7);
+    font-size: 0.9rem;
+}
+
 .list-name-section {
     margin-bottom: 1.5rem;
 }
@@ -2511,8 +2524,7 @@ body {
 
 .word-translation-item.dragging {
     opacity: 0.5;
-    background: rgba(255,255,255,0.2);
-    cursor: grabbing;
+    background: rgba(255,255,255,0.1);
 }
 
 .word-translation-item > * {
@@ -2530,7 +2542,7 @@ body {
 }
 
 .drag-handle:hover {
-    opacity: 1;
+    color: var(--text);
 }
 
 /* Split word input field styles */
@@ -2595,6 +2607,14 @@ body {
 
 /* Split button styles */
 
+.custom-lists-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
 
 .edit-mode-button {
     padding: 0.5rem 1rem;
@@ -2634,34 +2654,26 @@ body {
     top: 0;
     z-index: 5;
     display: flex;
-    gap: 0.75rem;
+    gap: 0.5rem;
     padding: 0.5rem 0;
     justify-content: flex-start;
     flex-wrap: wrap;
     background: inherit;
     border-radius: 15px 15px 0 0;
+    align-items: center;
 }
 
 .list-actions button {
-    position: relative;
-    padding: 0.5rem 1rem;
-    border: 2px solid var(--accent);
-    background: transparent;
+    background: none;
+    border: none;
     color: var(--text);
-    border-radius: 50px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    overflow: hidden;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
     cursor: pointer;
-    transition: all 0.3s ease;
-    flex: 0 1 auto;
-    min-width: 100px;
-    max-width: 150px;
-    box-shadow: none;
 }
 
 .list-actions button:hover {
-    box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent);
+    opacity: 1;
 }
 
 .list-actions button::before {
@@ -2693,16 +2705,17 @@ body {
     opacity: 1;
 }
 
+
+
 .custom-list-item {
-    position: relative;
     display: flex;
-    flex-direction: column;
-    padding: 1.25rem;
-    margin-bottom: 1.5rem;
-    background: transparent;
-    border-radius: 15px;
-    backdrop-filter: none;
-    border: 1px solid rgba(255,255,255,0.1);
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    padding: 0.75rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
 }
 
 .custom-list-item h3 {
@@ -2725,8 +2738,9 @@ body {
 }
 
 .list-summary {
-    font-size: 0.9rem;
-    opacity: 0.8;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
 }
 
 .list-content {
@@ -2738,6 +2752,11 @@ body {
 .custom-list-item:not(.collapsed) .list-content {
     max-height: 1000px;
     margin-top: 1rem;
+}
+
+.custom-list-item:hover {
+    background: rgba(255,255,255,0.1);
+    transform: translateY(-2px);
 }
 
 .list-header {
@@ -2807,12 +2826,14 @@ body {
     }
 
     .word-translation-item {
-    display: table-row;
-    background: transparent;
-    border-radius: 10px;
-    transition: all 0.3s ease;
-    cursor: grab;
-    border: 1px solid rgba(255,255,255,0.1);
+    display: grid;
+    grid-template-columns: 30px 1fr 1fr 30px;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
 }
 
     .word-translation-item .source-word {
@@ -2891,8 +2912,14 @@ body {
     }
 
     .drag-handle {
-        display: none;
-    }
+    cursor: grab;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.5);
+    transition: color 0.3s ease;
+}
 
     .delete-word-btn {
         width: 44px;
@@ -6832,6 +6859,7 @@ function makeWordListDraggable(listId) {
         const draggable = wordList.querySelector('.dragging');
         if (!draggable) return;
         
+        // Find the element to insert before
         const afterElement = getDragAfterElement(wordList, e.clientY);
         if (afterElement) {
             wordList.insertBefore(draggable, afterElement);
@@ -6853,6 +6881,7 @@ function makeWordListDraggable(listId) {
     const items = wordList.querySelectorAll('.word-translation-item');
     items.forEach(item => initializeDragAndDrop(item));
 }
+
 
 function getDragAfterElement(container, y) {
     const draggableElements = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
