@@ -817,8 +817,24 @@
     function selectRole(role) {
     currentRole = role;
     if (role === 'teacher') {
-        // Remove the existing session check condition
-        showLoginPrompt('teacher'); // This function doesn't exist yet
+        if (!currentUser) {
+            const loginForm = document.getElementById('loginForm');
+            const signupForm = document.getElementById('signupForm');
+            const authBox = document.getElementById('authBox');
+            
+            // Show login form, hide signup form
+            if (loginForm) loginForm.classList.remove('hidden');
+            if (signupForm) signupForm.classList.add('hidden');
+            if (authBox) authBox.classList.remove('hidden');
+        } else {
+            // Check if user is a teacher
+            if (currentUser.role === 'teacher') {
+                showTeacherDashboard();
+            } else {
+                alert('Access denied. Teacher role required.');
+                handleLogout();
+            }
+        }
     } else {
         showStudentView();
     }
@@ -885,15 +901,31 @@ function showLoginPrompt(role) {
 }
     
 function showTeacherDashboard() {
-    // Hide all screens
-    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('visible'));
+    // Hide other screens including auth box
+    document.querySelectorAll('.screen, #authBox').forEach(screen => {
+        screen.classList.remove('visible');
+        if (screen.id === 'authBox') {
+            screen.classList.add('hidden');
+        }
+    });
     
     // Show teacher dashboard
-    const teacherDashboard = document.getElementById('teacher-dashboard');
-    teacherDashboard.classList.add('visible');
+    const dashboard = document.getElementById('teacher-dashboard');
+    dashboard.classList.add('visible');
 
-    // Load initial content
-    loadTeacherEvents();
+    // Update email display
+    const emailDisplay = document.querySelector('.user-email');
+    if (emailDisplay && currentUser) {
+        emailDisplay.textContent = currentUser.email;
+    }
+
+    // Initialize managers if not already done
+    if (!window.classManager) window.classManager = new ClassroomManager();
+    if (!window.wordListManager) window.wordListManager = new WordListManager();
+    if (!window.analyticsManager) window.analyticsManager = new AnalyticsManager();
+
+    // Start with events tab
+    switchTab('events');
 }
 
 function closeModal() {
@@ -1939,7 +1971,55 @@ class AnalyticsManager {
 
 const analyticsManager = new AnalyticsManager();
 
+async function handleLogin() {
+    const email = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+    
+    if (!email || !password) {
+        alert('Please enter both email and password');
+        return;
+    }
 
+    try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error) {
+            console.error('Login Error:', error);
+            alert(error.message);
+            return;
+        }
+
+        if (data.user) {
+            currentUser = data.user;
+            
+            // Get user profile and role
+            const { data: profile } = await supabaseClient
+                .from('user_profiles')
+                .select('role, status')
+                .eq('id', currentUser.id)
+                .single();
+                
+            if (profile) {
+                currentUser.role = profile.role;
+                currentUser.status = profile.status;
+                
+                if (currentRole === 'teacher' && profile.role === 'teacher') {
+                    showTeacherDashboard();
+                } else {
+                    alert('Access denied. Teacher role required.');
+                    await handleLogout();
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error('Unexpected Login Error:', error);
+        alert('An unexpected error occurred during login');
+    }
+}
 
 
     </script>
