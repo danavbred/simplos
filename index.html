@@ -6269,17 +6269,14 @@ function initializeDragAndDrop(item) {
 
 
 function saveCurrentList() {
-    if (!canCreateMoreLists()) {
-        alert(`You can only create ${getUserListLimits().maxLists} custom lists.`);
-        return;
-    }
-
     const listNameInput = document.getElementById('custom-list-name');
-    const wordInput = document.getElementById('custom-word-input');
     const wordList = document.getElementById('word-translation-list');
     const translationResults = document.getElementById('translation-results');
     
-    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+    // Check if editing an existing list
+    const existingList = customPracticeLists.currentList;
+    
+    const name = listNameInput.value.trim() || (existingList ? existingList.name : `List ${customPracticeLists.lists.length + 1}`);
     const words = [];
     const translations = [];
     
@@ -6300,22 +6297,39 @@ function saveCurrentList() {
         return;
     }
 
-    const newList = {
-        id: Date.now(),
-        name: name,
-        words: words,
-        translations: translations
-    };
-
-    customPracticeLists.lists.push(newList);
-    saveCustomLists();
+    if (existingList) {
+        // Update existing list
+        const index = customPracticeLists.lists.findIndex(l => l.id === existingList.id);
+        if (index !== -1) {
+            customPracticeLists.lists[index] = {
+                ...existingList,
+                name: name,
+                words: words,
+                translations: translations
+            };
+        }
+        // Reset current list
+        customPracticeLists.currentList = null;
+    } else {
+        // Create new list
+        const newList = {
+            id: Date.now(),
+            name: name,
+            words: words,
+            translations: translations
+        };
+        customPracticeLists.lists.push(newList);
+    }
     
-    // Clear form
+    // Save to localStorage
+    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+    
+    // Clear form and hide translation results
     listNameInput.value = '';
-    wordInput.value = '';
     wordList.innerHTML = '';
     translationResults.style.display = 'none';
     
+    // Refresh list manager
     showCustomListsManager();
 }
 
@@ -6692,6 +6706,9 @@ function editCustomList(listId) {
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
     
+    // Set current list for editing
+    customPracticeLists.currentList = list;
+    
     // Switch to custom practice screen
     showScreen('custom-practice-screen');
     
@@ -6725,9 +6742,6 @@ function editCustomList(listId) {
     });
     
     translationResults.style.display = 'block';
-    
-    // Store the current list for later saving
-    customPracticeLists.currentList = list;
     
     // Initialize drag functionality after adding all items
     makeWordListDraggable();
