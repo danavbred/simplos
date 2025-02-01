@@ -2460,6 +2460,11 @@ body {
     font-size: 0.9rem;
 }
 
+.word-count, .plays-left, .word-preview {
+    color: rgba(255,255,255,0.7);
+    font-size: 0.9rem;
+}
+
 .list-name-section {
     margin-bottom: 1.5rem;
 }
@@ -2708,14 +2713,15 @@ body {
 
 
 .custom-list-item {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: auto 2fr 1fr 1fr 2fr;
     align-items: center;
+    gap: 1rem;
     background: rgba(255,255,255,0.05);
+    padding: 0.5rem 1rem;
     border-radius: 8px;
-    padding: 0.75rem;
-    transition: all 0.3s ease;
-    cursor: pointer;
+    margin-bottom: 0.5rem;
+    transition: background 0.3s ease;
 }
 
 .custom-list-item h3 {
@@ -2756,7 +2762,6 @@ body {
 
 .custom-list-item:hover {
     background: rgba(255,255,255,0.1);
-    transform: translateY(-2px);
 }
 
 .list-header {
@@ -2764,6 +2769,19 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+}
+
+.action-icon {
+    background: none;
+    border: none;
+    color: var(--text);
+    opacity: 0.7;
+    cursor: pointer;
+    transition: opacity 0.3s ease;
+}
+
+.action-icon:hover {
+    opacity: 1;
 }
 
 .word-preview {
@@ -6097,6 +6115,7 @@ function makeWordListDraggable(listId) {
         const draggable = wordList.querySelector('.dragging');
         if (!draggable) return;
         
+        // Find the element to insert before
         const afterElement = getDragAfterElement(wordList, e.clientY);
         if (afterElement) {
             wordList.insertBefore(draggable, afterElement);
@@ -6263,35 +6282,13 @@ function initializeDragAndDrop(item) {
     item.addEventListener('dragstart', (e) => {
         e.stopPropagation();
         item.classList.add('dragging');
-        item.style.opacity = '0.5';
+        e.dataTransfer.setData('text/plain', ''); // For Firefox compatibility
     });
     
     item.addEventListener('dragend', (e) => {
         e.stopPropagation();
         item.classList.remove('dragging');
-        item.style.opacity = '1';
-        
-        // Save the new order
-        const listId = item.closest('.word-translation-list')?.id.split('-')[1];
-        if (listId) {
-            const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
-            const wordList = document.getElementById(`list-${listId}`);
-            if (listItem?.getAttribute('data-in-edit-mode') === 'true') {
-                saveListChanges(listId, wordList, listItem, false);
-            }
-        }
     });
-
-    const dragHandle = item.querySelector('.drag-handle');
-    if (dragHandle) {
-        dragHandle.addEventListener('mousedown', () => {
-            item.draggable = true;
-        });
-        
-        dragHandle.addEventListener('mouseup', () => {
-            item.draggable = false;
-        });
-    }
 }
 
 
@@ -6367,7 +6364,8 @@ function canCreateMoreLists() {
 
 function saveCurrentList() {
     if (!canCreateMoreLists()) {
-        alert(`You can only create ${getUserListLimits().maxLists} custom lists.`);
+        const limits = getUserListLimits();
+        alert(`You can only create ${limits.maxLists} custom lists.`);
         return;
     }
 
@@ -6561,7 +6559,6 @@ function showCustomListsManager() {
     if (!container) return;
     
     const limits = getUserListLimits();
-    const userStatus = currentUser?.status || 'unregistered';
     
     container.innerHTML = '';
     
@@ -6571,7 +6568,6 @@ function showCustomListsManager() {
     }
 
     customPracticeLists.lists.forEach(list => {
-        // Get play count
         const playCountKey = `listPlays_${list.id}`;
         const playsUsed = parseInt(localStorage.getItem(playCountKey) || '0');
         const playsLeft = limits.maxPlays - playsUsed;
@@ -6579,45 +6575,30 @@ function showCustomListsManager() {
         if (playsLeft <= 0) return;
         
         const listItem = document.createElement('div');
-        listItem.className = `custom-list-item collapsed ${list.is_shared ? 'shared-list' : ''}`;
+        listItem.className = 'custom-list-item';
         listItem.dataset.listId = list.id;
         
         listItem.innerHTML = `
             <div class="list-actions">
-                <button class="start-button practice-button">Practice</button>
-                <button class="edit-button" data-list-id="${list.id}">Edit</button>
-                <button class="start-button delete-button">Delete</button>
+                <button onclick="startCustomListPractice(${list.id})" class="action-icon">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button onclick="editCustomList(${list.id})" class="action-icon">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button onclick="deleteCustomList(${list.id})" class="action-icon">
+                    <i class="fas fa-trash"></i>
+                </button>
             </div>
-            <div class="list-header">
-                <h3>${list.name}</h3>
-                <div class="list-summary">
-                    <span>${list.words.length} words</span>
-                    <span style="color: ${playsLeft <= 2 ? '#ff4444' : '#ffffff'}; margin-left: 1rem;">
-                        ${playsLeft}/${limits.maxPlays} plays left
-                    </span>
-                    <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
-                </div>
-            </div>
+            <span class="list-name">${list.name}</span>
+            <span class="word-count">${list.words.length} words</span>
+            <span class="plays-left" style="color: ${playsLeft <= 2 ? '#ff4444' : 'inherit'};">
+                ${playsLeft}/${limits.maxPlays} plays
+            </span>
+            <span class="word-preview">
+                ${list.words.slice(0,3).join(', ')}${list.words.length > 3 ? '...' : ''}
+            </span>
         `;
-
-        // Add event listeners with explicit function calls
-        const practiceButton = listItem.querySelector('.practice-button');
-        practiceButton.addEventListener('click', () => startCustomListPractice(list.id));
-
-        const editButton = listItem.querySelector('.edit-button');
-        editButton.addEventListener('click', () => {
-            console.log('Edit button clicked for list:', list.id);
-            editCustomList(list.id);
-        });
-
-        const deleteButton = listItem.querySelector('.delete-button');
-        deleteButton.addEventListener('click', () => {
-            console.log('Delete button clicked for list:', list.id);
-            deleteCustomList(list.id);
-        });
-
-        const header = listItem.querySelector('.list-header');
-        header.addEventListener('click', () => toggleListCollapse(list.id));
 
         container.appendChild(listItem);
     });
@@ -6853,40 +6834,28 @@ function makeWordListDraggable(listId) {
     const wordList = document.getElementById(`list-${listId}`);
     if (!wordList) return;
     
-    // Add dragover event listener to the container
-    wordList.addEventListener('dragover', e => {
+    wordList.addEventListener('dragover', (e) => {
         e.preventDefault();
-        const draggable = wordList.querySelector('.dragging');
-        if (!draggable) return;
+        const draggingItem = wordList.querySelector('.dragging');
+        if (!draggingItem) return;
         
-        // Find the element to insert before
         const afterElement = getDragAfterElement(wordList, e.clientY);
         if (afterElement) {
-            wordList.insertBefore(draggable, afterElement);
+            wordList.insertBefore(draggingItem, afterElement);
         } else {
-            wordList.appendChild(draggable);
+            wordList.appendChild(draggingItem);
         }
     });
 
-    wordList.addEventListener('drop', e => {
-        e.preventDefault();
-        const draggingElement = document.querySelector('.dragging');
-        if (draggingElement) {
-            draggingElement.style.opacity = '1';
-            draggingElement.classList.remove('dragging');
-        }
-    });
-
-    // Initialize drag events for all items
     const items = wordList.querySelectorAll('.word-translation-item');
     items.forEach(item => initializeDragAndDrop(item));
 }
 
 
 function getDragAfterElement(container, y) {
-    const draggableElements = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
+    const draggableItems = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
     
-    return draggableElements.reduce((closest, child) => {
+    return draggableItems.reduce((closest, child) => {
         const box = child.getBoundingClientRect();
         const offset = y - box.top - box.height / 2;
         
