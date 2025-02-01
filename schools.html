@@ -2029,6 +2029,189 @@ async function handleLogin() {
 }
 
 
+function showCreateClassModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h2>Create New Class</h2>
+            <form id="class-form" onsubmit="handleClassSubmit(event)">
+                <div class="form-group">
+                    <label>Class Name</label>
+                    <input type="text" id="class-name" required>
+                </div>
+                <div class="form-group">
+                    <label>Grade Level</label>
+                    <select id="class-grade" required>
+                        <option value="">Select Grade</option>
+                        <option value="1">Grade 1</option>
+                        <option value="2">Grade 2</option>
+                        <option value="3">Grade 3</option>
+                        <option value="4">Grade 4</option>
+                        <option value="5">Grade 5</option>
+                        <option value="6">Grade 6</option>
+                        <option value="7">Grade 7</option>
+                        <option value="8">Grade 8</option>
+                        <option value="9">Grade 9</option>
+                        <option value="10">Grade 10</option>
+                        <option value="11">Grade 11</option>
+                        <option value="12">Grade 12</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="action-button">Create Class</button>
+                    <button type="button" class="action-button cancel" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function handleClassSubmit(event) {
+    event.preventDefault();
+    const name = document.getElementById('class-name').value;
+    const grade = document.getElementById('class-grade').value;
+
+    try {
+        const { data: newClass, error } = await supabaseClient
+            .from('school_classes')
+            .insert([{
+                teacher_id: currentUser.id,
+                name: name,
+                grade_level: parseInt(grade)
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        closeModal();
+        showNotification('Class created successfully!');
+        classManager.loadTeacherClasses(); // Refresh the list
+
+    } catch (error) {
+        console.error('Error creating class:', error);
+        showNotification('Error creating class', 'error');
+    }
+}
+
+function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+async function updateClassesPanel() {
+    const classesPanel = document.getElementById('classes-panel');
+    if (!classesPanel) return;
+
+    const { data: classes, error } = await supabaseClient
+        .from('school_classes')
+        .select(`
+            *,
+            class_enrollments (count)
+        `)
+        .eq('teacher_id', currentUser.id);
+
+    if (error) {
+        console.error('Error loading classes:', error);
+        return;
+    }
+
+    classesPanel.innerHTML = `
+        <div class="panel-header">
+            <h2>My Classes</h2>
+            <button onclick="showCreateClassModal()" class="action-button">
+                <i class="fas fa-plus"></i> Create Class
+            </button>
+        </div>
+        ${classes.length === 0 ? `
+            <div class="empty-state">
+                <i class="fas fa-users"></i>
+                <h3>No Classes Yet</h3>
+                <p>Create your first class to get started!</p>
+                <button onclick="showCreateClassModal()" class="action-button">
+                    Create Class
+                </button>
+            </div>
+        ` : `
+            <div class="class-grid">
+                ${classes.map(cls => `
+                    <div class="class-card">
+                        <div class="class-header">
+                            <h3 class="class-title">${cls.name}</h3>
+                            <span class="grade-level">Grade ${cls.grade_level}</span>
+                        </div>
+                        <div class="class-stats">
+                            <div class="stat">
+                                <i class="fas fa-users"></i>
+                                <span>${cls.class_enrollments.count || 0} Students</span>
+                            </div>
+                        </div>
+                        <div class="class-actions">
+                            <button onclick="viewClass('${cls.id}')" class="action-button">
+                                View Class
+                            </button>
+                            <button onclick="generateInviteCode('${cls.id}')" class="action-button">
+                                Invite Code
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `}
+    `;
+}
+
+async function generateInviteCode(classId) {
+    try {
+        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        const { error } = await supabaseClient
+            .from('school_classes')
+            .update({ invite_code: code })
+            .eq('id', classId);
+
+        if (error) throw error;
+
+        showClassInvite(code);
+    } catch (error) {
+        console.error('Error generating invite code:', error);
+        showNotification('Error generating invite code', 'error');
+    }
+}
+
+function showClassInvite(code) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h2>Class Invite Code</h2>
+            <div class="invite-code">
+                <span>${code}</span>
+                <button onclick="copyInviteCode('${code}')" class="action-button">
+                    <i class="fas fa-copy"></i> Copy
+                </button>
+            </div>
+            <p class="invite-info">Share this code with your students to join the class</p>
+            <button onclick="closeModal()" class="action-button">Close</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function copyInviteCode(code) {
+    navigator.clipboard.writeText(code)
+        .then(() => showNotification('Code copied to clipboard!'))
+        .catch(err => console.error('Error copying code:', err));
+}
+
     </script>
     </body>
     </html>
