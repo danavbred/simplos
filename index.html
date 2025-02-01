@@ -3578,11 +3578,29 @@ async function initializeAuth() {
                         console.log('Stats creation:', statsError ? 'Failed' : 'Success');
                         if (statsError) throw statsError;
                     }
+
+                    // Force UI update before data loading
+                    const username = existingProfile?.username || 
+                        currentUser.user_metadata?.username || 
+                        currentUser.email?.split('@')[0];
+                    const status = existingProfile?.status || 'free';
+
+                    const userInfo = document.getElementById('userInfo');
+                    const authBox = document.getElementById('authBox');
+                    const userEmailElement = document.getElementById('userEmail');
+                    const logoutButton = document.querySelector('.logout-button');
+
+                    if (userInfo && authBox && userEmailElement && logoutButton) {
+                        userEmailElement.textContent = username;
+                        authBox.classList.add('hidden');
+                        userInfo.classList.remove('hidden');
+                        logoutButton.classList.remove('hidden');
+                        updateUserStatusDisplay(status);
+                    }
                     
-                    // Always try to load user data and update UI
+                    // Load user data and update UI
                     await loadUserGameProgress(currentUser.id);
                     await loadCustomLists();
-                    updateAuthUI();
                     showScreen('welcome-screen');
                     
                 } catch (error) {
@@ -3661,7 +3679,7 @@ async function initializeAuth() {
         updateAuthUI();
         showScreen('welcome-screen');
     }
-}
+} // Added closing brace
 
 
 
@@ -3696,11 +3714,6 @@ async function handleSignup() {
         return;
     }
 
-    if (username.length < 3) {
-        alert('Username must be at least 3 characters long');
-        return;
-    }
-
     try {
         console.log('Attempting Supabase signup...');
         const { data, error } = await supabaseClient.auth.signUp({
@@ -3714,27 +3727,51 @@ async function handleSignup() {
             }
         });
 
-        if (error) {
-            console.error('Signup error:', error);
-            throw error;
+        if (error) throw error;
+        console.log('Auth signup successful:', data);
+
+        // Manual profile creation as fallback
+        const { error: profileError } = await supabaseClient
+            .from('user_profiles')
+            .insert({
+                id: data.user.id,
+                username: username,
+                role: 'student',
+                status: 'free'
+            });
+
+        if (profileError) {
+            console.log('Manual profile creation error:', profileError);
         }
 
-        if (!data.user) {
-            throw new Error('Signup failed - no user data returned');
-        }
+        // Verify profile creation
+        const { data: profile } = await supabaseClient
+            .from('user_profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
 
-        console.log('Signup successful, auth state change will handle initialization');
-        
-        // The rest is handled by onAuthStateChange listener in initializeAuth
-        // No need to duplicate the initialization here
+        console.log('Profile check:', profile);
+
+        // Force UI update
+        if (profile) {
+            const userInfo = document.getElementById('userInfo');
+            const authBox = document.getElementById('authBox');
+            const userEmailElement = document.getElementById('userEmail');
+            const logoutButton = document.querySelector('.logout-button');
+
+            if (userInfo && authBox && userEmailElement && logoutButton) {
+                userEmailElement.textContent = profile.username;
+                authBox.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+                logoutButton.classList.remove('hidden');
+                updateUserStatusDisplay(profile.status);
+            }
+        }
 
     } catch (error) {
-        console.error('Signup failed:', {
-            message: error.message,
-            code: error.code,
-            details: error.details
-        });
-        alert(`Signup failed: ${error.message}. Please try again.`);
+        console.error('Signup failed:', error);
+        alert(`Signup failed: ${error.message}`);
     }
 }
 
@@ -4210,15 +4247,10 @@ function updateAuthUI() {
         userInfo.classList.remove('hidden');
         logoutButton.classList.remove('hidden');
         
-        // Display username from metadata if available, fallback to email
-        const displayName = currentUser.user_metadata?.username || currentUser.email;
-        userEmailElement.textContent = displayName;
-        console.log('Set display name:', displayName);
-        
-        // Get and display user status
+        // Get latest profile data
         supabaseClient
             .from('user_profiles')
-            .select('status, username')
+            .select('username, status')
             .eq('id', currentUser.id)
             .single()
             .then(({ data, error }) => {
@@ -4228,6 +4260,11 @@ function updateAuthUI() {
                         userEmailElement.textContent = data.username;
                     }
                     updateUserStatusDisplay(data.status);
+                } else {
+                    // Fallback to metadata if profile not found
+                    userEmailElement.textContent = currentUser.user_metadata?.username || 
+                        currentUser.email?.split('@')[0];
+                    updateUserStatusDisplay('free');
                 }
             })
             .catch(error => console.error('Error fetching user status:', error));
