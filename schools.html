@@ -643,6 +643,15 @@
                 <button class="nav-button" onclick="selectRole('student')">Student</button>
                 <button class="nav-button" onclick="selectRole('teacher')">Teacher</button>
             </div>
+            
+            <!-- Add auth container here -->
+            <div class="auth-container" id="authBox" style="display: none;">
+                <div class="auth-login" id="loginForm">
+                    <input type="text" class="auth-input" placeholder="Username" id="loginUsername">
+                    <input type="password" class="auth-input" placeholder="Password" id="loginPassword">
+                    <button class="auth-button" onclick="handleLogin()">Login</button>
+                </div>
+            </div>
         </div>
     
         <!-- Teacher Dashboard -->
@@ -815,28 +824,15 @@
     }
     
     function selectRole(role) {
+    console.log('Selecting role:', role);
     currentRole = role;
+    
     if (role === 'teacher') {
-        if (!currentUser) {
-            const loginForm = document.getElementById('loginForm');
-            const signupForm = document.getElementById('signupForm');
-            const authBox = document.getElementById('authBox');
-            
-            // Show login form, hide signup form
-            if (loginForm) loginForm.classList.remove('hidden');
-            if (signupForm) signupForm.classList.add('hidden');
-            if (authBox) authBox.classList.remove('hidden');
-        } else {
-            // Check if user is a teacher
-            if (currentUser.role === 'teacher') {
-                showTeacherDashboard();
-            } else {
-                alert('Access denied. Teacher role required.');
-                handleLogout();
-            }
+        const authBox = document.getElementById('authBox');
+        if (authBox) {
+            authBox.style.display = 'block';
         }
-    } else {
-        showStudentView();
+        console.log('Auth box displayed');
     }
 }
 
@@ -930,9 +926,7 @@ function showTeacherDashboard() {
 
 function closeModal() {
     const modal = document.querySelector('.modal');
-    if (modal) {
-        modal.remove();
-    }
+    if (modal) modal.remove();
 }
     
     function showStudentView() {
@@ -988,17 +982,36 @@ async function handleLogout() {
         }
 
         currentUser = null;
+        currentRole = null;
         
         // Clear any active managers
-        if(classManager) classManager.cleanup();
-        if(wordListManager) wordListManager.cleanup();
-        if(analyticsManager) analyticsManager.cleanup();
+        if(window.classManager) {
+            classManager.cleanup();
+            window.classManager = null;
+        }
+        if(window.wordListManager) {
+            wordListManager.cleanup();
+            window.wordListManager = null;
+        }
+        if(window.analyticsManager) {
+            analyticsManager.cleanup();
+            window.analyticsManager = null;
+        }
         
-        // Return to role selection
-        document.querySelectorAll('.screen').forEach(screen => 
-            screen.classList.remove('visible'));
-        document.getElementById('role-screen').classList.add('visible');
+        // Hide all screens
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.remove('visible');
+        });
         
+        // Show role selection screen
+        const roleScreen = document.getElementById('role-screen');
+        roleScreen.classList.add('visible');
+        
+        // Hide auth box
+        const authBox = document.getElementById('authBox');
+        if(authBox) {
+            authBox.style.display = 'none';
+        }
     } catch (error) {
         console.error('Unexpected error during logout:', error);
     }
@@ -1023,36 +1036,27 @@ async function showTeacherDashboard() {
     switchTab('events');
 }
 
-    async function loadTeacherEvents() {
-        if (!currentUser) return;
-    
-        try {
-            const { data: events, error } = await supabaseClient
-                .from('events')
-                .select('*')
-                .eq('teacher_id', currentUser.id)
-                .order('created_at', { ascending: false });
-    
-            if (error) throw error;
-    
-            const eventsPanel = document.getElementById('events-panel');
-            eventsPanel.innerHTML = events.map(event => `
-                <div class="event-card">
-                    <div class="event-header">
-                        <h3 class="event-title">${event.name}</h3>
-                        <span class="event-status status-${event.status}">${event.status}</span>
-                    </div>
-                    <div class="event-details">
-                        <p>Students: ${event.participants ? JSON.parse(event.participants).length : 0}</p>
-                        <p>Word List: ${event.list_name}</p>
-                    </div>
-                </div>
-            `).join('');
-    
-        } catch (error) {
-            console.error('Error loading events:', error);
-        }
-    }
+function loadTeacherEvents() {
+    const eventsPanel = document.getElementById('events-panel');
+    if (!eventsPanel) return;
+
+    eventsPanel.innerHTML = `
+        <div class="panel-header">
+            <h2>Events</h2>
+            <button onclick="createNewEvent()" class="action-button">
+                <i class="fas fa-plus"></i> Create Event
+            </button>
+        </div>
+        <div class="empty-state">
+            <i class="fas fa-calendar-plus"></i>
+            <h3>No Events Yet</h3>
+            <p>Create your first event to get started!</p>
+            <button onclick="createNewEvent()" class="action-button">
+                Create Event
+            </button>
+        </div>
+    `;
+}
     
     function initializeRaceTrack() {
         const raceContainer = document.querySelector('.race-container');
@@ -1081,9 +1085,33 @@ async function showTeacherDashboard() {
     });
 
     function createNewEvent() {
-    // Populate classes dropdown
-    loadTeacherClasses();
-    document.getElementById('event-modal').style.display = 'flex';
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h2>Create New Event</h2>
+            <form id="event-form">
+                <div class="form-group">
+                    <label>Event Name</label>
+                    <input type="text" id="event-name" required>
+                </div>
+                <div class="form-group">
+                    <label>Event Type</label>
+                    <select id="event-type" required>
+                        <option value="arcade">Arcade Race</option>
+                        <option value="standard">Standard Practice</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="action-button">Create</button>
+                    <button type="button" onclick="closeModal()" class="action-button cancel">Cancel</button>
+                </div>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.querySelector('form').onsubmit = (e) => handleEventSubmit(e);
 }
 
 async function loadTeacherClasses() {
@@ -1972,52 +2000,31 @@ class AnalyticsManager {
 const analyticsManager = new AnalyticsManager();
 
 async function handleLogin() {
+    console.log('Login attempt');
     const email = document.getElementById('loginUsername').value;
     const password = document.getElementById('loginPassword').value;
     
-    if (!email || !password) {
-        alert('Please enter both email and password');
-        return;
-    }
-
+    console.log('Credentials entered:', email ? 'Yes' : 'No');
+    
     try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({
             email,
             password
         });
 
-        if (error) {
-            console.error('Login Error:', error);
-            alert(error.message);
-            return;
-        }
+        console.log('Login response:', data ? 'Success' : 'Failed');
+
+        if (error) throw error;
 
         if (data.user) {
             currentUser = data.user;
+            console.log('Current user set:', currentUser.id);
             
-            // Get user profile and role
-            const { data: profile } = await supabaseClient
-                .from('user_profiles')
-                .select('role, status')
-                .eq('id', currentUser.id)
-                .single();
-                
-            if (profile) {
-                currentUser.role = profile.role;
-                currentUser.status = profile.status;
-                
-                if (currentRole === 'teacher' && profile.role === 'teacher') {
-                    showTeacherDashboard();
-                } else {
-                    alert('Access denied. Teacher role required.');
-                    await handleLogout();
-                }
-            }
+            showTeacherDashboard();
         }
-
     } catch (error) {
-        console.error('Unexpected Login Error:', error);
-        alert('An unexpected error occurred during login');
+        console.error('Login error:', error);
+        alert(error.message);
     }
 }
 
