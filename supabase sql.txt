@@ -46,21 +46,36 @@ CREATE TRIGGER on_auth_user_created
 ----------------------------------------------------------------------------------------
 -- 🛡️ POLICIES
 ----------------------------------------------------------------------------------------
-ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+-- Drop existing policies first
+DROP POLICY IF EXISTS "Allow users to view all profiles" ON public.user_profiles;
+DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.user_profiles;
+DROP POLICY IF EXISTS "Enable update for users based on id" ON public.user_profiles;
+DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON public.user_profiles;
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.user_profiles;
 
-CREATE POLICY "Users can view their own profile"
-ON public.user_profiles FOR SELECT
+-- Create a completely permissive SELECT policy
+CREATE POLICY "anyone_can_view_all_profiles"
+ON public.user_profiles
+FOR SELECT
+USING (true);
+
+-- Policy for users to update their own profiles
+CREATE POLICY "users_can_update_own_profile"
+ON public.user_profiles
+FOR UPDATE
 USING (auth.uid() = id);
 
-CREATE POLICY "Users can update their own profile"
-ON public.user_profiles FOR UPDATE
-USING (auth.uid() = id);
-
-CREATE POLICY "Users can insert their own profile"
-ON public.user_profiles FOR INSERT
+-- Policy for inserting new profiles
+CREATE POLICY "users_can_insert_own_profile"
+ON public.user_profiles
+FOR INSERT
 WITH CHECK (auth.uid() = id);
 
-----------------------------------------------------------------------------------------
+-- Make sure RLS is enabled
+ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+
+-- Grant explicit permissions
+GRANT SELECT, UPDATE, INSERT ON public.user_profiles TO authenticated;----------------------------------------------------------------------------------------
 -- 🎮 GAME PROGRESS
 ----------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS game_progress (
@@ -204,3 +219,9 @@ USING (
         WHERE role = 'admin'
     )
 );
+
+-- Add this new policy to allow users to see other users for sharing
+CREATE POLICY "Users can view other users profiles for sharing"
+ON public.user_profiles 
+FOR SELECT
+USING (true);  -- This allows all authenticated users to view user profiles
