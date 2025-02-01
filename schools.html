@@ -2141,10 +2141,22 @@ function showNotification(message, type = 'success') {
 }
 
 async function updateClassesPanel() {
-    console.log('Updating classes panel'); // Debug log
+    console.log('Updating classes panel', currentUser); // Debug log
     const classesPanel = document.getElementById('classes-panel');
     if (!classesPanel) {
         console.error('Classes panel not found');
+        return;
+    }
+
+    if (!currentUser || !currentUser.id) {
+        console.error('No user logged in');
+        classesPanel.innerHTML = `
+            <div class="error-state">
+                <i class="fas fa-exclamation-circle"></i>
+                <h3>Authentication Error</h3>
+                <p>Please log in again</p>
+            </div>
+        `;
         return;
     }
 
@@ -2154,7 +2166,10 @@ async function updateClassesPanel() {
             .select('*')
             .eq('teacher_id', currentUser.id);
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase error:', error);
+            throw error;
+        }
 
         console.log('Loaded classes:', classes); // Debug log
 
@@ -2165,7 +2180,16 @@ async function updateClassesPanel() {
                     <i class="fas fa-plus"></i> Create Class
                 </button>
             </div>
-            ${classes && classes.length > 0 ? `
+            ${!classes || classes.length === 0 ? `
+                <div class="empty-state">
+                    <i class="fas fa-users"></i>
+                    <h3>No Classes Yet</h3>
+                    <p>Create your first class to get started!</p>
+                    <button onclick="showCreateClassModal()" class="action-button">
+                        Create Class
+                    </button>
+                </div>
+            ` : `
                 <div class="class-grid">
                     ${classes.map(cls => `
                         <div class="class-card">
@@ -2184,15 +2208,6 @@ async function updateClassesPanel() {
                         </div>
                     `).join('')}
                 </div>
-            ` : `
-                <div class="empty-state">
-                    <i class="fas fa-users"></i>
-                    <h3>No Classes Yet</h3>
-                    <p>Create your first class to get started!</p>
-                    <button onclick="showCreateClassModal()" class="action-button">
-                        Create Class
-                    </button>
-                </div>
             `}
         `;
     } catch (error) {
@@ -2201,7 +2216,7 @@ async function updateClassesPanel() {
             <div class="error-state">
                 <i class="fas fa-exclamation-circle"></i>
                 <h3>Error Loading Classes</h3>
-                <p>Please try again later</p>
+                <p>${error.message || 'Please try again later'}</p>
             </div>
         `;
     }
@@ -2249,6 +2264,23 @@ function copyInviteCode(code) {
         .then(() => showNotification('Code copied to clipboard!'))
         .catch(err => console.error('Error copying code:', err));
 }
+
+function updateAuthUI() {
+    const authBox = document.getElementById('authBox');
+    const userInfo = document.querySelector('.user-email');
+    const logoutButton = document.querySelector('.logout-button');
+
+    if (currentUser) {
+        if (authBox) authBox.classList.add('hidden');
+        if (userInfo) userInfo.textContent = currentUser.email;
+        if (logoutButton) logoutButton.classList.remove('hidden');
+    } else {
+        if (authBox) authBox.classList.remove('hidden');
+        if (userInfo) userInfo.textContent = '';
+        if (logoutButton) logoutButton.classList.add('hidden');
+    }
+}
+
 
     </script>
     </body>
