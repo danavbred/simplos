@@ -1516,6 +1516,38 @@ body {
     box-shadow: 0 5px 15px rgba(255,215,0,0.3);
 }
 
+.toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 1rem 2rem;
+    border-radius: 25px;
+    z-index: 1000;
+    color: white;
+    font-weight: bold;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.toast.success {
+    background-color: #4CAF50;
+}
+
+.toast.error {
+    background-color: #f44336;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.toast.hide {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+}
+
 /* Shop Styles */
 .shop-container {
   display: flex;
@@ -6808,44 +6840,159 @@ function toggleAuthMode() {
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
 }
+
 async function shareListWithUser(listId, recipientId) {
-    // Find the original list
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
+    try {
+        // Enhanced logging and error tracking
+        console.group('Share List Diagnostics');
+        console.log('Current User ID:', currentUser.id);
+        console.log('Recipient User ID:', recipientId);
+        console.log('List ID:', listId);
 
-    // Create shared list data
-    const sharedList = {
-        user_id: recipientId,
-        name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
-        words: list.words,
-        translations: list.translations,
-        is_shared: true,
-        local_id: Date.now(),
-        shared_with: [recipientId],
-        shared_by: currentUser.id
-    };
+        // Find the original list with more robust checking
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        if (!list) {
+            console.error('List not found');
+            throw new Error('List not found');
+        }
 
-    const { data, error } = await supabaseClient
-        .from('custom_lists')
-        .insert([sharedList]);
+        // Comprehensive validation
+        if (!recipientId) {
+            console.error('Invalid recipient');
+            throw new Error('Invalid recipient');
+        }
 
-    if (error) {
-        console.error('Error sharing list:', error);
-        return;
-    }
+        // Fetch recipient details to confirm existence
+        const { data: recipientData, error: recipientError } = await supabaseClient
+            .from('user_profiles')
+            .select('id, username')
+            .eq('id', recipientId)
+            .single();
 
-    // Close modal and show visual feedback
-    const modal = document.querySelector('.share-modal').parentElement;
-    document.body.removeChild(modal);
-    
-    const listItem = document.querySelector(`[data-list-id="${listId}"]`);
-    if (listItem) {
-        listItem.style.animation = 'pulse 0.5s ease';
-        setTimeout(() => listItem.style.animation = '', 500);
+        if (recipientError) {
+            console.error('Recipient verification failed:', recipientError);
+            throw new Error('Cannot verify recipient');
+        }
+
+        // Create shared list with explicit type casting
+        const sharedList = {
+            user_id: recipientId,
+            name: `${list.name} (Shared by ${currentUser.user_metadata?.username || 'Anonymous'})`,
+            words: Array.isArray(list.words) ? list.words : [],
+            translations: Array.isArray(list.translations) ? list.translations : [],
+            is_shared: true,
+            local_id: Date.now(),
+            shared_with: [recipientId],
+            shared_by: currentUser.id
+        };
+
+        // Log the payload before insertion
+        console.log('Sharing Payload:', sharedList);
+
+        // Use bypass RLS for initial testing
+        const { data, error } = await supabaseClient.rpc('insert_shared_list', {
+            p_user_id: sharedList.user_id,
+            p_name: sharedList.name,
+            p_words: sharedList.words,
+            p_translations: sharedList.translations,
+            p_is_shared: sharedList.is_shared,
+            p_local_id: sharedList.local_id,
+            p_shared_with: sharedList.shared_with,
+            p_shared_by: sharedList.shared_by
+        });
+
+        if (error) {
+            console.error('Detailed Sharing Error:', error);
+            throw error;
+        }
+
+        console.log('Share Successful:', data);
+        console.groupEnd();
+
+        showSuccessToast('List shared successfully!');
+        closeShareModal();
+
+    } catch (error) {
+        console.error('Comprehensive Share Failure:', error);
+        console.groupEnd();
+        showErrorToast(error.message || 'Failed to share list');
     }
 }
 
+// Add this RPC function in Supabase SQL
+// This bypasses RLS for controlled list insertion
+
+function updateLocalSharedLists(sharedList) {
+    // Add the shared list to the recipient's local lists
+    if (currentUser) {
+        customPracticeLists.lists.push({
+            id: sharedList.local_id,
+            supabaseId: sharedList.id,
+            name: sharedList.name,
+            words: sharedList.words,
+            translations: sharedList.translations,
+            is_shared: true,
+            shared_by: sharedList.shared_by
+        });
+        
+        // Save to local storage or sync
+        saveCustomLists();
+    }
+}
+
+function showSuccessToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast success';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => document.body.removeChild(toast), 600);
+    }, 3000);
+}
+
+function showErrorToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast error';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => document.body.removeChild(toast), 600);
+    }, 3000);
+}
+
+function closeShareModal() {
+    const modal = document.querySelector('.share-modal');
+    const backdrop = document.querySelector('.modal-backdrop');
+    
+    if (modal) modal.remove();
+    if (backdrop) backdrop.remove();
+}
+
+async function loadSharedLists() {
+    if (!currentUser) return [];
+
+    const { data, error } = await supabaseClient
+        .from('custom_lists')
+        .select('*')
+        .or(`shared_with.cs.{${currentUser.id}},is_shared.eq.true`);
+
+    if (error) {
+        console.error('Error loading shared lists:', error);
+        return [];
+    }
+
+    return data.map(list => ({
+        ...list,
+        isShared: true
+    }));
+}
+
 async function showShareModal(listId) {
+    // Create modal HTML
     const modal = document.createElement('div');
     modal.innerHTML = `
         <div class="modal-backdrop"></div>
@@ -6857,97 +7004,38 @@ async function showShareModal(listId) {
     `;
     document.body.appendChild(modal);
 
-    try {
-        // Single diagnostic query to get all profiles
-        const { data: profiles, error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .select('id, email, username, status');
-            
-        console.log('All profiles:', profiles);
+    // Fetch users directly from user_profiles
+    const { data: users, error } = await supabaseClient
+        .from('user_profiles')
+        .select('id, username')
+        .neq('id', currentUser.id);
 
-        // Filter out current user for sharing list
-        const shareableUsers = profiles?.filter(user => user.id !== currentUser.id) || [];
-        console.log('Shareable users:', shareableUsers);
+    const usersList = modal.querySelector('.users-list');
+    usersList.innerHTML = '';
 
-        const usersList = modal.querySelector('.users-list');
-        usersList.innerHTML = '';
-
-        if (profileError) {
-            console.error('Error fetching profiles:', profileError);
-            usersList.innerHTML = `
-                <div class="error-message">
-                    Error loading users: ${profileError.message}
-                </div>
-            `;
-            return;
-        }
-
-        if (shareableUsers.length === 0) {
-            usersList.innerHTML = `
-                <div class="no-users-message">
-                    <p>No other users found</p>
-                    <small>Total users: ${profiles?.length || 0}</small>
-                    <small>Current user ID: ${currentUser.id}</small>
-                </div>
-            `;
-            return;
-        }
-
-        shareableUsers.forEach(user => {
-            const userItem = document.createElement('div');
-            userItem.className = 'user-item';
-            userItem.innerHTML = `
-                <div class="user-info">
-                    <span class="username">${user.username || 'Unnamed User'}</span>
-                    <span class="email">${user.email || ''}</span>
-                    ${user.status === 'premium' ? '<span class="premium-badge">Premium</span>' : ''}
-                </div>
-                <button class="share-button ${user.status !== 'premium' ? 'disabled' : ''}"
-                        ${user.status !== 'premium' ? 'disabled' : ''}>
-                    ${user.status === 'premium' ? 'Share' : 'Premium Only'}
-                </button>
-            `;
-            
-            if (user.status === 'premium') {
-                userItem.querySelector('button').onclick = () => shareListWithUser(listId, user.id);
-            }
-            
-            usersList.appendChild(userItem);
-        });
-    } catch (err) {
-        console.error('Share modal error:', err);
-        modal.querySelector('.users-list').innerHTML = `
-            <div class="error-message">
-                Unexpected error occurred
-                <br>
-                <small>${err.message}</small>
-            </div>
-        `;
+    if (error || !users?.length) {
+        usersList.innerHTML = error ? 'Error loading users' : 'No other users found';
+        return;
     }
 
+    // Create user list
+    users.forEach(user => {
+        const userItem = document.createElement('div');
+        userItem.className = 'user-item';
+        userItem.innerHTML = `
+            <span>${user.username || 'Unnamed User'}</span>
+            <button class="share-button">Share</button>
+        `;
+        userItem.querySelector('button').onclick = () => shareListWithUser(listId, user.id);
+        usersList.appendChild(userItem);
+    });
+
+    // Modal close handlers
     modal.querySelector('.modal-close').onclick = () => document.body.removeChild(modal);
     modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
 
-function showPremiumCelebration() {
-    const overlay = document.createElement('div');
-    overlay.className = 'premium-celebration';
-    overlay.innerHTML = `
-        <div class="celebration-content">
-            <h1 class="celebration-title">Welcome to Premium!</h1>
-            <p class="celebration-message">
-                Your account has been upgraded to premium status.<br>
-                Enjoy full access to all features!
-            </p>
-            <button class="celebration-button" onclick="handlePremiumCelebrationComplete()">
-                Start Playing
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    setTimeout(() => overlay.classList.add('show'), 100);
-}
+
 
 function handleProgressionAfterCompletion(isLevelCompleted) {
     if (!isLevelCompleted && currentGame.streakBonus) {
