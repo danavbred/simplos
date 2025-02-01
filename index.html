@@ -6408,6 +6408,22 @@ function startCustomListPractice(listId) {
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
+    // Get play count for this list
+    const playCountKey = `listPlays_${listId}`;
+    let playsUsed = parseInt(localStorage.getItem(playCountKey) || '0');
+    
+    // Check play limits
+    const limits = getUserListLimits();
+    if (playsUsed >= limits.maxPlays) {
+        deleteCustomList(listId);
+        showCustomListsManager();
+        return;
+    }
+
+    // Increment play count
+    playsUsed++;
+    localStorage.setItem(playCountKey, playsUsed);
+
     currentGame = {
         words: list.words,
         translations: list.translations,
@@ -6424,7 +6440,8 @@ function startCustomListPractice(listId) {
             unlockedLevels: new Set([1]),
             progress: {},
             maxLevel: 10,
-            listId: listId
+            listId: listId,
+            playsUsed: playsUsed  // Store current play count
         }
     };
 
@@ -6619,8 +6636,15 @@ function toggleListCollapse(listId) {
 }
 
 function toggleEditMode(listId) {
+    // Convert listId to number if it's a string
+    listId = typeof listId === 'string' ? parseInt(listId) : listId;
+
     const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+    if (!listItem) return;
+
     const editButton = listItem.querySelector('.edit-button');
+    if (!editButton) return;
+
     const wordList = document.getElementById(`list-${listId}`);
     
     if (editButton.textContent === 'Edit') {
@@ -6628,11 +6652,27 @@ function toggleEditMode(listId) {
         listItem.classList.remove('collapsed');
         listItem.setAttribute('data-in-edit-mode', 'true');
         
-        const list = customPracticeLists.lists.find(l => l.id === parseInt(listId));
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        if (!list) return;
+
         wordList.innerHTML = '';
         
         list.words.forEach((word, index) => {
-            createWordTranslationItem(word, list.translations[index], true);
+            const wordItem = document.createElement('div');
+            wordItem.className = 'word-translation-item';
+            wordItem.draggable = true;
+            
+            wordItem.innerHTML = `
+                <div class="drag-handle">
+                    <i class="fas fa-grip-vertical"></i>
+                </div>
+                <span class="source-word" contenteditable="true">${word}</span>
+                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
+                <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+            `;
+            
+            wordList.appendChild(wordItem);
+            initializeDragAndDrop(wordItem);
         });
         
         makeWordListDraggable(listId);
