@@ -1387,41 +1387,46 @@ body {
 }
 
 .leaderboard-entry {
+    position: relative;
     display: grid;
     grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
     padding: 1rem;
     border-radius: 10px;
     margin-bottom: 0.5rem;
-    transition: 
-        transform 0.5s ease, 
-        background-color 0.5s ease;
     background: rgba(255,255,255,0.05);
+    transform-origin: center;
+    transition: background-color 0.3s ease;
 }
 
 .leaderboard-entry.moving-up {
-    background: rgba(76, 175, 80, 0.2);
-    transform: translateY(-100%);
-    transition: 
-        transform 1s cubic-bezier(0.25, 0.1, 0.25, 1), 
-        background-color 1s ease;
+    background: rgba(76, 175, 80, 0.08);
+    animation: moveUp 0.8s ease-in-out forwards;
+    z-index: 2;
 }
 
 .leaderboard-entry.moving-down {
-    background: rgba(244, 67, 54, 0.2);
-    transform: translateY(100%);
-    transition: 
-        transform 1s cubic-bezier(0.25, 0.1, 0.25, 1), 
-        background-color 1s ease;
+    background: rgba(244, 67, 54, 0.08);
+    animation: moveDown 0.8s ease-in-out forwards;
+    z-index: 1;
+}
+
+@keyframes moveUp {
+    0% { transform: translateY(65px); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes moveDown {
+    0% { transform: translateY(-65px); }
+    100% { transform: translateY(0); }
 }
 
 .leaderboard-entry:hover {
-    transform: translateY(-2px);
-    background: rgba(255,255,255,0.1);
+    background: hsla(126, 84%, 12%, 0.1);
 }
 
 .leaderboard-entry.you {
-    background: rgba(233, 69, 96, 0.2);
-    border: 1px solid var(--accent);
+    background: rgba(6, 145, 64, 0.5);
+    border: 1px solid var(--gold);
 }
 
 .leaderboard-entry.rank-1 {
@@ -1440,7 +1445,7 @@ body {
     .leaderboard-container {
         padding: 1rem;
     }
-    
+
     .leaderboard-header, 
     .leaderboard-entry {
         grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
@@ -1509,6 +1514,38 @@ body {
 .celebration-button:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(255,215,0,0.3);
+}
+
+.toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 1rem 2rem;
+    border-radius: 25px;
+    z-index: 1000;
+    color: white;
+    font-weight: bold;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.toast.success {
+    background-color: #4CAF50;
+}
+
+.toast.error {
+    background-color: #f44336;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+}
+
+.toast.hide {
+    opacity: 0;
+    transform: translate(-50%, -20px);
 }
 
 /* Shop Styles */
@@ -2190,6 +2227,11 @@ body {
 .navigation-button.disabled {
     cursor: pointer;
     opacity: 0.3;
+}
+
+@keyframes blinkRed {
+    0%, 100% { background-color: transparent; }
+    50% { background-color: var(--error); }
 }
 
 @keyframes particleBurst {
@@ -3014,11 +3056,14 @@ body {
 <div id="stage-screen" class="screen">
     <div class="particle-container"></div>
     <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">
-        <button class="navigation-button home-button" onclick="navigateHome()">
-            <i class="fas fa-home navigation-icon"></i>
+    <button class="navigation-button home-button" onclick="navigateHome()">
+        <i class="fas fa-home navigation-icon"></i>
     </button>
     <button class="navigation-button reset-button" onclick="handleResetProgress()">
         <i class="fas fa-trash-alt navigation-icon"></i>
+    </button>
+    <button class="navigation-button fullscreen-button" onclick="toggleFullScreen()">
+        <i class="fas fa-expand navigation-icon"></i>
     </button>
 </div>
     <div class="stage-container">
@@ -3192,6 +3237,12 @@ body {
     >
         Save
     </button>
+    <button 
+    onclick="addNewWord()" 
+    class="start-button add-word-button"
+>
+    Add Word
+</button>
 </div>
 <div class="translation-results" id="translation-results">
     <div class="word-translation-list" id="word-translation-list">
@@ -3271,12 +3322,11 @@ body {
     
     <div class="leaderboard-container">
         <div class="leaderboard-header">
-            <div>Rank</div>
+    <div>Rank</div>
     <div>Player</div>
-    <div>Words Today</div>
-    <div>Time Today</div>
-    <div>Best Streak</div>
-        </div>
+    <div>Levels</div>
+    <div>Words</div>
+</div>
         <div id="leaderboard-entries">
             <!-- Entries will be populated here -->
         </div>
@@ -3417,7 +3467,7 @@ document.addEventListener('DOMContentLoaded', () => {
 const { createClient } = supabase;
 const supabaseClient = createClient(
     'https://mczfgzffyyyacisrccqb.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzczNzY5NDYsImV4cCI6MjA1Mjk1Mjk0Nn0.iTvzt-vkFP7rLn5-FHztMEzkF6DMqMh5zcKJzgyvUfo',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzgzODYyMDQsImV4cCI6MjA1Mzk2MjIwNH0.rLga_B29Coz1LMeJzFTGLIhckdcojGXnD1ae1bw-QAI',
     {
         persistSession: true,
         autoRefreshToken: true,
@@ -3479,60 +3529,83 @@ async function handleSignup() {
         return;
     }
 
-    const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-            data: { 
-                username: username,
-                full_name: username
+    try {
+        // Step 1: Sign up with Supabase Auth
+        const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: {
+                data: { 
+                    username: username,
+                    full_name: username
+                }
             }
+        });
+
+        if (authError) throw authError;
+
+        // Step 2: Upsert user profile (handles existing records)
+        const { error: profileError } = await supabaseClient
+            .from('user_profiles')
+            .upsert({
+                id: authData.user.id,
+                username: username,
+                email: email,
+                status: 'free',
+                role: 'student'
+            }, {
+                onConflict: 'id'  // Use 'id' as the conflict target
+            });
+
+        if (profileError) {
+            console.error('Profile upsert error:', profileError);
+            // Continue even if profile update fails
         }
-    });
 
-    if (error) {
-        console.error('Error signing up:', error.message);
-        alert(error.message);
-        return;
+        // Step 3: Initialize game progress
+        const { error: progressError } = await supabaseClient
+            .from('game_progress')
+            .upsert({
+                user_id: authData.user.id,
+                stage: 1,
+                set_number: 1,
+                level: 1,
+                coins: 0,
+                perks: {},
+                unlocked_sets: { "1": [1] },
+                unlocked_levels: { "1_1": [1] },
+                perfect_levels: [],
+                completed_levels: []
+            }, {
+                onConflict: 'user_id'
+            });
+
+        if (progressError) {
+            console.error('Progress initialization error:', progressError);
+            // Continue even if progress update fails
+        }
+
+        // Step 4: Auto-login
+        const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (loginError) throw loginError;
+
+        // Update current user and UI
+        currentUser = loginData.user;
+        updateAuthUI();
+        showScreen('welcome-screen');
+
+    } catch (error) {
+        console.error('Detailed signup error:', error);
+        if (error.message.includes('duplicate key')) {
+            alert('This username or email is already taken. Please try another.');
+        } else {
+            alert('Signup error: ' + error.message);
+        }
     }
-
-    // Skip manual profile creation since it's handled by the trigger
-    // Initialize game progress instead
-    const { error: progressError } = await supabaseClient
-        .from('game_progress')
-        .insert([{
-            user_id: data.user.id,
-            stage: 1,
-            set_number: 1,
-            level: 1,
-            coins: 0,
-            perks: {},
-            unlocked_sets: { "1": [1] },
-            unlocked_levels: { "1_1": [1] },
-            perfect_levels: [],
-            completed_levels: []
-        }]);
-
-    if (progressError) {
-        console.error('Error initializing game progress:', progressError);
-        return;
-    }
-
-    const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-    });
-
-    if (loginError) {
-        alert('Account created but login failed. Please try logging in manually.');
-        return;
-    }
-
-    currentUser = loginData.user;
-    clearCustomPracticeUI();
-    await Promise.all([loadCustomLists(), loadUserGameProgress(currentUser.id)]);
-    updateAuthUI();
-    showScreen('welcome-screen');
 }
 
 async function initializeGameProgressForUser(userId) {
@@ -3780,6 +3853,13 @@ async function loadUserGameProgress(userId) {
 
 async function handleLogout() {
     try {
+        // Clear any existing status check interval
+        if (window.statusCheckInterval) {
+            clearInterval(window.statusCheckInterval);
+            window.statusCheckInterval = null;
+        }
+
+        // Sign out from Supabase
         const { error } = await supabaseClient.auth.signOut();
         
         if (error) {
@@ -3802,12 +3882,20 @@ async function handleLogout() {
         // Clear all input fields and UI state
         clearCustomPracticeUI();
 
+        // Reset current user and update UI
         currentUser = null;
         updateAuthUI();
+        updateUserStatusDisplay(null);
+        
+        // Show welcome screen
         showScreen('welcome-screen');
 
     } catch (error) {
         console.error('Unexpected error during logout:', error);
+        // Ensure UI is reset even if logout fails
+        currentUser = null;
+        updateAuthUI();
+        showScreen('welcome-screen');
     }
 }
 
@@ -4021,40 +4109,6 @@ function updateAuthUI() {
     }
 }
 
-async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
-        
-        // Get initial status
-        const { data: profile } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
-            
-        if (profile) {
-            currentUser.status = profile.status; // Store status in user object
-            updateUserStatusDisplay(profile.status);
-        }
-        
-        // Initialize real-time updates and periodic check
-        initializeStatusCheck();
-        
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists()
-        ]);
-        updateAuthUI();
-    } else {
-        // Clear interval if it exists
-        if (window.statusCheckInterval) {
-            clearInterval(window.statusCheckInterval);
-        }
-        updateUserStatusDisplay(null);
-    }
-}
 
 
 // Game Constants & State Management
@@ -4394,6 +4448,10 @@ function showScreen(screenId, forceRefresh = false) {
         currentUser: currentUser ? currentUser.id : 'No user'
     });
 
+    if (document.querySelector('.screen.visible')?.id === 'leaderboard-screen') {
+        cleanupLeaderboard();
+    }
+
     // Clear any running timer when leaving question screen
     const currentVisibleScreen = document.querySelector('.screen.visible');
     if (currentVisibleScreen && currentVisibleScreen.id === 'question-screen') {
@@ -4517,7 +4575,6 @@ function showSetScreen(stageId) {
 }
 
 function showLevelScreen(setId) {
-    requestFullScreen();
     gameState.currentSet = setId;
     const container = document.getElementById('level-container');
     container.innerHTML = '';
@@ -5602,18 +5659,6 @@ function stopLevelAndGoBack() {
     showSetScreen(gameState.currentStage);
 }
 
-function requestFullScreen() {
-    const docElm = document.documentElement;
-    if (docElm.requestFullscreen) {
-        docElm.requestFullscreen();
-    } else if (docElm.mozRequestFullScreen) { // Firefox
-        docElm.mozRequestFullScreen();
-    } else if (docElm.webkitRequestFullScreen) { // Chrome, Safari and Opera
-        docElm.webkitRequestFullScreen();
-    } else if (docElm.msRequestFullscreen) { // Internet Explorer/Edge
-        docElm.msRequestFullscreen();
-    }
-}
 
 function showGameOverOverlay() {
     clearTimer();
@@ -5671,51 +5716,101 @@ function updateTimerCircle(timeRemaining, totalTime) {
 }
 
 function handleResetProgress() { 
-    if (currentUser) {
-        // Reset Supabase progress
-        supabaseClient
-            .from('game_progress')
-            .update({
-                stage: 1,
-                set_number: 1,
-                level: 1,
-                coins: 0,
-                perks: {},
-                unlocked_sets: { "1": [1] },
-                unlocked_levels: { "1_1": [1] },
-                perfect_levels: [],
-                completed_levels: []
-            })
-            .eq('user_id', currentUser.id)
-            .then(({ error }) => {
-                if (error) console.error('Error resetting progress:', error);
-            });
+    if (!isFirstResetAttempt) {
+        // Reset game state
+        gameState.currentStage = 1;
+        gameState.currentSet = 1;
+        gameState.currentLevel = 1;
+        gameState.coins = 0;
+        gameState.unlockedSets = { "1": new Set([1]) };
+        gameState.unlockedLevels = { "1_1": new Set([1]) };
+        gameState.perfectLevels = new Set();
+        gameState.completedLevels = new Set();
+        gameState.perks = {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        };
+
+        // Clear localStorage
+        localStorage.removeItem('simploxProgress');
+        localStorage.removeItem('simploxCustomCoins');
+        
+        // Update UI
+        updatePerkCounts();
+        updateAllCoinDisplays();
+        showScreen('welcome-screen');
+        
+        // Reset the first attempt flag
+        isFirstResetAttempt = true;
+        return;
     }
 
-    // Reset local game state
-    gameState.currentStage = 1;
-    gameState.currentSet = 1;
-    gameState.currentLevel = 1;
-    gameState.coins = 0;
-    gameState.unlockedSets = { "1": new Set([1]) };
-    gameState.unlockedLevels = { "1_1": new Set([1]) };
-    gameState.perfectLevels = new Set();
-    gameState.completedLevels = new Set();
-    gameState.perks = {
-        timeFreeze: 0,
-        skip: 0,
-        clue: 0,
-        reveal: 0
-    };
+    // First attempt - show warning
+    const resetButton = document.querySelector('.reset-button');
+    resetButton.classList.add('warning');
+    isFirstResetAttempt = false;
 
-    // Clear localStorage
-    localStorage.removeItem('simploxProgress');
-    localStorage.removeItem('simploxCustomCoins');
+    // Clear warning after animation
+    setTimeout(() => {
+        resetButton.classList.remove('warning');
+    }, 1000);
+
+    // Reset the attempt after 10 seconds
+    if (resetProgressTimeout) {
+        clearTimeout(resetProgressTimeout);
+    }
     
-    // Update UI
-    updatePerkCounts();
-    updateAllCoinDisplays();
-    showScreen('welcome-screen');
+    resetProgressTimeout = setTimeout(() => {
+        isFirstResetAttempt = true;
+    }, 10000);
+}
+
+function toggleFullScreen() {
+    const button = document.querySelector('.fullscreen-button i');
+    
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen()
+            .then(() => {
+                button.classList.remove('fa-expand');
+                button.classList.add('fa-compress');
+            })
+            .catch(err => {
+                console.log(`Error attempting to enable fullscreen: ${err.message}`);
+            });
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen()
+                .then(() => {
+                    button.classList.remove('fa-compress');
+                    button.classList.add('fa-expand');
+                })
+                .catch(err => {
+                    console.log(`Error attempting to exit fullscreen: ${err.message}`);
+                });
+        }
+    }
+}
+
+async function handleLogout() {
+    try {
+        const { error } = await supabaseClient.auth.signOut();
+        
+        if (error) {
+            console.error('Supabase logout error:', error.message);
+        }
+
+        currentUser = null;
+        updateAuthUI();
+        showScreen('welcome-screen');
+        
+        // Reload game progress from localStorage
+        initializeGame();
+
+    } catch (error) {
+        console.error('Unexpected error during logout:', error);
+    }
 }
 
 
@@ -5758,7 +5853,6 @@ function handleRestartLevel() {
 }
 
 function showStagesFromMenu() {
-    requestFullScreen();
     showScreen('stage-screen');
 }
 
@@ -5822,7 +5916,6 @@ function findFurthestProgression() {
 
 
 function startGame() {
-    requestFullScreen();
     
     if (!gameState.unlockedSets[1] || !gameState.unlockedLevels['1_1']) {
         gameState.unlockedSets[1] = new Set([1]);
@@ -5912,6 +6005,23 @@ function translateWord(word) {
             return data.responseData.translatedText || word;
         })
         .catch(() => word);
+}
+
+function trackListPlay(listId) {
+    const playCountKey = `listPlays_${listId}`;
+    let plays = parseInt(localStorage.getItem(playCountKey) || '0');
+    plays++;
+    
+    const limits = getUserListLimits();
+    localStorage.setItem(playCountKey, plays);
+
+    if (plays >= limits.maxPlays) {
+        // Remove list if max plays reached
+        deleteCustomList(listId);
+        return false;
+    }
+    
+    return limits.maxPlays - plays;
 }
 
 
@@ -6065,11 +6175,14 @@ function processCustomWords() {
     const translationResults = document.getElementById('translation-results');
     const wordList = document.getElementById('word-translation-list');
     
+    const limits = getUserListLimits();
+    
     // Split and clean input words
     const words = wordInput.value
         .split(/[,\s\n]+/)
         .map(word => word.trim())
-        .filter(word => word.length > 0);
+        .filter(word => word.length > 0)
+        .slice(0, limits.maxWords);
 
     if (words.length === 0) {
         alert('Please enter at least one word.');
@@ -6106,10 +6219,13 @@ function processCustomWords() {
         `;
         
         wordList.appendChild(wordItem);
+        // Initialize drag functionality for this item
+        initializeDragAndDrop(wordItem);
     });
     
     translationResults.style.display = 'block';
-    makeWordListDraggable();
+    // Initialize drag functionality for the list
+    makeWordListDraggable(wordList);
 }
 
 function initializeDragAndDrop(item) {
@@ -6220,7 +6336,6 @@ function updateListsDisplay() {
 }
 
 function startCustomListPractice(listId) {
-    requestFullScreen();
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
@@ -6318,6 +6433,10 @@ function showCustomListsManager() {
     const container = document.getElementById('custom-lists-container');
     if (!container) return;
     
+    const limits = getUserListLimits();
+    const userStatus = currentUser?.status || 'unregistered';
+    const canShare = userStatus === 'premium' || userStatus === 'pending';
+    
     container.innerHTML = '';
     
     if (customPracticeLists.lists.length === 0) {
@@ -6325,39 +6444,47 @@ function showCustomListsManager() {
         return;
     }
 
-    const seenIds = new Set();
-
     customPracticeLists.lists.forEach(list => {
-        if (seenIds.has(list.id)) return;
-        seenIds.add(list.id);
+        // Get play count
+        const playCountKey = `listPlays_${list.id}`;
+        const playsUsed = parseInt(localStorage.getItem(playCountKey) || '0');
+        const playsLeft = limits.maxPlays - playsUsed;
+
+        if (playsLeft <= 0) return;
         
         const listItem = document.createElement('div');
         listItem.className = `custom-list-item collapsed ${list.is_shared ? 'shared-list' : ''}`;
         listItem.dataset.listId = list.id;
         
         listItem.innerHTML = `
+            <div class="list-actions">
+                <button class="start-button practice-button">Practice</button>
+                ${!list.is_shared ? `
+                    <button class="edit-button" data-list-id="${list.id}">Edit</button>
+                    <button class="start-button delete-button">Delete</button>
+                    ${canShare ? `
+                        <button class="share-button" onclick="showShareModal(${list.id})">
+                            <i class="fas fa-share-alt"></i> Share
+                        </button>
+                    ` : ''}
+                ` : ''}
+            </div>
             <div class="list-header">
-                <h3>${list.name}${list.is_shared ? ' (Shared)' : ''}</h3>
+                <h3>${list.name}</h3>
                 <div class="list-summary">
                     <span>${list.words.length} words</span>
+                    <span style="color: #ff4444; margin-left: 1rem;">
+                        ${playsLeft}/${limits.maxPlays} plays left
+                    </span>
                     <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
                 </div>
             </div>
             <div class="list-content">
                 <div class="word-translation-list" id="list-${list.id}"></div>
             </div>
-            <div class="list-actions">
-                <button class="start-button practice-button">Practice</button>
-                ${!list.is_shared ? `
-                    <button class="edit-button" data-list-id="${list.id}">Edit</button>
-                    <button class="start-button delete-button">Delete</button>
-                    <button class="share-button" onclick="showShareModal(${list.id})">
-                        <i class="fas fa-share-alt"></i> Share
-                    </button>
-                ` : ''}
-            </div>
         `;
 
+        // Add event listeners
         const header = listItem.querySelector('.list-header');
         header.addEventListener('click', () => toggleListCollapse(list.id));
 
@@ -6366,14 +6493,66 @@ function showCustomListsManager() {
 
         if (!list.is_shared) {
             const editButton = listItem.querySelector('.edit-button');
-            editButton.addEventListener('click', () => toggleEditMode(list.id));
+            if (editButton) {
+                editButton.addEventListener('click', () => toggleEditMode(list.id));
+            }
 
             const deleteButton = listItem.querySelector('.delete-button');
-            deleteButton.addEventListener('click', () => deleteCustomList(list.id));
+            if (deleteButton) {
+                deleteButton.addEventListener('click', () => deleteCustomList(list.id));
+            }
+
+            const shareButton = listItem.querySelector('.share-button');
+            if (shareButton && canShare) {
+                shareButton.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showShareModal(list.id);
+                };
+            }
         }
 
         container.appendChild(listItem);
     });
+}
+
+function getUserListLimits() {
+    if (!currentUser) {
+        return {
+            maxLists: 3,
+            maxWords: 10,
+            maxPlays: 5,
+            canShare: false
+        };
+    }
+
+    // Get user status
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    
+    switch(userStatus) {
+        case 'free':
+            return {
+                maxLists: 5,
+                maxWords: 20,
+                maxPlays: 10,
+                canShare: false
+            };
+        case 'pending':
+        case 'premium':
+            return {
+                maxLists: 30,
+                maxWords: 50,
+                maxPlays: Infinity,
+                canShare: true
+            };
+        default:
+            return {
+                maxLists: 3,
+                maxWords: 10,
+                maxPlays: 5,
+                canShare: false
+            };
+    }
 }
 
 function toggleListCollapse(listId) {
@@ -6541,27 +6720,31 @@ function makeWordListDraggable(listId) {
     const wordList = document.getElementById(`list-${listId}`);
     if (!wordList) return;
     
-    // Clear existing listeners
-    wordList.replaceWith(wordList.cloneNode(true));
-    
-    // Get fresh reference after clone
-    const freshList = document.getElementById(`list-${listId}`);
-    
-    freshList.addEventListener('dragover', e => {
+    // Add dragover event listener to the container
+    wordList.addEventListener('dragover', e => {
         e.preventDefault();
-        const draggable = document.querySelector('.dragging');
+        const draggable = wordList.querySelector('.dragging');
         if (!draggable) return;
         
-        const afterElement = getDragAfterElement(freshList, e.clientY);
+        const afterElement = getDragAfterElement(wordList, e.clientY);
         if (afterElement) {
-            freshList.insertBefore(draggable, afterElement);
+            wordList.insertBefore(draggable, afterElement);
         } else {
-            freshList.appendChild(draggable);
+            wordList.appendChild(draggable);
         }
     });
-    
+
+    wordList.addEventListener('drop', e => {
+        e.preventDefault();
+        const draggingElement = document.querySelector('.dragging');
+        if (draggingElement) {
+            draggingElement.style.opacity = '1';
+            draggingElement.classList.remove('dragging');
+        }
+    });
+
     // Initialize drag events for all items
-    const items = freshList.querySelectorAll('.word-translation-item');
+    const items = wordList.querySelectorAll('.word-translation-item');
     items.forEach(item => initializeDragAndDrop(item));
 }
 
@@ -6660,41 +6843,155 @@ function toggleAuthMode() {
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
 }
-async function shareListWithUser(listId, recipientId) {
-    // Find the original list
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
 
-    // Create shared list data
-    const sharedList = {
-        user_id: recipientId,
-        name: `${list.name} (Shared by ${currentUser.user_metadata.username})`,
-        words: list.words,
-        translations: list.translations,
-        is_shared: true,
-        local_id: Date.now(),
-        shared_with: [recipientId],
-        shared_by: currentUser.id
-    };
+async function shareListWithUser(listId, recipientId) {
+    try {
+        // Enhanced logging and error tracking
+        console.group('Share List Diagnostics');
+        console.log('Current User ID:', currentUser.id);
+        console.log('Recipient User ID:', recipientId);
+        console.log('List ID:', listId);
+
+        // Find the original list with more robust checking
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        if (!list) {
+            console.error('List not found');
+            throw new Error('List not found');
+        }
+
+        // Comprehensive validation
+        if (!recipientId) {
+            console.error('Invalid recipient');
+            throw new Error('Invalid recipient');
+        }
+
+        // Fetch recipient details to confirm existence
+        const { data: recipientData, error: recipientError } = await supabaseClient
+            .from('user_profiles')
+            .select('id, username')
+            .eq('id', recipientId)
+            .single();
+
+        if (recipientError) {
+            console.error('Recipient verification failed:', recipientError);
+            throw new Error('Cannot verify recipient');
+        }
+
+        // Create shared list with explicit type casting
+        const sharedList = {
+            user_id: recipientId,
+            name: `${list.name} (Shared by ${currentUser.user_metadata?.username || 'Anonymous'})`,
+            words: Array.isArray(list.words) ? list.words : [],
+            translations: Array.isArray(list.translations) ? list.translations : [],
+            is_shared: true,
+            local_id: Date.now(),
+            shared_with: [recipientId],
+            shared_by: currentUser.id
+        };
+
+        // Log the payload before insertion
+        console.log('Sharing Payload:', sharedList);
+
+        // Use bypass RLS for initial testing
+        const { data, error } = await supabaseClient.rpc('insert_shared_list', {
+            p_user_id: sharedList.user_id,
+            p_name: sharedList.name,
+            p_words: sharedList.words,
+            p_translations: sharedList.translations,
+            p_is_shared: sharedList.is_shared,
+            p_local_id: sharedList.local_id,
+            p_shared_with: sharedList.shared_with,
+            p_shared_by: sharedList.shared_by
+        });
+
+        if (error) {
+            console.error('Detailed Sharing Error:', error);
+            throw error;
+        }
+
+        console.log('Share Successful:', data);
+        console.groupEnd();
+
+        showSuccessToast('List shared successfully!');
+        closeShareModal();
+
+    } catch (error) {
+        console.error('Comprehensive Share Failure:', error);
+        console.groupEnd();
+        showErrorToast(error.message || 'Failed to share list');
+    }
+}
+
+// Add this RPC function in Supabase SQL
+// This bypasses RLS for controlled list insertion
+
+function updateLocalSharedLists(sharedList) {
+    // Add the shared list to the recipient's local lists
+    if (currentUser) {
+        customPracticeLists.lists.push({
+            id: sharedList.local_id,
+            supabaseId: sharedList.id,
+            name: sharedList.name,
+            words: sharedList.words,
+            translations: sharedList.translations,
+            is_shared: true,
+            shared_by: sharedList.shared_by
+        });
+        
+        // Save to local storage or sync
+        saveCustomLists();
+    }
+}
+
+function showSuccessToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast success';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => document.body.removeChild(toast), 600);
+    }, 3000);
+}
+
+function showErrorToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast error';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => document.body.removeChild(toast), 600);
+    }, 3000);
+}
+
+function closeShareModal() {
+    const modal = document.querySelector('.share-modal');
+    const backdrop = document.querySelector('.modal-backdrop');
+    
+    if (modal) modal.remove();
+    if (backdrop) backdrop.remove();
+}
+
+async function loadSharedLists() {
+    if (!currentUser) return [];
 
     const { data, error } = await supabaseClient
         .from('custom_lists')
-        .insert([sharedList]);
+        .select('*')
+        .or(`shared_with.cs.{${currentUser.id}},is_shared.eq.true`);
 
     if (error) {
-        console.error('Error sharing list:', error);
-        return;
+        console.error('Error loading shared lists:', error);
+        return [];
     }
 
-    // Close modal and show visual feedback
-    const modal = document.querySelector('.share-modal').parentElement;
-    document.body.removeChild(modal);
-    
-    const listItem = document.querySelector(`[data-list-id="${listId}"]`);
-    if (listItem) {
-        listItem.style.animation = 'pulse 0.5s ease';
-        setTimeout(() => listItem.style.animation = '', 500);
-    }
+    return data.map(list => ({
+        ...list,
+        isShared: true
+    }));
 }
 
 async function showShareModal(listId) {
@@ -6710,9 +7007,9 @@ async function showShareModal(listId) {
     `;
     document.body.appendChild(modal);
 
-    // Fetch users
+    // Fetch users directly from user_profiles
     const { data: users, error } = await supabaseClient
-        .from('user_list')
+        .from('user_profiles')
         .select('id, username')
         .neq('id', currentUser.id);
 
@@ -7708,188 +8005,222 @@ document.querySelectorAll('.home-button').forEach(button => {
 
 async function showLeaderboard() {
     showScreen('leaderboard-screen');
-
     const entriesContainer = document.getElementById('leaderboard-entries');
     
-    if (!entriesContainer) {
-        console.error('Leaderboard entries container not found');
-        return;
-    }
-
-    async function renderLeaderboard(leaderboard) {
-        // Sort leaderboard to ensure correct order
-        const sortedLeaderboard = leaderboard.sort((a, b) => 
-            b.avg_completion_time_seconds - a.avg_completion_time_seconds
-        );
-
-        // Create a new document fragment for smooth updates
-        const fragment = document.createDocumentFragment();
-
-        sortedLeaderboard.forEach((entry, index) => {
-            const existingEntry = entriesContainer.querySelector(`[data-user-id="${entry.user_id}"]`);
-            
-            const entryDiv = document.createElement('div');
-            entryDiv.className = `leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}`;
-            entryDiv.dataset.userId = entry.user_id;
-            
-            entryDiv.innerHTML = `
-    <div>${index + 1}</div>
-    <div>${entry.username || 'Anonymous'}</div>
-    <div>${entry.words_practiced_today || 0} words</div>
-    <div>${Math.floor((entry.time_spent_today_seconds || 0) / 60)} mins</div>
-    <div>${entry.best_streak || 0}</div>
-            `;
-
-            // Detect position change
-            if (existingEntry) {
-                const oldIndex = Array.from(entriesContainer.children).indexOf(existingEntry);
-                
-                if (oldIndex !== index) {
-                    // Add movement classes for animation
-                    entryDiv.classList.add(oldIndex > index ? 'moving-up' : 'moving-down');
-                }
+    try {
+        async function fetchAndRenderLeaderboard() {
+            const { data: leaderboard, error } = await supabaseClient
+                .from('player_leaderboard')
+                .select('*');
+                    
+            if (error) {
+                console.error('Leaderboard fetch error:', error);
+                return;
             }
 
-            fragment.appendChild(entryDiv);
-        });
-
-        // Clear and repopulate with animated entries
-        entriesContainer.innerHTML = '';
-        entriesContainer.appendChild(fragment);
-
-        // Remove movement classes after animation
-        setTimeout(() => {
-            document.querySelectorAll('.leaderboard-entry').forEach(entry => {
-                entry.classList.remove('moving-up', 'moving-down');
-            });
-        }, 1000);
-    }
-
-    try {
-        const { data: leaderboard, error } = await supabaseClient
-            .from('player_leaderboard')
-            .select('*')
-            .limit(50)
-            .order('avg_completion_time_seconds', { ascending: false });
+            const currentEntries = entriesContainer.children;
             
-        if (error) throw error;
+            // Store current positions
+            const oldPositions = {};
+            Array.from(currentEntries).forEach(entry => {
+                const username = entry.querySelector('[data-username]').dataset.username;
+                oldPositions[username] = entry.getBoundingClientRect();
+            });
 
-        await renderLeaderboard(leaderboard);
+            // Render new entries
+            entriesContainer.innerHTML = leaderboard.map((entry, index) => `
+                <div class="leaderboard-entry ${entry.username === currentUser?.user_metadata?.username ? 'you' : ''} ${index < 3 ? `rank-${index + 1}` : ''}"
+                     data-rank="${index + 1}">
+                    <div>${entry.player_rank}</div>
+                    <div data-username="${entry.username}">${entry.username || 'Anonymous'}</div>
+                    <div>${entry.total_levels_completed}</div>
+                    <div>${entry.total_words_learned}</div>
+                </div>
+            `).join('');
 
-        // Real-time subscription
-        const leaderboardSubscription = supabaseClient
-            .channel('leaderboard-real-time')
-            .on('postgres_changes', 
-                { 
-                    event: '*', 
-                    schema: 'public', 
-                    table: 'player_stats'
-                }, 
-                async (payload) => {
-                    const { data: updatedLeaderboard } = await supabaseClient
-                        .from('player_leaderboard')
-                        .select('*')
-                        .limit(50)
-                        .order('avg_completion_time_seconds', { ascending: false });
+            // Apply animations
+            const newEntries = entriesContainer.children;
+            Array.from(newEntries).forEach(entry => {
+                const username = entry.querySelector('[data-username]').dataset.username;
+                if (oldPositions[username]) {
+                    const oldPos = oldPositions[username];
+                    const newPos = entry.getBoundingClientRect();
+                    const diff = oldPos.top - newPos.top;
                     
-                    await renderLeaderboard(updatedLeaderboard);
+                    if (diff > 0) {
+                        entry.classList.add('moving-up');
+                    } else if (diff < 0) {
+                        entry.classList.add('moving-down');
+                    }
+                    
+                    // Remove animation classes after completion
+                    entry.addEventListener('animationend', () => {
+                        entry.classList.remove('moving-up', 'moving-down');
+                    }, { once: true });
                 }
-            )
-            .subscribe();
+            });
+        }
 
+        // Initial load
+        await fetchAndRenderLeaderboard();
+
+        // Set up polling
+        const pollInterval = setInterval(fetchAndRenderLeaderboard, 1500);
+
+        // Store interval for cleanup
         const leaderboardScreen = document.getElementById('leaderboard-screen');
         if (leaderboardScreen) {
-            leaderboardScreen.dataset.subscription = leaderboardSubscription;
+            if (leaderboardScreen.dataset.pollInterval) {
+                clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
+            }
+            leaderboardScreen.dataset.pollInterval = pollInterval;
         }
 
     } catch (error) {
-        console.error('Leaderboard error:', error);
+        console.error('Detailed leaderboard error:', error);
         entriesContainer.innerHTML = `<p>Error loading leaderboard: ${error.message}</p>`;
+    }
+}
+
+function cleanupLeaderboard() {
+    const leaderboardScreen = document.getElementById('leaderboard-screen');
+    if (leaderboardScreen) {
+        // Cleanup channel
+        if (leaderboardScreen.dataset.channel) {
+            supabaseClient.removeChannel(leaderboardScreen.dataset.channel);
+            delete leaderboardScreen.dataset.channel;
+        }
+        // Cleanup interval
+        if (leaderboardScreen.dataset.pollInterval) {
+            clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
+            delete leaderboardScreen.dataset.pollInterval;
+        }
     }
 }
 
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (!currentUser) return;
 
-    // Get current level's unique words
-    const uniqueWords = new Set([...currentGame.words]);
-    const wordCount = uniqueWords.size;
-    
-    // Calculate session time
-    const sessionTime = Date.now() - currentGame.levelStartTime;
+    console.log('Updating stats:', {
+        levelTime,
+        mistakes,
+        currentStreak,
+        words: currentGame.words.length
+    });
 
     try {
-        // First get existing stats
-        const { data: existingStats } = await supabaseClient
+        const { data: currentStats, error: fetchError } = await supabaseClient
             .from('player_stats')
-            .select('practiced_words, words_practiced_today, time_spent_today_ms, last_practice_date')
+            .select('*')
             .eq('user_id', currentUser.id)
             .single();
 
-        // Check if we need to reset daily stats
-        const today = new Date().toISOString().split('T')[0];
-        const needsReset = existingStats?.last_practice_date !== today;
+        if (fetchError && fetchError.code !== 'PGRST116') {
+            throw fetchError;
+        }
 
-        // Convert existing practiced words to Set for easy comparison
-        const practicedWordsSet = new Set(existingStats?.practiced_words || []);
-        
-        // Count only new words for today's practice
-        const newWords = Array.from(uniqueWords).filter(word => !practicedWordsSet.has(word));
-        
-        // Update stats
-        const { data, error } = await supabaseClient
+        const updateData = {
+            user_id: currentUser.id,
+            total_levels_completed: ((currentStats?.total_levels_completed || 0) + 1),
+            unique_words_practiced: currentStats?.unique_words_practiced 
+                ? currentStats.unique_words_practiced + currentGame.words.length
+                : currentGame.words.length,
+            last_updated: new Date().toISOString()
+        };
+
+        console.log('Sending update with data:', updateData);
+
+        const { error: updateError } = await supabaseClient
             .from('player_stats')
-            .upsert({
-                user_id: currentUser.id,
-                total_levels_completed: existingStats ? 'total_levels_completed + 1' : 1,
-                total_time_spent: existingStats ? `total_time_spent + ${sessionTime}` : sessionTime,
-                total_mistakes: existingStats ? `total_mistakes + ${mistakes}` : mistakes,
-                best_streak: existingStats ? `GREATEST(best_streak, ${currentStreak})` : currentStreak,
-                words_practiced_today: needsReset ? newWords.length : `words_practiced_today + ${newWords.length}`,
-                time_spent_today_ms: needsReset ? sessionTime : `time_spent_today_ms + ${sessionTime}`,
-                practiced_words: `array_cat(practiced_words, '{${newWords.join(',')}}'::text[])`,
-                last_practice_date: today,
-                last_updated: new Date().toISOString()
-            }, {
-                onConflict: 'user_id'
-            })
-            .select();
+            .upsert(updateData, {
+                onConflict: 'user_id',
+                returning: 'minimal' // For faster response
+            });
 
-        if (error) throw error;
-        
-        console.log('Stats updated successfully:', data);
+        if (updateError) throw updateError;
+
+        console.log('Stats update successful');
 
     } catch (error) {
         console.error('Error updating player stats:', error);
     }
 }
 
+async function checkExistingSession() {
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        
+        if (session) {
+            currentUser = session.user;
+            
+            // Get initial status
+            const { data: profile } = await supabaseClient
+                .from('user_profiles')
+                .select('status')
+                .eq('id', currentUser.id)
+                .single();
+                
+            if (profile) {
+                currentUser.status = profile.status; // Store status in user object
+                updateUserStatusDisplay(profile.status);
+            }
+            
+            // Initialize real-time updates and periodic check
+            initializeStatusCheck();
+            
+            await Promise.all([
+                loadUserGameProgress(currentUser.id),
+                loadCustomLists()
+            ]);
+            updateAuthUI();
+        } else {
+            // Explicitly reset user and UI
+            currentUser = null;
+            updateAuthUI();
+            updateUserStatusDisplay(null);
+        }
+    } catch (error) {
+        console.error('Session check error:', error);
+        currentUser = null;
+        updateAuthUI();
+        updateUserStatusDisplay(null);
+    }
+}
+
 function showPremiumCelebration() {
-    // Create celebration overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'premium-celebration';
-    overlay.innerHTML = `
+    // Create the celebration overlay
+    const celebrationOverlay = document.createElement('div');
+    celebrationOverlay.className = 'premium-celebration';
+    
+    celebrationOverlay.innerHTML = `
         <div class="celebration-content">
-            <h1 class="celebration-title">Welcome to Premium!</h1>
-            <p class="celebration-message">
-                Congratulations! Your account has been upgraded to Premium.<br>
-                All stages and sets are now unlocked!
-            </p>
+            <h1 class="celebration-title">Congratulations!</h1>
+            <p class="celebration-message">You've unlocked Premium Access!</p>
             <button class="celebration-button" onclick="handlePremiumCelebrationComplete()">
-                Start Playing
+                Continue
             </button>
         </div>
     `;
     
-    document.body.appendChild(overlay);
+    // Add to body
+    document.body.appendChild(celebrationOverlay);
     
-    // Create celebratory particles
-    createParticles(window.innerWidth / 2, window.innerHeight / 2);
-    
-    // Show overlay with animation
-    requestAnimationFrame(() => {
-        overlay.classList.add('show');
-    });
+    // Trigger show animation
+    setTimeout(() => {
+        celebrationOverlay.classList.add('show');
+    }, 100);
+}
+
+function handlePremiumCelebrationComplete() {
+    const overlay = document.querySelector('.premium-celebration');
+    if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            overlay.remove();
+            // Optionally refresh the screen or update UI
+            showScreen('welcome-screen');
+        }, 500);
+    }
 }
 
 function handlePremiumCelebrationComplete() {
@@ -7905,32 +8236,55 @@ function handlePremiumCelebrationComplete() {
 }
 
 function initializeStatusCheck() {
-    if (!currentUser) return;
-    
-    // Initial setup of realtime subscription
-    setupUserStatusSubscription();
-    
-    // Periodic status check every 30 seconds as fallback
-    const statusCheckInterval = setInterval(async () => {
-        const { data, error } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
-            
-        if (data && !error) {
-            updateUserStatusDisplay(data.status);
-            
-            // If status is premium and it's a new change, show celebration
-            if (data.status === 'premium' && currentUser.status !== 'premium') {
-                showPremiumCelebration();
-                currentUser.status = 'premium';
+    // Clear any existing interval
+    if (window.statusCheckInterval) {
+        clearInterval(window.statusCheckInterval);
+    }
+
+    // Only set up interval if user is logged in
+    if (currentUser) {
+        const statusCheckInterval = setInterval(async () => {
+            try {
+                // Check if currentUser is still valid
+                if (!currentUser || !currentUser.id) {
+                    clearInterval(window.statusCheckInterval);
+                    return;
+                }
+
+                const { data, error } = await supabaseClient
+                    .from('user_profiles')
+                    .select('status')
+                    .eq('id', currentUser.id)
+                    .single();
+                    
+                if (error || !data) {
+                    // If no user found, clear interval and reset
+                    clearInterval(window.statusCheckInterval);
+                    currentUser = null;
+                    updateAuthUI();
+                    return;
+                }
+                    
+                // Update status display if needed
+                updateUserStatusDisplay(data.status);
+                
+                // If status changes to premium, show celebration
+                if (data.status === 'premium' && currentUser.status !== 'premium') {
+                    currentUser.status = 'premium';
+                    showPremiumCelebration();
+                }
+            } catch (error) {
+                console.error('Status check error:', error);
+                // Clear interval on any unexpected error
+                clearInterval(window.statusCheckInterval);
+                currentUser = null;
+                updateAuthUI();
             }
-        }
-    }, 3000); // Check every 30 seconds
-    
-    // Store interval ID for cleanup
-    window.statusCheckInterval = statusCheckInterval;
+        }, 3000); // Check every 30 seconds
+        
+        // Store interval ID for cleanup
+        window.statusCheckInterval = statusCheckInterval;
+    }
 }
 
 </script>
