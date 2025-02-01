@@ -2655,16 +2655,8 @@ body {
 }
 
 .list-actions {
-    position: sticky;
-    top: 0;
-    z-index: 5;
     display: flex;
-    gap: 0.5rem;
-    padding: 0.5rem 0;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-    background: inherit;
-    border-radius: 15px 15px 0 0;
+    gap: 2rem; /* Increased gap */
     align-items: center;
 }
 
@@ -2714,10 +2706,10 @@ body {
 
 .custom-list-item {
     display: grid;
-    grid-template-columns: 1fr 2fr 1fr 1fr 2fr auto;
+    grid-template-columns: auto 2fr 1fr 1fr 2fr;
     align-items: center;
     gap: 1rem;
-    background: rgba(255,255,255,0.05);
+    background: transparent; /* Remove background */
     padding: 0.5rem 1rem;
     border-radius: 8px;
     margin-bottom: 0.5rem;
@@ -2779,7 +2771,7 @@ body {
     opacity: 0.7;
     cursor: pointer;
     transition: opacity 0.3s ease;
-    font-size: 1.2rem; /* Larger icons */
+    font-size: 2rem; /* Doubled size */
     padding: 0.25rem;
 }
 
@@ -2797,7 +2789,7 @@ body {
 }
 
 .action-icon.delete {
-    color: var(--error); /* Red color for delete */
+    color: var(--error);
 }
 
 .add-word-button {
@@ -3289,11 +3281,11 @@ body {
         Save
     </button>
     <button 
-    onclick="addNewWord()" 
-    class="start-button add-word-button"
->
-    Add Word
-</button>
+        onclick="addNewWord()" 
+        class="start-button add-word-button"
+    >
+        Add Word
+    </button>
 </div>
 <div class="translation-results" id="translation-results">
     <div class="word-translation-list" id="word-translation-list">
@@ -6728,11 +6720,19 @@ function editCustomList(listId) {
     // Ensure listId is a number
     listId = typeof listId === 'string' ? parseInt(listId) : listId;
     
+    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+    const editButton = listItem.querySelector('.action-icon.edit');
+    
+    // If list is currently being edited, save and close
+    if (listItem.getAttribute('data-in-edit-mode') === 'true') {
+        saveCurrentList();
+        editButton.innerHTML = '<i class="fas fa-edit"></i>';
+        listItem.removeAttribute('data-in-edit-mode');
+        return;
+    }
+    
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
-    
-    // Set current list for editing
-    customPracticeLists.currentList = list;
     
     // Switch to custom practice screen
     showScreen('custom-practice-screen');
@@ -6767,6 +6767,15 @@ function editCustomList(listId) {
     });
     
     translationResults.style.display = 'block';
+    
+    // Mark list as in edit mode
+    listItem.setAttribute('data-in-edit-mode', 'true');
+    
+    // Change edit button to indicate save mode
+    editButton.innerHTML = '<i class="fas fa-save"></i>';
+    
+    // Store the current list for later saving
+    customPracticeLists.currentList = list;
     
     // Initialize drag functionality after adding all items
     makeWordListDraggable();
