@@ -158,9 +158,12 @@ ORDER BY player_rank ASC;
 GRANT SELECT ON player_leaderboard TO authenticated;
 GRANT ALL ON player_stats TO authenticated;
 
-----------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------------------
 -- 📝 CUSTOM LISTS
 ----------------------------------------------------------------------------------------
+-- Drop existing table if needed (be careful in production)
+-- DROP TABLE IF EXISTS custom_lists CASCADE;
+
 CREATE TABLE IF NOT EXISTS custom_lists (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id uuid REFERENCES auth.users NOT NULL,
@@ -177,18 +180,50 @@ CREATE TABLE IF NOT EXISTS custom_lists (
 -- Enable Row Level Security
 ALTER TABLE custom_lists ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies
+DROP POLICY IF EXISTS "Users can view own and shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can insert shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can update own and shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can delete own lists" ON custom_lists;
+
+-- Policy for viewing lists
 CREATE POLICY "Users can view own and shared lists" ON custom_lists
-FOR SELECT USING (
-    auth.uid() = user_id 
-    OR auth.uid() = ANY(shared_with)
+FOR SELECT 
+USING (
+    auth.uid() = user_id OR             -- Own lists
+    auth.uid() = ANY(shared_with) OR    -- Lists shared directly with user
+    (is_shared = true AND shared_by != auth.uid())  -- Explicitly shared lists
 );
 
-CREATE POLICY "Users can manage own lists" ON custom_lists
-FOR ALL USING (auth.uid() = user_id);
+-- Policy for inserting lists
+CREATE POLICY "Users can insert shared lists" ON custom_lists
+FOR INSERT 
+WITH CHECK (
+    auth.uid() = user_id OR             -- User can insert their own lists
+    (
+        is_shared = true AND 
+        shared_by = auth.uid() AND       -- Sharer must be current user
+        array_length(shared_with, 1) > 0 -- At least one recipient
+    )
+);
 
--- Grant permissions
+-- Policy for updating lists
+CREATE POLICY "Users can update own and shared lists" ON custom_lists
+FOR UPDATE 
+USING (
+    auth.uid() = user_id OR             -- Own lists
+    auth.uid() = ANY(shared_with)       -- Lists shared with current user
+);
+
+-- Policy for deleting lists
+CREATE POLICY "Users can delete own lists" ON custom_lists
+FOR DELETE 
+USING (
+    auth.uid() = user_id                -- Only list owner can delete
+);
+
+-- Grant permissions to authenticated users
 GRANT ALL ON custom_lists TO authenticated;
-
 ----------------------------------------------------------------------------------------
 -- 💰 PAYMENTS
 ----------------------------------------------------------------------------------------
