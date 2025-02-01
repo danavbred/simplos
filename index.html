@@ -6521,7 +6521,6 @@ function showCustomListsManager() {
     
     const limits = getUserListLimits();
     const userStatus = currentUser?.status || 'unregistered';
-    const canShare = userStatus === 'premium';
     
     container.innerHTML = '';
     
@@ -6545,15 +6544,8 @@ function showCustomListsManager() {
         listItem.innerHTML = `
             <div class="list-actions">
                 <button class="start-button practice-button">Practice</button>
-                ${!list.is_shared ? `
-                    <button class="edit-button" data-list-id="${list.id}">Edit</button>
-                    <button class="start-button delete-button">Delete</button>
-                    ${canShare ? `
-                        <button class="share-button" onclick="showShareModal(${list.id})">
-                            <i class="fas fa-share-alt"></i> Share
-                        </button>
-                    ` : ''}
-                ` : ''}
+                <button class="edit-button" data-list-id="${list.id}">Edit</button>
+                <button class="start-button delete-button">Delete</button>
             </div>
             <div class="list-header">
                 <h3>${list.name}</h3>
@@ -6567,12 +6559,24 @@ function showCustomListsManager() {
             </div>
         `;
 
-        // Add event listeners (existing logic)
-        const header = listItem.querySelector('.list-header');
-        header.addEventListener('click', () => toggleListCollapse(list.id));
-
+        // Add event listeners with explicit function calls
         const practiceButton = listItem.querySelector('.practice-button');
         practiceButton.addEventListener('click', () => startCustomListPractice(list.id));
+
+        const editButton = listItem.querySelector('.edit-button');
+        editButton.addEventListener('click', () => {
+            console.log('Edit button clicked for list:', list.id);
+            editCustomList(list.id);
+        });
+
+        const deleteButton = listItem.querySelector('.delete-button');
+        deleteButton.addEventListener('click', () => {
+            console.log('Delete button clicked for list:', list.id);
+            deleteCustomList(list.id);
+        });
+
+        const header = listItem.querySelector('.list-header');
+        header.addEventListener('click', () => toggleListCollapse(list.id));
 
         container.appendChild(listItem);
     });
@@ -6682,6 +6686,9 @@ function toggleEditMode(listId) {
 }
 
 function editCustomList(listId) {
+    // Ensure listId is a number
+    listId = typeof listId === 'string' ? parseInt(listId) : listId;
+    
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
     
@@ -6718,6 +6725,8 @@ function editCustomList(listId) {
     });
     
     translationResults.style.display = 'block';
+    
+    // Store the current list for later saving
     customPracticeLists.currentList = list;
     
     // Initialize drag functionality after adding all items
@@ -6745,31 +6754,23 @@ function loadCustomList(listId) {
     showScreen('custom-practice-screen');
 }
 
-async function deleteCustomList(listId) {
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
+function deleteCustomList(listId) {
+    // Ensure listId is a number
+    listId = typeof listId === 'string' ? parseInt(listId) : listId;
 
-    if (currentUser && list.supabaseId) {
-        const { error } = await supabaseClient
-            .from('custom_lists')
-            .delete()
-            .eq('id', list.supabaseId)
-            .eq('user_id', currentUser.id);
-
-        if (error) {
-            console.error('Error deleting list:', error);
-            return;
-        }
-    }
-
+    // Remove from lists array
     customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
     
-    if (!currentUser) {
-        saveCustomLists();
-    }
-
+    // Remove play count from localStorage
+    localStorage.removeItem(`listPlays_${listId}`);
+    
+    // Update localStorage with remaining lists
+    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+    
+    // Refresh the lists display
     showCustomListsManager();
 }
+
 
 function addWordToList(listId) {
     const listElement = document.getElementById(`list-${listId}`);
