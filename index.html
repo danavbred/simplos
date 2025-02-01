@@ -6846,7 +6846,6 @@ async function shareListWithUser(listId, recipientId) {
 }
 
 async function showShareModal(listId) {
-    // Create modal HTML
     const modal = document.createElement('div');
     modal.innerHTML = `
         <div class="modal-backdrop"></div>
@@ -6858,38 +6857,97 @@ async function showShareModal(listId) {
     `;
     document.body.appendChild(modal);
 
-    // Fetch users
-    const { data: users, error } = await supabaseClient
-        .from('user_list')
-        .select('id, username')
-        .neq('id', currentUser.id);
+    try {
+        // Single diagnostic query to get all profiles
+        const { data: profiles, error: profileError } = await supabaseClient
+            .from('user_profiles')
+            .select('id, email, username, status');
+            
+        console.log('All profiles:', profiles);
 
-    const usersList = modal.querySelector('.users-list');
-    usersList.innerHTML = '';
+        // Filter out current user for sharing list
+        const shareableUsers = profiles?.filter(user => user.id !== currentUser.id) || [];
+        console.log('Shareable users:', shareableUsers);
 
-    if (error || !users?.length) {
-        usersList.innerHTML = error ? 'Error loading users' : 'No other users found';
-        return;
+        const usersList = modal.querySelector('.users-list');
+        usersList.innerHTML = '';
+
+        if (profileError) {
+            console.error('Error fetching profiles:', profileError);
+            usersList.innerHTML = `
+                <div class="error-message">
+                    Error loading users: ${profileError.message}
+                </div>
+            `;
+            return;
+        }
+
+        if (shareableUsers.length === 0) {
+            usersList.innerHTML = `
+                <div class="no-users-message">
+                    <p>No other users found</p>
+                    <small>Total users: ${profiles?.length || 0}</small>
+                    <small>Current user ID: ${currentUser.id}</small>
+                </div>
+            `;
+            return;
+        }
+
+        shareableUsers.forEach(user => {
+            const userItem = document.createElement('div');
+            userItem.className = 'user-item';
+            userItem.innerHTML = `
+                <div class="user-info">
+                    <span class="username">${user.username || 'Unnamed User'}</span>
+                    <span class="email">${user.email || ''}</span>
+                    ${user.status === 'premium' ? '<span class="premium-badge">Premium</span>' : ''}
+                </div>
+                <button class="share-button ${user.status !== 'premium' ? 'disabled' : ''}"
+                        ${user.status !== 'premium' ? 'disabled' : ''}>
+                    ${user.status === 'premium' ? 'Share' : 'Premium Only'}
+                </button>
+            `;
+            
+            if (user.status === 'premium') {
+                userItem.querySelector('button').onclick = () => shareListWithUser(listId, user.id);
+            }
+            
+            usersList.appendChild(userItem);
+        });
+    } catch (err) {
+        console.error('Share modal error:', err);
+        modal.querySelector('.users-list').innerHTML = `
+            <div class="error-message">
+                Unexpected error occurred
+                <br>
+                <small>${err.message}</small>
+            </div>
+        `;
     }
 
-    // Create user list
-    users.forEach(user => {
-        const userItem = document.createElement('div');
-        userItem.className = 'user-item';
-        userItem.innerHTML = `
-            <span>${user.username || 'Unnamed User'}</span>
-            <button class="share-button">Share</button>
-        `;
-        userItem.querySelector('button').onclick = () => shareListWithUser(listId, user.id);
-        usersList.appendChild(userItem);
-    });
-
-    // Modal close handlers
     modal.querySelector('.modal-close').onclick = () => document.body.removeChild(modal);
     modal.querySelector('.modal-backdrop').onclick = () => document.body.removeChild(modal);
 }
 
-
+function showPremiumCelebration() {
+    const overlay = document.createElement('div');
+    overlay.className = 'premium-celebration';
+    overlay.innerHTML = `
+        <div class="celebration-content">
+            <h1 class="celebration-title">Welcome to Premium!</h1>
+            <p class="celebration-message">
+                Your account has been upgraded to premium status.<br>
+                Enjoy full access to all features!
+            </p>
+            <button class="celebration-button" onclick="handlePremiumCelebrationComplete()">
+                Start Playing
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    setTimeout(() => overlay.classList.add('show'), 100);
+}
 
 function handleProgressionAfterCompletion(isLevelCompleted) {
     if (!isLevelCompleted && currentGame.streakBonus) {
