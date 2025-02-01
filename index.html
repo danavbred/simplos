@@ -6269,6 +6269,11 @@ function initializeDragAndDrop(item) {
 
 
 function saveCurrentList() {
+    if (!canCreateMoreLists()) {
+        alert(`You can only create ${getUserListLimits().maxLists} custom lists.`);
+        return;
+    }
+
     const listNameInput = document.getElementById('custom-list-name');
     const wordInput = document.getElementById('custom-word-input');
     const wordList = document.getElementById('word-translation-list');
@@ -6289,6 +6294,12 @@ function saveCurrentList() {
         }
     });
 
+    const limits = getUserListLimits();
+    if (words.length > limits.maxWords) {
+        alert(`You can only create lists with up to ${limits.maxWords} words.`);
+        return;
+    }
+
     const newList = {
         id: Date.now(),
         name: name,
@@ -6298,6 +6309,64 @@ function saveCurrentList() {
 
     customPracticeLists.lists.push(newList);
     saveCustomLists();
+    
+    // Clear form
+    listNameInput.value = '';
+    wordInput.value = '';
+    wordList.innerHTML = '';
+    translationResults.style.display = 'none';
+    
+    showCustomListsManager();
+}
+
+function canCreateMoreLists() {
+    const limits = getUserListLimits();
+    return customPracticeLists.lists.length < limits.maxLists;
+}
+
+function saveCurrentList() {
+    if (!canCreateMoreLists()) {
+        alert(`You can only create ${getUserListLimits().maxLists} custom lists.`);
+        return;
+    }
+
+    const listNameInput = document.getElementById('custom-list-name');
+    const wordInput = document.getElementById('custom-word-input');
+    const wordList = document.getElementById('word-translation-list');
+    const translationResults = document.getElementById('translation-results');
+    
+    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+    const words = [];
+    const translations = [];
+    
+    const items = wordList.querySelectorAll('.word-translation-item');
+    items.forEach(item => {
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
+        
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
+        }
+    });
+
+    const limits = getUserListLimits();
+    if (words.length > limits.maxWords) {
+        alert(`You can only create lists with up to ${limits.maxWords} words.`);
+        return;
+    }
+
+    const newList = {
+        id: Date.now(),
+        name: name,
+        words: words,
+        translations: translations
+    };
+
+    customPracticeLists.lists.push(newList);
+    
+    // Save to localStorage for guest users
+    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
     
     // Clear form
     listNameInput.value = '';
@@ -6435,7 +6504,7 @@ function showCustomListsManager() {
     
     const limits = getUserListLimits();
     const userStatus = currentUser?.status || 'unregistered';
-    const canShare = userStatus === 'premium' || userStatus === 'pending';
+    const canShare = userStatus === 'premium';
     
     container.innerHTML = '';
     
@@ -6473,44 +6542,20 @@ function showCustomListsManager() {
                 <h3>${list.name}</h3>
                 <div class="list-summary">
                     <span>${list.words.length} words</span>
-                    <span style="color: #ff4444; margin-left: 1rem;">
+                    <span style="color: ${playsLeft <= 2 ? '#ff4444' : '#ffffff'}; margin-left: 1rem;">
                         ${playsLeft}/${limits.maxPlays} plays left
                     </span>
                     <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
                 </div>
             </div>
-            <div class="list-content">
-                <div class="word-translation-list" id="list-${list.id}"></div>
-            </div>
         `;
 
-        // Add event listeners
+        // Add event listeners (existing logic)
         const header = listItem.querySelector('.list-header');
         header.addEventListener('click', () => toggleListCollapse(list.id));
 
         const practiceButton = listItem.querySelector('.practice-button');
         practiceButton.addEventListener('click', () => startCustomListPractice(list.id));
-
-        if (!list.is_shared) {
-            const editButton = listItem.querySelector('.edit-button');
-            if (editButton) {
-                editButton.addEventListener('click', () => toggleEditMode(list.id));
-            }
-
-            const deleteButton = listItem.querySelector('.delete-button');
-            if (deleteButton) {
-                deleteButton.addEventListener('click', () => deleteCustomList(list.id));
-            }
-
-            const shareButton = listItem.querySelector('.share-button');
-            if (shareButton && canShare) {
-                shareButton.onclick = (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    showShareModal(list.id);
-                };
-            }
-        }
 
         container.appendChild(listItem);
     });
@@ -6530,15 +6575,21 @@ function getUserListLimits() {
     const userStatus = currentUser ? currentUser.status : 'unregistered';
     
     switch(userStatus) {
-        case 'free':
+        case 'free':  // Trial user
             return {
                 maxLists: 5,
                 maxWords: 20,
                 maxPlays: 10,
                 canShare: false
             };
-        case 'pending':
-        case 'premium':
+        case 'pending':  // Pending premium
+            return {
+                maxLists: 30,
+                maxWords: 50,
+                maxPlays: Infinity,
+                canShare: false  // No sharing for pending
+            };
+        case 'premium':  // Confirmed premium
             return {
                 maxLists: 30,
                 maxWords: 50,
