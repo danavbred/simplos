@@ -650,7 +650,12 @@
             <div class="dashboard-container">
                 <div class="dashboard-header">
                     <h1 class="dashboard-title">Teacher Dashboard</h1>
-                    <button class="action-button" onclick="createNewEvent()">Create Event</button>
+                    <div class="auth-controls">
+                        <span class="user-email"></span>
+                        <button class="logout-button" onclick="handleLogout()">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </button>
+                    </div>
                 </div>
                 
                 <div class="dashboard-nav">
@@ -659,13 +664,25 @@
                     <button class="nav-button" onclick="switchTab('lists')">Word Lists</button>
                     <button class="nav-button" onclick="switchTab('statistics')">Statistics</button>
                 </div>
-    
+        
                 <div id="events-panel" class="dashboard-panel">
                     <!-- Event cards will be populated here -->
                 </div>
+        
+                <div id="classes-panel" class="dashboard-panel" style="display: none;">
+                    <!-- Class cards will be populated here -->
+                </div>
+        
+                <div id="lists-panel" class="dashboard-panel" style="display: none;">
+                    <!-- Word lists will be populated here -->
+                </div>
+        
+                <div id="statistics-panel" class="dashboard-panel" style="display: none;">
+                    <!-- Statistics will be populated here -->
+                </div>
             </div>
         </div>
-    
+
         <!-- Arcade Race Screen -->
         <div id="arcade-screen" class="screen">
             <div class="race-container">
@@ -892,29 +909,88 @@ function closeModal() {
         initializeRaceTrack();
     }
     
-    function switchTab(tab) {
-        document.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
-        event.target.classList.add('active');
-        loadTabContent(tab);
-    }
-    
-    function loadTabContent(tab) {
-        switch(tab) {
-            case 'events':
-                loadTeacherEvents();
-                break;
-            case 'classes':
-                loadClasses();
-                break;
-            case 'lists':
-                loadWordLists();
-                break;
-            case 'statistics':
-                loadStatistics();
-                break;
+function switchTab(tab) {
+    // Update nav buttons
+    document.querySelectorAll('.nav-button').forEach(btn => {
+        btn.classList.remove('active');
+        if(btn.textContent.toLowerCase().includes(tab)) {
+            btn.classList.add('active');
         }
+    });
+
+    // Hide all panels
+    document.querySelectorAll('.dashboard-panel').forEach(panel => {
+        panel.style.display = 'none';
+    });
+
+    // Show selected panel
+    const selectedPanel = document.getElementById(`${tab}-panel`);
+    if(selectedPanel) {
+        selectedPanel.style.display = 'block';
     }
+
+    // Load panel content
+    switch(tab) {
+        case 'events':
+            loadTeacherEvents();
+            break;
+        case 'classes':
+            classManager.loadTeacherClasses();
+            break;
+        case 'lists':
+            wordListManager.loadLists();
+            break;
+        case 'statistics':
+            analyticsManager.loadClassStats();
+            break;
+    }
+}
+
+async function handleLogout() {
+    try {
+        const { error } = await supabaseClient.auth.signOut();
+        
+        if (error) {
+            console.error('Logout error:', error.message);
+            return;
+        }
+
+        currentUser = null;
+        
+        // Clear any active managers
+        if(classManager) classManager.cleanup();
+        if(wordListManager) wordListManager.cleanup();
+        if(analyticsManager) analyticsManager.cleanup();
+        
+        // Return to role selection
+        document.querySelectorAll('.screen').forEach(screen => 
+            screen.classList.remove('visible'));
+        document.getElementById('role-screen').classList.add('visible');
+        
+    } catch (error) {
+        console.error('Unexpected error during logout:', error);
+    }
+}
+
+async function showTeacherDashboard() {
+    // Hide other screens
+    document.querySelectorAll('.screen').forEach(screen => 
+        screen.classList.remove('visible'));
     
+    // Show teacher dashboard
+    const dashboard = document.getElementById('teacher-dashboard');
+    dashboard.classList.add('visible');
+
+    // Set user email
+    const emailDisplay = document.querySelector('.user-email');
+    if(emailDisplay && currentUser) {
+        emailDisplay.textContent = currentUser.email;
+    }
+
+    // Initialize with events tab
+    switchTab('events');
+}
+
     async function loadTeacherEvents() {
         if (!currentUser) return;
     
@@ -1862,6 +1938,8 @@ class AnalyticsManager {
 }
 
 const analyticsManager = new AnalyticsManager();
+
+
 
 
     </script>
