@@ -632,6 +632,46 @@
     transition: width 0.3s ease;
 }
 
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.class-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: var(--glass);
+    border-radius: 15px;
+    margin-bottom: 1.5rem;
+}
+
+.error-state {
+    text-align: center;
+    padding: 2rem;
+    color: var(--error);
+}
+
+.error-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
 
     </style>
     
@@ -925,8 +965,8 @@ function showTeacherDashboard() {
 }
 
 function closeModal() {
-    const modal = document.querySelector('.modal');
-    if (modal) modal.remove();
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => modal.remove());
 }
     
     function showStudentView() {
@@ -935,7 +975,9 @@ function closeModal() {
         initializeRaceTrack();
     }
     
-function switchTab(tab) {
+    function switchTab(tab) {
+    console.log('Switching to tab:', tab); // Debug log
+
     // Update nav buttons
     document.querySelectorAll('.nav-button').forEach(btn => {
         btn.classList.remove('active');
@@ -953,22 +995,13 @@ function switchTab(tab) {
     const selectedPanel = document.getElementById(`${tab}-panel`);
     if(selectedPanel) {
         selectedPanel.style.display = 'block';
-    }
 
-    // Load panel content
-    switch(tab) {
-        case 'events':
+        // Initialize panel content
+        if(tab === 'classes') {
+            updateClassesPanel();
+        } else if(tab === 'events') {
             loadTeacherEvents();
-            break;
-        case 'classes':
-            classManager.loadTeacherClasses();
-            break;
-        case 'lists':
-            wordListManager.loadLists();
-            break;
-        case 'statistics':
-            analyticsManager.loadClassStats();
-            break;
+        }
     }
 }
 
@@ -2108,65 +2141,70 @@ function showNotification(message, type = 'success') {
 }
 
 async function updateClassesPanel() {
+    console.log('Updating classes panel'); // Debug log
     const classesPanel = document.getElementById('classes-panel');
-    if (!classesPanel) return;
-
-    const { data: classes, error } = await supabaseClient
-        .from('school_classes')
-        .select(`
-            *,
-            class_enrollments (count)
-        `)
-        .eq('teacher_id', currentUser.id);
-
-    if (error) {
-        console.error('Error loading classes:', error);
+    if (!classesPanel) {
+        console.error('Classes panel not found');
         return;
     }
 
-    classesPanel.innerHTML = `
-        <div class="panel-header">
-            <h2>My Classes</h2>
-            <button onclick="showCreateClassModal()" class="action-button">
-                <i class="fas fa-plus"></i> Create Class
-            </button>
-        </div>
-        ${classes.length === 0 ? `
-            <div class="empty-state">
-                <i class="fas fa-users"></i>
-                <h3>No Classes Yet</h3>
-                <p>Create your first class to get started!</p>
+    try {
+        const { data: classes, error } = await supabaseClient
+            .from('school_classes')
+            .select('*')
+            .eq('teacher_id', currentUser.id);
+
+        if (error) throw error;
+
+        console.log('Loaded classes:', classes); // Debug log
+
+        classesPanel.innerHTML = `
+            <div class="panel-header">
+                <h2>My Classes</h2>
                 <button onclick="showCreateClassModal()" class="action-button">
-                    Create Class
+                    <i class="fas fa-plus"></i> Create Class
                 </button>
             </div>
-        ` : `
-            <div class="class-grid">
-                ${classes.map(cls => `
-                    <div class="class-card">
-                        <div class="class-header">
-                            <h3 class="class-title">${cls.name}</h3>
-                            <span class="grade-level">Grade ${cls.grade_level}</span>
-                        </div>
-                        <div class="class-stats">
-                            <div class="stat">
-                                <i class="fas fa-users"></i>
-                                <span>${cls.class_enrollments.count || 0} Students</span>
+            ${classes && classes.length > 0 ? `
+                <div class="class-grid">
+                    ${classes.map(cls => `
+                        <div class="class-card">
+                            <div class="class-header">
+                                <h3 class="class-title">${cls.name}</h3>
+                                <span class="grade-level">Grade ${cls.grade_level}</span>
+                            </div>
+                            <div class="class-actions">
+                                <button onclick="viewClass('${cls.id}')" class="action-button">
+                                    View Class
+                                </button>
+                                <button onclick="generateInviteCode('${cls.id}')" class="action-button">
+                                    Invite Code
+                                </button>
                             </div>
                         </div>
-                        <div class="class-actions">
-                            <button onclick="viewClass('${cls.id}')" class="action-button">
-                                View Class
-                            </button>
-                            <button onclick="generateInviteCode('${cls.id}')" class="action-button">
-                                Invite Code
-                            </button>
-                        </div>
-                    </div>
-                `).join('')}
+                    `).join('')}
+                </div>
+            ` : `
+                <div class="empty-state">
+                    <i class="fas fa-users"></i>
+                    <h3>No Classes Yet</h3>
+                    <p>Create your first class to get started!</p>
+                    <button onclick="showCreateClassModal()" class="action-button">
+                        Create Class
+                    </button>
+                </div>
+            `}
+        `;
+    } catch (error) {
+        console.error('Error updating classes panel:', error);
+        classesPanel.innerHTML = `
+            <div class="error-state">
+                <i class="fas fa-exclamation-circle"></i>
+                <h3>Error Loading Classes</h3>
+                <p>Please try again later</p>
             </div>
-        `}
-    `;
+        `;
+    }
 }
 
 async function generateInviteCode(classId) {
