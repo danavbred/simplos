@@ -3544,25 +3544,28 @@ async function handleSignup() {
 
         if (authError) throw authError;
 
-        // Step 2: Create user profile
+        // Step 2: Upsert user profile (handles existing records)
         const { error: profileError } = await supabaseClient
             .from('user_profiles')
-            .insert([{
+            .upsert({
                 id: authData.user.id,
                 username: username,
+                email: email,
                 status: 'free',
                 role: 'student'
-            }]);
+            }, {
+                onConflict: 'id'  // Use 'id' as the conflict target
+            });
 
         if (profileError) {
-            console.error('Profile creation error:', profileError);
-            // Continue anyway as the auth was successful
+            console.error('Profile upsert error:', profileError);
+            // Continue even if profile update fails
         }
 
         // Step 3: Initialize game progress
         const { error: progressError } = await supabaseClient
             .from('game_progress')
-            .insert([{
+            .upsert({
                 user_id: authData.user.id,
                 stage: 1,
                 set_number: 1,
@@ -3573,28 +3576,16 @@ async function handleSignup() {
                 unlocked_levels: { "1_1": [1] },
                 perfect_levels: [],
                 completed_levels: []
-            }]);
+            }, {
+                onConflict: 'user_id'
+            });
 
         if (progressError) {
             console.error('Progress initialization error:', progressError);
-            // Continue anyway
+            // Continue even if progress update fails
         }
 
-        // Step 4: Initialize player stats
-        const { error: statsError } = await supabaseClient
-            .from('player_stats')
-            .insert([{
-                user_id: authData.user.id,
-                total_levels_completed: 0,
-                unique_words_practiced: 0
-            }]);
-
-        if (statsError) {
-            console.error('Stats initialization error:', statsError);
-            // Continue anyway
-        }
-
-        // Step 5: Auto-login
+        // Step 4: Auto-login
         const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
             email,
             password
@@ -3602,11 +3593,8 @@ async function handleSignup() {
 
         if (loginError) throw loginError;
 
+        // Update current user and UI
         currentUser = loginData.user;
-        await Promise.all([
-            loadCustomLists(),
-            loadUserGameProgress(currentUser.id)
-        ]);
         updateAuthUI();
         showScreen('welcome-screen');
 
@@ -3865,6 +3853,13 @@ async function loadUserGameProgress(userId) {
 
 async function handleLogout() {
     try {
+        // Clear any existing status check interval
+        if (window.statusCheckInterval) {
+            clearInterval(window.statusCheckInterval);
+            window.statusCheckInterval = null;
+        }
+
+        // Sign out from Supabase
         const { error } = await supabaseClient.auth.signOut();
         
         if (error) {
@@ -3887,12 +3882,20 @@ async function handleLogout() {
         // Clear all input fields and UI state
         clearCustomPracticeUI();
 
+        // Reset current user and update UI
         currentUser = null;
         updateAuthUI();
+        updateUserStatusDisplay(null);
+        
+        // Show welcome screen
         showScreen('welcome-screen');
 
     } catch (error) {
         console.error('Unexpected error during logout:', error);
+        // Ensure UI is reset even if logout fails
+        currentUser = null;
+        updateAuthUI();
+        showScreen('welcome-screen');
     }
 }
 
@@ -8144,37 +8147,79 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
 }
 
 async function checkExistingSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    
-    if (session) {
-        currentUser = session.user;
+    try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
-        // Get initial status
-        const { data: profile } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
+        if (session) {
+            currentUser = session.user;
             
-        if (profile) {
-            currentUser.status = profile.status; // Store status in user object
-            updateUserStatusDisplay(profile.status);
+            // Get initial status
+            const { data: profile } = await supabaseClient
+                .from('user_profiles')
+                .select('status')
+                .eq('id', currentUser.id)
+                .single();
+                
+            if (profile) {
+                currentUser.status = profile.status; // Store status in user object
+                updateUserStatusDisplay(profile.status);
+            }
+            
+            // Initialize real-time updates and periodic check
+            initializeStatusCheck();
+            
+            await Promise.all([
+                loadUserGameProgress(currentUser.id),
+                loadCustomLists()
+            ]);
+            updateAuthUI();
+        } else {
+            // Explicitly reset user and UI
+            currentUser = null;
+            updateAuthUI();
+            updateUserStatusDisplay(null);
         }
-        
-        // Initialize real-time updates and periodic check
-        initializeStatusCheck();
-        
-        await Promise.all([
-            loadUserGameProgress(currentUser.id),
-            loadCustomLists()
-        ]);
+    } catch (error) {
+        console.error('Session check error:', error);
+        currentUser = null;
         updateAuthUI();
-    } else {
-        // Clear interval if it exists
-        if (window.statusCheckInterval) {
-            clearInterval(window.statusCheckInterval);
-        }
         updateUserStatusDisplay(null);
+    }
+}
+
+function showPremiumCelebration() {
+    // Create the celebration overlay
+    const celebrationOverlay = document.createElement('div');
+    celebrationOverlay.className = 'premium-celebration';
+    
+    celebrationOverlay.innerHTML = `
+        <div class="celebration-content">
+            <h1 class="celebration-title">Congratulations!</h1>
+            <p class="celebration-message">You've unlocked Premium Access!</p>
+            <button class="celebration-button" onclick="handlePremiumCelebrationComplete()">
+                Continue
+            </button>
+        </div>
+    `;
+    
+    // Add to body
+    document.body.appendChild(celebrationOverlay);
+    
+    // Trigger show animation
+    setTimeout(() => {
+        celebrationOverlay.classList.add('show');
+    }, 100);
+}
+
+function handlePremiumCelebrationComplete() {
+    const overlay = document.querySelector('.premium-celebration');
+    if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            overlay.remove();
+            // Optionally refresh the screen or update UI
+            showScreen('welcome-screen');
+        }, 500);
     }
 }
 
@@ -8191,32 +8236,55 @@ function handlePremiumCelebrationComplete() {
 }
 
 function initializeStatusCheck() {
-    if (!currentUser) return;
-    
-    // Initial setup of realtime subscription
-    setupUserStatusSubscription();
-    
-    // Periodic status check every 30 seconds as fallback
-    const statusCheckInterval = setInterval(async () => {
-        const { data, error } = await supabaseClient
-            .from('user_profiles')
-            .select('status')
-            .eq('id', currentUser.id)
-            .single();
-            
-        if (data && !error) {
-            updateUserStatusDisplay(data.status);
-            
-            // If status is premium and it's a new change, show celebration
-            if (data.status === 'premium' && currentUser.status !== 'premium') {
-                showPremiumCelebration();
-                currentUser.status = 'premium';
+    // Clear any existing interval
+    if (window.statusCheckInterval) {
+        clearInterval(window.statusCheckInterval);
+    }
+
+    // Only set up interval if user is logged in
+    if (currentUser) {
+        const statusCheckInterval = setInterval(async () => {
+            try {
+                // Check if currentUser is still valid
+                if (!currentUser || !currentUser.id) {
+                    clearInterval(window.statusCheckInterval);
+                    return;
+                }
+
+                const { data, error } = await supabaseClient
+                    .from('user_profiles')
+                    .select('status')
+                    .eq('id', currentUser.id)
+                    .single();
+                    
+                if (error || !data) {
+                    // If no user found, clear interval and reset
+                    clearInterval(window.statusCheckInterval);
+                    currentUser = null;
+                    updateAuthUI();
+                    return;
+                }
+                    
+                // Update status display if needed
+                updateUserStatusDisplay(data.status);
+                
+                // If status changes to premium, show celebration
+                if (data.status === 'premium' && currentUser.status !== 'premium') {
+                    currentUser.status = 'premium';
+                    showPremiumCelebration();
+                }
+            } catch (error) {
+                console.error('Status check error:', error);
+                // Clear interval on any unexpected error
+                clearInterval(window.statusCheckInterval);
+                currentUser = null;
+                updateAuthUI();
             }
-        }
-    }, 3000); // Check every 30 seconds
-    
-    // Store interval ID for cleanup
-    window.statusCheckInterval = statusCheckInterval;
+        }, 30000); // Check every 30 seconds
+        
+        // Store interval ID for cleanup
+        window.statusCheckInterval = statusCheckInterval;
+    }
 }
 
 </script>
