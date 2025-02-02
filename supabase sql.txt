@@ -1,4 +1,195 @@
 ----------------------------------------------------------------------------------------
+-- 🏫 BASE TABLES - RUN THIS FIRST
+----------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS schools CASCADE;
+DROP TABLE IF EXISTS school_classes CASCADE;
+DROP TABLE IF EXISTS class_enrollments CASCADE;
+
+CREATE TABLE IF NOT EXISTS schools (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    name text NOT NULL,
+    subscription_status text DEFAULT 'trial' CHECK (subscription_status IN ('trial', 'active', 'expired')),
+    max_teachers integer DEFAULT 5,
+    max_students integer DEFAULT 100,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS public.school_classes (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    school_id uuid REFERENCES schools(id),
+    teacher_id uuid REFERENCES auth.users(id),
+    name text NOT NULL,
+    grade_level integer CHECK (grade_level BETWEEN 1 AND 12),
+    invite_code text UNIQUE,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS class_enrollments (
+    class_id uuid REFERENCES school_classes(id) ON DELETE CASCADE,
+    student_id uuid REFERENCES auth.users(id),
+    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    PRIMARY KEY (class_id, student_id)
+);
+
+----------------------------------------------------------------------------------------
+-- 🛡️ BASE POLICIES - RUN THIS SECOND
+----------------------------------------------------------------------------------------
+
+-- School policies
+ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Teachers can view schools"
+ON schools
+FOR SELECT
+USING (true);  -- Simplified to allow all authenticated users to view schools
+
+CREATE POLICY "Admin can manage schools"
+ON schools
+FOR ALL
+USING (
+    auth.uid() IN (
+        SELECT id FROM user_profiles 
+        WHERE role = 'admin'
+    )
+);
+
+GRANT ALL ON schools TO authenticated;
+
+-- School Classes policies
+ALTER TABLE school_classes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Teachers can manage their classes"
+ON school_classes
+FOR ALL
+USING (auth.uid() = teacher_id);
+
+CREATE POLICY "Students can view enrolled classes"
+ON school_classes
+FOR SELECT
+USING (id IN (
+    SELECT class_id 
+    FROM class_enrollments 
+    WHERE student_id = auth.uid()
+));
+
+GRANT ALL ON school_classes TO authenticated;
+
+-- Class Enrollments policies
+ALTER TABLE class_enrollments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Teachers can view their class enrollments"
+ON class_enrollments
+FOR SELECT
+USING (
+    class_id IN (
+        SELECT id 
+        FROM school_classes 
+        WHERE teacher_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Students can manage their enrollments"
+ON class_enrollments
+FOR ALL
+USING (student_id = auth.uid());
+
+GRANT ALL ON class_enrollments TO authenticated;
+
+-- Modify school_classes table
+ALTER TABLE public.school_classes 
+    ADD COLUMN max_students integer DEFAULT 30,
+    ADD COLUMN status text DEFAULT 'active' CHECK (status IN ('active', 'archived', 'pending'));
+
+----------------------------------------------------------------------------------------
+-- 📝 DEFAULT DATA - RUN THIS THIRD
+----------------------------------------------------------------------------------------
+
+INSERT INTO schools (name) VALUES ('Default School') RETURNING id;
+
+----------------------------------------------------------------------------------------
+-- 🎮 ARCADE EVENTS
+----------------------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS arcade_events (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    teacher_id uuid REFERENCES auth.users(id),
+    class_id uuid REFERENCES school_classes(id),
+    name text NOT NULL,
+    status text DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed', 'cancelled')),
+    access_code text UNIQUE,
+    word_pool jsonb,
+    grade_levels integer[],
+    max_players integer DEFAULT 30,
+    time_limit integer,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    started_at timestamp with time zone,
+    completed_at timestamp with time zone
+);
+
+CREATE TABLE IF NOT EXISTS arcade_participants (
+    event_id uuid REFERENCES arcade_events(id),
+    player_id uuid REFERENCES auth.users(id),
+    position integer DEFAULT 0,
+    words_completed integer DEFAULT 0,
+    current_floor integer DEFAULT 0,
+    perks jsonb DEFAULT '{}',
+    score integer DEFAULT 0,
+    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    PRIMARY KEY (event_id, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS teacher_wordlists (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    teacher_id uuid REFERENCES auth.users(id),
+    name text NOT NULL,
+    words text[] NOT NULL,
+    translations text[] NOT NULL,
+    grade_level integer,
+    shared boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+-- RLS Policies
+ALTER TABLE arcade_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teacher_wordlists ENABLE ROW LEVEL SECURITY;
+
+-- Teachers can manage their events
+CREATE POLICY "Teachers manage own events" ON arcade_events
+FOR ALL USING (auth.uid() = teacher_id);
+
+-- Students can view active events for their class
+CREATE POLICY "Students view class events" ON arcade_events
+FOR SELECT USING (
+    status = 'active' AND 
+    class_id IN (
+        SELECT class_id FROM class_enrollments 
+        WHERE student_id = auth.uid()
+    )
+);
+
+-- Participants can manage their own participation
+CREATE POLICY "Players manage participation" ON arcade_participants
+FOR ALL USING (auth.uid() = player_id);
+
+-- Teachers can manage their wordlists
+CREATE POLICY "Teachers manage wordlists" ON teacher_wordlists
+FOR ALL USING (
+    auth.uid() = teacher_id OR 
+    (shared = true AND auth.uid() IN (
+        SELECT teacher_id FROM school_classes
+        WHERE school_id = (
+            SELECT school_id FROM school_classes
+            WHERE teacher_id = teacher_wordlists.teacher_id
+            LIMIT 1
+        )
+    ))
+);
+
+
+
+----------------------------------------------------------------------------------------
 -- 🔑 USER PROFILES
 ----------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.user_profiles (
@@ -224,39 +415,48 @@ USING (
 
 -- Grant permissions to authenticated users
 GRANT ALL ON custom_lists TO authenticated;
-----------------------------------------------------------------------------------------
--- 💰 PAYMENTS
-----------------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS payment_requests (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES auth.users NOT NULL,
-    payment_method text CHECK (payment_method IN ('bit', 'paybox', 'kashkash', 'bank')),
-    amount numeric(10,2) NOT NULL,
-    status text DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'rejected')),
-    reference_code text UNIQUE,
-    submission_time timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    verification_time timestamp with time zone,
-    admin_verified_by uuid REFERENCES auth.users(id)
-);
 
--- Enable Row Level Security
-ALTER TABLE payment_requests ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view their own payment requests"
-ON payment_requests FOR SELECT
-USING (auth.uid() = user_id);
-
-CREATE POLICY "Admin can manage all payment requests"
-ON payment_requests FOR ALL
-USING (
-    auth.uid() IN (
-        SELECT id FROM user_profiles 
-        WHERE role = 'admin'
+-- Add at the end of CUSTOM LISTS section
+CREATE OR REPLACE FUNCTION insert_shared_list(
+    p_user_id uuid,
+    p_name text,
+    p_words text[],
+    p_translations text[],
+    p_is_shared boolean,
+    p_local_id bigint,
+    p_shared_with uuid[],
+    p_shared_by uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_list_id uuid;
+BEGIN
+    INSERT INTO custom_lists (
+        user_id,
+        name,
+        words,
+        translations,
+        is_shared,
+        local_id,
+        shared_with,
+        shared_by
+    ) VALUES (
+        p_user_id,
+        p_name,
+        p_words,
+        p_translations,
+        p_is_shared,
+        p_local_id,
+        p_shared_with,
+        p_shared_by
     )
-);
+    RETURNING id INTO v_list_id;
+    
+    RETURN v_list_id;
+END;
+$$;
 
--- Add this new policy to allow users to see other users for sharing
-CREATE POLICY "Users can view other users profiles for sharing"
-ON public.user_profiles 
-FOR SELECT
-USING (true);  -- This allows all authenticated users to view user profiles
+GRANT EXECUTE ON FUNCTION insert_shared_list TO authenticated;

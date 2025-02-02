@@ -673,6 +673,160 @@
     margin-bottom: 1rem;
 }
 
+.class-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: var(--glass);
+    border-radius: 15px;
+    margin-bottom: 1.5rem;
+}
+
+.class-card {
+    position: relative;
+    background: var(--glass);
+    border-radius: 15px;
+    padding: 1.5rem;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.class-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.class-info {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.class-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.5rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.class-stat-label {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.class-stat-value {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--gold);
+}
+
+.class-view {
+    width: 90%;
+    max-width: 800px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.class-view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.class-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+    text-align: center;
+}
+
+.stat-card i {
+    font-size: 2rem;
+    color: var(--gold);
+    margin-bottom: 0.5rem;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--text);
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    opacity: 0.7;
+}
+
+.student-list {
+    margin-top: 2rem;
+}
+
+.student-table {
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.student-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 2fr;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    margin-bottom: 0.5rem;
+    align-items: center;
+}
+
+.student-row.header {
+    font-weight: bold;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    text-transform: capitalize;
+}
+
+.status-badge.free {
+    background: var(--accent);
+}
+
+.status-badge.premium {
+    background: var(--success);
+}
+
+.action-button.small {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+.action-button.danger {
+    background: var(--error);
+}
+
     </style>
     
     <body>
@@ -801,6 +955,7 @@
                 <label>Class Name</label>
                 <input type="text" id="class-name" required>
             </div>
+            
             <div class="form-group">
                 <label>Grade Level</label>
                 <select id="class-grade" required>
@@ -819,6 +974,17 @@
                     <option value="12">Grade 12</option>
                 </select>
             </div>
+
+            <div class="form-group">
+                <label>Maximum Students</label>
+                <input type="number" id="class-size" min="1" max="50" value="30">
+            </div>
+
+            <div class="form-group">
+                <label>Class Description</label>
+                <textarea id="class-description" rows="3"></textarea>
+            </div>
+
             <div class="form-actions">
                 <button type="submit" class="action-button">Create Class</button>
                 <button type="button" class="action-button cancel" onclick="closeModal()">Cancel</button>
@@ -2103,25 +2269,41 @@ function showCreateClassModal() {
 
 async function handleClassSubmit(event) {
     event.preventDefault();
-    const name = document.getElementById('class-name').value;
-    const grade = document.getElementById('class-grade').value;
+    
+    const classData = {
+        teacher_id: currentUser.id,
+        name: document.getElementById('class-name').value,
+        grade_level: parseInt(document.getElementById('class-grade').value),
+        max_students: parseInt(document.getElementById('class-size').value),
+        created_at: new Date().toISOString(),
+        status: 'active'
+    };
 
     try {
         const { data: newClass, error } = await supabaseClient
             .from('school_classes')
-            .insert([{
-                teacher_id: currentUser.id,
-                name: name,
-                grade_level: parseInt(grade)
-            }])
+            .insert([classData])
             .select()
             .single();
 
         if (error) throw error;
 
+        // Generate unique invite code
+        const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        const { error: updateError } = await supabaseClient
+            .from('school_classes')
+            .update({ invite_code: inviteCode })
+            .eq('id', newClass.id);
+
+        if (updateError) throw updateError;
+
         closeModal();
         showNotification('Class created successfully!');
-        classManager.loadTeacherClasses(); // Refresh the list
+        updateClassesPanel(); // Refresh the classes list
+
+        // Show invite code to teacher
+        showInviteCode(inviteCode);
 
     } catch (error) {
         console.error('Error creating class:', error);
@@ -2129,54 +2311,42 @@ async function handleClassSubmit(event) {
     }
 }
 
-function showNotification(message, type = 'success') {
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.textContent = message;
-    document.body.appendChild(notification);
 
-    setTimeout(() => {
-        notification.remove();
-    }, 3000);
-}
 
 async function updateClassesPanel() {
-    console.log('Updating classes panel', currentUser); // Debug log
-    const classesPanel = document.getElementById('classes-panel');
-    if (!classesPanel) {
-        console.error('Classes panel not found');
-        return;
-    }
-
-    if (!currentUser || !currentUser.id) {
-        console.error('No user logged in');
-        classesPanel.innerHTML = `
-            <div class="error-state">
-                <i class="fas fa-exclamation-circle"></i>
-                <h3>Authentication Error</h3>
-                <p>Please log in again</p>
-            </div>
-        `;
-        return;
-    }
-
+    console.log('Updating classes panel', currentUser);
     try {
+        const classesPanel = document.getElementById('classes-panel');
+        if (!classesPanel) {
+            console.error('Classes panel not found');
+            return;
+        }
+
+        if (!currentUser || !currentUser.id) {
+            console.error('No user logged in');
+            classesPanel.innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <h3>Authentication Error</h3>
+                    <p>Please log in again</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Fetch classes data
         const { data: classes, error } = await supabaseClient
             .from('school_classes')
             .select('*')
             .eq('teacher_id', currentUser.id);
 
-        if (error) {
-            console.error('Supabase error:', error);
-            throw error;
-        }
+        if (error) throw error;
 
-        console.log('Loaded classes:', classes); // Debug log
-
+        // Update panel content
         classesPanel.innerHTML = `
             <div class="panel-header">
                 <h2>My Classes</h2>
-                <button onclick="showCreateClassModal()" class="action-button">
+                <button type="button" class="action-button" onclick="showCreateClassModal()">
                     <i class="fas fa-plus"></i> Create Class
                 </button>
             </div>
@@ -2185,7 +2355,7 @@ async function updateClassesPanel() {
                     <i class="fas fa-users"></i>
                     <h3>No Classes Yet</h3>
                     <p>Create your first class to get started!</p>
-                    <button onclick="showCreateClassModal()" class="action-button">
+                    <button type="button" onclick="showCreateClassModal()" class="action-button">
                         Create Class
                     </button>
                 </div>
@@ -2212,13 +2382,118 @@ async function updateClassesPanel() {
         `;
     } catch (error) {
         console.error('Error updating classes panel:', error);
-        classesPanel.innerHTML = `
-            <div class="error-state">
-                <i class="fas fa-exclamation-circle"></i>
-                <h3>Error Loading Classes</h3>
-                <p>${error.message || 'Please try again later'}</p>
+        if (classesPanel) {
+            classesPanel.innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <h3>Error Loading Classes</h3>
+                    <p>${error.message || 'Please try again later'}</p>
+                </div>
+            `;
+        }
+    }
+}
+
+async function viewClass(classId) {
+    try {
+        const { data: classData, error: classError } = await supabaseClient
+            .from('school_classes')
+            .select(`
+                *,
+                class_enrollments (
+                    student_id,
+                    joined_at,
+                    user_profiles:student_id (
+                        username,
+                        status
+                    )
+                )
+            `)
+            .eq('id', classId)
+            .single();
+
+        if (classError) throw classError;
+
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content class-view">
+                <div class="class-view-header">
+                    <h2>${classData.name}</h2>
+                    <span class="grade-level">Grade ${classData.grade_level}</span>
+                </div>
+                
+                <div class="class-stats">
+                    <div class="stat-card">
+                        <i class="fas fa-users"></i>
+                        <span class="stat-value">${classData.class_enrollments.length}</span>
+                        <span class="stat-label">Students</span>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-star"></i>
+                        <span class="stat-value">${classData.max_students - classData.class_enrollments.length}</span>
+                        <span class="stat-label">Spots Left</span>
+                    </div>
+                </div>
+
+                <div class="student-list">
+                    <h3>Students</h3>
+                    ${classData.class_enrollments.length > 0 ? `
+                        <div class="student-table">
+                            <div class="student-row header">
+                                <div class="col">Student</div>
+                                <div class="col">Status</div>
+                                <div class="col">Joined</div>
+                                <div class="col">Actions</div>
+                            </div>
+                            ${classData.class_enrollments.map(enrollment => `
+                                <div class="student-row">
+                                    <div class="col">${enrollment.user_profiles.username}</div>
+                                    <div class="col">
+                                        <span class="status-badge ${enrollment.user_profiles.status}">
+                                            ${enrollment.user_profiles.status}
+                                        </span>
+                                    </div>
+                                    <div class="col">${new Date(enrollment.joined_at).toLocaleDateString()}</div>
+                                    <div class="col">
+                                        <button onclick="viewStudentProgress('${enrollment.student_id}')" 
+                                                class="action-button small">
+                                            Progress
+                                        </button>
+                                        <button onclick="removeStudent('${enrollment.student_id}', '${classId}')" 
+                                                class="action-button small danger">
+                                            Remove
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : `
+                        <div class="empty-state">
+                            <p>No students enrolled yet</p>
+                            <button onclick="generateInviteCode('${classId}')" class="action-button">
+                                Invite Students
+                            </button>
+                        </div>
+                    `}
+                </div>
+
+                <div class="modal-actions">
+                    <button onclick="generateInviteCode('${classId}')" class="action-button">
+                        <i class="fas fa-user-plus"></i> Invite Students
+                    </button>
+                    <button onclick="closeModal()" class="action-button cancel">
+                        Close
+                    </button>
+                </div>
             </div>
         `;
+
+        document.body.appendChild(modal);
+
+    } catch (error) {
+        console.error('Error viewing class:', error);
+        showNotification('Error loading class details', 'error');
     }
 }
 
@@ -2281,6 +2556,71 @@ function updateAuthUI() {
     }
 }
 
+
+async function handleClassSubmit(event) {
+    event.preventDefault();
+    
+    const classData = {
+        teacher_id: currentUser.id,
+        name: document.getElementById('class-name').value,
+        grade_level: parseInt(document.getElementById('class-grade').value),
+        max_students: parseInt(document.getElementById('class-size').value),
+        description: document.getElementById('class-description').value,
+        created_at: new Date().toISOString(),
+        status: 'active'
+    };
+
+    try {
+        const { data: newClass, error } = await supabaseClient
+            .from('school_classes')
+            .insert([classData])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        // Generate unique invite code
+        const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        const { error: updateError } = await supabaseClient
+            .from('school_classes')
+            .update({ invite_code: inviteCode })
+            .eq('id', newClass.id);
+
+        if (updateError) throw updateError;
+
+        closeModal();
+        showNotification('Class created successfully!');
+        loadClasses(); // Refresh the classes list
+
+        // Show invite code to teacher
+        showInviteCode(inviteCode);
+
+    } catch (error) {
+        console.error('Error creating class:', error);
+        showNotification('Error creating class', 'error');
+    }
+}
+
+function showInviteCode(code) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h2>Class Created!</h2>
+            <p>Share this code with your students to join the class:</p>
+            <div class="invite-code">
+                <span>${code}</span>
+                <button onclick="copyInviteCode('${code}')" class="action-button">
+                    <i class="fas fa-copy"></i> Copy
+                </button>
+            </div>
+            <p class="invite-info">This code can be accessed later from the class settings</p>
+            <button onclick="closeModal()" class="action-button">Close</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
 
     </script>
     </body>
