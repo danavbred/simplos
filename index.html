@@ -8566,7 +8566,30 @@ function initializeStatusCheck() {
 }
 
 function showLevelTransition(levelId, setupCallback) {
-    // Create transition container
+    // Validate game state and prevent potential errors
+    const stage = gameState.currentStage || 1;
+    const set = gameState.currentSet || 1;
+
+    // Check if transition is possible
+    if (!stage || !set || !levelId) {
+        console.error('Invalid level progression', { stage, set, levelId });
+        showScreen('stage-screen');
+        return;
+    }
+
+    // Define a dynamic color palette based on current stage
+    const stagePalettes = [
+        ['#FF6B6B', '#4ECDC4', '#45B7D1'],   // Stage 1 - Vibrant
+        ['#2A9D8F', '#E9C46A', '#F4A261'],   // Stage 2 - Earthy
+        ['#6A4C93', '#1982C4', '#8AC926'],   // Stage 3 - Playful
+        ['#FF6B35', '#F7C59F', '#4ECDC4'],   // Stage 4 - Dynamic
+        ['#2C5F2D', '#97BC62', '#77A146']    // Stage 5 - Natural
+    ];
+
+    // Select color palette, defaulting to last palette if stage exceeds array
+    const colors = stagePalettes[Math.min(stage - 1, stagePalettes.length - 1)];
+
+    // Create main transition container
     const transitionContainer = document.createElement('div');
     transitionContainer.style.cssText = `
         position: fixed;
@@ -8574,101 +8597,143 @@ function showLevelTransition(levelId, setupCallback) {
         left: 0;
         width: 100%;
         height: 100%;
-        background: linear-gradient(
-            135deg, 
-            rgba(22, 33, 62, 0.8), 
-            rgba(26, 26, 46, 0.8)
-        );
-        backdrop-filter: blur(10px);
+        z-index: 1000;
         display: flex;
         align-items: center;
         justify-content: center;
-        z-index: 1000;
+        background: linear-gradient(
+            135deg, 
+            ${colors[0]}dd, 
+            ${colors[1]}dd
+        );
         opacity: 0;
-        transform: perspective(1000px) rotateX(10deg);
-        transition: 
-            opacity 0.4s ease, 
-            transform 0.4s ease;
+        transition: opacity 0.4s ease;
+        overflow: hidden;
+    `;
+
+    transitionStyles.textContent += `
+    @keyframes gradientFlow {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+`;
+
+    // Create particle layer for dynamic effects
+    const particleLayer = document.createElement('div');
+    particleLayer.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
     `;
 
     // Create title element
     const titleElement = document.createElement('div');
     titleElement.style.cssText = `
-        font-size: 3rem;
-        font-weight: 700;
-        color: var(--gold);
-        text-shadow: 0 2px 10px rgba(255,215,0,0.3);
-        transform: scale(0.7);
-        opacity: 0;
-        transition: 
-            transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275),
-            opacity 0.5s ease;
-    `;
-    titleElement.textContent = `Stage ${gameState.currentStage || 1} - Level ${levelId}`;
-    
-    transitionContainer.appendChild(titleElement);
-    document.body.appendChild(transitionContainer);
+    position: absolute;  // Ensure absolute positioning
+    top: 50%;            // Position from top
+    left: 50%;           // Position from left
+    transform: translate(-50%, -50%) scale(0.5);  // Center and initial scale
+    text-align: center;  // Ensure text is centered
+    width: 100%;         // Span full width
+    font-size: 4rem;
+    font-weight: 900;
+    color: white;
+    text-shadow: 0 0 20px rgba(0,0,0,0.5);
+    opacity: 0;
+    transition: 
+        transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+        opacity 0.5s ease;
+`;
+    titleElement.textContent = `Stage ${stage} - Level ${levelId}`;
 
-    function createParticleBurst() {
-        const colors = ['#FFD700', '#FFA500', '#FF6347', '#4CAF50'];
-        const particleCount = 50;
+    // Particle creation with advanced physics
+    function createDynamicParticles() {
+        const particleCount = 150;
         
         for (let i = 0; i < particleCount; i++) {
             const particle = document.createElement('div');
+            
+            // Complex movement calculations
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 300 + Math.random() * 250;
+            const speed = 0.7 + Math.random() * 0.5;
+            
             particle.style.cssText = `
                 position: absolute;
-                width: 8px;
-                height: 8px;
+                top: 50%;
+                left: 50%;
+                width: ${4 + Math.random() * 6}px;
+                height: ${4 + Math.random() * 6}px;
                 border-radius: 50%;
-                opacity: 0;
-            `;
-            
-            particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-            
-            // More directional, upward-angled particle spread
-            const angle = (Math.random() * Math.PI / 2) - Math.PI / 4; // Biased upward
-            const distance = 200 + Math.random() * 150;
-            
-            particle.style.left = '50%';
-            particle.style.top = '50%';
-            particle.style.transform = 'translate(-50%, -50%)';
-            
-            // Use CSS animation for performance
-            particle.style.animation = `
-                particleAnimation 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards
+                background: ${colors[Math.floor(Math.random() * colors.length)]};
+                opacity: 0.8;
+                transform: translate(-50%, -50%);
+                animation: 
+                    particleExplosion ${speed}s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards,
+                    particleRotate ${speed}s linear infinite;
             `;
             
             particle.style.setProperty('--x', `${Math.cos(angle) * distance}px`);
             particle.style.setProperty('--y', `${Math.sin(angle) * distance}px`);
             
-            transitionContainer.appendChild(particle);
+            particleLayer.appendChild(particle);
         }
     }
 
-    // Trigger transition
+    // Assemble transition elements
+    transitionContainer.appendChild(particleLayer);
+    transitionContainer.appendChild(titleElement);
+    document.body.appendChild(transitionContainer);
+
+    // Transition animation sequence
     requestAnimationFrame(() => {
+        // Fade in container
         transitionContainer.style.opacity = '1';
-        transitionContainer.style.transform = 'perspective(1000px) rotateX(0)';
         
-        titleElement.style.transform = 'scale(1)';
+        // Create particle explosion
+        createDynamicParticles();
+        
+        // Reveal title
+        titleElement.style.transform = 'translate(-50%, -50%) scale(1)';
         titleElement.style.opacity = '1';
-        
-        createParticleBurst();
-        
-        // Call setup callback
+
+        // Trigger setup callback
         setupCallback();
 
-        // Remove transition
+        // Remove transition after sequence
         setTimeout(() => {
             transitionContainer.style.opacity = '0';
-            transitionContainer.style.transform = 'perspective(1000px) rotateX(10deg)';
-            
             setTimeout(() => {
                 document.body.removeChild(transitionContainer);
             }, 400);
-        }, 1200);
+        }, 1500);
     });
 }
+
+// Global CSS for particle animations
+const transitionStyles = document.createElement('style');
+transitionStyles.textContent = `
+    @keyframes particleExplosion {
+        to { 
+            transform: 
+                translate(
+                    calc(-50% + var(--x)), 
+                    calc(-50% + var(--y))
+                ) scale(0);
+            opacity: 0;
+        }
+    }
+    
+    @keyframes particleRotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(transitionStyles);
 
 
 
