@@ -827,6 +827,193 @@
     background: var(--error);
 }
 
+.events-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.event-card {
+    background: var(--glass);
+    border-radius: 15px;
+    padding: 1.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.event-details {
+    margin: 1rem 0;
+}
+
+.event-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+}
+
+.status-badge.pending {
+    background: var(--accent);
+}
+
+.status-badge.active {
+    background: var(--success);
+}
+
+.status-badge.completed {
+    background: var(--gold);
+}
+
+.participants-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.participant-card {
+    background: rgba(255,255,255,0.05);
+    padding: 1rem;
+    border-radius: 10px;
+}
+
+.event-management {
+    width: 90%;
+    max-width: 800px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.event-manage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.event-control-panel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.control-section {
+    background: var(--glass);
+    padding: 1.5rem;
+    border-radius: 15px;
+}
+
+.control-section h3 {
+    margin-bottom: 1rem;
+    color: var(--gold);
+}
+
+.access-code-display {
+    font-size: 1.5rem;
+    font-family: monospace;
+    padding: 1rem;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    text-align: center;
+    margin-top: 0.5rem;
+}
+
+.participant-section {
+    background: var(--glass);
+    padding: 1.5rem;
+    border-radius: 15px;
+    margin-bottom: 1.5rem;
+}
+
+.participant-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.participant-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+}
+
+.participant-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.participant-name {
+    font-weight: bold;
+}
+
+.participant-status {
+    padding: 0.25rem 0.75rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+}
+
+.participant-stats {
+    display: flex;
+    gap: 1rem;
+    color: rgba(255,255,255,0.7);
+}
+
+.participant-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.empty-participants {
+    text-align: center;
+    padding: 2rem;
+    color: rgba(255,255,255,0.7);
+}
+
+.hint {
+    font-size: 0.9rem;
+    color: var(--accent);
+    margin-top: 0.5rem;
+}
+
+.action-button.small {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+}
+
+.action-button.danger {
+    background: var(--error);
+}
+
+.status-badge.active {
+    background: var(--success);
+}
+
+.status-badge.completed {
+    background: var(--gold);
+}
+
+.status-badge.pending {
+    background: var(--accent);
+}
+
     </style>
     
     <body>
@@ -1132,7 +1319,9 @@ function showTeacherDashboard() {
 
 function closeModal() {
     const modals = document.querySelectorAll('.modal');
-    modals.forEach(modal => modal.remove());
+    modals.forEach(modal => {
+        modal.remove();
+    });
 }
     
     function showStudentView() {
@@ -1239,22 +1428,56 @@ function loadTeacherEvents() {
     const eventsPanel = document.getElementById('events-panel');
     if (!eventsPanel) return;
 
-    eventsPanel.innerHTML = `
-        <div class="panel-header">
-            <h2>Events</h2>
-            <button onclick="createNewEvent()" class="action-button">
-                <i class="fas fa-plus"></i> Create Event
-            </button>
-        </div>
-        <div class="empty-state">
-            <i class="fas fa-calendar-plus"></i>
-            <h3>No Events Yet</h3>
-            <p>Create your first event to get started!</p>
-            <button onclick="createNewEvent()" class="action-button">
-                Create Event
-            </button>
-        </div>
-    `;
+    // Query arcade_events instead of events
+    supabaseClient
+        .from('arcade_events')
+        .select('*')
+        .eq('teacher_id', currentUser.id)
+        .then(({ data: events, error }) => {
+            if (error) {
+                console.error('Error loading events:', error);
+                return;
+            }
+
+            eventsPanel.innerHTML = `
+                <div class="panel-header">
+                    <h2>Events</h2>
+                    <button onclick="createNewEvent()" class="action-button">
+                        <i class="fas fa-plus"></i> Create Event
+                    </button>
+                </div>
+                ${events && events.length > 0 ? `
+                    <div class="events-grid">
+                        ${events.map(event => `
+                            <div class="event-card">
+                                <div class="event-header">
+                                    <h3>${event.name}</h3>
+                                    <span class="status-badge ${event.status}">${event.status}</span>
+                                </div>
+                                <div class="event-details">
+                                    <p>Type: ${event.type}</p>
+                                    <p>Access Code: ${event.access_code || 'Not set'}</p>
+                                </div>
+                                <div class="event-actions">
+                                    <button onclick="manageEvent('${event.id}')" class="action-button">
+                                        Manage
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="empty-state">
+                        <i class="fas fa-calendar-plus"></i>
+                        <h3>No Events Yet</h3>
+                        <p>Create your first event to get started!</p>
+                        <button onclick="createNewEvent()" class="action-button">
+                            Create Event
+                        </button>
+                    </div>
+                `}
+            `;
+        });
 }
     
     function initializeRaceTrack() {
@@ -1289,87 +1512,139 @@ function loadTeacherEvents() {
     modal.innerHTML = `
         <div class="modal-content">
             <h2>Create New Event</h2>
-            <form id="event-form">
+            <form id="event-form" onsubmit="handleEventSubmit(event)">
                 <div class="form-group">
-                    <label>Event Name</label>
-                    <input type="text" id="event-name" required>
+                    <label for="event-name">Event Name</label>
+                    <input type="text" id="event-name" name="event-name" required>
                 </div>
+                
                 <div class="form-group">
-                    <label>Event Type</label>
-                    <select id="event-type" required>
+                    <label for="event-type">Event Type</label>
+                    <select id="event-type" name="event-type" required>
                         <option value="arcade">Arcade Race</option>
                         <option value="standard">Standard Practice</option>
                     </select>
                 </div>
+                
+                <div class="form-group">
+                    <label for="grade-level">Grade Level (Multiple Select)</label>
+                    <select id="grade-level" name="grade-level" multiple required>
+                        <option value="1">Elementary (Stage 1-2)</option>
+                        <option value="2">Junior High (Stage 1-3)</option>
+                        <option value="3">High School (Stage 1-4)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="target-class">Target Class</label>
+                    <select id="target-class" name="target-class">
+                        <option value="all">All Classes</option>
+                    </select>
+                </div>
+
                 <div class="form-actions">
-                    <button type="submit" class="action-button">Create</button>
-                    <button type="button" onclick="closeModal()" class="action-button cancel">Cancel</button>
+                    <button type="submit" class="action-button">Create Event</button>
+                    <button type="button" class="action-button cancel" onclick="closeModal()">Cancel</button>
                 </div>
             </form>
         </div>
     `;
     document.body.appendChild(modal);
 
-    modal.querySelector('form').onsubmit = (e) => handleEventSubmit(e);
+    // Load teacher's classes for the target class dropdown
+    loadTeacherClasses();
 }
 
-async function loadTeacherClasses() {
+
+function loadTeacherClasses() {
     if (!currentUser) return;
     
-    try {
-        const { data: classes, error } = await supabaseClient
-            .from('classes')
-            .select('*')
-            .eq('teacher_id', currentUser.id);
+    supabaseClient
+        .from('school_classes')
+        .select('*')
+        .eq('teacher_id', currentUser.id)
+        .then(({ data: classes, error }) => {
+            if (error) {
+                console.error('Error loading classes:', error);
+                return;
+            }
 
-        if (error) throw error;
-
-        const classSelect = document.getElementById('target-class');
-        classSelect.innerHTML = '<option value="all">All Classes</option>';
-        
-        classes.forEach(cls => {
-            classSelect.innerHTML += `
-                <option value="${cls.id}">${cls.name}</option>
-            `;
+            const classSelect = document.getElementById('target-class');
+            if (classSelect) {
+                classes.forEach(cls => {
+                    const option = document.createElement('option');
+                    option.value = cls.id;
+                    option.textContent = cls.name;
+                    classSelect.appendChild(option);
+                });
+            }
         });
-    } catch (error) {
-        console.error('Error loading classes:', error);
-    }
 }
 
-async function handleEventSubmit(event) {
+function handleEventSubmit(event) {
     event.preventDefault();
     
+    const form = event.target;
+    const nameInput = form.querySelector('#event-name');
+    const typeInput = form.querySelector('#event-type');
+    const gradeInput = form.querySelector('#grade-level');
+    
+    console.log('Form Elements:', {
+        form,
+        nameInput,
+        nameValue: nameInput ? nameInput.value : 'not found',
+        typeInput,
+        typeValue: typeInput ? typeInput.value : 'not found',
+        gradeInput,
+        gradeValues: gradeInput ? Array.from(gradeInput.selectedOptions).map(opt => opt.value) : []
+    });
+
+    if (!nameInput || !nameInput.value.trim()) {
+        showNotification('Please enter an event name', 'error');
+        return;
+    }
+
+    if (!typeInput || !typeInput.value) {
+        showNotification('Please select an event type', 'error');
+        return;
+    }
+
+    if (!gradeInput || !gradeInput.selectedOptions.length) {
+        showNotification('Please select at least one grade level', 'error');
+        return;
+    }
+
     const eventData = {
-        name: document.getElementById('event-name').value,
-        type: document.getElementById('event-type').value,
-        grade_levels: Array.from(document.getElementById('grade-level').selectedOptions).map(opt => opt.value),
-        class_id: document.getElementById('target-class').value,
+        name: nameInput.value.trim(),
+        type: typeInput.value,
+        grade_levels: Array.from(gradeInput.selectedOptions).map(opt => parseInt(opt.value)),
+        class_id: form.querySelector('#target-class')?.value === 'all' ? null : form.querySelector('#target-class')?.value,
         teacher_id: currentUser.id,
         status: 'pending',
-        otp: generateOTP(),
+        access_code: generateOTP(),  // Changed from otp to access_code
         created_at: new Date().toISOString()
     };
 
-    try {
-        const { data, error } = await supabaseClient
-            .from('events')
-            .insert([eventData])
-            .select()
-            .single();
+    console.log('Submitting event data:', eventData);
 
-        if (error) throw error;
-
-        // Close modal and refresh events list
-        closeEventModal();
-        loadTeacherEvents();
-        
-        // Show success notification
-        showNotification('Event created successfully!');
-    } catch (error) {
-        console.error('Error creating event:', error);
-        showNotification('Error creating event', 'error');
-    }
+    // Changed from 'events' to 'arcade_events'
+    supabaseClient
+        .from('arcade_events')
+        .insert([eventData])
+        .select()
+        .then(({ data, error }) => {
+            if (error) {
+                console.error('Supabase error details:', error);
+                throw error;
+            }
+            closeModal();
+            showNotification('Event created successfully!');
+            loadTeacherEvents();
+        })
+        .catch(error => {
+            console.error('Event creation error:', error);
+            showNotification('Failed to create event: ' + error.message, 'error');
+        });
 }
 
 function generateOTP() {
@@ -2234,14 +2509,14 @@ function showCreateClassModal() {
     modal.innerHTML = `
         <div class="modal-content">
             <h2>Create New Class</h2>
-            <form id="class-form" onsubmit="handleClassSubmit(event)">
+            <form onsubmit="handleClassSubmit(event)">
                 <div class="form-group">
-                    <label>Class Name</label>
-                    <input type="text" id="class-name" required>
+                    <label for="class-name">Class Name</label>
+                    <input type="text" id="create-class-name" required>
                 </div>
                 <div class="form-group">
-                    <label>Grade Level</label>
-                    <select id="class-grade" required>
+                    <label for="class-grade">Grade Level</label>
+                    <select id="create-class-grade" required>
                         <option value="">Select Grade</option>
                         <option value="1">Grade 1</option>
                         <option value="2">Grade 2</option>
@@ -2257,6 +2532,10 @@ function showCreateClassModal() {
                         <option value="12">Grade 12</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="class-size">Maximum Students</label>
+                    <input type="number" id="create-class-size" min="1" max="50" value="30">
+                </div>
                 <div class="form-actions">
                     <button type="submit" class="action-button">Create Class</button>
                     <button type="button" class="action-button cancel" onclick="closeModal()">Cancel</button>
@@ -2267,48 +2546,63 @@ function showCreateClassModal() {
     document.body.appendChild(modal);
 }
 
-async function handleClassSubmit(event) {
+function handleClassSubmit(event) {
     event.preventDefault();
     
+    // Get form elements with the new IDs
+    const nameInput = document.getElementById('create-class-name');
+    const gradeInput = document.getElementById('create-class-grade');
+    const sizeInput = document.getElementById('create-class-size');
+    
+    console.log('Form Elements:', { nameInput, gradeInput, sizeInput });
+
+    if (!nameInput?.value.trim()) {
+        showNotification('Please enter a class name', 'error');
+        return;
+    }
+
+    if (!gradeInput?.value) {
+        showNotification('Please select a grade level', 'error');
+        return;
+    }
+
     const classData = {
         teacher_id: currentUser.id,
-        name: document.getElementById('class-name').value,
-        grade_level: parseInt(document.getElementById('class-grade').value),
-        max_students: parseInt(document.getElementById('class-size').value),
+        name: nameInput.value.trim(),
+        grade_level: parseInt(gradeInput.value),
+        max_students: parseInt(sizeInput?.value || '30'),
         created_at: new Date().toISOString(),
         status: 'active'
     };
 
-    try {
-        const { data: newClass, error } = await supabaseClient
-            .from('school_classes')
-            .insert([classData])
-            .select()
-            .single();
+    console.log('Submitting class data:', classData);
 
-        if (error) throw error;
+    supabaseClient
+        .from('school_classes')
+        .insert([classData])
+        .select()
+        .single()
+        .then(async ({ data: newClass, error }) => {
+            if (error) throw error;
 
-        // Generate unique invite code
-        const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-        
-        const { error: updateError } = await supabaseClient
-            .from('school_classes')
-            .update({ invite_code: inviteCode })
-            .eq('id', newClass.id);
+            const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            
+            const { error: updateError } = await supabaseClient
+                .from('school_classes')
+                .update({ invite_code: inviteCode })
+                .eq('id', newClass.id);
 
-        if (updateError) throw updateError;
+            if (updateError) throw updateError;
 
-        closeModal();
-        showNotification('Class created successfully!');
-        updateClassesPanel(); // Refresh the classes list
-
-        // Show invite code to teacher
-        showInviteCode(inviteCode);
-
-    } catch (error) {
-        console.error('Error creating class:', error);
-        showNotification('Error creating class', 'error');
-    }
+            closeModal();
+            showNotification('Class created successfully!');
+            updateClassesPanel();
+            showInviteCode(inviteCode);
+        })
+        .catch(error => {
+            console.error('Class creation error:', error);
+            showNotification('Failed to create class: ' + error.message, 'error');
+        });
 }
 
 
@@ -2557,49 +2851,56 @@ function updateAuthUI() {
 }
 
 
-async function handleClassSubmit(event) {
+function handleClassSubmit(event) {
     event.preventDefault();
     
+    const name = document.querySelector('#class-name').value;
+    const grade = document.querySelector('#class-grade').value;
+    
+    if (!name || !grade) {
+        showNotification('Please fill in all fields', 'error');
+        return;
+    }
+
     const classData = {
         teacher_id: currentUser.id,
-        name: document.getElementById('class-name').value,
-        grade_level: parseInt(document.getElementById('class-grade').value),
-        max_students: parseInt(document.getElementById('class-size').value),
-        description: document.getElementById('class-description').value,
+        name: name,
+        grade_level: parseInt(grade),
         created_at: new Date().toISOString(),
         status: 'active'
     };
 
-    try {
-        const { data: newClass, error } = await supabaseClient
-            .from('school_classes')
-            .insert([classData])
-            .select()
-            .single();
+    console.log('Creating class with data:', classData); // Debug log
 
-        if (error) throw error;
+    supabaseClient
+        .from('school_classes')
+        .insert([classData])
+        .select()
+        .single()
+        .then(async ({ data: newClass, error }) => {
+            if (error) throw error;
 
-        // Generate unique invite code
-        const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-        
-        const { error: updateError } = await supabaseClient
-            .from('school_classes')
-            .update({ invite_code: inviteCode })
-            .eq('id', newClass.id);
+            // Generate unique invite code
+            const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            
+            const { error: updateError } = await supabaseClient
+                .from('school_classes')
+                .update({ invite_code: inviteCode })
+                .eq('id', newClass.id);
 
-        if (updateError) throw updateError;
+            if (updateError) throw updateError;
 
-        closeModal();
-        showNotification('Class created successfully!');
-        loadClasses(); // Refresh the classes list
+            closeModal();
+            showNotification('Class created successfully!');
+            updateClassesPanel();
 
-        // Show invite code to teacher
-        showInviteCode(inviteCode);
-
-    } catch (error) {
-        console.error('Error creating class:', error);
-        showNotification('Error creating class', 'error');
-    }
+            // Show invite code to teacher
+            showInviteCode(inviteCode);
+        })
+        .catch(error => {
+            console.error('Error creating class:', error);
+            showNotification('Error creating class', 'error');
+        });
 }
 
 function showInviteCode(code) {
@@ -2611,7 +2912,7 @@ function showInviteCode(code) {
             <p>Share this code with your students to join the class:</p>
             <div class="invite-code">
                 <span>${code}</span>
-                <button onclick="copyInviteCode('${code}')" class="action-button">
+                <button onclick="copyToClipboard('${code}')" class="action-button">
                     <i class="fas fa-copy"></i> Copy
                 </button>
             </div>
@@ -2620,6 +2921,303 @@ function showInviteCode(code) {
         </div>
     `;
     document.body.appendChild(modal);
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text)
+        .then(() => showNotification('Code copied to clipboard!'))
+        .catch(err => console.error('Error copying code:', err));
+}
+
+function startEvent(eventId) {
+    supabaseClient
+        .from('arcade_events')
+        .update({
+            status: 'active',
+            started_at: new Date().toISOString()
+        })
+        .eq('id', eventId)
+        .then(({ error }) => {
+            if (error) {
+                console.error('Error starting event:', error);
+                showNotification('Error starting event', 'error');
+                return;
+            }
+            showNotification('Event started successfully!');
+            loadTeacherEvents(); // Refresh display
+        });
+}
+
+function showEventDetails(eventId) {
+    supabaseClient
+        .from('arcade_events')
+        .select(`
+            *,
+            arcade_participants (
+                player_id,
+                words_completed,
+                score,
+                position,
+                user_profiles:player_id (
+                    username,
+                    status
+                )
+            )
+        `)
+        .eq('id', eventId)
+        .single()
+        .then(({ data: event, error }) => {
+            if (error) {
+                console.error('Error loading event details:', error);
+                showNotification('Error loading event details', 'error');
+                return;
+            }
+
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h2>${event.name}</h2>
+                    <div class="event-info">
+                        <p>Status: <span class="status-badge ${event.status}">${event.status}</span></p>
+                        <p>Type: ${event.type}</p>
+                        <p>Access Code: ${event.access_code || 'Not set'}</p>
+                        <p>Grade Levels: ${event.grade_levels.join(', ')}</p>
+                        <p>Created: ${new Date(event.created_at).toLocaleString()}</p>
+                        ${event.started_at ? `<p>Started: ${new Date(event.started_at).toLocaleString()}</p>` : ''}
+                    </div>
+                    <div class="participants-list">
+                        <h3>Participants (${event.arcade_participants?.length || 0})</h3>
+                        ${event.arcade_participants?.length > 0 ? `
+                            <div class="participants-grid">
+                                ${event.arcade_participants.map(participant => `
+                                    <div class="participant-card">
+                                        <h4>${participant.user_profiles.username}</h4>
+                                        <p>Words: ${participant.words_completed}</p>
+                                        <p>Score: ${participant.score}</p>
+                                        <p>Position: ${participant.position}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : '<p>No participants yet</p>'}
+                    </div>
+                    <div class="modal-actions">
+                        <button onclick="closeModal()" class="action-button">Close</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        });
+}
+
+function manageEvent(eventId) {
+    // First get event data
+    supabaseClient
+        .from('arcade_events')
+        .select('*')
+        .eq('id', eventId)
+        .single()
+        .then(async ({ data: event, error }) => {
+            if (error) return console.error('Error:', error);
+
+            // Then get participants separately
+            const { data: participants } = await supabaseClient
+                .from('arcade_participants')
+                .select(`
+                    *,
+                    user_profiles!player_id(username)
+                `)
+                .eq('event_id', eventId);
+
+            displayEventManagement(event, participants || []);
+        });
+}
+
+function startEvent(eventId) {
+    supabaseClient
+        .from('arcade_events')
+        .update({
+            status: 'active',
+            started_at: new Date().toISOString()
+        })
+        .eq('id', eventId)
+        .then(({ error }) => {
+            if (error) {
+                showNotification('Error starting event', 'error');
+                return;
+            }
+            showNotification('Event started successfully!');
+            loadTeacherEvents();
+            closeModal();
+        });
+}
+
+function endEvent(eventId) {
+    supabaseClient
+        .from('arcade_events')
+        .update({
+            status: 'completed',
+            completed_at: new Date().toISOString()
+        })
+        .eq('id', eventId)
+        .then(({ error }) => {
+            if (error) {
+                showNotification('Error ending event', 'error');
+                return;
+            }
+            showNotification('Event ended successfully!');
+            loadTeacherEvents();
+            closeModal();
+        });
+}
+
+function removeParticipant(eventId, playerId) {
+    if (!confirm('Remove this participant from the event?')) return;
+
+    supabaseClient
+        .from('arcade_participants')
+        .delete()
+        .match({ event_id: eventId, player_id: playerId })
+        .then(({ error }) => {
+            if (error) {
+                showNotification('Error removing participant', 'error');
+                return;
+            }
+            showNotification('Participant removed successfully');
+            manageEvent(eventId); // Refresh the management view
+        });
+}
+
+function copyAccessCode(code) {
+    navigator.clipboard.writeText(code)
+        .then(() => showNotification('Access code copied to clipboard!'))
+        .catch(() => showNotification('Error copying access code', 'error'));
+}
+
+function displayEventManagement(event, participants) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content event-management">
+            <div class="event-manage-header">
+                <h2>${event.name}</h2>
+                <span class="status-badge ${event.status}">${event.status}</span>
+            </div>
+
+            <div class="event-control-panel">
+                <div class="control-section">
+                    <h3>Event Controls</h3>
+                    ${event.status === 'pending' ? `
+                        <button onclick="startEvent('${event.id}')" class="action-button">
+                            <i class="fas fa-play"></i> Start Event
+                        </button>
+                    ` : event.status === 'active' ? `
+                        <button onclick="endEvent('${event.id}')" class="action-button">
+                            <i class="fas fa-stop"></i> End Event
+                        </button>
+                    ` : ''}
+                    <button onclick="copyAccessCode('${event.access_code}')" class="action-button">
+                        <i class="fas fa-copy"></i> Copy Access Code
+                    </button>
+                </div>
+
+                <div class="control-section">
+                    <h3>Access Code</h3>
+                    <div class="access-code-display">
+                        ${event.access_code}
+                    </div>
+                </div>
+            </div>
+
+            <div class="participant-section">
+                <h3>Participants (${participants.length})</h3>
+                ${participants.length > 0 ? `
+                    <div class="participant-list">
+                        ${participants.map(p => `
+                            <div class="participant-row">
+                                <div class="participant-info">
+                                    <span class="participant-name">${p.user_profiles?.username || 'Unknown'}</span>
+                                    <span class="status-badge ${p.status}">${p.status}</span>
+                                </div>
+                                <div class="participant-stats">
+                                    <span>Words: ${p.words_completed}</span>
+                                    <span>Floor: ${p.current_floor}</span>
+                                    <span>Score: ${p.score}</span>
+                                </div>
+                                <div class="participant-actions">
+                                    <button onclick="removeParticipant('${event.id}', '${p.player_id}')" 
+                                            class="action-button small danger">
+                                        Remove
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="empty-participants">
+                        <p>No participants have joined yet</p>
+                        <p class="hint">Share the access code with your students to let them join</p>
+                    </div>
+                `}
+            </div>
+
+            <div class="modal-actions">
+                <button onclick="closeModal()" class="action-button">Close</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function joinEvent(accessCode) {
+    supabaseClient
+        .from('arcade_events')
+        .select('*')
+        .eq('access_code', accessCode)
+        .eq('status', 'active')
+        .single()
+        .then(async ({ data: event, error }) => {
+            if (error) {
+                showNotification('Invalid or expired access code', 'error');
+                return;
+            }
+
+            // Join as participant
+            const participantData = {
+                event_id: event.id,
+                player_id: currentUser.id,
+                status: 'waiting',
+                words_completed: 0,
+                current_floor: 0,
+                score: 0
+            };
+
+            const { error: joinError } = await supabaseClient
+                .from('arcade_participants')
+                .insert([participantData]);
+
+            if (joinError) {
+                showNotification('Error joining event', 'error');
+                return;
+            }
+
+            showNotification('Successfully joined event!');
+            initializeArcadeMode(event.id);
+        });
+}
+
+function initializeArcadeMode(eventId) {
+    // Hide other screens
+    document.querySelectorAll('.screen').forEach(screen => 
+        screen.classList.remove('visible'));
+    
+    // Show arcade screen
+    const arcadeScreen = document.getElementById('arcade-screen');
+    arcadeScreen.classList.add('visible');
+    
+    // Initialize race track
+    const raceTrack = new RaceTrack();
+    raceTrack.initialize();
 }
 
     </script>

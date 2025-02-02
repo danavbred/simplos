@@ -111,11 +111,12 @@ INSERT INTO schools (name) VALUES ('Default School') RETURNING id;
 -- 🎮 ARCADE EVENTS
 ----------------------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS arcade_events (
+CREATE TABLE IF NOT EXISTS public.arcade_events (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     teacher_id uuid REFERENCES auth.users(id),
     class_id uuid REFERENCES school_classes(id),
     name text NOT NULL,
+    type text CHECK (type IN ('arcade', 'standard')) NOT NULL,
     status text DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed', 'cancelled')),
     access_code text UNIQUE,
     word_pool jsonb,
@@ -187,7 +188,79 @@ FOR ALL USING (
     ))
 );
 
+GRANT ALL ON arcade_events TO authenticated;
+GRANT ALL ON arcade_participants TO authenticated;
+GRANT ALL ON teacher_wordlists TO authenticated;
 
+-- First, drop the existing arcade_participants table if it exists
+DROP TABLE IF EXISTS arcade_participants CASCADE;
+
+-- Recreate arcade_participants with proper foreign key reference
+CREATE TABLE IF NOT EXISTS arcade_participants (
+    event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
+    player_id uuid REFERENCES auth.users(id),
+    position integer DEFAULT 0,
+    words_completed integer DEFAULT 0,
+    current_floor integer DEFAULT 0,
+    perks jsonb DEFAULT '{}',
+    score integer DEFAULT 0,
+    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    PRIMARY KEY (event_id, player_id)
+);
+
+-- Enable reference from arcade_events to participants
+ALTER TABLE arcade_participants
+    ADD CONSTRAINT fk_event
+    FOREIGN KEY (event_id)
+    REFERENCES arcade_events(id)
+    ON DELETE CASCADE;
+
+-- Enable RLS for arcade_participants
+ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
+
+-- Add policy for participants
+CREATE POLICY "Players can manage their participation"
+ON arcade_participants
+FOR ALL
+USING (player_id = auth.uid());
+
+GRANT ALL ON arcade_participants TO authenticated;
+
+-- Correct arcade_participants table
+DROP TABLE IF EXISTS arcade_participants CASCADE;
+
+CREATE TABLE IF NOT EXISTS arcade_participants (
+    event_id uuid,
+    player_id uuid REFERENCES auth.users(id),
+    words_completed integer DEFAULT 0,
+    current_floor integer DEFAULT 0,
+    score integer DEFAULT 0,
+    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    status text DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
+    PRIMARY KEY (event_id, player_id),
+    CONSTRAINT fk_event
+        FOREIGN KEY (event_id) 
+        REFERENCES arcade_events(id) 
+        ON DELETE CASCADE
+);
+
+-- Add indices for performance
+CREATE INDEX IF NOT EXISTS idx_arcade_participants_event ON arcade_participants(event_id);
+CREATE INDEX IF NOT EXISTS idx_arcade_participants_player ON arcade_participants(player_id);
+
+-- Enable RLS
+ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
+
+-- Add policies
+CREATE POLICY "Players can view all participants"
+    ON arcade_participants FOR SELECT
+    USING (true);
+
+CREATE POLICY "Players can update own participation"
+    ON arcade_participants FOR UPDATE
+    USING (auth.uid() = player_id);
+
+GRANT ALL ON arcade_participants TO authenticated;
 
 ----------------------------------------------------------------------------------------
 -- 🔑 USER PROFILES

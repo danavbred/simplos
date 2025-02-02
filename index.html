@@ -3475,37 +3475,43 @@ const supabaseClient = createClient(
     }
 );
 
-async function showSetScreen(stageId) {
+function showSetScreen(stageId) {
     gameState.currentStage = stageId;
     const container = document.getElementById('set-container');
     container.innerHTML = '';
     
     const stage = gameStructure.stages[stageId - 1];
     
-    const access = await checkUserAccess();
-    if (!access) return;
-
     for (let i = 1; i <= stage.numSets; i++) {
         const setButton = document.createElement('div');
-        const hasAccess = access.unlockedStages[stageId] === 'full' || 
-                         (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
-        
-        setButton.className = `set-button ${hasAccess ? 'active' : 'locked'}`;
+        setButton.className = 'set-button';
         setButton.textContent = `Set ${i}`;
         
-        if (hasAccess) {
-            if (gameState.unlockedSets[stageId]?.has(i)) {
-                setButton.onclick = () => showLevelScreen(i);
-            }
-        } else {
-            setButton.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
-            setButton.onclick = () => showUpgradePrompt();
+        if (gameState.unlockedSets[stageId]?.has(i)) {
+            setButton.classList.add('active');
+            setButton.onclick = () => showLevelScreen(i);
         }
         
         container.appendChild(setButton);
     }
     
-    showScreen('set-screen');
+    // Check user access and apply lock overlay if needed
+    checkUserAccess().then(access => {
+        if (!access) return;
+        
+        container.querySelectorAll('.set-button').forEach((btn, index) => {
+            const i = index + 1;
+            const hasAccess = access.unlockedStages[stageId] === 'full' || 
+                             (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
+            
+            if (!hasAccess) {
+                btn.classList.remove('active');
+                btn.classList.add('locked');
+                btn.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
+                btn.onclick = () => showUpgradePrompt();
+            }
+        });
+    });
 }
 
 
@@ -6060,34 +6066,40 @@ function addNewWord() {
     initializeDragAndDrop(wordItem);
 }
 
+function initializeDragAndDrop(item) {
+    if (!item) return;
+    
+    item.setAttribute('draggable', 'true');
+    
+    item.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        item.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', ''); // Firefox compatibility
+    });
+    
+    item.addEventListener('dragend', (e) => {
+        e.stopPropagation();
+        item.classList.remove('dragging');
+    });
+}
+
 function makeWordListDraggable(listId) {
-    const wordList = document.getElementById(`list-${listId}`);
+    const wordList = document.getElementById('word-translation-list');
     if (!wordList) return;
     
-    // Add dragover event listener to the container
-    wordList.addEventListener('dragover', e => {
+    wordList.addEventListener('dragover', (e) => {
         e.preventDefault();
-        const draggable = wordList.querySelector('.dragging');
-        if (!draggable) return;
+        const draggingItem = wordList.querySelector('.dragging');
+        if (!draggingItem) return;
         
         const afterElement = getDragAfterElement(wordList, e.clientY);
         if (afterElement) {
-            wordList.insertBefore(draggable, afterElement);
+            wordList.insertBefore(draggingItem, afterElement);
         } else {
-            wordList.appendChild(draggable);
+            wordList.appendChild(draggingItem);
         }
     });
 
-    wordList.addEventListener('drop', e => {
-        e.preventDefault();
-        const draggingElement = document.querySelector('.dragging');
-        if (draggingElement) {
-            draggingElement.style.opacity = '1';
-            draggingElement.classList.remove('dragging');
-        }
-    });
-
-    // Initialize drag events for all items
     const items = wordList.querySelectorAll('.word-translation-item');
     items.forEach(item => initializeDragAndDrop(item));
 }
@@ -6117,45 +6129,24 @@ function createWordTranslationItem(word = '', translation = '', isEditable = fal
 }
 
 async function saveCustomListToSupabase(list) {
-    if (!currentUser) return;
+    if (!currentUser || !list) return;
 
-    const listData = {
-        user_id: currentUser.id,
-        name: list.name,
-        words: list.words,
-        translations: list.translations,
-        local_id: list.id // Using the timestamp ID as local_id
-    };
-
-    if (list.supabaseId) {
-        // Update existing list
-        const { error } = await supabaseClient
-            .from('custom_lists')
-            .update(listData)
-            .eq('id', list.supabaseId)
-            .eq('user_id', currentUser.id);
-
-        if (error) {
-            console.error('Error updating custom list:', error);
-            return false;
-        }
-    } else {
-        // Insert new list
+    try {
         const { data, error } = await supabaseClient
             .from('custom_lists')
-            .insert([listData])
-            .select();
+            .upsert({
+                user_id: currentUser.id,
+                name: list.name,
+                words: list.words,
+                translations: list.translations,
+                status: list.status || currentUser.status
+            }, { onConflict: 'id' });
 
-        if (error) {
-            console.error('Error saving custom list:', error);
-            return false;
-        }
-        
-        if (data && data[0]) {
-            list.supabaseId = data[0].id; // Store Supabase UUID
-        }
+        if (error) throw error;
+    } catch (error) {
+        console.error('Error saving list to Supabase:', error);
+        showNotification('Failed to save list', 'error');
     }
-    return true;
 }
 
 
@@ -6177,16 +6168,33 @@ function processCustomWords() {
     
     const limits = getUserListLimits();
     
-    // Split and clean input words
-    const words = wordInput.value
-        .split(/[,\s\n]+/)
-        .map(word => word.trim())
-        .filter(word => word.length > 0)
-        .slice(0, limits.maxWords);
+    // Split input, handling different formats
+    const rawInput = wordInput.value.trim();
+    let words;
+    
+    // Check if input contains commas and looks like a phrase
+    if (rawInput.includes(',') && rawInput.split(',').some(item => item.trim().split(' ').length > 1)) {
+        // Treat as single entries if comma-separated with multi-word items
+        words = rawInput.split(',').map(word => word.trim());
+    } else {
+        // Split by various separators, handling multi-word and single entries
+        words = rawInput.split(/[,\s\n]+/)
+            .map(word => word.trim())
+            .filter(word => word.length > 0);
+    }
+
+    // Apply word limit based on user status
+    words = words.slice(0, limits.maxWords);
 
     if (words.length === 0) {
         alert('Please enter at least one word.');
         return;
+    }
+
+    // Word limit check with toast
+    if (!currentUser && words.length > 10) {
+        showNotification('Unregistered users can only create lists with up to 10 words.', 'error');
+        words = words.slice(0, 10);
     }
 
     // Clear previous results
@@ -6195,7 +6203,7 @@ function processCustomWords() {
 
     // Process each word
     words.forEach(word => {
-        // Search through all sets for the word
+        // Search through vocabulary sets for translation
         let foundTranslation = null;
         for (const set in vocabularySets) {
             const wordIndex = vocabularySets[set].words.indexOf(word.toLowerCase());
@@ -6219,62 +6227,128 @@ function processCustomWords() {
         `;
         
         wordList.appendChild(wordItem);
-        // Initialize drag functionality for this item
         initializeDragAndDrop(wordItem);
     });
     
     translationResults.style.display = 'block';
-    // Initialize drag functionality for the list
-    makeWordListDraggable(wordList);
+    
+    // Enable drag and drop
+    makeWordListDraggable();
 }
 
-function initializeDragAndDrop(item) {
-    if (!item) return;
-    
-    item.setAttribute('draggable', 'true');
-    
-    item.addEventListener('dragstart', (e) => {
-        e.stopPropagation();
-        item.classList.add('dragging');
-        item.style.opacity = '0.5';
-    });
-    
-    item.addEventListener('dragend', (e) => {
-        e.stopPropagation();
-        item.classList.remove('dragging');
-        item.style.opacity = '1';
+
+function setupWordListKeyNavigation() {
+    document.getElementById('word-translation-list').addEventListener('keydown', (e) => {
+        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
         
-        // Save the new order
-        const listId = item.closest('.word-translation-list')?.id.split('-')[1];
-        if (listId) {
-            const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
-            const wordList = document.getElementById(`list-${listId}`);
-            if (listItem?.getAttribute('data-in-edit-mode') === 'true') {
-                saveListChanges(listId, wordList, listItem, false);
+        e.preventDefault();
+        const currentItem = document.activeElement.closest('.word-translation-item');
+        if (!currentItem) return;
+
+        let targetItem;
+        switch(e.key) {
+            case 'ArrowUp':
+                targetItem = currentItem.previousElementSibling;
+                break;
+            case 'ArrowDown':
+                targetItem = currentItem.nextElementSibling;
+                break;
+            case 'ArrowLeft':
+                targetItem = currentItem.querySelector('.source-word');
+                break;
+            case 'ArrowRight':
+                targetItem = currentItem.querySelector('.target-word');
+                break;
+        }
+
+        if (targetItem) {
+            if (targetItem.tagName === 'DIV') {
+                targetItem.querySelector('.source-word').focus();
+            } else {
+                targetItem.focus();
             }
         }
     });
+}
 
-    const dragHandle = item.querySelector('.drag-handle');
-    if (dragHandle) {
-        dragHandle.addEventListener('mousedown', () => {
-            item.draggable = true;
-        });
-        
-        dragHandle.addEventListener('mouseup', () => {
-            item.draggable = false;
-        });
+// Call this when word list is populated
+setupWordListKeyNavigation();
+
+function editCustomList(listId) {
+    // Ensure listId is a number
+    listId = typeof listId === 'string' ? parseInt(listId) : listId;
+    
+    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+    const editButton = listItem.querySelector('.edit-button');
+    const wordList = document.getElementById(`list-${listId}`);
+    
+    // If currently in edit mode, save the list
+    if (editButton.textContent === 'Save') {
+        saveCurrentList();
+        editButton.textContent = 'Edit';
+        listItem.removeAttribute('data-in-edit-mode');
+        wordList.innerHTML = '';
+        showCustomListsManager();
+        return;
     }
+    
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
+    
+    // Switch to custom practice screen
+    showScreen('custom-practice-screen');
+    
+    // Set the list name
+    const listNameInput = document.getElementById('custom-list-name');
+    listNameInput.value = list.name;
+    
+    // Show translations section
+    const translationResults = document.getElementById('translation-results');
+    const editWordList = document.getElementById('word-translation-list');
+    
+    // Clear previous translations
+    editWordList.innerHTML = '';
+    
+    // Create translation items for each word
+    list.words.forEach((word, index) => {
+        const wordItem = document.createElement('div');
+        wordItem.className = 'word-translation-item';
+        wordItem.draggable = true;
+        
+        wordItem.innerHTML = `
+            <div class="drag-handle">
+                <i class="fas fa-grip-vertical"></i>
+            </div>
+            <span class="source-word" contenteditable="true">${word}</span>
+            <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
+            <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+        `;
+        
+        editWordList.appendChild(wordItem);
+    });
+    
+    translationResults.style.display = 'block';
+    
+    // Mark list as in edit mode
+    listItem.setAttribute('data-in-edit-mode', 'true');
+    
+    // Change edit button text
+    editButton.textContent = 'Save';
+    
+    // Store the current list for later saving
+    customPracticeLists.currentList = list;
+    
+    // Initialize drag functionality
+    makeWordListDraggable();
 }
 
 
 function saveCurrentList() {
-    const listNameInput = document.getElementById('custom-list-name');
-    const wordList = document.getElementById('word-translation-list');
-    const translationResults = document.getElementById('translation-results');
-    
     // Check if editing an existing list
     const existingList = customPracticeLists.currentList;
+    
+    const listNameInput = document.getElementById('custom-list-name');
+    const wordList = document.getElementById('word-translation-list');
     
     const name = listNameInput.value.trim() || (existingList ? existingList.name : `List ${customPracticeLists.lists.length + 1}`);
     const words = [];
@@ -6293,7 +6367,7 @@ function saveCurrentList() {
 
     const limits = getUserListLimits();
     if (words.length > limits.maxWords) {
-        alert(`You can only create lists with up to ${limits.maxWords} words.`);
+        showNotification(`You can only create lists with up to ${limits.maxWords} words.`, 'error');
         return;
     }
 
@@ -6312,26 +6386,39 @@ function saveCurrentList() {
         customPracticeLists.currentList = null;
     } else {
         // Create new list
+        if (!canCreateMoreLists()) {
+            showNotification(`You can only create ${getUserListLimits().maxLists} custom lists.`, 'error');
+            return;
+        }
+        
         const newList = {
             id: Date.now(),
             name: name,
             words: words,
-            translations: translations
+            translations: translations,
+            status: currentUser ? currentUser.status : 'unregistered'
         };
+        
         customPracticeLists.lists.push(newList);
     }
     
     // Save to localStorage
     localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
     
+    // Save to Supabase if logged in
+    if (currentUser) {
+        saveCustomListToSupabase(customPracticeLists.lists[customPracticeLists.lists.length - 1]);
+    }
+    
     // Clear form and hide translation results
     listNameInput.value = '';
     wordList.innerHTML = '';
-    translationResults.style.display = 'none';
+    document.getElementById('translation-results').style.display = 'none';
     
     // Refresh list manager
     showCustomListsManager();
 }
+
 
 function canCreateMoreLists() {
     const limits = getUserListLimits();
@@ -6560,13 +6647,18 @@ function showCustomListsManager() {
                 <button class="start-button practice-button">Practice</button>
                 <button class="edit-button" data-list-id="${list.id}">Edit</button>
                 <button class="start-button delete-button">Delete</button>
+                ${userStatus === 'premium' ? `
+                    <button class="share-button" onclick="showShareModal(${list.id})">
+                        <i class="fas fa-share-alt"></i> Share
+                    </button>
+                ` : ''}
             </div>
             <div class="list-header">
                 <h3>${list.name}</h3>
                 <div class="list-summary">
                     <span>${list.words.length} words</span>
                     <span style="color: ${playsLeft <= 2 ? '#ff4444' : '#ffffff'}; margin-left: 1rem;">
-                        ${playsLeft}/${limits.maxPlays} plays left
+                        ${limits.playDisplay}
                     </span>
                     <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
                 </div>
@@ -6606,8 +6698,8 @@ function getUserListLimits() {
         };
     }
 
-    // Get user status
-    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    // Get user status from Supabase
+    const userStatus = currentUser.status || 'unregistered';
     
     switch(userStatus) {
         case 'free':  // Trial user
@@ -6617,20 +6709,21 @@ function getUserListLimits() {
                 maxPlays: 10,
                 canShare: false
             };
-        case 'pending':  // Pending premium
+            case 'pending':  // Pending premium
             return {
                 maxLists: 30,
                 maxWords: 50,
                 maxPlays: Infinity,
-                canShare: false  // No sharing for pending
+                canShare: false,
+                playDisplay: '∞'
             };
         case 'premium':  // Confirmed premium
             return {
                 maxLists: 30,
                 maxWords: 50,
                 maxPlays: Infinity,
-                canShare: true
-            };
+                canShare: true,
+                playDisplay: '∞'            };
         default:
             return {
                 maxLists: 3,
@@ -6642,7 +6735,7 @@ function getUserListLimits() {
 }
 
 function toggleListCollapse(listId) {
-    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
     const editButton = listItem.querySelector('.edit-button');
     
     if (editButton.textContent === 'Save') {
@@ -6703,6 +6796,20 @@ function editCustomList(listId) {
     // Ensure listId is a number
     listId = typeof listId === 'string' ? parseInt(listId) : listId;
     
+    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+    const editButton = listItem.querySelector('.edit-button');
+    const wordList = document.getElementById(`list-${listId}`);
+    
+    // If currently in edit mode, save the list
+    if (editButton.textContent === 'Save') {
+        saveCurrentList();
+        editButton.textContent = 'Edit';
+        listItem.removeAttribute('data-in-edit-mode');
+        wordList.innerHTML = '';
+        showCustomListsManager();
+        return;
+    }
+    
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
     
@@ -6715,10 +6822,10 @@ function editCustomList(listId) {
     
     // Show translations section
     const translationResults = document.getElementById('translation-results');
-    const wordList = document.getElementById('word-translation-list');
+    const editWordList = document.getElementById('word-translation-list');
     
     // Clear previous translations
-    wordList.innerHTML = '';
+    editWordList.innerHTML = '';
     
     // Create translation items for each word
     list.words.forEach((word, index) => {
@@ -6735,15 +6842,21 @@ function editCustomList(listId) {
             <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
         `;
         
-        wordList.appendChild(wordItem);
+        editWordList.appendChild(wordItem);
     });
     
     translationResults.style.display = 'block';
     
+    // Mark list as in edit mode
+    listItem.setAttribute('data-in-edit-mode', 'true');
+    
+    // Change edit button text
+    editButton.textContent = 'Save';
+    
     // Store the current list for later saving
     customPracticeLists.currentList = list;
     
-    // Initialize drag functionality after adding all items
+    // Initialize drag functionality
     makeWordListDraggable();
 }
 
@@ -6855,9 +6968,9 @@ function makeWordListDraggable(listId) {
 }
 
 function getDragAfterElement(container, y) {
-    const draggableElements = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
+    const draggableItems = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
     
-    return draggableElements.reduce((closest, child) => {
+    return draggableItems.reduce((closest, child) => {
         const box = child.getBoundingClientRect();
         const offset = y - box.top - box.height / 2;
         
