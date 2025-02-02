@@ -3475,43 +3475,37 @@ const supabaseClient = createClient(
     }
 );
 
-function showSetScreen(stageId) {
+async function showSetScreen(stageId) {
     gameState.currentStage = stageId;
     const container = document.getElementById('set-container');
     container.innerHTML = '';
     
     const stage = gameStructure.stages[stageId - 1];
     
+    const access = await checkUserAccess();
+    if (!access) return;
+
     for (let i = 1; i <= stage.numSets; i++) {
         const setButton = document.createElement('div');
-        setButton.className = 'set-button';
+        const hasAccess = access.unlockedStages[stageId] === 'full' || 
+                         (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
+        
+        setButton.className = `set-button ${hasAccess ? 'active' : 'locked'}`;
         setButton.textContent = `Set ${i}`;
         
-        if (gameState.unlockedSets[stageId]?.has(i)) {
-            setButton.classList.add('active');
-            setButton.onclick = () => showLevelScreen(i);
+        if (hasAccess) {
+            if (gameState.unlockedSets[stageId]?.has(i)) {
+                setButton.onclick = () => showLevelScreen(i);
+            }
+        } else {
+            setButton.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
+            setButton.onclick = () => showUpgradePrompt();
         }
         
         container.appendChild(setButton);
     }
     
-    // Check user access and apply lock overlay if needed
-    checkUserAccess().then(access => {
-        if (!access) return;
-        
-        container.querySelectorAll('.set-button').forEach((btn, index) => {
-            const i = index + 1;
-            const hasAccess = access.unlockedStages[stageId] === 'full' || 
-                             (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
-            
-            if (!hasAccess) {
-                btn.classList.remove('active');
-                btn.classList.add('locked');
-                btn.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
-                btn.onclick = () => showUpgradePrompt();
-            }
-        });
-    });
+    showScreen('set-screen');
 }
 
 
@@ -6134,13 +6128,13 @@ async function saveCustomListToSupabase(list) {
     try {
         const { data, error } = await supabaseClient
             .from('custom_lists')
-            .upsert({
+            .insert({
                 user_id: currentUser.id,
                 name: list.name,
                 words: list.words,
                 translations: list.translations,
-                status: list.status || currentUser.status
-            }, { onConflict: 'id' });
+                status: currentUser.status
+            });
 
         if (error) throw error;
     } catch (error) {
