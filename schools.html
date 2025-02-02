@@ -1014,6 +1014,87 @@
     background: var(--accent);
 }
 
+.join-container {
+    text-align: center;
+    padding: 2rem;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.join-form {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.join-form input {
+    flex: 1;
+    padding: 0.75rem;
+    border-radius: 10px;
+    border: 1px solid var(--glass);
+    background: rgba(255,255,255,0.1);
+    color: var(--text);
+    font-size: 1.2rem;
+    text-align: center;
+    letter-spacing: 2px;
+}
+.event-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.event-stats .stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--gold);
+    margin-top: 0.5rem;
+}
+
+.participant-stats {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+.participant-stats .stat {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.participant-stats .stat i {
+    color: var(--gold);
+}
+
+.status-badge.waiting {
+    background: var(--accent);
+}
+
+.status-badge.playing {
+    background: var(--success);
+}
+
+.status-badge.finished {
+    background: var(--gold);
+}
+
+
     </style>
     
     <body>
@@ -1180,7 +1261,34 @@
     </div>
 </div>
 
+<div id="student-join-screen" class="screen">
+    <div class="join-container">
+        <h2>Join Event</h2>
+        <div class="join-form">
+            <input type="text" id="access-code-input" placeholder="Enter Access Code" maxlength="6">
+            <button onclick="joinArcadeEvent()" class="action-button">
+                Join
+            </button>
+        </div>
+    </div>
+</div>
+
+
     <script>
+    
+    window.selectRole = function(role) {
+    currentRole = role;
+    
+    document.querySelectorAll('.screen').forEach(screen => 
+        screen.classList.remove('visible'));
+        
+    if (role === 'teacher') {
+        showLoginPrompt('teacher');
+    } else {
+        document.getElementById('student-join-screen').classList.add('visible');
+    }
+}
+    
     const { createClient } = supabase;
     const supabaseClient = createClient(
         'https://mczfgzffyyyacisrccqb.supabase.co',
@@ -1230,10 +1338,9 @@
 }
 
 function showLoginPrompt(role) {
-    // Create a login modal or redirect to login
-    const loginModal = document.createElement('div');
-    loginModal.className = 'modal';
-    loginModal.innerHTML = `
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
         <div class="modal-content">
             <h2>Teacher Login</h2>
             <form id="teacher-login-form">
@@ -1252,41 +1359,9 @@ function showLoginPrompt(role) {
             </form>
         </div>
     `;
-    document.body.appendChild(loginModal);
+    document.body.appendChild(modal);
 
-    // Add login form submission handler
-    document.getElementById('teacher-login-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('teacher-email').value;
-        const password = document.getElementById('teacher-password').value;
-
-        try {
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-                email,
-                password
-            });
-
-            if (error) throw error;
-
-            // Verify the user is a teacher
-            const { data: profile } = await supabaseClient
-                .from('user_profiles')
-                .select('role')
-                .eq('id', data.user.id)
-                .single();
-
-            if (profile.role !== 'teacher') {
-                throw new Error('Access denied. Not a teacher account.');
-            }
-
-            // Close modal and show teacher dashboard
-            closeModal();
-            showTeacherDashboard();
-        } catch (error) {
-            console.error('Login error:', error);
-            showNotification(error.message, 'error');
-        }
-    });
+    document.getElementById('teacher-login-form').addEventListener('submit', handleTeacherLogin);
 }
     
 function showTeacherDashboard() {
@@ -1428,7 +1503,6 @@ function loadTeacherEvents() {
     const eventsPanel = document.getElementById('events-panel');
     if (!eventsPanel) return;
 
-    // Query arcade_events instead of events
     supabaseClient
         .from('arcade_events')
         .select('*')
@@ -1456,12 +1530,19 @@ function loadTeacherEvents() {
                                 </div>
                                 <div class="event-details">
                                     <p>Type: ${event.type}</p>
-                                    <p>Access Code: ${event.access_code || 'Not set'}</p>
+                                    ${event.status !== 'completed' ? 
+                                        `<p>Access Code: ${event.access_code || 'Not set'}</p>` : ''}
                                 </div>
                                 <div class="event-actions">
-                                    <button onclick="manageEvent('${event.id}')" class="action-button">
-                                        Manage
-                                    </button>
+                                    ${event.status === 'completed' ? `
+                                        <button onclick="deleteEvent('${event.id}')" class="action-button danger">
+                                            Delete
+                                        </button>
+                                    ` : `
+                                        <button onclick="manageEvent('${event.id}')" class="action-button">
+                                            Manage
+                                        </button>
+                                    `}
                                 </div>
                             </div>
                         `).join('')}
@@ -2504,37 +2585,30 @@ async function handleLogin() {
 
 
 function showCreateClassModal() {
+    console.log('Opening class modal');
     const modal = document.createElement('div');
     modal.className = 'modal';
+    modal.setAttribute('id', 'create-class-modal'); // Add ID for reference
     modal.innerHTML = `
         <div class="modal-content">
             <h2>Create New Class</h2>
-            <form onsubmit="handleClassSubmit(event)">
+            <form id="create-class-form">
                 <div class="form-group">
-                    <label for="class-name">Class Name</label>
-                    <input type="text" id="create-class-name" required>
+                    <label>Class Name</label>
+                    <input type="text" class="form-input" name="className" id="class-name-input" required>
                 </div>
                 <div class="form-group">
-                    <label for="class-grade">Grade Level</label>
-                    <select id="create-class-grade" required>
+                    <label>Grade Level</label>
+                    <select class="form-input" name="gradeLevel" id="class-grade-input" required>
                         <option value="">Select Grade</option>
-                        <option value="1">Grade 1</option>
-                        <option value="2">Grade 2</option>
-                        <option value="3">Grade 3</option>
-                        <option value="4">Grade 4</option>
-                        <option value="5">Grade 5</option>
-                        <option value="6">Grade 6</option>
-                        <option value="7">Grade 7</option>
-                        <option value="8">Grade 8</option>
-                        <option value="9">Grade 9</option>
-                        <option value="10">Grade 10</option>
-                        <option value="11">Grade 11</option>
-                        <option value="12">Grade 12</option>
+                        ${Array.from({length: 12}, (_, i) => 
+                            `<option value="${i+1}">Grade ${i+1}</option>`
+                        ).join('')}
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="class-size">Maximum Students</label>
-                    <input type="number" id="create-class-size" min="1" max="50" value="30">
+                    <label>Maximum Students</label>
+                    <input type="number" class="form-input" name="maxStudents" id="class-size-input" min="1" max="50" value="30">
                 </div>
                 <div class="form-actions">
                     <button type="submit" class="action-button">Create Class</button>
@@ -2543,39 +2617,58 @@ function showCreateClassModal() {
             </form>
         </div>
     `;
-    document.body.appendChild(modal);
-}
 
-function handleClassSubmit(event) {
-    event.preventDefault();
-    
-    // Get form elements with the new IDs
-    const nameInput = document.getElementById('create-class-name');
-    const gradeInput = document.getElementById('create-class-grade');
-    const sizeInput = document.getElementById('create-class-size');
-    
-    console.log('Form Elements:', { nameInput, gradeInput, sizeInput });
-
-    if (!nameInput?.value.trim()) {
-        showNotification('Please enter a class name', 'error');
-        return;
+    // Remove any existing modal first
+    const existingModal = document.getElementById('create-class-modal');
+    if (existingModal) {
+        existingModal.remove();
     }
 
-    if (!gradeInput?.value) {
-        showNotification('Please select a grade level', 'error');
+    document.body.appendChild(modal);
+
+    // Add form submit handler
+    const form = modal.querySelector('#create-class-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = {
+                name: document.getElementById('class-name-input').value,
+                grade: document.getElementById('class-grade-input').value,
+                size: document.getElementById('class-size-input').value
+            };
+            console.log('Form submitted with data:', formData);
+            handleClassSubmit(e, formData);
+        });
+    } else {
+        console.error('Form not found in modal');
+    }
+}
+
+function handleClassSubmit(event, formData) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const className = form.querySelector('input[name="className"]').value;
+    const gradeLevel = form.querySelector('select[name="gradeLevel"]').value;
+    const maxStudents = form.querySelector('input[name="maxStudents"]').value;
+    
+    console.log('Form Data:', { className, gradeLevel, maxStudents });
+
+    if (!className?.trim()) {
+        showNotification('Please enter a class name', 'error');
         return;
     }
 
     const classData = {
         teacher_id: currentUser.id,
-        name: nameInput.value.trim(),
-        grade_level: parseInt(gradeInput.value),
-        max_students: parseInt(sizeInput?.value || '30'),
+        name: className.trim(),
+        grade_level: parseInt(gradeLevel),
+        max_students: parseInt(maxStudents || '30'),
         created_at: new Date().toISOString(),
         status: 'active'
     };
-
-    console.log('Submitting class data:', classData);
+    
+    console.log('Submitting class data to Supabase:', classData);
 
     supabaseClient
         .from('school_classes')
@@ -2604,8 +2697,6 @@ function handleClassSubmit(event) {
             showNotification('Failed to create class: ' + error.message, 'error');
         });
 }
-
-
 
 async function updateClassesPanel() {
     console.log('Updating classes panel', currentUser);
@@ -3011,27 +3102,62 @@ function showEventDetails(eventId) {
 }
 
 function manageEvent(eventId) {
-    // First get event data
+    // First, just get the event details
     supabaseClient
         .from('arcade_events')
         .select('*')
         .eq('id', eventId)
         .single()
-        .then(async ({ data: event, error }) => {
-            if (error) return console.error('Error:', error);
+        .then(({ data: event, error }) => {
+            if (error) {
+                console.error('Error loading event:', error);
+                showNotification('Error loading event details', 'error');
+                return;
+            }
 
-            // Then get participants separately
-            const { data: participants } = await supabaseClient
-                .from('arcade_participants')
-                .select(`
-                    *,
-                    user_profiles!player_id(username)
-                `)
-                .eq('event_id', eventId);
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content event-management">
+                    <div class="event-manage-header">
+                        <h2>${event.name}</h2>
+                        <span class="status-badge ${event.status}">${event.status}</span>
+                    </div>
 
-            displayEventManagement(event, participants || []);
+                    <div class="event-control-panel">
+                        <div class="control-section">
+                            <h3>Event Controls</h3>
+                            ${event.status === 'pending' ? `
+                                <button onclick="startEvent('${event.id}')" class="action-button">
+                                    <i class="fas fa-play"></i> Start Event
+                                </button>
+                            ` : event.status === 'active' ? `
+                                <button onclick="endEvent('${event.id}')" class="action-button">
+                                    <i class="fas fa-stop"></i> End Event
+                                </button>
+                            ` : ''}
+                            <button onclick="copyAccessCode('${event.access_code}')" class="action-button">
+                                <i class="fas fa-copy"></i> Copy Access Code
+                            </button>
+                        </div>
+
+                        <div class="control-section">
+                            <h3>Access Code</h3>
+                            <div class="access-code-display">
+                                ${event.access_code}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button onclick="closeModal()" class="action-button">Close</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
         });
 }
+
 
 function startEvent(eventId) {
     supabaseClient
@@ -3218,6 +3344,229 @@ function initializeArcadeMode(eventId) {
     // Initialize race track
     const raceTrack = new RaceTrack();
     raceTrack.initialize();
+}
+
+function selectRole(role) {
+    console.log('Selecting role:', role);
+    currentRole = role;
+    
+    document.querySelectorAll('.screen').forEach(screen => 
+        screen.classList.remove('visible'));
+        
+    if (role === 'teacher') {
+        showLoginPrompt('teacher');
+    } else {
+        document.getElementById('student-join-screen').classList.add('visible');
+    }
+}
+
+async function joinArcadeEvent() {
+    const code = document.getElementById('access-code-input').value.trim().toUpperCase();
+    if (!code) {
+        showNotification('Please enter an access code', 'error');
+        return;
+    }
+
+    try {
+        const { data: event, error } = await supabaseClient
+            .from('arcade_events')
+            .select('*')
+            .eq('access_code', code)
+            .eq('status', 'active')
+            .single();
+
+        if (error || !event) {
+            showNotification('Invalid or expired access code', 'error');
+            return;
+        }
+
+        // Join as participant
+        const { error: joinError } = await supabaseClient
+            .from('arcade_participants')
+            .insert([{
+                event_id: event.id,
+                player_id: currentUser ? currentUser.id : null,
+                status: 'waiting',
+                words_completed: 0,
+                current_floor: 0,
+                score: 0
+            }]);
+
+        if (joinError) {
+            showNotification('Error joining event', 'error');
+            return;
+        }
+
+        showNotification('Successfully joined event!');
+        initializeArcadeMode(event.id);
+    } catch (error) {
+        console.error('Error:', error);
+        showNotification('Error joining event', 'error');
+    }
+}
+
+function loadTeacherEvents() {
+    const eventsPanel = document.getElementById('events-panel');
+    if (!eventsPanel) return;
+
+    supabaseClient
+        .from('arcade_events')
+        .select('*')
+        .eq('teacher_id', currentUser.id)
+        .then(({ data: events, error }) => {
+            if (error) {
+                console.error('Error loading events:', error);
+                return;
+            }
+
+            const content = `
+                <div class="panel-header">
+                    <h2>Events</h2>
+                    <button onclick="createNewEvent()" class="action-button">
+                        <i class="fas fa-plus"></i> Create Event
+                    </button>
+                </div>
+                ${events && events.length > 0 ? 
+                    `<div class="events-grid">
+                        ${events.map(event => `
+                            <div class="event-card">
+                                <div class="event-header">
+                                    <h3>${event.name}</h3>
+                                    <span class="status-badge ${event.status}">${event.status}</span>
+                                </div>
+                                <div class="event-details">
+                                    <p>Type: ${event.type}</p>
+                                    ${event.status !== 'completed' ? 
+                                        `<p>Access Code: ${event.access_code || 'Not set'}</p>` 
+                                        : ''}
+                                </div>
+                                <div class="event-actions">
+                                    ${event.status === 'completed' ? 
+                                        `<button onclick="deleteEvent('${event.id}')" class="action-button danger">
+                                            Delete
+                                        </button>` 
+                                        : `<button onclick="manageEvent('${event.id}')" class="action-button">
+                                            Manage
+                                        </button>`}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>` 
+                    : `<div class="empty-state">
+                        <i class="fas fa-calendar-plus"></i>
+                        <h3>No Events Yet</h3>
+                        <p>Create your first event to get started!</p>
+                        <button onclick="createNewEvent()" class="action-button">
+                            Create Event
+                        </button>
+                    </div>`}`;
+
+            eventsPanel.innerHTML = content;
+        });
+}
+
+function setupEventRealtimeUpdates(eventId) {
+    const channel = supabaseClient
+        .channel(`event:${eventId}`)
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'arcade_participants',
+            filter: `event_id=eq.${eventId}`
+        }, payload => {
+            updateParticipantDisplay(payload.new);
+        })
+        .subscribe();
+
+    // Store channel for cleanup
+    window.currentEventChannel = channel;
+}
+
+function updateParticipantDisplay(participant) {
+    const row = document.querySelector(`.participant-row[data-player-id="${participant.player_id}"]`);
+    if (!row) return;
+
+    // Update stats
+    row.querySelector('.words-completed').textContent = participant.words_completed;
+    row.querySelector('.score').textContent = participant.score;
+    row.querySelector('.current-floor').textContent = participant.current_floor;
+    row.querySelector('.status-badge').textContent = participant.status;
+}
+
+function calculateAverageScore(participants) {
+    if (!participants?.length) return '0';
+    const total = participants.reduce((sum, p) => sum + p.score, 0);
+    return (total / participants.length).toFixed(1);
+}
+
+function closeModal() {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => modal.remove());
+}
+
+function setupEventModal(modal) {
+    const content = modal.querySelector('.modal-content');
+    if (!content) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+        content.style.maxHeight = `${window.innerHeight * 0.9}px`;
+    });
+
+    resizeObserver.observe(content);
+}
+
+async function handleTeacherLogin(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('teacher-email').value;
+    const password = document.getElementById('teacher-password').value;
+
+    try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email,
+            password
+        });
+
+        if (error) throw error;
+
+        if (data.user) {
+            currentUser = data.user;
+            const { data: profile } = await supabaseClient
+                .from('user_profiles')
+                .select('role')
+                .eq('id', currentUser.id)
+                .single();
+
+            if (profile.role !== 'teacher') {
+                throw new Error('Access denied. Not a teacher account.');
+            }
+
+            closeModal();
+            showTeacherDashboard();
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        showNotification(error.message, 'error');
+    }
+}
+
+async function deleteEvent(eventId) {
+    if (!confirm('Are you sure you want to delete this event?')) return;
+
+    try {
+        const { error } = await supabaseClient
+            .from('arcade_events')
+            .delete()
+            .eq('id', eventId);
+
+        if (error) throw error;
+
+        showNotification('Event deleted successfully');
+        loadTeacherEvents();
+    } catch (error) {
+        console.error('Error deleting event:', error);
+        showNotification('Error deleting event', 'error');
+    }
 }
 
     </script>

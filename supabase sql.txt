@@ -262,6 +262,37 @@ CREATE POLICY "Players can update own participation"
 
 GRANT ALL ON arcade_participants TO authenticated;
 
+-- First, ensure tables exist with correct relationships
+CREATE TABLE IF NOT EXISTS public.arcade_participants (
+    event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
+    player_id uuid REFERENCES auth.users(id),
+    words_completed integer DEFAULT 0,
+    current_floor integer DEFAULT 0,
+    score integer DEFAULT 0,
+    status text DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
+    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    PRIMARY KEY (event_id, player_id)
+);
+
+-- Add indices for performance
+CREATE INDEX IF NOT EXISTS idx_arcade_participants_event ON arcade_participants(event_id);
+CREATE INDEX IF NOT EXISTS idx_arcade_participants_player ON arcade_participants(player_id);
+
+-- Enable RLS
+ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
+
+-- Add policies
+CREATE POLICY "Players can view their events"
+    ON arcade_participants FOR SELECT
+    USING (true);
+
+CREATE POLICY "Players can update own participation"
+    ON arcade_participants FOR ALL
+    USING (player_id = auth.uid());
+
+GRANT ALL ON arcade_participants TO authenticated;
+
+
 ----------------------------------------------------------------------------------------
 -- 🔑 USER PROFILES
 ----------------------------------------------------------------------------------------
