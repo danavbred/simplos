@@ -94,7 +94,6 @@ body {
   background-clip: text;
   color: transparent;
   text-shadow: 0 2px 10px rgba(0,0,0,0.2);
-  animation: shimmer 2s infinite;
   font-size: 2.5rem;
   margin-bottom: 1.5rem;
 }
@@ -3001,6 +3000,18 @@ body {
 }
 
     </style>
+
+    <script>
+    window.addEventListener('load', function() {
+        var script = document.createElement('script');
+        script.src = 'https://cdn.userway.org/widget.js';
+        script.async = true;
+        script.setAttribute('data-account', 'YOUR_ACCOUNT_NUMBER'); // Optional: replace with your account if you create one
+        document.body.appendChild(script);
+    });
+</script>
+
+
 </head>
 <body>
 
@@ -3475,43 +3486,37 @@ const supabaseClient = createClient(
     }
 );
 
-function showSetScreen(stageId) {
+async function showSetScreen(stageId) {
     gameState.currentStage = stageId;
     const container = document.getElementById('set-container');
     container.innerHTML = '';
     
     const stage = gameStructure.stages[stageId - 1];
     
+    const access = await checkUserAccess();
+    if (!access) return;
+
     for (let i = 1; i <= stage.numSets; i++) {
         const setButton = document.createElement('div');
-        setButton.className = 'set-button';
+        const hasAccess = access.unlockedStages[stageId] === 'full' || 
+                         (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
+        
+        setButton.className = `set-button ${hasAccess ? 'active' : 'locked'}`;
         setButton.textContent = `Set ${i}`;
         
-        if (gameState.unlockedSets[stageId]?.has(i)) {
-            setButton.classList.add('active');
-            setButton.onclick = () => showLevelScreen(i);
+        if (hasAccess) {
+            if (gameState.unlockedSets[stageId]?.has(i)) {
+                setButton.onclick = () => showLevelScreen(i);
+            }
+        } else {
+            setButton.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
+            setButton.onclick = () => showUpgradePrompt();
         }
         
         container.appendChild(setButton);
     }
     
-    // Check user access and apply lock overlay if needed
-    checkUserAccess().then(access => {
-        if (!access) return;
-        
-        container.querySelectorAll('.set-button').forEach((btn, index) => {
-            const i = index + 1;
-            const hasAccess = access.unlockedStages[stageId] === 'full' || 
-                             (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
-            
-            if (!hasAccess) {
-                btn.classList.remove('active');
-                btn.classList.add('locked');
-                btn.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
-                btn.onclick = () => showUpgradePrompt();
-            }
-        });
-    });
+    showScreen('set-screen');
 }
 
 
@@ -5426,12 +5431,6 @@ function handleLevelCompletion() {
     const rect = questionScreen.getBoundingClientRect();
     createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
 
-    // Update level display
-    const questionWordElement = document.getElementById('question-word');
-    const nextLevel = gameState.currentLevel + 1;
-    questionWordElement.textContent = `Level ${gameState.currentStage}-${nextLevel}`;
-    questionWordElement.style.animation = 'dramaticPulse 0.5s cubic-bezier(0.25, 0.75, 0.5, 1.25)';
-
     // Get current stage config and user status
     const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
     const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
@@ -6134,13 +6133,13 @@ async function saveCustomListToSupabase(list) {
     try {
         const { data, error } = await supabaseClient
             .from('custom_lists')
-            .upsert({
+            .insert({
                 user_id: currentUser.id,
                 name: list.name,
                 words: list.words,
                 translations: list.translations,
-                status: list.status || currentUser.status
-            }, { onConflict: 'id' });
+                status: currentUser.status
+            });
 
         if (error) throw error;
     } catch (error) {
@@ -8505,6 +8504,7 @@ function initializeStatusCheck() {
         window.statusCheckInterval = statusCheckInterval;
     }
 }
+
 
 </script>
 </body>
