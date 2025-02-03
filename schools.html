@@ -1626,36 +1626,43 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-    document.addEventListener('DOMContentLoaded', () => {
-    // Debug log to confirm our listener is attached
-    console.log('Setting up role selection handlers');
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Setting up role selection and navigation handlers');
     
-    const roleButtons = document.querySelectorAll('.nav-button');
-    console.log('Found role buttons:', roleButtons.length);
+    // Rewrite nav button event listeners
+    const navButtons = document.querySelectorAll('.nav-button');
+    console.log('Found nav buttons:', navButtons.length);
     
-    roleButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            console.log('Button clicked:', this.textContent);
-            const role = this.textContent.toLowerCase();
+    navButtons.forEach(button => {
+        // Remove any existing listeners first
+        const oldButton = button.cloneNode(true);
+        button.parentNode.replaceChild(oldButton, button);
+        
+        oldButton.addEventListener('click', function(event) {
+            console.log('Nav button clicked:', this.textContent);
             
-            // Hide all screens first
-            document.querySelectorAll('.screen').forEach(screen => {
-                screen.classList.remove('visible');
-            });
+            // Check if this is a role selection or tab navigation
+            const roleAttribute = this.getAttribute('data-role');
+            const tabName = this.textContent.toLowerCase().trim();
             
-            currentRole = role;
-            
-            if (role === 'teacher') {
-                const authBox = document.getElementById('authBox');
-                if (authBox) {
-                    authBox.style.display = 'block';
-                }
-                showLoginPrompt('teacher');
+            if (roleAttribute) {
+                // Role selection logic
+                console.log('Role selection:', roleAttribute);
+                selectRole(roleAttribute);
             } else {
-                const studentScreen = document.getElementById('student-join-screen');
-                if (studentScreen) {
-                    studentScreen.classList.add('visible');
+                // Tab navigation logic
+                console.log('Switching tab:', tabName);
+                
+                // Ensure teacher dashboard is visible
+                const teacherDashboard = document.getElementById('teacher-dashboard');
+                if (teacherDashboard && !teacherDashboard.classList.contains('visible')) {
+                    document.querySelectorAll('.screen').forEach(screen => 
+                        screen.classList.remove('visible'));
+                    teacherDashboard.classList.add('visible');
                 }
+                
+                // Switch tab
+                switchTab(tabName);
             }
         });
     });
@@ -1784,27 +1791,43 @@ function closeModal() {
     }
     
     function switchTab(tab) {
+    console.log('Switching to tab:', tab);
+    
+    // Remove active from all nav buttons
     document.querySelectorAll('.nav-button').forEach(btn => {
         btn.classList.remove('active');
-        if(btn.textContent.toLowerCase().includes(tab)) {
+        if (btn.textContent.toLowerCase().trim() === tab) {
             btn.classList.add('active');
         }
     });
 
+    // Hide all panels
     document.querySelectorAll('.dashboard-panel').forEach(panel => {
         panel.style.display = 'none';
     });
 
+    // Show the selected panel
     const selectedPanel = document.getElementById(`${tab}-panel`);
-    if(selectedPanel) {
+    if (selectedPanel) {
         selectedPanel.style.display = 'block';
         
-        // Update panel content
-        if(tab === 'classes') {
-            updateClassesPanel();
-        } else if(tab === 'events') {
-            loadTeacherEvents();
+        // Load content based on tab
+        switch(tab) {
+            case 'classes':
+                updateClassesPanel();
+                break;
+            case 'events':
+                loadTeacherEvents();
+                break;
+            case 'lists':
+                wordListManager.loadLists();
+                break;
+            case 'statistics':
+                analyticsManager.loadClassStats();
+                break;
         }
+    } else {
+        console.error(`Panel for tab '${tab}' not found`);
     }
 }
 
@@ -2844,65 +2867,80 @@ function handleClassSubmit(event, formData) {
         });
 }
 
-async function updateClassesPanel() {
-    const panel = document.getElementById('classes-panel');
-    if (!panel) return;
+function updateClassesPanel() {
+    console.log('Updating classes panel');
+    const classesPanel = document.getElementById('classes-panel');
+    if (!classesPanel) {
+        console.error('Classes panel not found');
+        return;
+    }
 
-    try {
-        const { data: classes, error } = await supabaseClient
-            .from('school_classes')
-            .select('*')
-            .eq('teacher_id', currentUser.id);
+    if (!currentUser) {
+        console.error('No current user');
+        return;
+    }
 
-        if (error) throw error;
+    supabaseClient
+        .from('school_classes')
+        .select('*')
+        .eq('teacher_id', currentUser.id)
+        .then(({ data: classes, error }) => {
+            if (error) {
+                console.error('Error loading classes:', error);
+                classesPanel.innerHTML = `
+                    <div class="error-state">
+                        <p>Error loading classes: ${error.message}</p>
+                    </div>
+                `;
+                return;
+            }
 
-        panel.innerHTML = `
-            <div class="panel-header">
-                <h2>My Classes</h2>
-                <button class="action-button" onclick="showCreateClassModal()">
-                    <i class="fas fa-plus"></i> Create Class
-                </button>
-            </div>
-            ${classes?.length ? `
-                <div class="class-grid">
-                    ${classes.map(cls => `
-                        <div class="class-card">
-                            <div class="class-header">
-                                <h3>${cls.name}</h3>
-                                <span class="grade-level">Grade ${cls.grade_level}</span>
-                            </div>
-                            <div class="class-actions">
-                                <button onclick="viewClass('${cls.id}')" class="action-button">
-                                    View Class
-                                </button>
-                                <button onclick="generateInviteCode('${cls.id}')" class="action-button">
-                                    Invite Code
-                                </button>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            ` : `
-                <div class="empty-state">
-                    <i class="fas fa-users"></i>
-                    <h3>No Classes Yet</h3>
-                    <p>Create your first class to get started!</p>
+            classesPanel.innerHTML = `
+                <div class="panel-header">
+                    <h2>My Classes</h2>
                     <button onclick="showCreateClassModal()" class="action-button">
-                        Create Class
+                        <i class="fas fa-plus"></i> Create Class
                     </button>
                 </div>
-            `}
-        `;
-    } catch (error) {
-        console.error('Error loading classes:', error);
-        panel.innerHTML = `
-            <div class="error-state">
-                <i class="fas fa-exclamation-circle"></i>
-                <h3>Error Loading Classes</h3>
-                <p>${error.message}</p>
-            </div>
-        `;
-    }
+                ${classes && classes.length > 0 ? `
+                    <div class="class-grid">
+                        ${classes.map(cls => `
+                            <div class="class-card">
+                                <div class="class-header">
+                                    <h3>${cls.name}</h3>
+                                    <span class="grade-level">Grade ${cls.grade_level}</span>
+                                </div>
+                                <div class="class-actions">
+                                    <button onclick="viewClass('${cls.id}')" class="action-button">
+                                        View Class
+                                    </button>
+                                    <button onclick="generateInviteCode('${cls.id}')" class="action-button">
+                                        Invite Code
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <h3>No Classes Yet</h3>
+                        <p>Create your first class to get started!</p>
+                        <button onclick="showCreateClassModal()" class="action-button">
+                            Create Class
+                        </button>
+                    </div>
+                `}
+            `;
+        })
+        .catch(error => {
+            console.error('Unexpected error:', error);
+            classesPanel.innerHTML = `
+                <div class="error-state">
+                    <p>Unexpected error: ${error.message}</p>
+                </div>
+            `;
+        });
 }
 
 async function viewClass(classId) {
@@ -3498,48 +3536,59 @@ function selectRole(role) {
 }
 
 async function joinArcadeEvent() {
-  const code = document.getElementById('access-code-input').value.trim().toUpperCase(); 
-  
-  try {
-    const { data: event, error } = await supabaseClient
-      .from('arcade_events')
-      .select('*')
-      .eq('access_code', code) 
-      .eq('status', 'active')
-      .single();
+    const code = document.getElementById('access-code-input').value.trim().toUpperCase(); 
+    
+    try {
+        // First, validate the event
+        const { data: event, error: eventError } = await supabaseClient
+            .from('arcade_events')
+            .select('*')
+            .eq('access_code', code)
+            .eq('status', 'active')
+            .single();
 
-    if (error || !event) {
-      showNotification('Invalid or expired access code', 'error');
-      return;
+        if (eventError || !event) {
+            showNotification('Invalid or expired access code', 'error');
+            return;
+        }
+
+        // Create a guest user if not already authenticated
+        if (!currentUser) {
+            const { data, error } = await supabaseClient.auth.signUp({
+                email: `guest_${Date.now()}@simplos.temp`,
+                password: 'Guest' + Math.random().toString(36).slice(2),
+                options: {
+                    data: {
+                        role: 'student',
+                        username: 'Guest_' + Math.random().toString(36).substring(2, 6)
+                    }
+                }
+            });
+
+            if (error) throw error;
+            currentUser = data.user;
+        }
+
+        // Add participant to the event
+        const { error: participantError } = await supabaseClient
+            .from('arcade_participants')
+            .insert({
+                event_id: event.id,
+                player_id: currentUser.id,
+                player_name: currentUser.user_metadata?.username || 'Guest',
+                status: 'waiting',
+                words_completed: 0,
+                score: 0
+            });
+
+        if (participantError) throw participantError;
+
+        showNotification('Successfully joined event!');
+        initializeStudentGame(event.id);
+    } catch (error) {
+        console.error('Join error:', error);
+        showNotification('Error joining event', 'error');
     }
-
-    console.log('Event data:', event);
-      
-    const { data: participant, error: joinError } = await supabaseClient
-      .from('arcade_participants') 
-      .insert({
-        event_id: event.id,
-        player_name: 'Guest_' + Math.random().toString(36).substring(2, 6),        
-        status: 'waiting',
-        words_completed: 0,
-        score: 0
-      })
-      .select()
-      .single();
-
-    if (joinError) {
-      console.error('Join error details:', joinError);
-      throw joinError;
-    }
-
-    console.log('Participant data:', participant);
-
-    showNotification('Successfully joined event!');
-    initializeStudentGame(event.id);
-  } catch (error) {
-    console.error('Join error:', error);
-    showNotification('Error joining event', 'error'); 
-  }
 }
 
 async function handleGuestAuth() {
