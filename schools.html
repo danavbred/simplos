@@ -1102,8 +1102,8 @@
         <div id="role-screen" class="screen visible">
             <h1 class="dashboard-title">Welcome to Simplos for Schools</h1>
             <div class="dashboard-nav">
-                <button class="nav-button" onclick="selectRole('student')">Student</button>
-                <button class="nav-button" onclick="selectRole('teacher')">Teacher</button>
+                <button class="nav-button" data-role="student">Student</button>
+                <button class="nav-button" data-role="teacher">Teacher</button>
             </div>
             
             <!-- Add auth container here -->
@@ -1275,10 +1275,12 @@
 
 
     <script>
-    
-    window.selectRole = function(role) {
+
+window.selectRole = function(role) {
+    console.log('Selecting role:', role);
     currentRole = role;
     
+    // Hide all screens
     document.querySelectorAll('.screen').forEach(screen => 
         screen.classList.remove('visible'));
         
@@ -1288,6 +1290,56 @@
         document.getElementById('student-join-screen').classList.add('visible');
     }
 }
+
+// Set up event listeners when DOM loads
+document.addEventListener('DOMContentLoaded', () => {
+    const roleButtons = document.querySelectorAll('.nav-button[data-role]');
+    console.log('Found role buttons:', roleButtons.length);
+    
+    roleButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const role = button.getAttribute('data-role');
+            selectRole(role);
+        });
+    });
+});
+
+    document.addEventListener('DOMContentLoaded', () => {
+    // Debug log to confirm our listener is attached
+    console.log('Setting up role selection handlers');
+    
+    const roleButtons = document.querySelectorAll('.nav-button');
+    console.log('Found role buttons:', roleButtons.length);
+    
+    roleButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            console.log('Button clicked:', this.textContent);
+            const role = this.textContent.toLowerCase();
+            
+            // Hide all screens first
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('visible');
+            });
+            
+            currentRole = role;
+            
+            if (role === 'teacher') {
+                const authBox = document.getElementById('authBox');
+                if (authBox) {
+                    authBox.style.display = 'block';
+                }
+                showLoginPrompt('teacher');
+            } else {
+                const studentScreen = document.getElementById('student-join-screen');
+                if (studentScreen) {
+                    studentScreen.classList.add('visible');
+                }
+            }
+        });
+    });
+});
+
+
     
     const { createClient } = supabase;
     const supabaseClient = createClient(
@@ -1748,6 +1800,92 @@ function showNotification(message, type = 'success') {
     }, 3000);
 }
 
+// Check if RaceTrack already exists
+if (!window.RaceTrack) {
+    window.RaceTrack = class {
+        constructor() {
+            this.players = new Map();
+            this.totalWords = 200;
+            this.floors = 4;
+            this.initialized = false;
+        }
+
+        initialize() {
+            if (this.initialized) return;
+            
+            const raceContainer = document.querySelector('.race-container');
+            if (!raceContainer) {
+                console.error('Race container not found');
+                return;
+            }
+            
+            raceContainer.innerHTML = '';
+
+            for (let i = 0; i < this.floors; i++) {
+                const floor = document.createElement('div');
+                floor.className = 'track-level';
+                floor.setAttribute('data-floor', i);
+                
+                const wordCount = document.createElement('div');
+                wordCount.className = 'word-count';
+                wordCount.textContent = (this.floors - i - 1) * 50;
+                
+                const trackPath = document.createElement('div');
+                trackPath.className = 'track-path';
+                trackPath.style.transform = i % 2 === 0 ? 'none' : 'scaleX(-1)';
+                
+                const flag = document.createElement('div');
+                flag.className = 'flag';
+                flag.textContent = '🚩';
+                flag.style.right = i % 2 === 0 ? '0' : 'auto';
+                flag.style.left = i % 2 === 0 ? 'auto' : '0';
+                
+                floor.appendChild(wordCount);
+                floor.appendChild(trackPath);
+                floor.appendChild(flag);
+                raceContainer.appendChild(floor);
+            }
+
+            this.initialized = true;
+            console.log('Race track initialized');
+        }
+        
+        // Add the additional methods here
+        addPlayer(id, name, color) {
+            console.log('Adding player:', name);
+            const playerMarker = document.createElement('div');
+            playerMarker.className = 'player-marker';
+            playerMarker.innerHTML = `
+                <div class="player-avatar" style="background-color: ${color}">
+                    ${name[0].toUpperCase()}
+                </div>
+                <div class="player-name">${name}</div>
+            `;
+            
+            this.players.set(id, {
+                element: playerMarker,
+                position: 0,
+                name: name,
+                color: color,
+                score: 0,
+                wordsCompleted: 0,
+                startTime: Date.now()
+            });
+            
+            const startingFloor = document.querySelector('.track-level[data-floor="3"]');
+            if (startingFloor) {
+                startingFloor.appendChild(playerMarker);
+                console.log('Player marker added to starting floor');
+            } else {
+                console.error('Starting floor not found');
+            }
+        }
+
+        // Continue with other methods...
+        [Previous methods here]
+    }
+}
+
 class RaceTrack {
     constructor() {
         this.players = new Map();
@@ -1762,23 +1900,23 @@ class RaceTrack {
         const raceContainer = document.querySelector('.race-container');
         raceContainer.innerHTML = ''; // Clear existing content
 
-        // Create floors with flags
+        // Create floors with flags and word count indicators
         for (let i = 0; i < this.floors; i++) {
             const floor = document.createElement('div');
             floor.className = 'track-level';
             floor.setAttribute('data-floor', i);
             
-            // Add word count markers
-            const startCount = (this.floors - i - 1) * 50;
+            // Add word count marker
             const wordCount = document.createElement('div');
             wordCount.className = 'word-count';
-            wordCount.textContent = startCount;
+            wordCount.textContent = (this.floors - i - 1) * 50;
             
+            // Create track path with alternating directions
             const trackPath = document.createElement('div');
             trackPath.className = 'track-path';
             trackPath.style.transform = i % 2 === 0 ? 'none' : 'scaleX(-1)';
             
-            // Add flag at the end
+            // Add milestone flag
             const flag = document.createElement('div');
             flag.className = 'flag';
             flag.textContent = '🚩';
@@ -1808,7 +1946,10 @@ class RaceTrack {
             element: playerMarker,
             position: 0,
             name: name,
-            color: color
+            color: color,
+            score: 0,
+            wordsCompleted: 0,
+            startTime: Date.now()
         });
         
         document.querySelector('.track-level[data-floor="3"]').appendChild(playerMarker);
@@ -1824,7 +1965,6 @@ class RaceTrack {
         
         if (!floorElement) return;
 
-        // Calculate X position based on floor direction
         const isRightToLeft = floor % 2 !== 0;
         const xPos = isRightToLeft ? 
             100 - (progressOnFloor * 100) : 
@@ -1833,25 +1973,27 @@ class RaceTrack {
         player.element.style.transition = 'all 0.5s ease-out';
         player.element.style.left = `${xPos}%`;
         
-        // Move player to new floor if needed
         if (floorElement !== player.element.parentElement) {
             player.element.remove();
             floorElement.appendChild(player.element);
+            this.celebrateFloorCompletion(player);
         }
 
-        // Add celebration effect at flags
-        if (wordCount % 50 === 0 && wordCount > 0) {
-            this.celebrateFlag(player);
-        }
+        player.wordsCompleted = wordCount;
+        player.position = xPos;
+        this.updatePlayerStats(playerId);
     }
 
-    celebrateFlag(player) {
+    celebrateFloorCompletion(player) {
         const celebration = document.createElement('div');
-        celebration.className = 'flag-celebration';
-        celebration.innerHTML = '🎉';
+        celebration.className = 'celebration';
+        celebration.innerHTML = `
+            <div class="celebration-flag">🎉</div>
+            <div class="celebration-text">+50 Words!</div>
+            <div class="celebration-bonus">Speed Bonus: ${this.calculateSpeedBonus(player)}!</div>
+        `;
         player.element.appendChild(celebration);
-        
-        // Create particle effect
+
         for (let i = 0; i < 20; i++) {
             const particle = document.createElement('div');
             particle.className = 'celebration-particle';
@@ -1864,77 +2006,43 @@ class RaceTrack {
 
         setTimeout(() => celebration.remove(), 2000);
     }
-}
 
-class ArcadeGame {
-    constructor() {
-        this.raceTrack = new RaceTrack();
-        this.eventId = null;
-        this.subscription = null;
-        this.wordPool = [];
-        this.currentWord = null;
+    calculateSpeedBonus(player) {
+        const timeElapsed = (Date.now() - player.startTime) / 1000;
+        const wordsPerSecond = player.wordsCompleted / timeElapsed;
+        return Math.floor(wordsPerSecond * 100);
     }
 
-    async initialize(eventId) {
-        this.eventId = eventId;
-        this.raceTrack.initialize();
-        
-        // Subscribe to real-time updates
-        this.subscription = supabaseClient
-            .channel(`game:${eventId}`)
-            .on('broadcast', { event: 'player_move' }, ({ payload }) => {
-                this.handlePlayerMove(payload);
+    updatePlayerStats(playerId) {
+        const player = this.players.get(playerId);
+        if (!player) return;
+
+        const speedBonus = this.calculateSpeedBonus(player);
+        player.score = (player.wordsCompleted * 10) + speedBonus;
+
+        supabaseClient
+            .from('arcade_participants')
+            .update({
+                words_completed: player.wordsCompleted,
+                score: player.score,
+                current_floor: Math.floor(player.wordsCompleted / 50),
+                speed_bonus: speedBonus
             })
-            .subscribe();
-
-        await this.loadWordPool();
-        await this.loadPlayers();
-    }
-
-    async loadWordPool() {
-        const { data: event } = await supabaseClient
-            .from('events')
-            .select('grade_levels')
-            .eq('id', this.eventId)
-            .single();
-
-        // Load words based on grade levels
-        const gradeLevels = event.grade_levels;
-        // ... load words from vocabulary based on grades
-        // This will connect to your existing vocabulary system
-    }
-
-    async loadPlayers() {
-        const { data: players } = await supabaseClient
-            .from('event_participants')
-            .select('*')
-            .eq('event_id', this.eventId);
-
-        const colors = [
-            '#e94561', '#4CAF50', '#3498db', '#f1c40f',
-            '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c'
-        ];
-
-        players.forEach((player, index) => {
-            this.raceTrack.addPlayer(
-                player.user_id,
-                player.username,
-                colors[index % colors.length]
-            );
-        });
-    }
-
-    handlePlayerMove(payload) {
-        const { playerId, wordCount } = payload;
-        this.raceTrack.updatePlayerPosition(playerId, wordCount);
+            .eq('player_id', playerId)
+            .then(({ error }) => {
+                if (error) console.error('Error updating player stats:', error);
+            });
     }
 
     cleanup() {
-        if (this.subscription) {
-            this.subscription.unsubscribe();
-        }
+        this.players.clear();
+        const raceContainer = document.querySelector('.race-container');
+        if (raceContainer) raceContainer.innerHTML = '';
+        this.initialized = false;
     }
 }
+
+
 
 class ArcadeEventManager {
     constructor() {
@@ -2944,24 +3052,29 @@ function updateAuthUI() {
 
 function handleClassSubmit(event) {
     event.preventDefault();
+    console.log('Form submitted');
     
-    const name = document.querySelector('#class-name').value;
-    const grade = document.querySelector('#class-grade').value;
+    const form = event.target;
+    // Fix the selectors to match the actual form elements
+    const className = document.getElementById('class-name-input').value;
+    const gradeLevel = document.getElementById('class-grade-input').value;
+    const maxStudents = document.getElementById('class-size-input').value;
     
-    if (!name || !grade) {
-        showNotification('Please fill in all fields', 'error');
+    if (!className?.trim()) {
+        showNotification('Please enter a class name', 'error');
         return;
     }
 
     const classData = {
         teacher_id: currentUser.id,
-        name: name,
-        grade_level: parseInt(grade),
+        name: className.trim(),
+        grade_level: parseInt(gradeLevel),
+        max_students: parseInt(maxStudents || '30'),
         created_at: new Date().toISOString(),
         status: 'active'
     };
-
-    console.log('Creating class with data:', classData); // Debug log
+    
+    console.log('Submitting class data:', classData);
 
     supabaseClient
         .from('school_classes')
@@ -2971,7 +3084,6 @@ function handleClassSubmit(event) {
         .then(async ({ data: newClass, error }) => {
             if (error) throw error;
 
-            // Generate unique invite code
             const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
             
             const { error: updateError } = await supabaseClient
@@ -2984,13 +3096,11 @@ function handleClassSubmit(event) {
             closeModal();
             showNotification('Class created successfully!');
             updateClassesPanel();
-
-            // Show invite code to teacher
             showInviteCode(inviteCode);
         })
         .catch(error => {
-            console.error('Error creating class:', error);
-            showNotification('Error creating class', 'error');
+            console.error('Class creation error:', error);
+            showNotification('Failed to create class: ' + error.message, 'error');
         });
 }
 
@@ -3566,6 +3676,746 @@ async function deleteEvent(eventId) {
     } catch (error) {
         console.error('Error deleting event:', error);
         showNotification('Error deleting event', 'error');
+    }
+}
+
+class RaceTrack {
+    constructor() {
+        this.players = new Map();
+        this.totalWords = 200; // 50 words per floor
+        this.floors = 4;
+        this.initialized = false;
+    }
+
+    initialize() {
+        if (this.initialized) return;
+        
+        const raceContainer = document.querySelector('.race-container');
+        raceContainer.innerHTML = ''; // Clear existing content
+
+        // Create floors with flags
+        for (let i = 0; i < this.floors; i++) {
+            const floor = document.createElement('div');
+            floor.className = 'track-level';
+            floor.setAttribute('data-floor', i);
+            
+            const wordCount = document.createElement('div');
+            wordCount.className = 'word-count';
+            wordCount.textContent = (this.floors - i - 1) * 50;
+            
+            const trackPath = document.createElement('div');
+            trackPath.className = 'track-path';
+            trackPath.style.transform = i % 2 === 0 ? 'none' : 'scaleX(-1)';
+            
+            const flag = document.createElement('div');
+            flag.className = 'flag';
+            flag.textContent = '🚩';
+            flag.style.right = i % 2 === 0 ? '0' : 'auto';
+            flag.style.left = i % 2 === 0 ? 'auto' : '0';
+            
+            floor.appendChild(wordCount);
+            floor.appendChild(trackPath);
+            floor.appendChild(flag);
+            raceContainer.appendChild(floor);
+        }
+
+        this.initialized = true;
+    }
+}
+
+addPlayer(id, name, color) {
+    const playerMarker = document.createElement('div');
+    playerMarker.className = 'player-marker';
+    playerMarker.innerHTML = `
+        <div class="player-avatar" style="background-color: ${color}">
+            ${name[0].toUpperCase()}
+        </div>
+        <div class="player-name">${name}</div>
+    `;
+    
+    this.players.set(id, {
+        element: playerMarker,
+        position: 0,
+        name: name,
+        color: color,
+        score: 0,
+        wordsCompleted: 0
+    });
+    
+    // Start at bottom floor
+    document.querySelector('.track-level[data-floor="3"]').appendChild(playerMarker);
+}
+
+updatePlayerPosition(playerId, wordCount) {
+    const player = this.players.get(playerId);
+    if (!player) return;
+
+    const floor = Math.floor(wordCount / 50);
+    const progressOnFloor = (wordCount % 50) / 50;
+    const floorElement = document.querySelector(`.track-level[data-floor="${3 - floor}"]`);
+    
+    if (!floorElement) return;
+
+    // Calculate X position based on floor direction
+    const isRightToLeft = floor % 2 !== 0;
+    const xPos = isRightToLeft ? 
+        100 - (progressOnFloor * 100) : 
+        progressOnFloor * 100;
+
+    player.element.style.transition = 'all 0.5s ease-out';
+    player.element.style.left = `${xPos}%`;
+    
+    // Move player to new floor if needed
+    if (floorElement !== player.element.parentElement) {
+        player.element.remove();
+        floorElement.appendChild(player.element);
+        this.celebrateFloorCompletion(player);
+    }
+
+    // Update player stats
+    player.wordsCompleted = wordCount;
+    this.updatePlayerStats(playerId);
+}
+
+celebrateFloorCompletion(player) {
+    const celebration = document.createElement('div');
+    celebration.className = 'celebration';
+    celebration.innerHTML = `
+        <div class="celebration-flag">🎉</div>
+        <div class="celebration-text">+50 Words!</div>
+    `;
+    player.element.appendChild(celebration);
+
+    // Create particle effects
+    for (let i = 0; i < 20; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'celebration-particle';
+        const angle = (i / 20) * Math.PI * 2;
+        const velocity = 2 + Math.random() * 2;
+        particle.style.setProperty('--angle', angle + 'rad');
+        particle.style.setProperty('--velocity', velocity);
+        celebration.appendChild(particle);
+    }
+
+    setTimeout(() => celebration.remove(), 2000);
+}
+
+updatePlayerStats(playerId) {
+    const player = this.players.get(playerId);
+    if (!player) return;
+
+    // Calculate score based on words completed and time
+    const timeBonus = Math.max(0, 100 - this.getPlayerTime(playerId));
+    player.score = player.wordsCompleted * 10 + timeBonus;
+
+    // Update database
+    supabaseClient
+        .from('arcade_participants')
+        .update({
+            words_completed: player.wordsCompleted,
+            score: player.score,
+            current_floor: Math.floor(player.wordsCompleted / 50)
+        })
+        .eq('player_id', playerId)
+        .then(({ error }) => {
+            if (error) console.error('Error updating player stats:', error);
+        });
+}
+
+getPlayerTime(playerId) {
+    const player = this.players.get(playerId);
+    if (!player || !player.startTime) return 0;
+    return Math.floor((Date.now() - player.startTime) / 1000);
+}
+
+cleanup() {
+    this.players.clear();
+    const raceContainer = document.querySelector('.race-container');
+    if (raceContainer) raceContainer.innerHTML = '';
+    this.initialized = false;
+}
+
+class WordPoolManager {
+    constructor() {
+        this.currentPool = [];
+        this.usedWords = new Set();
+        this.gradeLevels = [];
+    }
+
+    async initialize(gradeLevels) {
+        this.gradeLevels = gradeLevels;
+        await this.loadWordPool();
+    }
+
+    async loadWordPool() {
+        try {
+            const { data: lists, error } = await supabaseClient
+                .from('teacher_wordlists')
+                .select('words, translations')
+                .in('grade_level', this.gradeLevels);
+
+            if (error) throw error;
+
+            this.currentPool = lists.reduce((pool, list) => {
+                const words = list.words.map((word, i) => ({
+                    word,
+                    translation: list.translations[i]
+                }));
+                return [...pool, ...words];
+            }, []);
+
+            this.shufflePool();
+
+        } catch (error) {
+            console.error('Error loading word pool:', error);
+            throw error;
+        }
+    }
+
+    shufflePool() {
+        for (let i = this.currentPool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this.currentPool[i], this.currentPool[j]] = 
+            [this.currentPool[j], this.currentPool[i]];
+        }
+    }
+
+    getNextWord() {
+        const availableWords = this.currentPool.filter(
+            word => !this.usedWords.has(word.word)
+        );
+
+        if (availableWords.length === 0) {
+            this.usedWords.clear();
+            return this.currentPool[0];
+        }
+
+        const nextWord = availableWords[0];
+        this.usedWords.add(nextWord.word);
+        return nextWord;
+    }
+
+    reset() {
+        this.usedWords.clear();
+        this.shufflePool();
+    }
+}
+
+class ArcadeGameManager {
+    constructor() {
+        this.raceTrack = new RaceTrack();
+        this.wordPool = new WordPoolManager();
+        this.eventId = null;
+        this.currentWord = null;
+        this.subscription = null;
+    }
+
+    async initialize(eventId) {
+        this.eventId = eventId;
+        this.raceTrack.initialize();
+
+        // Get event details
+        const { data: event } = await supabaseClient
+            .from('arcade_events')
+            .select('*')
+            .eq('id', eventId)
+            .single();
+
+        // Initialize word pool
+        await this.wordPool.initialize(event.grade_levels);
+
+        // Subscribe to real-time updates
+        this.subscription = supabaseClient
+            .channel(`game:${eventId}`)
+            .on('broadcast', { event: 'player_move' }, payload => {
+                this.handlePlayerMove(payload);
+            })
+            .on('broadcast', { event: 'player_join' }, payload => {
+                this.handlePlayerJoin(payload);
+            })
+            .subscribe();
+
+        // Load existing players
+        await this.loadPlayers();
+    }
+
+    async loadPlayers() {
+        const { data: participants } = await supabaseClient
+            .from('arcade_participants')
+            .select(`
+                *,
+                user_profiles:player_id (username)
+            `)
+            .eq('event_id', this.eventId);
+
+        const colors = [
+            '#e94561', '#4CAF50', '#3498db', '#f1c40f',
+            '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c'
+        ];
+
+        participants.forEach((participant, index) => {
+            this.raceTrack.addPlayer(
+                participant.player_id,
+                participant.user_profiles.username,
+                colors[index % colors.length]
+            );
+            
+            // Update position if they have progress
+            if (participant.words_completed > 0) {
+                this.raceTrack.updatePlayerPosition(
+                    participant.player_id,
+                    participant.words_completed
+                );
+            }
+        });
+    }
+
+    handlePlayerMove(payload) {
+        const { playerId, wordCount } = payload;
+        this.raceTrack.updatePlayerPosition(playerId, wordCount);
+    }
+
+    handlePlayerJoin(payload) {
+        const { playerId, username } = payload;
+        const colors = ['#e94561', '#4CAF50', '#3498db', '#f1c40f'];
+        const colorIndex = this.raceTrack.players.size % colors.length;
+        this.raceTrack.addPlayer(playerId, username, colors[colorIndex]);
+    }
+
+    cleanup() {
+        if (this.subscription) {
+            this.subscription.unsubscribe();
+        }
+        this.raceTrack.cleanup();
+        this.wordPool.reset();
+        this.eventId = null;
+        this.currentWord = null;
+    }
+}
+
+class ArcadeGame {
+    constructor() {
+        this.raceTrack = new RaceTrack();
+        this.eventId = null;
+        this.subscription = null;
+        this.wordPool = [];
+        this.currentWord = null;
+        this.gameState = 'waiting'; // waiting, playing, finished
+        this.startTime = null;
+    }
+
+    async initialize(eventId) {
+        this.eventId = eventId;
+        this.raceTrack.initialize();
+        
+        // Set up real-time subscriptions
+        this.subscription = supabaseClient
+            .channel(`game:${eventId}`)
+            .on('broadcast', { event: 'player_move' }, payload => {
+                this.handlePlayerMove(payload);
+            })
+            .on('broadcast', { event: 'player_join' }, payload => {
+                this.handlePlayerJoin(payload);
+            })
+            .on('broadcast', { event: 'game_state' }, payload => {
+                this.handleGameStateChange(payload);
+            })
+            .on('broadcast', { event: 'perk_used' }, payload => {
+                this.handlePerkEffect(payload);
+            })
+            .subscribe();
+
+        await this.loadWordPool();
+        await this.loadPlayers();
+        
+        // Join as participant if not teacher
+        if (!this.isTeacher()) {
+            await this.joinGame();
+        }
+    }
+
+    async loadWordPool() {
+        try {
+            const { data: event } = await supabaseClient
+                .from('arcade_events')
+                .select('grade_levels')
+                .eq('id', this.eventId)
+                .single();
+
+            const { data: wordlists } = await supabaseClient
+                .from('teacher_wordlists')
+                .select('words, translations')
+                .in('grade_level', event.grade_levels);
+
+            this.wordPool = wordlists.reduce((pool, list) => {
+                const words = list.words.map((word, i) => ({
+                    word,
+                    translation: list.translations[i]
+                }));
+                return [...pool, ...words];
+            }, []);
+
+            this.shuffleWordPool();
+        } catch (error) {
+            console.error('Error loading word pool:', error);
+            throw error;
+        }
+    }
+
+    shuffleWordPool() {
+        for (let i = this.wordPool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this.wordPool[i], this.wordPool[j]] = [this.wordPool[j], this.wordPool[i]];
+        }
+    }
+
+    async loadPlayers() {
+        const { data: participants } = await supabaseClient
+            .from('arcade_participants')
+            .select(`
+                *,
+                user_profiles:player_id (username)
+            `)
+            .eq('event_id', this.eventId);
+
+        const colors = [
+            '#e94561', '#4CAF50', '#3498db', '#f1c40f',
+            '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c'
+        ];
+
+        participants.forEach((participant, index) => {
+            this.raceTrack.addPlayer(
+                participant.player_id,
+                participant.user_profiles.username,
+                colors[index % colors.length]
+            );
+
+            if (participant.words_completed > 0) {
+                this.raceTrack.updatePlayerPosition(
+                    participant.player_id,
+                    participant.words_completed
+                );
+            }
+        });
+    }
+
+    async joinGame() {
+        try {
+            const { data: participant, error } = await supabaseClient
+                .from('arcade_participants')
+                .insert([{
+                    event_id: this.eventId,
+                    player_id: currentUser.id,
+                    words_completed: 0,
+                    score: 0,
+                    status: 'waiting'
+                }])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            this.playerId = participant.player_id;
+            this.startTime = Date.now();
+
+        } catch (error) {
+            console.error('Error joining game:', error);
+            throw error;
+        }
+    }
+
+    getNextWord() {
+        if (this.wordPool.length === 0) return null;
+        this.currentWord = this.wordPool.shift();
+        return this.currentWord;
+    }
+
+    handlePlayerMove(payload) {
+        const { playerId, wordCount } = payload;
+        this.raceTrack.updatePlayerPosition(playerId, wordCount);
+    }
+
+    handlePlayerJoin(payload) {
+        const { playerId, username } = payload;
+        const colorIndex = this.raceTrack.players.size % 8;
+        const colors = [
+            '#e94561', '#4CAF50', '#3498db', '#f1c40f',
+            '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c'
+        ];
+        this.raceTrack.addPlayer(playerId, username, colors[colorIndex]);
+    }
+
+    handleGameStateChange(payload) {
+        this.gameState = payload.state;
+        if (payload.state === 'playing' && !this.startTime) {
+            this.startTime = Date.now();
+        }
+    }
+
+    handlePerkEffect(payload) {
+        const { type, targetId, duration } = payload;
+        if (targetId === this.playerId) {
+            this.applyPerkEffect(type, duration);
+        }
+    }
+
+    applyPerkEffect(type, duration) {
+        switch(type) {
+            case 'freeze':
+                this.freezePlayer(duration);
+                break;
+            case 'scramble':
+                this.scrambleWords(duration);
+                break;
+            case 'speedup':
+                this.speedUpTimer(duration);
+                break;
+        }
+    }
+
+    cleanup() {
+        if (this.subscription) {
+            this.subscription.unsubscribe();
+        }
+        this.raceTrack.cleanup();
+        this.wordPool = [];
+        this.currentWord = null;
+        this.gameState = 'waiting';
+        this.startTime = null;
+    }
+
+    isTeacher() {
+        return currentUser?.role === 'teacher';
+    }
+}
+
+class PerkManager {
+    constructor(game) {
+        this.game = game;
+        this.activePerks = new Map();
+        this.availablePerks = [
+            { type: 'freeze', cost: 50, duration: 5000 },
+            { type: 'scramble', cost: 30, duration: 10000 },
+            { type: 'speedup', cost: 40, duration: 8000 }
+        ];
+    }
+
+    canUsePerk(type) {
+        const perk = this.availablePerks.find(p => p.type === type);
+        return perk && this.game.getPlayerCoins() >= perk.cost;
+    }
+
+    async usePerk(type) {
+        if (!this.canUsePerk(type)) return false;
+
+        const perk = this.availablePerks.find(p => p.type === type);
+        
+        try {
+            // Get random target excluding self
+            const { data: participants } = await supabaseClient
+                .from('arcade_participants')
+                .select('player_id')
+                .eq('event_id', this.game.eventId)
+                .neq('player_id', this.game.playerId);
+
+            if (!participants || participants.length === 0) return false;
+
+            const randomTarget = participants[Math.floor(Math.random() * participants.length)];
+
+            // Broadcast perk effect
+            await supabaseClient
+                .channel(`game:${this.game.eventId}`)
+                .send({
+                    type: 'broadcast',
+                    event: 'perk_used',
+                    payload: {
+                        type,
+                        targetId: randomTarget.player_id,
+                        duration: perk.duration
+                    }
+                });
+
+            // Deduct coins
+            await this.game.deductCoins(perk.cost);
+            return true;
+
+        } catch (error) {
+            console.error('Error using perk:', error);
+            return false;
+        }
+    }
+
+    applyPerkEffect(type, duration) {
+        const existingPerk = this.activePerks.get(type);
+        if (existingPerk) {
+            clearTimeout(existingPerk.timeout);
+        }
+
+        const timeout = setTimeout(() => {
+            this.removePerkEffect(type);
+        }, duration);
+
+        this.activePerks.set(type, {
+            timeout,
+            startTime: Date.now()
+        });
+
+        this.showPerkAnimation(type);
+    }
+
+    removePerkEffect(type) {
+        const perk = this.activePerks.get(type);
+        if (perk) {
+            clearTimeout(perk.timeout);
+            this.activePerks.delete(type);
+        }
+    }
+
+    showPerkAnimation(type) {
+        const container = document.createElement('div');
+        container.className = 'perk-effect';
+        container.innerHTML = `
+            <div class="perk-icon">${this.getPerkIcon(type)}</div>
+            <div class="perk-name">${type}</div>
+        `;
+        document.body.appendChild(container);
+
+        setTimeout(() => container.remove(), 2000);
+    }
+
+    getPerkIcon(type) {
+        const icons = {
+            freeze: '❄️',
+            scramble: '🔄',
+            speedup: '⚡'
+        };
+        return icons[type] || '🎮';
+    }
+
+    cleanup() {
+        this.activePerks.forEach((perk, type) => {
+            clearTimeout(perk.timeout);
+        });
+        this.activePerks.clear();
+    }
+}
+
+class WordPresenter {
+    constructor(gameManager) {
+        this.gameManager = gameManager;
+        this.container = document.createElement('div');
+        this.container.className = 'word-presenter';
+        this.answerTimeout = null;
+        this.currentWord = null;
+    }
+
+    initialize() {
+        this.container.innerHTML = `
+            <div class="word-display">
+                <div class="word-text"></div>
+                <div class="translation-text"></div>
+            </div>
+            <div class="answer-options"></div>
+            <div class="timer-bar">
+                <div class="timer-progress"></div>
+            </div>
+            <div class="score-display">
+                <span class="words-completed">0</span> words
+                <span class="current-score">0</span> points
+            </div>
+        `;
+        
+        document.querySelector('.arcade-screen').appendChild(this.container);
+    }
+
+    presentWord(word, options) {
+        this.currentWord = word;
+        const wordDisplay = this.container.querySelector('.word-text');
+        const optionsContainer = this.container.querySelector('.answer-options');
+        
+        wordDisplay.textContent = word.word;
+        optionsContainer.innerHTML = '';
+
+        // Shuffle options including the correct answer
+        const allOptions = [...options, word.translation];
+        this.shuffleArray(allOptions);
+
+        allOptions.forEach(option => {
+            const button = document.createElement('button');
+            button.className = 'answer-option';
+            button.textContent = option;
+            button.addEventListener('click', () => this.handleAnswer(option));
+            optionsContainer.appendChild(button);
+        });
+
+        // Start timer
+        this.startTimer();
+    }
+
+    startTimer() {
+        const timerBar = this.container.querySelector('.timer-progress');
+        timerBar.style.width = '100%';
+        
+        // Animate timer bar
+        timerBar.style.transition = 'width 7s linear';
+        timerBar.style.width = '0%';
+
+        // Set timeout for answer
+        this.answerTimeout = setTimeout(() => {
+            this.handleAnswer(null); // No answer provided
+        }, 7000);
+    }
+
+    handleAnswer(answer) {
+        clearTimeout(this.answerTimeout);
+        
+        const isCorrect = answer === this.currentWord.translation;
+        const timeLeft = parseFloat(getComputedStyle(this.container.querySelector('.timer-progress')).width) / 
+                        parseFloat(getComputedStyle(this.container.querySelector('.timer-bar')).width);
+        
+        // Calculate score based on time left
+        const baseScore = isCorrect ? 10 : 0;
+        const timeBonus = isCorrect ? Math.floor(timeLeft * 10) : 0;
+        const totalScore = baseScore + timeBonus;
+
+        // Update display
+        this.showAnswerFeedback(isCorrect, totalScore);
+        
+        // Update game state
+        this.gameManager.handleWordComplete({
+            correct: isCorrect,
+            score: totalScore,
+            timeBonus: timeBonus
+        });
+    }
+
+    showAnswerFeedback(isCorrect, score) {
+        const feedback = document.createElement('div');
+        feedback.className = `answer-feedback ${isCorrect ? 'correct' : 'incorrect'}`;
+        feedback.innerHTML = `
+            <div class="feedback-text">${isCorrect ? 'Correct!' : 'Try Again!'}</div>
+            ${isCorrect ? `<div class="score-bonus">+${score} points</div>` : ''}
+        `;
+        
+        this.container.appendChild(feedback);
+        setTimeout(() => feedback.remove(), 1000);
+    }
+
+    updateStats(wordsCompleted, totalScore) {
+        this.container.querySelector('.words-completed').textContent = wordsCompleted;
+        this.container.querySelector('.current-score').textContent = totalScore;
+    }
+
+    shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    cleanup() {
+        clearTimeout(this.answerTimeout);
+        this.container.remove();
     }
 }
 
