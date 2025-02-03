@@ -1094,6 +1094,278 @@
     background: var(--gold);
 }
 
+.word-display {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--glass);
+    padding: 2rem;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    text-align: center;
+    min-width: 300px;
+}
+
+.word {
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+    color: var(--gold);
+}
+
+.options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.options button {
+    padding: 1rem;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: var(--text);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.options button:hover {
+    background: var(--accent);
+    transform: translateY(-2px);
+}
+
+.word-count-display {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    background: var(--glass);
+    padding: 1rem 2rem;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+}
+
+.player-stats {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    display: flex;
+    gap: 1rem;
+}
+
+.stat-card {
+    background: var(--glass);
+    padding: 1rem;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    color: var(--gold);
+    margin-top: 0.5rem;
+}
+
+.perk-animation {
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: perkBounce 0.5s ease-out;
+    text-align: center;
+}
+
+.perk-icon {
+    font-size: 2rem;
+    margin-bottom: 0.25rem;
+}
+
+.perk-name {
+    font-size: 0.8rem;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.perk-effect-freeze .word-display {
+    filter: blur(3px);
+    pointer-events: none;
+    animation: shiver 0.1s ease-in-out infinite;
+}
+
+.perk-effect-scramble .word {
+    font-family: monospace;
+    letter-spacing: 2px;
+    animation: scramble 0.2s linear infinite;
+}
+
+.perk-effect-speed .timer-progress {
+    animation-duration: 0.5s !important;
+}
+
+@keyframes perkBounce {
+    0% { transform: translateX(-50%) scale(0); }
+    50% { transform: translateX(-50%) scale(1.2); }
+    100% { transform: translateX(-50%) scale(1); }
+}
+
+@keyframes shiver {
+    0% { transform: translateX(-1px); }
+    100% { transform: translateX(1px); }
+}
+
+@keyframes scramble {
+    to { transform: skewX(3deg); }
+}
+
+.milestone-celebration {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    text-align: center;
+    animation: popIn 0.5s ease-out;
+}
+
+.milestone-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.milestone-text {
+    font-size: 2rem;
+    color: var(--gold);
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.confetti-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.confetti {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--gold);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    animation: confettiFall 3s ease-out forwards;
+    animation-delay: var(--delay);
+    transform: rotate(var(--rotation));
+}
+
+.leaderboard {
+    position: fixed;
+    top: 2rem;
+    right: 2rem;
+    background: var(--glass);
+    border-radius: 15px;
+    padding: 1rem;
+    backdrop-filter: blur(10px);
+    width: 300px;
+}
+
+.leaderboard-header {
+    font-size: 1.2rem;
+    color: var(--gold);
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.leaderboard-entry {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1rem;
+    padding: 0.5rem;
+    align-items: center;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+}
+
+.current-player {
+    background: rgba(255,255,255,0.1);
+}
+
+.rank {
+    font-weight: bold;
+    color: var(--gold);
+}
+
+.progress-bar {
+    height: 4px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 0.25rem;
+}
+
+.progress {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+}
+
+@keyframes confettiFall {
+    to {
+        transform: translateY(100vh) rotate(var(--rotation));
+        opacity: 0;
+    }
+}
+
+@keyframes popIn {
+    from { transform: translate(-50%, -50%) scale(0); }
+    50% { transform: translate(-50%, -50%) scale(1.2); }
+    to { transform: translate(-50%, -50%) scale(1); }
+}
+
+.game-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    z-index: 100;
+}
+
+.perks-container {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.perk-button {
+    background: var(--glass);
+    border: none;
+    border-radius: 10px;
+    padding: 0.5rem;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.perk-button:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.2);
+}
+
+.perk-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.perk-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.perk-cost {
+    font-size: 0.8rem;
+    color: var(--gold);
+}
 
     </style>
     
@@ -1276,14 +1548,12 @@
 
     <script>
 
+// Global role selection handler
 window.selectRole = function(role) {
-    console.log('Selecting role:', role);
     currentRole = role;
-    
-    // Hide all screens
     document.querySelectorAll('.screen').forEach(screen => 
         screen.classList.remove('visible'));
-        
+    
     if (role === 'teacher') {
         showLoginPrompt('teacher');
     } else {
@@ -1291,15 +1561,11 @@ window.selectRole = function(role) {
     }
 }
 
-// Set up event listeners when DOM loads
+// Wait for DOM load
 document.addEventListener('DOMContentLoaded', () => {
-    const roleButtons = document.querySelectorAll('.nav-button[data-role]');
-    console.log('Found role buttons:', roleButtons.length);
-    
-    roleButtons.forEach(button => {
+    document.querySelectorAll('.nav-button[data-role]').forEach(button => {
         button.addEventListener('click', () => {
-            const role = button.getAttribute('data-role');
-            selectRole(role);
+            selectRole(button.getAttribute('data-role'));
         });
     });
 });
@@ -1458,9 +1724,6 @@ function closeModal() {
     }
     
     function switchTab(tab) {
-    console.log('Switching to tab:', tab); // Debug log
-
-    // Update nav buttons
     document.querySelectorAll('.nav-button').forEach(btn => {
         btn.classList.remove('active');
         if(btn.textContent.toLowerCase().includes(tab)) {
@@ -1468,22 +1731,13 @@ function closeModal() {
         }
     });
 
-    // Hide all panels
     document.querySelectorAll('.dashboard-panel').forEach(panel => {
         panel.style.display = 'none';
     });
 
-    // Show selected panel
     const selectedPanel = document.getElementById(`${tab}-panel`);
     if(selectedPanel) {
         selectedPanel.style.display = 'block';
-
-        // Initialize panel content
-        if(tab === 'classes') {
-            updateClassesPanel();
-        } else if(tab === 'events') {
-            loadTeacherEvents();
-        }
     }
 }
 
@@ -1799,250 +2053,6 @@ function showNotification(message, type = 'success') {
         notification.remove();
     }, 3000);
 }
-
-// Check if RaceTrack already exists
-if (!window.RaceTrack) {
-    window.RaceTrack = class {
-        constructor() {
-            this.players = new Map();
-            this.totalWords = 200;
-            this.floors = 4;
-            this.initialized = false;
-        }
-
-        initialize() {
-            if (this.initialized) return;
-            
-            const raceContainer = document.querySelector('.race-container');
-            if (!raceContainer) {
-                console.error('Race container not found');
-                return;
-            }
-            
-            raceContainer.innerHTML = '';
-
-            for (let i = 0; i < this.floors; i++) {
-                const floor = document.createElement('div');
-                floor.className = 'track-level';
-                floor.setAttribute('data-floor', i);
-                
-                const wordCount = document.createElement('div');
-                wordCount.className = 'word-count';
-                wordCount.textContent = (this.floors - i - 1) * 50;
-                
-                const trackPath = document.createElement('div');
-                trackPath.className = 'track-path';
-                trackPath.style.transform = i % 2 === 0 ? 'none' : 'scaleX(-1)';
-                
-                const flag = document.createElement('div');
-                flag.className = 'flag';
-                flag.textContent = '🚩';
-                flag.style.right = i % 2 === 0 ? '0' : 'auto';
-                flag.style.left = i % 2 === 0 ? 'auto' : '0';
-                
-                floor.appendChild(wordCount);
-                floor.appendChild(trackPath);
-                floor.appendChild(flag);
-                raceContainer.appendChild(floor);
-            }
-
-            this.initialized = true;
-            console.log('Race track initialized');
-        }
-        
-        // Add the additional methods here
-        addPlayer(id, name, color) {
-            console.log('Adding player:', name);
-            const playerMarker = document.createElement('div');
-            playerMarker.className = 'player-marker';
-            playerMarker.innerHTML = `
-                <div class="player-avatar" style="background-color: ${color}">
-                    ${name[0].toUpperCase()}
-                </div>
-                <div class="player-name">${name}</div>
-            `;
-            
-            this.players.set(id, {
-                element: playerMarker,
-                position: 0,
-                name: name,
-                color: color,
-                score: 0,
-                wordsCompleted: 0,
-                startTime: Date.now()
-            });
-            
-            const startingFloor = document.querySelector('.track-level[data-floor="3"]');
-            if (startingFloor) {
-                startingFloor.appendChild(playerMarker);
-                console.log('Player marker added to starting floor');
-            } else {
-                console.error('Starting floor not found');
-            }
-        }
-
-        // Continue with other methods...
-        [Previous methods here]
-    }
-}
-
-class RaceTrack {
-    constructor() {
-        this.players = new Map();
-        this.totalWords = 200; // 50 words per floor
-        this.floors = 4;
-        this.initialized = false;
-    }
-
-    initialize() {
-        if (this.initialized) return;
-        
-        const raceContainer = document.querySelector('.race-container');
-        raceContainer.innerHTML = ''; // Clear existing content
-
-        // Create floors with flags and word count indicators
-        for (let i = 0; i < this.floors; i++) {
-            const floor = document.createElement('div');
-            floor.className = 'track-level';
-            floor.setAttribute('data-floor', i);
-            
-            // Add word count marker
-            const wordCount = document.createElement('div');
-            wordCount.className = 'word-count';
-            wordCount.textContent = (this.floors - i - 1) * 50;
-            
-            // Create track path with alternating directions
-            const trackPath = document.createElement('div');
-            trackPath.className = 'track-path';
-            trackPath.style.transform = i % 2 === 0 ? 'none' : 'scaleX(-1)';
-            
-            // Add milestone flag
-            const flag = document.createElement('div');
-            flag.className = 'flag';
-            flag.textContent = '🚩';
-            flag.style.right = i % 2 === 0 ? '0' : 'auto';
-            flag.style.left = i % 2 === 0 ? 'auto' : '0';
-            
-            floor.appendChild(wordCount);
-            floor.appendChild(trackPath);
-            floor.appendChild(flag);
-            raceContainer.appendChild(floor);
-        }
-
-        this.initialized = true;
-    }
-
-    addPlayer(id, name, color) {
-        const playerMarker = document.createElement('div');
-        playerMarker.className = 'player-marker';
-        playerMarker.innerHTML = `
-            <div class="player-avatar" style="background-color: ${color}">
-                ${name[0].toUpperCase()}
-            </div>
-            <div class="player-name">${name}</div>
-        `;
-        
-        this.players.set(id, {
-            element: playerMarker,
-            position: 0,
-            name: name,
-            color: color,
-            score: 0,
-            wordsCompleted: 0,
-            startTime: Date.now()
-        });
-        
-        document.querySelector('.track-level[data-floor="3"]').appendChild(playerMarker);
-    }
-
-    updatePlayerPosition(playerId, wordCount) {
-        const player = this.players.get(playerId);
-        if (!player) return;
-
-        const floor = Math.floor(wordCount / 50);
-        const progressOnFloor = (wordCount % 50) / 50;
-        const floorElement = document.querySelector(`.track-level[data-floor="${3 - floor}"]`);
-        
-        if (!floorElement) return;
-
-        const isRightToLeft = floor % 2 !== 0;
-        const xPos = isRightToLeft ? 
-            100 - (progressOnFloor * 100) : 
-            progressOnFloor * 100;
-
-        player.element.style.transition = 'all 0.5s ease-out';
-        player.element.style.left = `${xPos}%`;
-        
-        if (floorElement !== player.element.parentElement) {
-            player.element.remove();
-            floorElement.appendChild(player.element);
-            this.celebrateFloorCompletion(player);
-        }
-
-        player.wordsCompleted = wordCount;
-        player.position = xPos;
-        this.updatePlayerStats(playerId);
-    }
-
-    celebrateFloorCompletion(player) {
-        const celebration = document.createElement('div');
-        celebration.className = 'celebration';
-        celebration.innerHTML = `
-            <div class="celebration-flag">🎉</div>
-            <div class="celebration-text">+50 Words!</div>
-            <div class="celebration-bonus">Speed Bonus: ${this.calculateSpeedBonus(player)}!</div>
-        `;
-        player.element.appendChild(celebration);
-
-        for (let i = 0; i < 20; i++) {
-            const particle = document.createElement('div');
-            particle.className = 'celebration-particle';
-            const angle = (i / 20) * Math.PI * 2;
-            const velocity = 2 + Math.random() * 2;
-            particle.style.setProperty('--angle', angle + 'rad');
-            particle.style.setProperty('--velocity', velocity);
-            celebration.appendChild(particle);
-        }
-
-        setTimeout(() => celebration.remove(), 2000);
-    }
-
-    calculateSpeedBonus(player) {
-        const timeElapsed = (Date.now() - player.startTime) / 1000;
-        const wordsPerSecond = player.wordsCompleted / timeElapsed;
-        return Math.floor(wordsPerSecond * 100);
-    }
-
-    updatePlayerStats(playerId) {
-        const player = this.players.get(playerId);
-        if (!player) return;
-
-        const speedBonus = this.calculateSpeedBonus(player);
-        player.score = (player.wordsCompleted * 10) + speedBonus;
-
-        supabaseClient
-            .from('arcade_participants')
-            .update({
-                words_completed: player.wordsCompleted,
-                score: player.score,
-                current_floor: Math.floor(player.wordsCompleted / 50),
-                speed_bonus: speedBonus
-            })
-            .eq('player_id', playerId)
-            .then(({ error }) => {
-                if (error) console.error('Error updating player stats:', error);
-            });
-    }
-
-    cleanup() {
-        this.players.clear();
-        const raceContainer = document.querySelector('.race-container');
-        if (raceContainer) raceContainer.innerHTML = '';
-        this.initialized = false;
-    }
-}
-
-
 
 class ArcadeEventManager {
     constructor() {
@@ -3442,18 +3452,31 @@ function joinEvent(accessCode) {
         });
 }
 
-function initializeArcadeMode(eventId) {
-    // Hide other screens
-    document.querySelectorAll('.screen').forEach(screen => 
-        screen.classList.remove('visible'));
-    
-    // Show arcade screen
+async function initializeArcadeMode(eventId) {
     const arcadeScreen = document.getElementById('arcade-screen');
+    arcadeScreen.innerHTML = `
+        <div class="player-stats">
+            <div class="stat-card">
+                <div>Words Completed</div>
+                <div class="stat-value words-completed">0</div>
+            </div>
+            <div class="stat-card">
+                <div>Score</div>
+                <div class="stat-value current-score">0</div>
+            </div>
+        </div>
+        <div class="race-container"></div>
+    `;
     arcadeScreen.classList.add('visible');
-    
-    // Initialize race track
-    const raceTrack = new RaceTrack();
-    raceTrack.initialize();
+
+    const arcadeManager = new ArcadeManager();
+    try {
+        await arcadeManager.initializeGame(eventId);
+        window.currentGame = arcadeManager;
+    } catch (error) {
+        console.error('Error initializing arcade mode:', error);
+        showNotification('Error joining game', 'error');
+    }
 }
 
 function selectRole(role) {
@@ -3628,13 +3651,10 @@ function setupEventModal(modal) {
 async function handleTeacherLogin(e) {
     e.preventDefault();
     
-    const email = document.getElementById('teacher-email').value;
-    const password = document.getElementById('teacher-password').value;
-
     try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password
+            email: document.getElementById('teacher-email').value,
+            password: document.getElementById('teacher-password').value
         });
 
         if (error) throw error;
@@ -3647,8 +3667,8 @@ async function handleTeacherLogin(e) {
                 .eq('id', currentUser.id)
                 .single();
 
-            if (profile.role !== 'teacher') {
-                throw new Error('Access denied. Not a teacher account.');
+            if (profile?.role !== 'teacher') {
+                throw new Error('Access denied');
             }
 
             closeModal();
@@ -3682,18 +3702,17 @@ async function deleteEvent(eventId) {
 class RaceTrack {
     constructor() {
         this.players = new Map();
-        this.totalWords = 200; // 50 words per floor
+        this.totalWords = 200;
         this.floors = 4;
         this.initialized = false;
     }
 
     initialize() {
         if (this.initialized) return;
-        
         const raceContainer = document.querySelector('.race-container');
-        raceContainer.innerHTML = ''; // Clear existing content
+        if (!raceContainer) return;
+        raceContainer.innerHTML = '';
 
-        // Create floors with flags
         for (let i = 0; i < this.floors; i++) {
             const floor = document.createElement('div');
             floor.className = 'track-level';
@@ -3718,186 +3737,225 @@ class RaceTrack {
             floor.appendChild(flag);
             raceContainer.appendChild(floor);
         }
-
         this.initialized = true;
     }
-}
 
-addPlayer(id, name, color) {
-    const playerMarker = document.createElement('div');
-    playerMarker.className = 'player-marker';
-    playerMarker.innerHTML = `
-        <div class="player-avatar" style="background-color: ${color}">
-            ${name[0].toUpperCase()}
-        </div>
-        <div class="player-name">${name}</div>
-    `;
-    
-    this.players.set(id, {
-        element: playerMarker,
-        position: 0,
-        name: name,
-        color: color,
-        score: 0,
-        wordsCompleted: 0
-    });
-    
-    // Start at bottom floor
-    document.querySelector('.track-level[data-floor="3"]').appendChild(playerMarker);
-}
-
-updatePlayerPosition(playerId, wordCount) {
-    const player = this.players.get(playerId);
-    if (!player) return;
-
-    const floor = Math.floor(wordCount / 50);
-    const progressOnFloor = (wordCount % 50) / 50;
-    const floorElement = document.querySelector(`.track-level[data-floor="${3 - floor}"]`);
-    
-    if (!floorElement) return;
-
-    // Calculate X position based on floor direction
-    const isRightToLeft = floor % 2 !== 0;
-    const xPos = isRightToLeft ? 
-        100 - (progressOnFloor * 100) : 
-        progressOnFloor * 100;
-
-    player.element.style.transition = 'all 0.5s ease-out';
-    player.element.style.left = `${xPos}%`;
-    
-    // Move player to new floor if needed
-    if (floorElement !== player.element.parentElement) {
-        player.element.remove();
-        floorElement.appendChild(player.element);
-        this.celebrateFloorCompletion(player);
-    }
-
-    // Update player stats
-    player.wordsCompleted = wordCount;
-    this.updatePlayerStats(playerId);
-}
-
-celebrateFloorCompletion(player) {
-    const celebration = document.createElement('div');
-    celebration.className = 'celebration';
-    celebration.innerHTML = `
-        <div class="celebration-flag">🎉</div>
-        <div class="celebration-text">+50 Words!</div>
-    `;
-    player.element.appendChild(celebration);
-
-    // Create particle effects
-    for (let i = 0; i < 20; i++) {
-        const particle = document.createElement('div');
-        particle.className = 'celebration-particle';
-        const angle = (i / 20) * Math.PI * 2;
-        const velocity = 2 + Math.random() * 2;
-        particle.style.setProperty('--angle', angle + 'rad');
-        particle.style.setProperty('--velocity', velocity);
-        celebration.appendChild(particle);
-    }
-
-    setTimeout(() => celebration.remove(), 2000);
-}
-
-updatePlayerStats(playerId) {
-    const player = this.players.get(playerId);
-    if (!player) return;
-
-    // Calculate score based on words completed and time
-    const timeBonus = Math.max(0, 100 - this.getPlayerTime(playerId));
-    player.score = player.wordsCompleted * 10 + timeBonus;
-
-    // Update database
-    supabaseClient
-        .from('arcade_participants')
-        .update({
-            words_completed: player.wordsCompleted,
-            score: player.score,
-            current_floor: Math.floor(player.wordsCompleted / 50)
-        })
-        .eq('player_id', playerId)
-        .then(({ error }) => {
-            if (error) console.error('Error updating player stats:', error);
+    addPlayer(id, name, color) {
+        const playerMarker = document.createElement('div');
+        playerMarker.className = 'player-marker';
+        playerMarker.innerHTML = `
+            <div class="player-avatar" style="background-color: ${color}">
+                ${name[0].toUpperCase()}
+            </div>
+            <div class="player-name">${name}</div>
+        `;
+        
+        this.players.set(id, {
+            element: playerMarker,
+            position: 0,
+            name: name,
+            color: color,
+            score: 0,
+            wordsCompleted: 0,
+            startTime: Date.now()
         });
-}
-
-getPlayerTime(playerId) {
-    const player = this.players.get(playerId);
-    if (!player || !player.startTime) return 0;
-    return Math.floor((Date.now() - player.startTime) / 1000);
-}
-
-cleanup() {
-    this.players.clear();
-    const raceContainer = document.querySelector('.race-container');
-    if (raceContainer) raceContainer.innerHTML = '';
-    this.initialized = false;
-}
-
-class WordPoolManager {
-    constructor() {
-        this.currentPool = [];
-        this.usedWords = new Set();
-        this.gradeLevels = [];
+        
+        const startingFloor = document.querySelector('.track-level[data-floor="3"]');
+        if (startingFloor) startingFloor.appendChild(playerMarker);
     }
 
-    async initialize(gradeLevels) {
-        this.gradeLevels = gradeLevels;
-        await this.loadWordPool();
+    updatePlayerPosition(playerId, wordCount) {
+        const player = this.players.get(playerId);
+        if (!player) return;
+
+        const floor = Math.floor(wordCount / 50);
+        const progressOnFloor = (wordCount % 50) / 50;
+        const floorElement = document.querySelector(`.track-level[data-floor="${3 - floor}"]`);
+        
+        if (!floorElement) return;
+
+        const isRightToLeft = floor % 2 !== 0;
+        const xPos = isRightToLeft ? 100 - (progressOnFloor * 100) : progressOnFloor * 100;
+
+        player.element.style.transition = 'all 0.5s ease-out';
+        player.element.style.left = `${xPos}%`;
+        
+        if (floorElement !== player.element.parentElement) {
+            player.element.remove();
+            floorElement.appendChild(player.element);
+            this.celebrateFloorCompletion(player);
+        }
+
+        player.wordsCompleted = wordCount;
+        player.position = xPos;
+        this.updatePlayerStats(playerId);
     }
 
-    async loadWordPool() {
+    celebrateFloorCompletion(player) {
+        const celebration = document.createElement('div');
+        celebration.className = 'flag-celebration';
+        celebration.innerHTML = '🎉';
+        player.element.appendChild(celebration);
+
+        for (let i = 0; i < 20; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'celebration-particle';
+            particle.style.setProperty('--angle', `${(i / 10) * Math.PI}rad`);
+            particle.style.setProperty('--velocity', `${2 + Math.random() * 2}`);
+            celebration.appendChild(particle);
+        }
+
+        setTimeout(() => celebration.remove(), 2000);
+    }
+
+    updatePlayerStats(playerId) {
+        const player = this.players.get(playerId);
+        if (!player) return;
+
+        const timeElapsed = (Date.now() - player.startTime) / 1000;
+        const speedBonus = Math.max(0, 100 - timeElapsed);
+        player.score = (player.wordsCompleted * 10) + speedBonus;
+
+        supabaseClient
+            .from('arcade_participants')
+            .update({
+                words_completed: player.wordsCompleted,
+                score: player.score,
+                current_floor: Math.floor(player.wordsCompleted / 50)
+            })
+            .eq('player_id', playerId)
+            .then(({ error }) => {
+                if (error) console.error('Error updating player stats:', error);
+            });
+    }
+
+    cleanup() {
+        this.players.clear();
+        const raceContainer = document.querySelector('.race-container');
+        if (raceContainer) raceContainer.innerHTML = '';
+        this.initialized = false;
+    }
+}
+
+class GameStateManager {
+    constructor(eventId) {
+        this.eventId = eventId;
+        this.wordPool = new WordPoolManager();
+        this.raceTrack = new RaceTrack();
+        this.currentWord = null;
+        this.subscription = null;
+    }
+
+    async initialize() {
         try {
-            const { data: lists, error } = await supabaseClient
-                .from('teacher_wordlists')
-                .select('words, translations')
-                .in('grade_level', this.gradeLevels);
+            const { data: event } = await supabaseClient
+                .from('arcade_events')
+                .select('*')
+                .eq('id', this.eventId)
+                .single();
 
-            if (error) throw error;
-
-            this.currentPool = lists.reduce((pool, list) => {
-                const words = list.words.map((word, i) => ({
-                    word,
-                    translation: list.translations[i]
-                }));
-                return [...pool, ...words];
-            }, []);
-
-            this.shufflePool();
-
+            await this.wordPool.loadWordPool(event.grade_levels);
+            this.raceTrack.initialize();
+            this.setupRealtimeSync();
+            await this.loadExistingPlayers();
+            this.presentNextWord();
         } catch (error) {
-            console.error('Error loading word pool:', error);
-            throw error;
+            console.error('Error initializing game:', error);
         }
     }
 
-    shufflePool() {
-        for (let i = this.currentPool.length - 1; i > 0; i--) {
+    async loadExistingPlayers() {
+        const { data: participants } = await supabaseClient
+            .from('arcade_participants')
+            .select(`
+                *,
+                user_profiles:player_id (username)
+            `)
+            .eq('event_id', this.eventId);
+
+        participants?.forEach(p => {
+            const colors = ['#e94561', '#4CAF50', '#3498db', '#f1c40f'];
+            this.raceTrack.addPlayer(
+                p.player_id,
+                p.user_profiles.username,
+                colors[Math.floor(Math.random() * colors.length)]
+            );
+
+            if (p.words_completed > 0) {
+                this.raceTrack.updatePlayerPosition(p.player_id, p.words_completed);
+            }
+        });
+    }
+
+    setupRealtimeSync() {
+        this.subscription = supabaseClient
+            .channel(`game:${this.eventId}`)
+            .on('broadcast', { event: 'player_update' }, payload => {
+                this.raceTrack.updatePlayerPosition(
+                    payload.player_id,
+                    payload.words_completed
+                );
+            })
+            .subscribe();
+    }
+
+    presentNextWord() {
+        this.currentWord = this.wordPool.getNextWord();
+        const options = this.wordPool.getRandomOptions(3, this.currentWord.translation);
+        options.push(this.currentWord.translation);
+        
+        // Shuffle options
+        for (let i = options.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [this.currentPool[i], this.currentPool[j]] = 
-            [this.currentPool[j], this.currentPool[i]];
-        }
-    }
-
-    getNextWord() {
-        const availableWords = this.currentPool.filter(
-            word => !this.usedWords.has(word.word)
-        );
-
-        if (availableWords.length === 0) {
-            this.usedWords.clear();
-            return this.currentPool[0];
+            [options[i], options[j]] = [options[j], options[i]];
         }
 
-        const nextWord = availableWords[0];
-        this.usedWords.add(nextWord.word);
-        return nextWord;
+        const wordDisplay = document.createElement('div');
+        wordDisplay.className = 'word-display';
+        wordDisplay.innerHTML = `
+            <div class="word">${this.currentWord.word}</div>
+            <div class="options">
+                ${options.map(opt => `
+                    <button onclick="gameState.checkAnswer('${opt}')">${opt}</button>
+                `).join('')}
+            </div>
+        `;
+
+        document.querySelector('.arcade-screen').appendChild(wordDisplay);
     }
 
-    reset() {
-        this.usedWords.clear();
-        this.shufflePool();
+    async checkAnswer(answer) {
+        const isCorrect = answer === this.currentWord.translation;
+        if (isCorrect) {
+            const player = Array.from(this.raceTrack.players.values())
+                .find(p => p.id === currentUser.id);
+            
+            if (player) {
+                player.wordsCompleted++;
+                await supabaseClient
+                    .from('arcade_participants')
+                    .update({
+                        words_completed: player.wordsCompleted,
+                        current_floor: Math.floor(player.wordsCompleted / 50)
+                    })
+                    .eq('event_id', this.eventId)
+                    .eq('player_id', currentUser.id);
+
+                this.raceTrack.updatePlayerPosition(
+                    currentUser.id,
+                    player.wordsCompleted
+                );
+            }
+        }
+
+        document.querySelector('.word-display')?.remove();
+        this.presentNextWord();
+    }
+
+    cleanup() {
+        this.subscription?.unsubscribe();
+        this.raceTrack.cleanup();
+        document.querySelector('.word-display')?.remove();
     }
 }
 
@@ -4300,122 +4358,716 @@ class PerkManager {
     }
 }
 
-class WordPresenter {
-    constructor(gameManager) {
-        this.gameManager = gameManager;
-        this.container = document.createElement('div');
-        this.container.className = 'word-presenter';
-        this.answerTimeout = null;
-        this.currentWord = null;
+
+class ArcadeManager {
+    constructor() {
+        this.gameState = null;
+        this.wordPool = null;
+        this.subscription = null;
+        this.playerStats = {
+            wordsCompleted: 0,
+            currentFloor: 0,
+            score: 0
+        };
     }
 
-    initialize() {
-        this.container.innerHTML = `
-            <div class="word-display">
-                <div class="word-text"></div>
-                <div class="translation-text"></div>
-            </div>
-            <div class="answer-options"></div>
-            <div class="timer-bar">
-                <div class="timer-progress"></div>
-            </div>
-            <div class="score-display">
-                <span class="words-completed">0</span> words
-                <span class="current-score">0</span> points
-            </div>
-        `;
-        
-        document.querySelector('.arcade-screen').appendChild(this.container);
+    async joinEvent(accessCode) {
+        try {
+            const { data: event } = await supabaseClient
+                .from('arcade_events')
+                .select('*')
+                .eq('access_code', accessCode)
+                .eq('status', 'active')
+                .single();
+
+            if (!event) throw new Error('Invalid or expired access code');
+
+            await supabaseClient
+                .from('arcade_participants')
+                .insert([{
+                    event_id: event.id,
+                    player_id: currentUser.id,
+                    words_completed: 0,
+                    current_floor: 0,
+                    score: 0,
+                    status: 'waiting'
+                }]);
+
+            this.initializeGame(event.id);
+            return event;
+        } catch (error) {
+            console.error('Error joining event:', error);
+            throw error;
+        }
     }
 
-    presentWord(word, options) {
-        this.currentWord = word;
-        const wordDisplay = this.container.querySelector('.word-text');
-        const optionsContainer = this.container.querySelector('.answer-options');
-        
-        wordDisplay.textContent = word.word;
-        optionsContainer.innerHTML = '';
-
-        // Shuffle options including the correct answer
-        const allOptions = [...options, word.translation];
-        this.shuffleArray(allOptions);
-
-        allOptions.forEach(option => {
-            const button = document.createElement('button');
-            button.className = 'answer-option';
-            button.textContent = option;
-            button.addEventListener('click', () => this.handleAnswer(option));
-            optionsContainer.appendChild(button);
-        });
-
-        // Start timer
-        this.startTimer();
+    async initializeGame(eventId) {
+        this.gameState = new GameStateManager(eventId);
+        await this.gameState.initialize();
+        this.setupRealtimeSync(eventId);
     }
 
-    startTimer() {
-        const timerBar = this.container.querySelector('.timer-progress');
-        timerBar.style.width = '100%';
-        
-        // Animate timer bar
-        timerBar.style.transition = 'width 7s linear';
-        timerBar.style.width = '0%';
-
-        // Set timeout for answer
-        this.answerTimeout = setTimeout(() => {
-            this.handleAnswer(null); // No answer provided
-        }, 7000);
+    setupRealtimeSync(eventId) {
+        this.subscription = supabaseClient
+            .channel(`arcade:${eventId}`)
+            .on('presence', { event: 'sync' }, () => {
+                this.syncGameState();
+            })
+            .on('broadcast', { event: 'word_completed' }, payload => {
+                this.handleWordCompletion(payload);
+            })
+            .on('broadcast', { event: 'perk_used' }, payload => {
+                this.handlePerkEffect(payload);
+            })
+            .subscribe();
     }
 
-    handleAnswer(answer) {
-        clearTimeout(this.answerTimeout);
-        
-        const isCorrect = answer === this.currentWord.translation;
-        const timeLeft = parseFloat(getComputedStyle(this.container.querySelector('.timer-progress')).width) / 
-                        parseFloat(getComputedStyle(this.container.querySelector('.timer-bar')).width);
-        
-        // Calculate score based on time left
-        const baseScore = isCorrect ? 10 : 0;
-        const timeBonus = isCorrect ? Math.floor(timeLeft * 10) : 0;
-        const totalScore = baseScore + timeBonus;
+    async syncGameState() {
+        const { data: participants } = await supabaseClient
+            .from('arcade_participants')
+            .select('*')
+            .eq('event_id', this.gameState.eventId);
 
-        // Update display
-        this.showAnswerFeedback(isCorrect, totalScore);
-        
-        // Update game state
-        this.gameManager.handleWordComplete({
-            correct: isCorrect,
-            score: totalScore,
-            timeBonus: timeBonus
+        participants.forEach(p => {
+            this.gameState.raceTrack.updatePlayerPosition(
+                p.player_id,
+                p.words_completed
+            );
         });
     }
 
-    showAnswerFeedback(isCorrect, score) {
-        const feedback = document.createElement('div');
-        feedback.className = `answer-feedback ${isCorrect ? 'correct' : 'incorrect'}`;
-        feedback.innerHTML = `
-            <div class="feedback-text">${isCorrect ? 'Correct!' : 'Try Again!'}</div>
-            ${isCorrect ? `<div class="score-bonus">+${score} points</div>` : ''}
-        `;
+    handleWordCompletion(payload) {
+        const { playerId, wordsCompleted, score } = payload;
+        this.gameState.raceTrack.updatePlayerPosition(playerId, wordsCompleted);
         
-        this.container.appendChild(feedback);
-        setTimeout(() => feedback.remove(), 1000);
+        if (playerId === currentUser.id) {
+            this.playerStats = {
+                wordsCompleted,
+                currentFloor: Math.floor(wordsCompleted / 50),
+                score
+            };
+            this.updateStatsDisplay();
+        }
     }
 
-    updateStats(wordsCompleted, totalScore) {
-        this.container.querySelector('.words-completed').textContent = wordsCompleted;
-        this.container.querySelector('.current-score').textContent = totalScore;
+    updateStatsDisplay() {
+        document.querySelector('.words-completed').textContent = 
+            this.playerStats.wordsCompleted;
+        document.querySelector('.current-score').textContent = 
+            this.playerStats.score;
     }
 
-    shuffleArray(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
+    async handlePerkEffect(payload) {
+        const { type, duration, targetId } = payload;
+        if (targetId === currentUser.id) {
+            switch (type) {
+                case 'freeze':
+                    await this.applyFreeze(duration);
+                    break;
+                case 'scramble':
+                    this.applyScramble(duration);
+                    break;
+                case 'speed':
+                    this.applySpeedUp(duration);
+                    break;
+            }
         }
     }
 
     cleanup() {
-        clearTimeout(this.answerTimeout);
+        this.subscription?.unsubscribe();
+        this.gameState?.cleanup();
+        this.wordPool = null;
+        this.playerStats = {
+            wordsCompleted: 0,
+            currentFloor: 0,
+            score: 0
+        };
+    }
+}
+
+class PerkSystem {
+   constructor(gameManager) {
+       this.gameManager = gameManager;
+       this.perks = {
+           freeze: {
+               cost: 50,
+               duration: 5000,
+               icon: '❄️'
+           },
+           scramble: {
+               cost: 30, 
+               duration: 10000,
+               icon: '🔄'
+           },
+           speed: {
+               cost: 40,
+               duration: 8000,
+               icon: '⚡'
+           }
+       };
+       this.activePerks = new Map();
+   }
+
+   canUsePerk(type) {
+       const perk = this.perks[type];
+       return perk && this.gameManager.playerStats.score >= perk.cost;
+   }
+
+   async usePerk(type) {
+       if (!this.canUsePerk(type)) return;
+
+       const perk = this.perks[type];
+       try {
+           // Get random target excluding self
+           const { data: participants } = await supabaseClient
+               .from('arcade_participants')
+               .select('player_id')
+               .eq('event_id', this.gameManager.gameState.eventId)
+               .neq('player_id', currentUser.id);
+
+           if (!participants?.length) return;
+
+           const target = participants[Math.floor(Math.random() * participants.length)];
+           
+           await supabaseClient.channel(`arcade:${this.gameManager.gameState.eventId}`)
+               .send({
+                   type: 'broadcast',
+                   event: 'perk_used',
+                   payload: {
+                       type,
+                       targetId: target.player_id,
+                       duration: perk.duration,
+                       casterId: currentUser.id
+                   }
+               });
+
+           // Deduct cost
+           this.gameManager.playerStats.score -= perk.cost;
+           this.gameManager.updateStatsDisplay();
+
+           this.showPerkAnimation(type, target.player_id);
+           
+       } catch (error) {
+           console.error('Error using perk:', error);
+       }
+   }
+
+   showPerkAnimation(type, targetId) {
+       const targetMarker = document.querySelector(`[data-player-id="${targetId}"]`);
+       if (!targetMarker) return;
+
+       const perk = this.perks[type];
+       const animation = document.createElement('div');
+       animation.className = 'perk-animation';
+       animation.innerHTML = `
+           <div class="perk-icon">${perk.icon}</div>
+           <div class="perk-name">${type}</div>
+       `;
+
+       targetMarker.appendChild(animation);
+       setTimeout(() => animation.remove(), 2000);
+   }
+
+   applyPerkEffect(type, duration) {
+       const existingEffect = this.activePerks.get(type);
+       if (existingEffect) {
+           clearTimeout(existingEffect.timeout);
+       }
+
+       const effect = {
+           type,
+           startTime: Date.now(),
+           timeout: setTimeout(() => this.removePerkEffect(type), duration)
+       };
+
+       this.activePerks.set(type, effect);
+       document.body.classList.add(`perk-effect-${type}`);
+   }
+
+   removePerkEffect(type) {
+       const effect = this.activePerks.get(type);
+       if (effect) {
+           clearTimeout(effect.timeout);
+           this.activePerks.delete(type);
+           document.body.classList.remove(`perk-effect-${type}`);
+       }
+   }
+}
+
+class WordPoolManager {
+   constructor() {
+       this.pools = new Map();
+       this.currentPool = [];
+       this.usedWords = new Set();
+       this.gradeLevels = [];
+   }
+
+   async initialize(eventId) {
+       const { data: event } = await supabaseClient
+           .from('arcade_events')
+           .select('grade_levels')
+           .eq('id', eventId)
+           .single();
+
+       this.gradeLevels = event.grade_levels;
+       await this.loadWordPools();
+       this.generateCurrentPool();
+   }
+
+   async loadWordPools() {
+       const { data: lists } = await supabaseClient
+           .from('teacher_wordlists')
+           .select('words, translations, grade_level')
+           .in('grade_level', this.gradeLevels);
+
+       lists.forEach(list => {
+           const words = list.words.map((word, i) => ({
+               word,
+               translation: list.translations[i],
+               grade: list.grade_level
+           }));
+           
+           if (!this.pools.has(list.grade_level)) {
+               this.pools.set(list.grade_level, []);
+           }
+           this.pools.get(list.grade_level).push(...words);
+       });
+   }
+
+   generateCurrentPool() {
+       this.currentPool = [];
+       this.gradeLevels.forEach(grade => {
+           const pool = this.pools.get(grade) || [];
+           this.currentPool.push(...pool);
+       });
+       this.shufflePool();
+   }
+
+   shufflePool() {
+       for (let i = this.currentPool.length - 1; i > 0; i--) {
+           const j = Math.floor(Math.random() * (i + 1));
+           [this.currentPool[i], this.currentPool[j]] = 
+           [this.currentPool[j], this.currentPool[i]];
+       }
+   }
+
+   getNextWord() {
+       if (this.currentPool.length === 0 || 
+           this.usedWords.size === this.currentPool.length) {
+           this.usedWords.clear();
+           this.shufflePool();
+       }
+
+       let word;
+       do {
+           word = this.currentPool[Math.floor(Math.random() * this.currentPool.length)];
+       } while (this.usedWords.has(word.word));
+
+       this.usedWords.add(word.word);
+       return word;
+   }
+
+   getOptions(correct, count = 3) {
+       const options = [correct];
+       const available = this.currentPool.filter(w => 
+           w.translation !== correct && !options.includes(w.translation)
+       );
+
+       while (options.length < count + 1 && available.length > 0) {
+           const index = Math.floor(Math.random() * available.length);
+           options.push(available[index].translation);
+           available.splice(index, 1);
+       }
+
+       return this.shuffleArray(options);
+   }
+
+   shuffleArray(array) {
+       const newArray = [...array];
+       for (let i = newArray.length - 1; i > 0; i--) {
+           const j = Math.floor(Math.random() * (i + 1));
+           [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+       }
+       return newArray;
+   }
+}
+
+class WordPresenter {
+   constructor(gameManager) {
+       this.gameManager = gameManager;
+       this.container = null;
+       this.currentWord = null;
+       this.answerTimeout = null;
+       this.setupUI();
+   }
+
+   setupUI() {
+       this.container = document.createElement('div');
+       this.container.className = 'word-presenter';
+       this.container.innerHTML = `
+           <div class="word-container">
+               <div class="word"></div>
+               <div class="options"></div>
+           </div>
+           <div class="timer-bar">
+               <div class="timer-progress"></div>
+           </div>
+       `;
+       document.querySelector('.arcade-screen').appendChild(this.container);
+   }
+
+   presentWord(word, options) {
+       this.currentWord = word;
+       this.container.querySelector('.word').textContent = word.word;
+       
+       const optionsContainer = this.container.querySelector('.options');
+       optionsContainer.innerHTML = options.map(option => `
+           <button class="option-button" onclick="handleAnswer('${option}')">
+               ${option}
+           </button>
+       `).join('');
+
+       this.startTimer();
+   }
+
+   startTimer() {
+       const progress = this.container.querySelector('.timer-progress');
+       progress.style.width = '100%';
+       
+       requestAnimationFrame(() => {
+           progress.style.width = '0%';
+           progress.style.transition = 'width 7s linear';
+       });
+
+       this.answerTimeout = setTimeout(() => {
+           this.handleAnswer(null);
+       }, 7000);
+   }
+
+   handleAnswer(answer) {
+       clearTimeout(this.answerTimeout);
+       
+       const isCorrect = answer === this.currentWord.translation;
+       const timeLeft = parseFloat(
+           getComputedStyle(this.container.querySelector('.timer-progress')).width
+       ) / this.container.querySelector('.timer-bar').offsetWidth;
+
+       const points = this.calculatePoints(isCorrect, timeLeft);
+       this.showFeedback(isCorrect, points);
+       
+       setTimeout(() => {
+           this.gameManager.handleWordComplete(isCorrect, points);
+       }, 1000);
+   }
+
+   calculatePoints(isCorrect, timeLeft) {
+       if (!isCorrect) return 0;
+       const basePoints = 10;
+       const timeBonus = Math.floor(timeLeft * 10);
+       return basePoints + timeBonus;
+   }
+
+   showFeedback(isCorrect, points) {
+       const feedback = document.createElement('div');
+       feedback.className = `answer-feedback ${isCorrect ? 'correct' : 'incorrect'}`;
+       feedback.innerHTML = `
+           <div class="feedback-text">${isCorrect ? 'Correct!' : 'Try Again!'}</div>
+           ${isCorrect ? `<div class="points-earned">+${points}</div>` : ''}
+       `;
+       
+       this.container.appendChild(feedback);
+       setTimeout(() => feedback.remove(), 1000);
+   }
+
+   cleanup() {
+       clearTimeout(this.answerTimeout);
+       this.container.remove();
+   }
+}
+
+class GameSynchronizer {
+    constructor(gameManager) {
+        this.gameManager = gameManager;
+        this.subscription = null;
+        this.lastSync = Date.now();
+        this.syncInterval = 1000;
+    }
+
+    initialize(eventId) {
+        this.subscription = supabaseClient
+            .channel(`game:${eventId}`)
+            .on('presence', { event: 'sync' }, () => {
+                this.syncGameState();
+            })
+            .on('broadcast', { event: 'state_update' }, payload => {
+                this.handleStateUpdate(payload);
+            })
+            .subscribe();
+
+        setInterval(() => this.checkSync(), this.syncInterval);
+    }
+
+    async syncGameState() {
+        if (Date.now() - this.lastSync < this.syncInterval) return;
+
+        const { data: participants } = await supabaseClient
+            .from('arcade_participants')
+            .select('*')
+            .eq('event_id', this.gameManager.eventId);
+
+        participants.forEach(p => {
+            this.gameManager.updatePlayerState(p);
+        });
+
+        this.lastSync = Date.now();
+    }
+
+    handleStateUpdate(payload) {
+        const { playerId, state } = payload;
+        this.gameManager.updatePlayerState({
+            player_id: playerId,
+            ...state
+        });
+    }
+
+    broadcastUpdate(state) {
+        this.subscription.send({
+            type: 'broadcast',
+            event: 'state_update',
+            payload: {
+                playerId: currentUser.id,
+                state
+            }
+        });
+    }
+
+    cleanup() {
+        this.subscription?.unsubscribe();
+        clearInterval(this.syncInterval);
+    }
+}
+
+class AchievementSystem {
+    constructor() {
+        this.milestones = [50, 100, 150, 200];
+        this.achievements = new Map();
+    }
+
+    checkProgress(wordCount) {
+        const milestone = this.milestones.find(m => wordCount === m);
+        if (milestone && !this.achievements.has(milestone)) {
+            this.achievements.set(milestone, Date.now());
+            this.celebrateMilestone(milestone);
+        }
+    }
+
+    celebrateMilestone(count) {
+        const celebration = document.createElement('div');
+        celebration.className = 'milestone-celebration';
+        celebration.innerHTML = `
+            <div class="milestone-icon">🏆</div>
+            <div class="milestone-text">${count} Words!</div>
+            <div class="confetti-container"></div>
+        `;
+
+        document.body.appendChild(celebration);
+        this.createConfetti(celebration.querySelector('.confetti-container'));
+        setTimeout(() => celebration.remove(), 3000);
+    }
+
+    createConfetti(container) {
+        for (let i = 0; i < 50; i++) {
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            confetti.style.setProperty('--delay', `${Math.random() * 3}s`);
+            confetti.style.setProperty('--rotation', `${Math.random() * 360}deg`);
+            confetti.style.setProperty('--x', `${Math.random() * 100}%`);
+            container.appendChild(confetti);
+        }
+    }
+}
+
+class LeaderboardManager {
+    constructor(gameManager) {
+        this.gameManager = gameManager;
+        this.container = this.createLeaderboard();
+        this.updateInterval = setInterval(() => this.updateLeaderboard(), 1000);
+    }
+
+    createLeaderboard() {
+        const container = document.createElement('div');
+        container.className = 'leaderboard';
+        container.innerHTML = `
+            <div class="leaderboard-header">Live Rankings</div>
+            <div class="leaderboard-entries"></div>
+        `;
+        document.querySelector('.arcade-screen').appendChild(container);
+        return container;
+    }
+
+    async updateLeaderboard() {
+        const { data: participants } = await supabaseClient
+            .from('arcade_participants')
+            .select(`
+                *,
+                user_profiles:player_id (username)
+            `)
+            .eq('event_id', this.gameManager.eventId)
+            .order('score', { ascending: false });
+
+        const entries = this.container.querySelector('.leaderboard-entries');
+        entries.innerHTML = participants.map((p, i) => `
+            <div class="leaderboard-entry ${p.player_id === currentUser.id ? 'current-player' : ''}">
+                <div class="rank">#${i + 1}</div>
+                <div class="player-info">
+                    <div class="username">${p.user_profiles.username}</div>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: ${(p.words_completed / 200) * 100}%"></div>
+                    </div>
+                </div>
+                <div class="score">${p.score}</div>
+            </div>
+        `).join('');
+    }
+
+    cleanup() {
+        clearInterval(this.updateInterval);
         this.container.remove();
+    }
+}
+
+async function handleStudentJoin() {
+    const code = document.getElementById('access-code-input').value.trim().toUpperCase();
+    
+    try {
+        const { data: event, error } = await supabaseClient
+            .from('arcade_events')
+            .select('*')
+            .eq('access_code', code)
+            .eq('status', 'active')
+            .single();
+
+        if (error || !event) {
+            showNotification('Invalid or expired access code', 'error');
+            return;
+        }
+
+        const { error: joinError } = await supabaseClient
+            .from('arcade_participants')
+            .insert([{
+                event_id: event.id,
+                player_id: currentUser.id,
+                words_completed: 0,
+                current_floor: 0,
+                score: 0,
+                status: 'waiting'
+            }]);
+
+        if (joinError) throw joinError;
+
+        showNotification('Successfully joined event!');
+        initializeStudentGame(event.id);
+    } catch (error) {
+        console.error('Join error:', error);
+        showNotification('Error joining event', 'error');
+    }
+}
+
+function initializeStudentGame(eventId) {
+    const arcadeScreen = document.getElementById('arcade-screen');
+    const joinScreen = document.getElementById('student-join-screen');
+
+    arcadeScreen.innerHTML = `
+        <div class="game-header">
+            <div class="player-stats">
+                <div class="stat-card">
+                    <div>Words</div>
+                    <div class="stat-value words-completed">0</div>
+                </div>
+                <div class="stat-card">
+                    <div>Score</div>
+                    <div class="stat-value current-score">0</div>
+                </div>
+            </div>
+            <div class="perks-container"></div>
+        </div>
+        <div class="race-container"></div>
+        <div class="word-container"></div>
+    `;
+
+    joinScreen.classList.remove('visible');
+    arcadeScreen.classList.add('visible');
+
+    window.gameManager = new GameStateManager(eventId);
+    window.gameManager.initialize();
+}
+
+function setupPerks(container) {
+    const perks = [
+        { type: 'freeze', icon: '❄️', cost: 50 },
+        { type: 'scramble', icon: '🔄', cost: 30 },
+        { type: 'speed', icon: '⚡', cost: 40 }
+    ];
+
+    container.innerHTML = perks.map(perk => `
+        <button class="perk-button" data-type="${perk.type}" 
+                onclick="usePerk('${perk.type}')">
+            <div class="perk-icon">${perk.icon}</div>
+            <div class="perk-cost">${perk.cost}</div>
+        </button>
+    `).join('');
+}
+
+class EventStateManager {
+    constructor(eventId) {
+        this.eventId = eventId;
+        this.participants = new Map();
+        this.status = 'waiting';
+        this.setupRealtimeSync();
+    }
+
+    setupRealtimeSync() {
+        this.channel = supabaseClient
+            .channel(`event:${this.eventId}`)
+            .on('broadcast', { event: 'state_update' }, payload => {
+                this.handleStateUpdate(payload);
+            })
+            .on('broadcast', { event: 'status_change' }, payload => {
+                this.handleStatusChange(payload);
+            })
+            .subscribe();
+    }
+
+    async updateParticipantState(playerId, state) {
+        await supabaseClient
+            .from('arcade_participants')
+            .update(state)
+            .eq('event_id', this.eventId)
+            .eq('player_id', playerId);
+
+        this.channel.send({
+            type: 'broadcast',
+            event: 'state_update',
+            payload: { playerId, state }
+        });
+    }
+
+    handleStateUpdate(payload) {
+        const { playerId, state } = payload;
+        this.participants.set(playerId, state);
+        window.gameManager?.raceTrack.updatePlayerPosition(playerId, state.words_completed);
+    }
+
+    handleStatusChange(payload) {
+        this.status = payload.status;
+        if (payload.status === 'active' && window.gameManager) {
+            window.gameManager.startGame();
+        }
+    }
+
+    cleanup() {
+        this.channel?.unsubscribe();
     }
 }
 
