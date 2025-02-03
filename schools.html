@@ -1971,53 +1971,31 @@ function loadTeacherEvents() {
         checkExistingSession();
     });
 
-    function createNewEvent() {
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.innerHTML = `
-        <div class="modal-content">
-            <h2>Create New Event</h2>
-            <form id="event-form" onsubmit="handleEventSubmit(event)">
-                <div class="form-group">
-                    <label for="event-name">Event Name</label>
-                    <input type="text" id="event-name" name="event-name" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="event-type">Event Type</label>
-                    <select id="event-type" name="event-type" required>
-                        <option value="arcade">Arcade Race</option>
-                        <option value="standard">Standard Practice</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="grade-level">Grade Level (Multiple Select)</label>
-                    <select id="grade-level" name="grade-level" multiple required>
-                        <option value="1">Elementary (Stage 1-2)</option>
-                        <option value="2">Junior High (Stage 1-3)</option>
-                        <option value="3">High School (Stage 1-4)</option>
-                    </select>
-                </div>
+    async function createNewEvent() {
+    try {
+        const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        const { data, error } = await supabaseClient
+            .from('arcade_events')
+            .insert({
+                teacher_id: currentUser.id,
+                name: 'New Event',
+                access_code: accessCode,
+                status: 'pending'
+            })
+            .select()
+            .single();
 
-                <div class="form-group">
-                    <label for="target-class">Target Class</label>
-                    <select id="target-class" name="target-class">
-                        <option value="all">All Classes</option>
-                    </select>
-                </div>
+        if (error) throw error;
 
-                <div class="form-actions">
-                    <button type="submit" class="action-button">Create Event</button>
-                    <button type="button" class="action-button cancel" onclick="closeModal()">Cancel</button>
-                </div>
-            </form>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    // Load teacher's classes for the target class dropdown
-    loadTeacherClasses();
+        showNotification('Event created successfully!');
+        loadTeacherEvents();
+        return data;
+    } catch (error) {
+        console.error('Event creation error:', error);
+        showNotification('Error creating event', 'error');
+        return null;
+    }
 }
 
 function loadTeacherClasses() {
@@ -3170,24 +3148,44 @@ function copyToClipboard(text) {
         .catch(err => console.error('Error copying code:', err));
 }
 
-function startEvent(eventId) {
-    console.log('Starting event:', eventId);
-    supabaseClient
-        .from('arcade_events')
-        .update({
-            status: 'active',
-            started_at: new Date().toISOString()
-        })
-        .eq('id', eventId)
-        .then(({ data, error }) => {
-            console.log('Event update result:', { data, error });
-            if (error) {
-                showNotification('Error starting event', 'error');
-                return;
-            }
-            showNotification('Event started successfully!');
-            loadTeacherEvents();
-        });
+async function startEvent(eventId) {
+    try {
+        const { error } = await supabaseClient
+            .from('arcade_events')
+            .update({ 
+                status: 'active',
+                started_at: new Date().toISOString()
+            })
+            .eq('id', eventId);
+
+        if (error) throw error;
+
+        showNotification('Event started successfully!');
+        loadTeacherEvents();
+    } catch (error) {
+        console.error('Error starting event:', error);
+        showNotification('Error starting event', 'error');
+    }
+}
+
+async function endEvent(eventId) {
+    try {
+        const { error } = await supabaseClient
+            .from('arcade_events')
+            .update({ 
+                status: 'completed',
+                completed_at: new Date().toISOString()
+            })
+            .eq('id', eventId);
+
+        if (error) throw error;
+
+        showNotification('Event ended successfully!');
+        loadTeacherEvents();
+    } catch (error) {
+        console.error('Error ending event:', error);
+        showNotification('Error ending event', 'error');
+    }
 }
 
 function showEventDetails(eventId) {
@@ -3252,20 +3250,67 @@ function showEventDetails(eventId) {
         });
 }
 
-function manageEvent(eventId) {
-    supabaseClient
-        .from('arcade_events')
-        .select('*')
-        .eq('id', eventId)
-        .single()
-        .then(({ data: event, error }) => {
-            if (error) {
-                console.error('Event load error:', error);
-                showNotification('Error loading event', 'error');
-                return;
-            }
-            displayEventManagement(event);
-        });
+async function manageEvent(eventId) {
+    try {
+        console.log('Managing event:', eventId);
+        
+        const { data: event, error } = await supabaseClient
+            .from('arcade_events')
+            .select('*')
+            .eq('id', eventId)
+            .single();
+
+        if (error) {
+            console.error('Error fetching event:', error);
+            throw error;
+        }
+
+        console.log('Event data:', event);
+
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.innerHTML = `
+            <div class="modal-content event-management">
+                <div class="event-manage-header">
+                    <h2>${event.name}</h2>
+                    <span class="status-badge ${event.status}">${event.status}</span>
+                </div>
+
+                <div class="event-control-panel">
+                    <div class="control-section">
+                        <h3>Event Controls</h3>
+                        ${event.status === 'pending' ? `
+                            <button onclick="handleStartEvent('${event.id}')" class="action-button">
+                                <i class="fas fa-play"></i> Start Event
+                            </button>
+                        ` : event.status === 'active' ? `
+                            <button onclick="handleEndEvent('${event.id}')" class="action-button">
+                                <i class="fas fa-stop"></i> End Event
+                            </button>
+                        ` : ''}
+                    </div>
+
+                    <div class="control-section">
+                        <h3>Access Code</h3>
+                        <div class="access-code-display">
+                            ${event.access_code}
+                            <button onclick="copyAccessCode('${event.access_code}')" class="action-button small">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button onclick="closeModal()" class="action-button cancel">Close</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    } catch (error) {
+        console.error('Error managing event:', error);
+        showNotification('Error loading event details', 'error');
+    }
 }
 
 
@@ -3453,57 +3498,48 @@ function selectRole(role) {
 }
 
 async function joinArcadeEvent() {
-    const code = document.getElementById('access-code-input').value.trim().toUpperCase();
-    
-    try {
-        // Handle anonymous auth
-        if (!currentUser) {
-            const { data: { user }, error: authError } = await supabaseClient.auth.signUp({
-                email: `guest_${Date.now()}@temp.com`,
-                password: 'guest' + Math.random().toString(36).slice(2),
-                options: {
-                    data: { role: 'student' }
-                }
-            });
+  const code = document.getElementById('access-code-input').value.trim().toUpperCase(); 
+  
+  try {
+    const { data: event, error } = await supabaseClient
+      .from('arcade_events')
+      .select('*')
+      .eq('access_code', code) 
+      .eq('status', 'active')
+      .single();
 
-            if (authError) throw authError;
-            currentUser = user;
-        }
-
-        // Find event
-        const { data: events, error: eventError } = await supabaseClient
-            .from('arcade_events')
-            .select('*')
-            .eq('access_code', code)
-            .eq('status', 'active');
-
-        if (eventError || !events?.length) {
-            showNotification('Invalid or expired code', 'error');
-            return;
-        }
-
-        // Join event
-        const event = events[0];
-        const { error: joinError } = await supabaseClient
-            .from('arcade_participants')
-            .insert([{
-                event_id: event.id,
-                player_id: currentUser.id,
-                status: 'waiting',
-                words_completed: 0,
-                score: 0,
-                joined_at: new Date().toISOString()
-            }])
-            .select()
-            .single();
-
-        if (joinError) throw joinError;
-
-     initializeStudentGame(event.id);
-    } catch (error) {
-        console.error('Join error:', error);
-        showNotification(error.message, 'error');
+    if (error || !event) {
+      showNotification('Invalid or expired access code', 'error');
+      return;
     }
+
+    console.log('Event data:', event);
+      
+    const { data: participant, error: joinError } = await supabaseClient
+      .from('arcade_participants') 
+      .insert({
+        event_id: event.id,
+        player_name: 'Guest_' + Math.random().toString(36).substring(2, 6),        
+        status: 'waiting',
+        words_completed: 0,
+        score: 0
+      })
+      .select()
+      .single();
+
+    if (joinError) {
+      console.error('Join error details:', joinError);
+      throw joinError;
+    }
+
+    console.log('Participant data:', participant);
+
+    showNotification('Successfully joined event!');
+    initializeStudentGame(event.id);
+  } catch (error) {
+    console.error('Join error:', error);
+    showNotification('Error joining event', 'error'); 
+  }
 }
 
 async function handleGuestAuth() {
@@ -3530,6 +3566,27 @@ async function handleGuestAuth() {
     return { error };
 }
 
+async function handleGuestJoin() {
+    const code = document.getElementById('access-code-input').value;
+    const guestEmail = `guest_${Date.now()}@temp.com`;
+    const guestPassword = 'Guest' + Math.random().toString(36).slice(2);
+    
+    try {
+        const { data, error } = await supabaseClient.auth.signUp({
+            email: guestEmail,
+            password: guestPassword
+        });
+        
+        if (error) throw error;
+        
+        // Now we have a guest user, proceed with join
+        return joinArcadeEvent(code);
+    } catch (error) {
+        console.error('Guest auth error:', error);
+        showNotification('Error joining game', 'error');
+    }
+}
+
 function loadTeacherEvents() {
     const eventsPanel = document.getElementById('events-panel');
     if (!eventsPanel) return;
@@ -3544,15 +3601,15 @@ function loadTeacherEvents() {
                 return;
             }
 
-            const content = `
+            eventsPanel.innerHTML = `
                 <div class="panel-header">
                     <h2>Events</h2>
                     <button onclick="createNewEvent()" class="action-button">
                         <i class="fas fa-plus"></i> Create Event
                     </button>
                 </div>
-                ${events && events.length > 0 ? 
-                    `<div class="events-grid">
+                ${events && events.length > 0 ? `
+                    <div class="events-grid">
                         ${events.map(event => `
                             <div class="event-card">
                                 <div class="event-header">
@@ -3560,33 +3617,34 @@ function loadTeacherEvents() {
                                     <span class="status-badge ${event.status}">${event.status}</span>
                                 </div>
                                 <div class="event-details">
-                                    <p>Type: ${event.type}</p>
                                     ${event.status !== 'completed' ? 
-                                        `<p>Access Code: ${event.access_code || 'Not set'}</p>` 
-                                        : ''}
+                                        `<p>Access Code: ${event.access_code || 'Not set'}</p>` : ''}
                                 </div>
                                 <div class="event-actions">
-                                    ${event.status === 'completed' ? 
-                                        `<button onclick="deleteEvent('${event.id}')" class="action-button danger">
+                                    ${event.status === 'completed' ? `
+                                        <button onclick="deleteEvent('${event.id}')" class="action-button danger">
                                             Delete
-                                        </button>` 
-                                        : `<button onclick="manageEvent('${event.id}')" class="action-button">
+                                        </button>
+                                    ` : `
+                                        <button onclick="manageEvent('${event.id}')" class="action-button">
                                             Manage
-                                        </button>`}
+                                        </button>
+                                    `}
                                 </div>
                             </div>
                         `).join('')}
-                    </div>` 
-                    : `<div class="empty-state">
+                    </div>
+                ` : `
+                    <div class="empty-state">
                         <i class="fas fa-calendar-plus"></i>
                         <h3>No Events Yet</h3>
                         <p>Create your first event to get started!</p>
                         <button onclick="createNewEvent()" class="action-button">
                             Create Event
                         </button>
-                    </div>`}`;
-
-            eventsPanel.innerHTML = content;
+                    </div>
+                `}
+            `;
         });
 }
 
@@ -3980,95 +4038,95 @@ class GameStateManager {
 }
 
 class ArcadeGameManager {
-    constructor() {
-        this.raceTrack = new RaceTrack();
-        this.wordPool = new WordPoolManager();
-        this.eventId = null;
-        this.currentWord = null;
-        this.subscription = null;
+  constructor() {
+    this.raceTrack = new RaceTrack();
+    this.wordPool = new WordPoolManager();
+    this.eventId = null;
+    this.currentWord = null;
+    this.subscription = null;
+  }
+  
+  async initialize(eventId) {
+    this.eventId = eventId;
+    this.raceTrack.initialize();
+
+    // Get event details 
+    const { data: event } = await supabaseClient
+      .from('arcade_events')
+      .select('*')
+      .eq('id', eventId)
+      .single();
+
+    // Initialize word pool  
+    await this.wordPool.initialize(event.grade_levels);
+
+    // Subscribe to real-time updates
+    this.subscription = supabaseClient
+      .channel(`game:${eventId}`)
+      .on('broadcast', { event: 'player_move' }, payload => {
+        this.handlePlayerMove(payload);  
+      })
+      .on('broadcast', { event: 'player_join' }, payload => {
+        this.handlePlayerJoin(payload);
+      })
+      .subscribe();
+
+    // Load existing players  
+    await this.loadPlayers();
+  }
+
+  async loadPlayers() {
+    const { data: participants } = await supabaseClient
+      .from('arcade_participants')
+      .select(`
+        *,
+        user_profiles:player_id (username)  
+      `)
+      .eq('event_id', this.eventId);
+
+    const colors = [
+      '#e94561', '#4CAF50', '#3498db', '#f1c40f', 
+      '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c'
+    ];
+
+    participants.forEach((participant, index) => {
+      this.raceTrack.addPlayer(
+        participant.player_id,
+        participant.player_name,
+        colors[index % colors.length]    
+      );
+      
+      // Update position if they have progress
+      if (participant.words_completed > 0) {
+        this.raceTrack.updatePlayerPosition(
+          participant.player_id,
+          participant.words_completed  
+        );
+      }
+    });
+  }
+  
+  handlePlayerMove(payload) {
+    const { playerId, wordCount } = payload;
+    this.raceTrack.updatePlayerPosition(playerId, wordCount);
+  }
+
+  handlePlayerJoin(payload) {
+    const { playerId, username } = payload;
+    const colors = ['#e94561', '#4CAF50', '#3498db', '#f1c40f'];
+    const colorIndex = this.raceTrack.players.size % colors.length;
+    this.raceTrack.addPlayer(playerId, username, colors[colorIndex]);
+  }
+
+  cleanup() {
+    if (this.subscription) {
+      this.subscription.unsubscribe();
     }
-
-    async initialize(eventId) {
-        this.eventId = eventId;
-        this.raceTrack.initialize();
-
-        // Get event details
-        const { data: event } = await supabaseClient
-            .from('arcade_events')
-            .select('*')
-            .eq('id', eventId)
-            .single();
-
-        // Initialize word pool
-        await this.wordPool.initialize(event.grade_levels);
-
-        // Subscribe to real-time updates
-        this.subscription = supabaseClient
-            .channel(`game:${eventId}`)
-            .on('broadcast', { event: 'player_move' }, payload => {
-                this.handlePlayerMove(payload);
-            })
-            .on('broadcast', { event: 'player_join' }, payload => {
-                this.handlePlayerJoin(payload);
-            })
-            .subscribe();
-
-        // Load existing players
-        await this.loadPlayers();
-    }
-
-    async loadPlayers() {
-        const { data: participants } = await supabaseClient
-            .from('arcade_participants')
-            .select(`
-                *,
-                user_profiles:player_id (username)
-            `)
-            .eq('event_id', this.eventId);
-
-        const colors = [
-            '#e94561', '#4CAF50', '#3498db', '#f1c40f',
-            '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c'
-        ];
-
-        participants.forEach((participant, index) => {
-            this.raceTrack.addPlayer(
-                participant.player_id,
-                participant.user_profiles.username,
-                colors[index % colors.length]
-            );
-            
-            // Update position if they have progress
-            if (participant.words_completed > 0) {
-                this.raceTrack.updatePlayerPosition(
-                    participant.player_id,
-                    participant.words_completed
-                );
-            }
-        });
-    }
-
-    handlePlayerMove(payload) {
-        const { playerId, wordCount } = payload;
-        this.raceTrack.updatePlayerPosition(playerId, wordCount);
-    }
-
-    handlePlayerJoin(payload) {
-        const { playerId, username } = payload;
-        const colors = ['#e94561', '#4CAF50', '#3498db', '#f1c40f'];
-        const colorIndex = this.raceTrack.players.size % colors.length;
-        this.raceTrack.addPlayer(playerId, username, colors[colorIndex]);
-    }
-
-    cleanup() {
-        if (this.subscription) {
-            this.subscription.unsubscribe();
-        }
-        this.raceTrack.cleanup();
-        this.wordPool.reset();
-        this.eventId = null;
-        this.currentWord = null;
-    }
+    this.raceTrack.cleanup(); 
+    this.wordPool.reset();
+    this.eventId = null;
+    this.currentWord = null;
+  }
 }
 
 class ArcadeGame {
@@ -4866,6 +4924,71 @@ class AchievementSystem {
     }
 }
 
+function logEventDetails(eventId) {
+    supabaseClient
+        .from('arcade_events')
+        .select('*')
+        .eq('id', eventId)
+        .single()
+        .then(({ data, error }) => {
+            if (error) {
+                console.error('Error fetching event details:', error);
+                return;
+            }
+            console.log('Event details:', data);
+        });
+}
+
+async function handleEndEvent(eventId) {
+    try {
+        console.log('Ending event:', eventId);
+        
+        const { data, error } = await supabaseClient
+            .from('arcade_events')
+            .update({ status: 'completed' })
+            .match({ id: eventId })
+            .select();
+
+        if (error) {
+            console.error('Error updating event:', error);
+            throw error;
+        }
+
+        console.log('Event ended:', data);
+        showNotification('Event ended successfully!');
+        closeModal();
+        loadTeacherEvents();
+    } catch (error) {
+        console.error('Error ending event:', error);
+        showNotification('Error ending event', 'error');
+    }
+}
+
+
+async function handleStartEvent(eventId) {
+    try {
+        console.log('Starting event:', eventId);
+        
+        const { data, error } = await supabaseClient
+            .from('arcade_events')
+            .update({ status: 'active' })
+            .match({ id: eventId })
+            .select();
+
+        if (error) {
+            console.error('Error updating event:', error);
+            throw error;
+        }
+
+        console.log('Event started:', data);
+        showNotification('Event started successfully!');
+        closeModal();
+        loadTeacherEvents();
+    } catch (error) {
+        console.error('Error starting event:', error);
+        showNotification('Error starting event', 'error');
+    }
+}
 
 async function handleStudentJoin() {
     const code = document.getElementById('access-code-input').value.trim().toUpperCase();
@@ -4905,29 +5028,29 @@ async function handleStudentJoin() {
 }
 
 function initializeStudentGame(eventId) {
-    const arcadeScreen = document.getElementById('arcade-screen');
-    document.getElementById('student-join-screen').classList.remove('visible');
-    arcadeScreen.classList.add('visible');
+  const arcadeScreen = document.getElementById('arcade-screen');
+  document.getElementById('student-join-screen').classList.remove('visible');
+  arcadeScreen.classList.add('visible');
 
-    arcadeScreen.innerHTML = `
-        <div class="game-header">
-            <div class="player-stats">
-                <div class="stat-card">
-                    <div>Words</div>
-                    <div class="stat-value words-completed">0</div>
-                </div>
-                <div class="stat-card">
-                    <div>Score</div>
-                    <div class="stat-value current-score">0</div>
-                </div>
-            </div>
+  arcadeScreen.innerHTML = `
+    <div class="game-header">
+      <div class="player-stats">
+        <div class="stat-card">
+          <div>Words Completed</div>
+          <div class="stat-value words-completed">0</div>
         </div>
-        <div class="race-container"></div>
-        <div class="word-display"></div>
-    `;
+        <div class="stat-card">
+          <div>Score</div>
+          <div class="stat-value current-score">0</div>  
+        </div>
+      </div>  
+    </div>
+    <div class="race-container"></div>
+    <div class="word-display"></div>
+  `;
 
-    const gameManager = new ArcadeGameManager();
-    gameManager.initialize(eventId);
+  const gameManager = new ArcadeGameManager();
+  gameManager.initialize(eventId);
 }
 
 function setupPerks(container) {

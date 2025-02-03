@@ -111,232 +111,37 @@ INSERT INTO schools (name) VALUES ('Default School') RETURNING id;
 -- 🎮 ARCADE EVENTS
 ----------------------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS public.arcade_events (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    teacher_id uuid REFERENCES auth.users(id),
-    class_id uuid REFERENCES school_classes(id),
-    name text NOT NULL,
-    type text CHECK (type IN ('arcade', 'standard')) NOT NULL,
-    status text DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed', 'cancelled')),
-    access_code text UNIQUE,
-    word_pool jsonb,
-    grade_levels integer[],
-    max_players integer DEFAULT 30,
-    time_limit integer,
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    started_at timestamp with time zone,
-    completed_at timestamp with time zone
-);
+DROP TABLE IF EXISTS arcade_participants CASCADE;
+DROP TABLE IF EXISTS arcade_events CASCADE;
 
-CREATE TABLE IF NOT EXISTS arcade_participants (
-    event_id uuid REFERENCES arcade_events(id),
-    player_id uuid REFERENCES auth.users(id),
-    position integer DEFAULT 0,
-    words_completed integer DEFAULT 0,
-    current_floor integer DEFAULT 0,
-    perks jsonb DEFAULT '{}',
-    score integer DEFAULT 0,
-    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    PRIMARY KEY (event_id, player_id)
-);
-
-CREATE TABLE IF NOT EXISTS teacher_wordlists (
+CREATE TABLE IF NOT EXISTS arcade_events (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     teacher_id uuid REFERENCES auth.users(id),
     name text NOT NULL,
-    words text[] NOT NULL,
-    translations text[] NOT NULL,
-    grade_level integer,
-    shared boolean DEFAULT false,
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+    access_code text UNIQUE NOT NULL,
+    status text DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed')),
+    created_at timestamptz DEFAULT now()
 );
 
--- RLS Policies
-ALTER TABLE arcade_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE teacher_wordlists ENABLE ROW LEVEL SECURITY;
-
--- Teachers can manage their events
-CREATE POLICY "Teachers manage own events" ON arcade_events
-FOR ALL USING (auth.uid() = teacher_id);
-
--- Students can view active events for their class
-CREATE POLICY "Students view class events" ON arcade_events
-FOR SELECT USING (
-    status = 'active' AND 
-    class_id IN (
-        SELECT class_id FROM class_enrollments 
-        WHERE student_id = auth.uid()
-    )
-);
-
--- Participants can manage their own participation
-CREATE POLICY "Players manage participation" ON arcade_participants
-FOR ALL USING (auth.uid() = player_id);
-
--- Teachers can manage their wordlists
-CREATE POLICY "Teachers manage wordlists" ON teacher_wordlists
-FOR ALL USING (
-    auth.uid() = teacher_id OR 
-    (shared = true AND auth.uid() IN (
-        SELECT teacher_id FROM school_classes
-        WHERE school_id = (
-            SELECT school_id FROM school_classes
-            WHERE teacher_id = teacher_wordlists.teacher_id
-            LIMIT 1
-        )
-    ))
-);
-
-GRANT ALL ON arcade_events TO authenticated;
-GRANT ALL ON arcade_participants TO authenticated;
-GRANT ALL ON teacher_wordlists TO authenticated;
-
--- First, drop the existing arcade_participants table if it exists
-DROP TABLE IF EXISTS arcade_participants CASCADE;
-
--- Recreate arcade_participants with proper foreign key reference
-CREATE TABLE IF NOT EXISTS arcade_participants (
-    event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
-    player_id uuid REFERENCES auth.users(id),
-    position integer DEFAULT 0,
-    words_completed integer DEFAULT 0,
-    current_floor integer DEFAULT 0,
-    perks jsonb DEFAULT '{}',
-    score integer DEFAULT 0,
-    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    PRIMARY KEY (event_id, player_id)
-);
-
--- Enable reference from arcade_events to participants
-ALTER TABLE arcade_participants
-    ADD CONSTRAINT fk_event
-    FOREIGN KEY (event_id)
-    REFERENCES arcade_events(id)
-    ON DELETE CASCADE;
-
--- Enable RLS for arcade_participants
-ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
-
--- Add policy for participants
-CREATE POLICY "Players can manage their participation"
-ON arcade_participants
-FOR ALL
-USING (player_id = auth.uid());
-
-GRANT ALL ON arcade_participants TO authenticated;
-
--- Correct arcade_participants table
-DROP TABLE IF EXISTS arcade_participants CASCADE;
+DROP TABLE IF EXISTS arcade_participants;
 
 CREATE TABLE IF NOT EXISTS arcade_participants (
-    event_id uuid,
-    player_id uuid REFERENCES auth.users(id),
-    words_completed integer DEFAULT 0,
-    current_floor integer DEFAULT 0,
-    score integer DEFAULT 0,
-    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    status text DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
-    PRIMARY KEY (event_id, player_id),
-    CONSTRAINT fk_event
-        FOREIGN KEY (event_id) 
-        REFERENCES arcade_events(id) 
-        ON DELETE CASCADE
+  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+  event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
+  player_name text NOT NULL,
+  status text DEFAULT 'waiting',
+  score integer DEFAULT 0,
+  words_completed integer DEFAULT 0,
+  joined_at timestamptz DEFAULT now()
 );
 
-CREATE POLICY "Public join for active events" 
-ON arcade_participants FOR INSERT
-WITH CHECK (true);
-
--- Add indices for performance
-CREATE INDEX IF NOT EXISTS idx_arcade_participants_event ON arcade_participants(event_id);
-CREATE INDEX IF NOT EXISTS idx_arcade_participants_player ON arcade_participants(player_id);
-
--- Enable RLS
-ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
-
--- Add policies
-CREATE POLICY "Players can view all participants"
-    ON arcade_participants FOR SELECT
-    USING (true);
-
-CREATE POLICY "Players can update own participation"
-    ON arcade_participants FOR UPDATE
-    USING (auth.uid() = player_id);
-
-GRANT ALL ON arcade_participants TO authenticated;
-
--- First, ensure tables exist with correct relationships
-CREATE TABLE IF NOT EXISTS public.arcade_participants (
-    event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
-    player_id uuid REFERENCES auth.users(id),
-    words_completed integer DEFAULT 0,
-    current_floor integer DEFAULT 0,
-    score integer DEFAULT 0,
-    status text DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
-    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    PRIMARY KEY (event_id, player_id)
-);
-
--- Add indices for performance
-CREATE INDEX IF NOT EXISTS idx_arcade_participants_event ON arcade_participants(event_id);
-CREATE INDEX IF NOT EXISTS idx_arcade_participants_player ON arcade_participants(player_id);
-
--- Enable RLS
-ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
-
--- Add policies
-CREATE POLICY "Players can view their events"
-    ON arcade_participants FOR SELECT
-    USING (true);
-
-CREATE POLICY "Players can update own participation"
-    ON arcade_participants FOR ALL
-    USING (player_id = auth.uid());
-
-GRANT ALL ON arcade_participants TO authenticated;
-
-ALTER TABLE arcade_participants
-    ADD CONSTRAINT fk_arcade_event
-    FOREIGN KEY (event_id)
-    REFERENCES arcade_events(id)
-    ON DELETE CASCADE;
-
-CREATE INDEX idx_arcade_participants_event_id ON arcade_participants(event_id);
-
-ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "anyone can join events"
-ON arcade_participants
-FOR INSERT
-TO authenticated
-WITH CHECK (true);
-
-CREATE POLICY "players can view their participation"
-ON arcade_participants
-FOR SELECT
-TO authenticated
-USING (true);
-
--- Add to ARCADE EVENTS section
-DROP POLICY IF EXISTS "Anyone can view active events" ON arcade_events;
-
--- Add to ARCADE EVENTS section
+-- Disable RLS
 ALTER TABLE arcade_events DISABLE ROW LEVEL SECURITY;
 ALTER TABLE arcade_participants DISABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public read access for active events"
-ON arcade_events FOR SELECT
-USING (status = 'active' OR auth.uid() = teacher_id);
-
-CREATE POLICY "Public join for active events"
-ON arcade_participants FOR INSERT
-WITH CHECK (true);
-
-CREATE POLICY "Anyone can view active events"
-ON arcade_events FOR SELECT
-USING (status = 'active');
-
+-- Grant permissions
+GRANT ALL ON arcade_events TO authenticated;
+GRANT ALL ON arcade_participants TO authenticated;
 
 ----------------------------------------------------------------------------------------
 -- 🔑 USER PROFILES

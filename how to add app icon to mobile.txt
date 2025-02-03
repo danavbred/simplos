@@ -1,0 +1,118 @@
+in the manifest: change icon name to real one. has to be 192x192 png
+
+in the head: 
+
+<link rel="manifest" href="manifest.json">
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('service-worker.js');
+    });
+  }
+</script>
+
+css:
+
+/* Add to Home Screen Icon Styles */
+#add-to-homescreen-icon {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 1000;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 50%;
+    padding: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+#add-to-homescreen-icon:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 8px rgba(0,0,0,0.2);
+}
+
+#add-to-homescreen-icon img {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* Media query to hide on desktop */
+@media (min-width: 769px) {
+    #add-to-homescreen-icon {
+        display: none;
+    }
+}
+
+
+
+
+script:
+
+// Add to Home Screen functionality
+function checkAddToHomeScreenSupport() {
+    // Check if the browser supports PWA installation
+    return ('serviceWorker' in navigator && 'PushManager' in window) &&
+           !window.matchMedia('(display-mode: standalone)').matches;
+}
+
+function showAddToHomeScreenIcon() {
+    // Only show on mobile and if not already installed
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    const alreadyInstalled = localStorage.getItem('simplos-app-installed') === 'true';
+    
+    if (isMobile && checkAddToHomeScreenSupport() && !alreadyInstalled) {
+        const addToHomeIcon = document.createElement('div');
+        addToHomeIcon.id = 'add-to-homescreen-icon';
+        addToHomeIcon.innerHTML = `
+            <div class="add-to-home-container">
+                <img src="icon.png" alt="Add Simplos to Home Screen">
+            </div>
+        `;
+        addToHomeIcon.onclick = handleAddToHomeScreen;
+        
+        const welcomeScreen = document.getElementById('welcome-screen');
+        welcomeScreen.appendChild(addToHomeIcon);
+    }
+}
+
+function handleAddToHomeScreen() {
+    // Prompt for PWA installation
+    if (window.deferredPrompt) {
+        window.deferredPrompt.prompt();
+        
+        window.deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                // User accepted the install prompt
+                localStorage.setItem('simplos-app-installed', 'true');
+                
+                // Remove the add to home screen icon
+                const addToHomeIcon = document.getElementById('add-to-homescreen-icon');
+                if (addToHomeIcon) {
+                    addToHomeIcon.remove();
+                }
+            }
+            
+            // Reset the deferred prompt
+            window.deferredPrompt = null;
+        });
+    }
+}
+
+// Listen for the beforeinstallprompt event
+window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent the mini-infobar from appearing
+    e.preventDefault();
+    
+    // Stash the event so it can be triggered later
+    window.deferredPrompt = e;
+    
+    // Show the add to home screen icon
+    showAddToHomeScreenIcon();
+});
+
+// Add event listener to check and show icon when welcome screen loads
+document.addEventListener('DOMContentLoaded', showAddToHomeScreenIcon);
