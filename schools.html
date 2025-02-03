@@ -4033,95 +4033,107 @@ class GameStateManager {
 }
 
 class ArcadeGameManager {
-  constructor() {
-    this.raceTrack = new RaceTrack();
-    this.wordPool = new WordPoolManager();
-    this.eventId = null;
-    this.currentWord = null;
-    this.subscription = null;
-  }
-  
-  async initialize(eventId) {
-    this.eventId = eventId;
-    this.raceTrack.initialize();
-
-    // Get event details 
-    const { data: event } = await supabaseClient
-      .from('arcade_events')
-      .select('*')
-      .eq('id', eventId)
-      .single();
-
-    // Initialize word pool  
-    await this.wordPool.initialize(event.grade_levels);
-
-    // Subscribe to real-time updates
-    this.subscription = supabaseClient
-      .channel(`game:${eventId}`)
-      .on('broadcast', { event: 'player_move' }, payload => {
-        this.handlePlayerMove(payload);  
-      })
-      .on('broadcast', { event: 'player_join' }, payload => {
-        this.handlePlayerJoin(payload);
-      })
-      .subscribe();
-
-    // Load existing players  
-    await this.loadPlayers();
-  }
-
-  async loadPlayers() {
-    const { data: participants } = await supabaseClient
-      .from('arcade_participants')
-      .select(`
-        *,
-        user_profiles:player_id (username)  
-      `)
-      .eq('event_id', this.eventId);
-
-    const colors = [
-      '#e94561', '#4CAF50', '#3498db', '#f1c40f', 
-      '#9b59b6', '#e67e22', '#1abc9c', '#e74c3c'
-    ];
-
-    participants.forEach((participant, index) => {
-      this.raceTrack.addPlayer(
-        participant.player_id,
-        participant.player_name,
-        colors[index % colors.length]    
-      );
-      
-      // Update position if they have progress
-      if (participant.words_completed > 0) {
-        this.raceTrack.updatePlayerPosition(
-          participant.player_id,
-          participant.words_completed  
-        );
-      }
-    });
-  }
-  
-  handlePlayerMove(payload) {
-    const { playerId, wordCount } = payload;
-    this.raceTrack.updatePlayerPosition(playerId, wordCount);
-  }
-
-  handlePlayerJoin(payload) {
-    const { playerId, username } = payload;
-    const colors = ['#e94561', '#4CAF50', '#3498db', '#f1c40f'];
-    const colorIndex = this.raceTrack.players.size % colors.length;
-    this.raceTrack.addPlayer(playerId, username, colors[colorIndex]);
-  }
-
-  cleanup() {
-    if (this.subscription) {
-      this.subscription.unsubscribe();
+    constructor() {
+        this.eventId = null;
+        this.raceTrack = new RaceTrack();
+        this.wordPresenter = null;
+        this.perkSystem = null;
+        this.currentWord = null;
+        this.playerStats = {
+            wordsCompleted: 0,
+            currentFloor: 0,
+            score: 0
+        };
+        this.subscription = null;
     }
-    this.raceTrack.cleanup(); 
-    this.wordPool.reset();
-    this.eventId = null;
-    this.currentWord = null;
-  }
+
+    async initialize(eventId) {
+        this.eventId = eventId;
+        this.raceTrack.initialize();
+        this.wordPresenter = new WordPresenter(this);
+        this.perkSystem = new PerkSystem(this);
+
+        await this.loadPlayers();
+        this.setupRealtimeSync();
+        this.presentFirstWord();
+    }
+
+    async loadPlayers() {
+        const { data: participants } = await supabaseClient
+            .from('arcade_participants')
+            .select('*')
+            .eq('event_id', this.eventId);
+
+        const colors = ['#e94561', '#4CAF50', '#3498db', '#f1c40f'];
+        
+        participants.forEach((participant, index) => {
+            this.raceTrack.addPlayer(
+                participant.id, 
+                participant.player_name, 
+                colors[index % colors.length]
+            );
+        });
+    }
+
+    setupRealtimeSync() {
+        this.subscription = supabaseClient
+            .channel(`game:${this.eventId}`)
+            .on('broadcast', { event: 'player_move' }, payload => {
+                this.handlePlayerMove(payload);
+            })
+            .subscribe();
+    }
+
+    presentFirstWord() {
+        const wordPool = new WordPoolManager();
+        this.currentWord = wordPool.getNextWord();
+        const options = wordPool.getOptions(this.currentWord.translation);
+        this.wordPresenter.presentWord(this.currentWord, options);
+    }
+
+    handlePlayerMove(payload) {
+        const { playerId, wordCount } = payload;
+        this.raceTrack.updatePlayerPosition(playerId, wordCount);
+    }
+
+    async handleWordAnswer(isCorrect) {
+        if (isCorrect) {
+            this.playerStats.wordsCompleted++;
+            this.playerStats.score += 10;
+
+            await this.updatePlayerProgress();
+            this.raceTrack.updatePlayerPosition(
+                currentUser.id, 
+                this.playerStats.wordsCompleted
+            );
+
+            this.presentNextWord();
+        }
+    }
+
+    async updatePlayerProgress() {
+        await supabaseClient
+            .from('arcade_participants')
+            .update({
+                words_completed: this.playerStats.wordsCompleted,
+                score: this.playerStats.score
+            })
+            .eq('event_id', this.eventId)
+            .eq('player_id', currentUser.id);
+    }
+
+    presentNextWord() {
+        const wordPool = new WordPoolManager();
+        this.currentWord = wordPool.getNextWord();
+        const options = wordPool.getOptions(this.currentWord.translation);
+        this.wordPresenter.presentWord(this.currentWord, options);
+    }
+
+    cleanup() {
+        this.subscription?.unsubscribe();
+        this.raceTrack.cleanup();
+        this.wordPresenter.cleanup();
+    }
 }
 
 class ArcadeGame {
@@ -4725,96 +4737,63 @@ class WordPoolManager {
 }
 
 class WordPresenter {
-   constructor(gameManager) {
-       this.gameManager = gameManager;
-       this.container = null;
-       this.currentWord = null;
-       this.answerTimeout = null;
-       this.setupUI();
-   }
+    constructor(gameManager) {
+        this.gameManager = gameManager;
+        this.container = document.querySelector('.word-display-container');
+        this.setupDisplay();
+    }
 
-   setupUI() {
-       this.container = document.createElement('div');
-       this.container.className = 'word-presenter';
-       this.container.innerHTML = `
-           <div class="word-container">
-               <div class="word"></div>
-               <div class="options"></div>
-           </div>
-           <div class="timer-bar">
-               <div class="timer-progress"></div>
-           </div>
-       `;
-       document.querySelector('.arcade-screen').appendChild(this.container);
-   }
+    setupDisplay() {
+        this.container.innerHTML = `
+            <div class="word-display">
+                <div class="word"></div>
+                <div class="options"></div>
+                <div class="timer">
+                    <div class="timer-bar"></div>
+                </div>
+            </div>
+        `;
+    }
 
-   presentWord(word, options) {
-       this.currentWord = word;
-       this.container.querySelector('.word').textContent = word.word;
-       
-       const optionsContainer = this.container.querySelector('.options');
-       optionsContainer.innerHTML = options.map(option => `
-           <button class="option-button" onclick="handleAnswer('${option}')">
-               ${option}
-           </button>
-       `).join('');
+    presentWord(word, options) {
+        const wordDisplay = this.container.querySelector('.word-display');
+        const wordElement = wordDisplay.querySelector('.word');
+        const optionsContainer = wordDisplay.querySelector('.options');
+        const timerBar = wordDisplay.querySelector('.timer-bar');
 
-       this.startTimer();
-   }
+        wordElement.textContent = word.word;
+        
+        // Shuffle options
+        const shuffledOptions = this.shuffleArray(options);
+        optionsContainer.innerHTML = shuffledOptions.map(opt => `
+            <button onclick="window.currentGame.handleWordAnswer('${opt}' === '${word.translation}')" class="option-button">
+                ${opt}
+            </button>
+        `).join('');
 
-   startTimer() {
-       const progress = this.container.querySelector('.timer-progress');
-       progress.style.width = '100%';
-       
-       requestAnimationFrame(() => {
-           progress.style.width = '0%';
-           progress.style.transition = 'width 7s linear';
-       });
+        timerBar.style.width = '100%';
+        requestAnimationFrame(() => {
+            timerBar.style.width = '0%';
+            timerBar.style.transition = 'width 7s linear';
+        });
 
-       this.answerTimeout = setTimeout(() => {
-           this.handleAnswer(null);
-       }, 7000);
-   }
+        // Auto-fail after 7 seconds
+        setTimeout(() => {
+            this.gameManager.handleWordAnswer(false);
+        }, 7000);
+    }
 
-   handleAnswer(answer) {
-       clearTimeout(this.answerTimeout);
-       
-       const isCorrect = answer === this.currentWord.translation;
-       const timeLeft = parseFloat(
-           getComputedStyle(this.container.querySelector('.timer-progress')).width
-       ) / this.container.querySelector('.timer-bar').offsetWidth;
+    shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
 
-       const points = this.calculatePoints(isCorrect, timeLeft);
-       this.showFeedback(isCorrect, points);
-       
-       setTimeout(() => {
-           this.gameManager.handleWordComplete(isCorrect, points);
-       }, 1000);
-   }
-
-   calculatePoints(isCorrect, timeLeft) {
-       if (!isCorrect) return 0;
-       const basePoints = 10;
-       const timeBonus = Math.floor(timeLeft * 10);
-       return basePoints + timeBonus;
-   }
-
-   showFeedback(isCorrect, points) {
-       const feedback = document.createElement('div');
-       feedback.className = `answer-feedback ${isCorrect ? 'correct' : 'incorrect'}`;
-       feedback.innerHTML = `
-           <div class="feedback-text">${isCorrect ? 'Correct!' : 'Try Again!'}</div>
-           ${isCorrect ? `<div class="points-earned">+${points}</div>` : ''}
-       `;
-       
-       this.container.appendChild(feedback);
-       setTimeout(() => feedback.remove(), 1000);
-   }
-
-   cleanup() {
-       clearTimeout(this.answerTimeout);
-       this.container.remove();
-   }
+    cleanup() {
+        this.container.innerHTML = '';
+    }
 }
 
 class GameSynchronizer {
@@ -5023,29 +5002,34 @@ async function handleStudentJoin() {
 }
 
 function initializeStudentGame(eventId) {
-  const arcadeScreen = document.getElementById('arcade-screen');
-  document.getElementById('student-join-screen').classList.remove('visible');
-  arcadeScreen.classList.add('visible');
+    const arcadeScreen = document.getElementById('arcade-screen');
+    document.getElementById('student-join-screen').classList.remove('visible');
+    arcadeScreen.classList.add('visible');
 
-  arcadeScreen.innerHTML = `
-    <div class="game-header">
-      <div class="player-stats">
-        <div class="stat-card">
-          <div>Words Completed</div>
-          <div class="stat-value words-completed">0</div>
+    arcadeScreen.innerHTML = `
+        <div class="game-header">
+            <div class="player-stats">
+                <div class="stat-card">
+                    <div>Words Completed</div>
+                    <div class="stat-value words-completed">0</div>
+                </div>
+                <div class="stat-card">
+                    <div>Score</div>
+                    <div class="stat-value current-score">0</div>  
+                </div>
+                <div class="perks-container"></div>
+            </div>  
         </div>
-        <div class="stat-card">
-          <div>Score</div>
-          <div class="stat-value current-score">0</div>  
-        </div>
-      </div>  
-    </div>
-    <div class="race-container"></div>
-    <div class="word-display"></div>
-  `;
+        <div class="race-container"></div>
+        <div class="word-display-container"></div>
+    `;
 
-  const gameManager = new ArcadeGameManager();
-  gameManager.initialize(eventId);
+    // Setup perks buttons
+    const perksContainer = arcadeScreen.querySelector('.perks-container');
+    setupPerks(perksContainer);
+
+    const gameManager = new ArcadeGameManager();
+    gameManager.initialize(eventId);
 }
 
 function setupPerks(container) {
