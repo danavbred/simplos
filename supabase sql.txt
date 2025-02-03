@@ -244,6 +244,10 @@ CREATE TABLE IF NOT EXISTS arcade_participants (
         ON DELETE CASCADE
 );
 
+CREATE POLICY "Public join for active events" 
+ON arcade_participants FOR INSERT
+WITH CHECK (true);
+
 -- Add indices for performance
 CREATE INDEX IF NOT EXISTS idx_arcade_participants_event ON arcade_participants(event_id);
 CREATE INDEX IF NOT EXISTS idx_arcade_participants_player ON arcade_participants(player_id);
@@ -292,6 +296,47 @@ CREATE POLICY "Players can update own participation"
 
 GRANT ALL ON arcade_participants TO authenticated;
 
+ALTER TABLE arcade_participants
+    ADD CONSTRAINT fk_arcade_event
+    FOREIGN KEY (event_id)
+    REFERENCES arcade_events(id)
+    ON DELETE CASCADE;
+
+CREATE INDEX idx_arcade_participants_event_id ON arcade_participants(event_id);
+
+ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "anyone can join events"
+ON arcade_participants
+FOR INSERT
+TO authenticated
+WITH CHECK (true);
+
+CREATE POLICY "players can view their participation"
+ON arcade_participants
+FOR SELECT
+TO authenticated
+USING (true);
+
+-- Add to ARCADE EVENTS section
+DROP POLICY IF EXISTS "Anyone can view active events" ON arcade_events;
+
+-- Add to ARCADE EVENTS section
+ALTER TABLE arcade_events DISABLE ROW LEVEL SECURITY;
+ALTER TABLE arcade_participants DISABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public read access for active events"
+ON arcade_events FOR SELECT
+USING (status = 'active' OR auth.uid() = teacher_id);
+
+CREATE POLICY "Public join for active events"
+ON arcade_participants FOR INSERT
+WITH CHECK (true);
+
+CREATE POLICY "Anyone can view active events"
+ON arcade_events FOR SELECT
+USING (status = 'active');
+
 
 ----------------------------------------------------------------------------------------
 -- 🔑 USER PROFILES
@@ -337,6 +382,12 @@ CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_new_user();
+
+CREATE POLICY "Students can join as guests"
+ON user_profiles
+FOR INSERT
+TO authenticated
+WITH CHECK (role = 'student');
 
 ----------------------------------------------------------------------------------------
 -- 🛡️ POLICIES

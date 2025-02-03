@@ -1367,6 +1367,59 @@
     color: var(--gold);
 }
 
+.leaderboard {
+    position: fixed;
+    top: 2rem;
+    right: 2rem;
+    background: var(--glass);
+    border-radius: 15px;
+    padding: 1rem;
+    width: 300px;
+    backdrop-filter: blur(10px);
+    z-index: 100;
+}
+
+.leaderboard-header {
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.leaderboard-entry {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1rem;
+    padding: 0.5rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    transition: background-color 0.3s ease;
+}
+
+.leaderboard-entry.current-player {
+    background: rgba(255,255,255,0.1);
+}
+
+.rank {
+    font-weight: bold;
+    color: var(--gold);
+}
+
+.player-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.player-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.player-name {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
     </style>
     
     <body>
@@ -1561,11 +1614,14 @@ window.selectRole = function(role) {
     }
 }
 
-// Wait for DOM load
 document.addEventListener('DOMContentLoaded', () => {
+    // Remove existing role-based event listeners
     document.querySelectorAll('.nav-button[data-role]').forEach(button => {
-        button.addEventListener('click', () => {
-            selectRole(button.getAttribute('data-role'));
+        const clone = button.cloneNode(true);
+        button.parentNode.replaceChild(clone, button);
+        clone.addEventListener('click', () => {
+            console.log('Role button clicked:', clone.dataset.role);
+            selectRole(clone.dataset.role);
         });
     });
 });
@@ -1646,16 +1702,21 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Selecting role:', role);
     currentRole = role;
     
+    document.querySelectorAll('.screen').forEach(screen => 
+        screen.classList.remove('visible'));
+        
     if (role === 'teacher') {
-        const authBox = document.getElementById('authBox');
-        if (authBox) {
-            authBox.style.display = 'block';
+        showLoginPrompt('teacher');
+    } else {
+        const studentScreen = document.getElementById('student-join-screen');
+        if (studentScreen) {
+            studentScreen.classList.add('visible');
         }
-        console.log('Auth box displayed');
     }
 }
 
-function showLoginPrompt(role) {
+
+function showLoginPrompt() {
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.innerHTML = `
@@ -1663,12 +1724,12 @@ function showLoginPrompt(role) {
             <h2>Teacher Login</h2>
             <form id="teacher-login-form">
                 <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" id="teacher-email" required>
+                    <label for="teacher-email">Email</label>
+                    <input type="email" id="teacher-email" required autocomplete="email">
                 </div>
                 <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" id="teacher-password" required>
+                    <label for="teacher-password">Password</label>
+                    <input type="password" id="teacher-password" required autocomplete="current-password">
                 </div>
                 <div class="form-actions">
                     <button type="submit" class="action-button">Login</button>
@@ -1679,35 +1740,34 @@ function showLoginPrompt(role) {
     `;
     document.body.appendChild(modal);
 
-    document.getElementById('teacher-login-form').addEventListener('submit', handleTeacherLogin);
+    const form = modal.querySelector('#teacher-login-form');
+    form.addEventListener('submit', handleTeacherLogin);
 }
     
 function showTeacherDashboard() {
-    // Hide other screens including auth box
-    document.querySelectorAll('.screen, #authBox').forEach(screen => {
+    console.log('Showing teacher dashboard');
+    
+    document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.remove('visible');
-        if (screen.id === 'authBox') {
-            screen.classList.add('hidden');
-        }
+        console.log('Removed visible from:', screen.id);
     });
     
-    // Show teacher dashboard
     const dashboard = document.getElementById('teacher-dashboard');
+    if (!dashboard) {
+        console.error('Teacher dashboard element not found');
+        return;
+    }
+    
     dashboard.classList.add('visible');
+    console.log('Dashboard visible added');
 
-    // Update email display
     const emailDisplay = document.querySelector('.user-email');
     if (emailDisplay && currentUser) {
         emailDisplay.textContent = currentUser.email;
     }
 
-    // Initialize managers if not already done
-    if (!window.classManager) window.classManager = new ClassroomManager();
-    if (!window.wordListManager) window.wordListManager = new WordListManager();
-    if (!window.analyticsManager) window.analyticsManager = new AnalyticsManager();
-
-    // Start with events tab
     switchTab('events');
+    loadTeacherEvents();
 }
 
 function closeModal() {
@@ -1738,6 +1798,24 @@ function closeModal() {
     const selectedPanel = document.getElementById(`${tab}-panel`);
     if(selectedPanel) {
         selectedPanel.style.display = 'block';
+        
+        // Update panel content
+        if(tab === 'classes') {
+            updateClassesPanel();
+        } else if(tab === 'events') {
+            loadTeacherEvents();
+        }
+    }
+}
+
+function updatePanel(tab) {
+    switch(tab) {
+        case 'classes':
+            updateClassesPanel();
+            break;
+        case 'events':
+            loadTeacherEvents();
+            break;
     }
 }
 
@@ -1942,7 +2020,6 @@ function loadTeacherEvents() {
     loadTeacherClasses();
 }
 
-
 function loadTeacherClasses() {
     if (!currentUser) return;
     
@@ -1971,66 +2048,39 @@ function loadTeacherClasses() {
 function handleEventSubmit(event) {
     event.preventDefault();
     
-    const form = event.target;
-    const nameInput = form.querySelector('#event-name');
-    const typeInput = form.querySelector('#event-type');
-    const gradeInput = form.querySelector('#grade-level');
+    const formData = {
+        name: document.getElementById('event-name').value,
+        type: document.getElementById('event-type').value,
+        grade_levels: Array.from(document.getElementById('grade-level').selectedOptions).map(opt => parseInt(opt.value)),
+        class_id: document.getElementById('target-class').value === 'all' ? null : document.getElementById('target-class').value
+    };
+
+    const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     
-    console.log('Form Elements:', {
-        form,
-        nameInput,
-        nameValue: nameInput ? nameInput.value : 'not found',
-        typeInput,
-        typeValue: typeInput ? typeInput.value : 'not found',
-        gradeInput,
-        gradeValues: gradeInput ? Array.from(gradeInput.selectedOptions).map(opt => opt.value) : []
-    });
-
-    if (!nameInput || !nameInput.value.trim()) {
-        showNotification('Please enter an event name', 'error');
-        return;
-    }
-
-    if (!typeInput || !typeInput.value) {
-        showNotification('Please select an event type', 'error');
-        return;
-    }
-
-    if (!gradeInput || !gradeInput.selectedOptions.length) {
-        showNotification('Please select at least one grade level', 'error');
-        return;
-    }
-
     const eventData = {
-        name: nameInput.value.trim(),
-        type: typeInput.value,
-        grade_levels: Array.from(gradeInput.selectedOptions).map(opt => parseInt(opt.value)),
-        class_id: form.querySelector('#target-class')?.value === 'all' ? null : form.querySelector('#target-class')?.value,
+        ...formData,
         teacher_id: currentUser.id,
         status: 'pending',
-        access_code: generateOTP(),  // Changed from otp to access_code
+        access_code: accessCode,
         created_at: new Date().toISOString()
     };
 
-    console.log('Submitting event data:', eventData);
+    console.log('Creating event:', eventData);
 
-    // Changed from 'events' to 'arcade_events'
     supabaseClient
         .from('arcade_events')
-        .insert([eventData])
+        .insert(eventData)
         .select()
+        .single()
         .then(({ data, error }) => {
-            if (error) {
-                console.error('Supabase error details:', error);
-                throw error;
-            }
-            closeModal();
+            if (error) throw error;
             showNotification('Event created successfully!');
+            closeModal();
             loadTeacherEvents();
         })
         .catch(error => {
             console.error('Event creation error:', error);
-            showNotification('Failed to create event: ' + error.message, 'error');
+            showNotification(error.message, 'error');
         });
 }
 
@@ -2817,27 +2867,10 @@ function handleClassSubmit(event, formData) {
 }
 
 async function updateClassesPanel() {
-    console.log('Updating classes panel', currentUser);
+    const panel = document.getElementById('classes-panel');
+    if (!panel) return;
+
     try {
-        const classesPanel = document.getElementById('classes-panel');
-        if (!classesPanel) {
-            console.error('Classes panel not found');
-            return;
-        }
-
-        if (!currentUser || !currentUser.id) {
-            console.error('No user logged in');
-            classesPanel.innerHTML = `
-                <div class="error-state">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <h3>Authentication Error</h3>
-                    <p>Please log in again</p>
-                </div>
-            `;
-            return;
-        }
-
-        // Fetch classes data
         const { data: classes, error } = await supabaseClient
             .from('school_classes')
             .select('*')
@@ -2845,29 +2878,19 @@ async function updateClassesPanel() {
 
         if (error) throw error;
 
-        // Update panel content
-        classesPanel.innerHTML = `
+        panel.innerHTML = `
             <div class="panel-header">
                 <h2>My Classes</h2>
-                <button type="button" class="action-button" onclick="showCreateClassModal()">
+                <button class="action-button" onclick="showCreateClassModal()">
                     <i class="fas fa-plus"></i> Create Class
                 </button>
             </div>
-            ${!classes || classes.length === 0 ? `
-                <div class="empty-state">
-                    <i class="fas fa-users"></i>
-                    <h3>No Classes Yet</h3>
-                    <p>Create your first class to get started!</p>
-                    <button type="button" onclick="showCreateClassModal()" class="action-button">
-                        Create Class
-                    </button>
-                </div>
-            ` : `
+            ${classes?.length ? `
                 <div class="class-grid">
                     ${classes.map(cls => `
                         <div class="class-card">
                             <div class="class-header">
-                                <h3 class="class-title">${cls.name}</h3>
+                                <h3>${cls.name}</h3>
                                 <span class="grade-level">Grade ${cls.grade_level}</span>
                             </div>
                             <div class="class-actions">
@@ -2881,19 +2904,26 @@ async function updateClassesPanel() {
                         </div>
                     `).join('')}
                 </div>
+            ` : `
+                <div class="empty-state">
+                    <i class="fas fa-users"></i>
+                    <h3>No Classes Yet</h3>
+                    <p>Create your first class to get started!</p>
+                    <button onclick="showCreateClassModal()" class="action-button">
+                        Create Class
+                    </button>
+                </div>
             `}
         `;
     } catch (error) {
-        console.error('Error updating classes panel:', error);
-        if (classesPanel) {
-            classesPanel.innerHTML = `
-                <div class="error-state">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <h3>Error Loading Classes</h3>
-                    <p>${error.message || 'Please try again later'}</p>
-                </div>
-            `;
-        }
+        console.error('Error loading classes:', error);
+        panel.innerHTML = `
+            <div class="error-state">
+                <i class="fas fa-exclamation-circle"></i>
+                <h3>Error Loading Classes</h3>
+                <p>${error.message}</p>
+            </div>
+        `;
     }
 }
 
@@ -3141,6 +3171,7 @@ function copyToClipboard(text) {
 }
 
 function startEvent(eventId) {
+    console.log('Starting event:', eventId);
     supabaseClient
         .from('arcade_events')
         .update({
@@ -3148,14 +3179,14 @@ function startEvent(eventId) {
             started_at: new Date().toISOString()
         })
         .eq('id', eventId)
-        .then(({ error }) => {
+        .then(({ data, error }) => {
+            console.log('Event update result:', { data, error });
             if (error) {
-                console.error('Error starting event:', error);
                 showNotification('Error starting event', 'error');
                 return;
             }
             showNotification('Event started successfully!');
-            loadTeacherEvents(); // Refresh display
+            loadTeacherEvents();
         });
 }
 
@@ -3222,7 +3253,6 @@ function showEventDetails(eventId) {
 }
 
 function manageEvent(eventId) {
-    // First, just get the event details
     supabaseClient
         .from('arcade_events')
         .select('*')
@@ -3230,51 +3260,11 @@ function manageEvent(eventId) {
         .single()
         .then(({ data: event, error }) => {
             if (error) {
-                console.error('Error loading event:', error);
-                showNotification('Error loading event details', 'error');
+                console.error('Event load error:', error);
+                showNotification('Error loading event', 'error');
                 return;
             }
-
-            const modal = document.createElement('div');
-            modal.className = 'modal';
-            modal.innerHTML = `
-                <div class="modal-content event-management">
-                    <div class="event-manage-header">
-                        <h2>${event.name}</h2>
-                        <span class="status-badge ${event.status}">${event.status}</span>
-                    </div>
-
-                    <div class="event-control-panel">
-                        <div class="control-section">
-                            <h3>Event Controls</h3>
-                            ${event.status === 'pending' ? `
-                                <button onclick="startEvent('${event.id}')" class="action-button">
-                                    <i class="fas fa-play"></i> Start Event
-                                </button>
-                            ` : event.status === 'active' ? `
-                                <button onclick="endEvent('${event.id}')" class="action-button">
-                                    <i class="fas fa-stop"></i> End Event
-                                </button>
-                            ` : ''}
-                            <button onclick="copyAccessCode('${event.access_code}')" class="action-button">
-                                <i class="fas fa-copy"></i> Copy Access Code
-                            </button>
-                        </div>
-
-                        <div class="control-section">
-                            <h3>Access Code</h3>
-                            <div class="access-code-display">
-                                ${event.access_code}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="modal-actions">
-                        <button onclick="closeModal()" class="action-button">Close</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
+            displayEventManagement(event);
         });
 }
 
@@ -3340,7 +3330,7 @@ function copyAccessCode(code) {
         .catch(() => showNotification('Error copying access code', 'error'));
 }
 
-function displayEventManagement(event, participants) {
+function displayEventManagement(event) {
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.innerHTML = `
@@ -3362,57 +3352,26 @@ function displayEventManagement(event, participants) {
                             <i class="fas fa-stop"></i> End Event
                         </button>
                     ` : ''}
-                    <button onclick="copyAccessCode('${event.access_code}')" class="action-button">
-                        <i class="fas fa-copy"></i> Copy Access Code
-                    </button>
                 </div>
 
                 <div class="control-section">
                     <h3>Access Code</h3>
                     <div class="access-code-display">
                         ${event.access_code}
+                        <button onclick="copyAccessCode('${event.access_code}')" class="action-button small">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <div class="participant-section">
-                <h3>Participants (${participants.length})</h3>
-                ${participants.length > 0 ? `
-                    <div class="participant-list">
-                        ${participants.map(p => `
-                            <div class="participant-row">
-                                <div class="participant-info">
-                                    <span class="participant-name">${p.user_profiles?.username || 'Unknown'}</span>
-                                    <span class="status-badge ${p.status}">${p.status}</span>
-                                </div>
-                                <div class="participant-stats">
-                                    <span>Words: ${p.words_completed}</span>
-                                    <span>Floor: ${p.current_floor}</span>
-                                    <span>Score: ${p.score}</span>
-                                </div>
-                                <div class="participant-actions">
-                                    <button onclick="removeParticipant('${event.id}', '${p.player_id}')" 
-                                            class="action-button small danger">
-                                        Remove
-                                    </button>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : `
-                    <div class="empty-participants">
-                        <p>No participants have joined yet</p>
-                        <p class="hint">Share the access code with your students to let them join</p>
-                    </div>
-                `}
-            </div>
-
             <div class="modal-actions">
-                <button onclick="closeModal()" class="action-button">Close</button>
+                <button onclick="closeModal()" class="action-button cancel">Close</button>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
+    setupEventRealtimeUpdates(event.id);
 }
 
 function joinEvent(accessCode) {
@@ -3495,47 +3454,80 @@ function selectRole(role) {
 
 async function joinArcadeEvent() {
     const code = document.getElementById('access-code-input').value.trim().toUpperCase();
-    if (!code) {
-        showNotification('Please enter an access code', 'error');
-        return;
-    }
-
+    
     try {
-        const { data: event, error } = await supabaseClient
+        // Handle anonymous auth
+        if (!currentUser) {
+            const { data: { user }, error: authError } = await supabaseClient.auth.signUp({
+                email: `guest_${Date.now()}@temp.com`,
+                password: 'guest' + Math.random().toString(36).slice(2),
+                options: {
+                    data: { role: 'student' }
+                }
+            });
+
+            if (authError) throw authError;
+            currentUser = user;
+        }
+
+        // Find event
+        const { data: events, error: eventError } = await supabaseClient
             .from('arcade_events')
             .select('*')
             .eq('access_code', code)
-            .eq('status', 'active')
-            .single();
+            .eq('status', 'active');
 
-        if (error || !event) {
-            showNotification('Invalid or expired access code', 'error');
+        if (eventError || !events?.length) {
+            showNotification('Invalid or expired code', 'error');
             return;
         }
 
-        // Join as participant
+        // Join event
+        const event = events[0];
         const { error: joinError } = await supabaseClient
             .from('arcade_participants')
             .insert([{
                 event_id: event.id,
-                player_id: currentUser ? currentUser.id : null,
+                player_id: currentUser.id,
                 status: 'waiting',
                 words_completed: 0,
-                current_floor: 0,
-                score: 0
-            }]);
+                score: 0,
+                joined_at: new Date().toISOString()
+            }])
+            .select()
+            .single();
 
-        if (joinError) {
-            showNotification('Error joining event', 'error');
-            return;
-        }
+        if (joinError) throw joinError;
 
-        showNotification('Successfully joined event!');
-        initializeArcadeMode(event.id);
+     initializeStudentGame(event.id);
     } catch (error) {
-        console.error('Error:', error);
-        showNotification('Error joining event', 'error');
+        console.error('Join error:', error);
+        showNotification(error.message, 'error');
     }
+}
+
+async function handleGuestAuth() {
+    const guestEmail = `guest_${Date.now()}@temp.com`;
+    const guestPassword = 'Guest' + Math.random().toString(36).slice(2);
+    
+    console.log('Creating guest account');
+    
+    const { data, error } = await supabaseClient.auth.signUp({
+        email: guestEmail,
+        password: guestPassword,
+        options: {
+            data: {
+                role: 'student'
+            }
+        }
+    });
+
+    if (data?.user) {
+        currentUser = data.user;
+        console.log('Guest auth successful:', currentUser.id);
+    }
+
+    return { error };
 }
 
 function loadTeacherEvents() {
@@ -3651,26 +3643,40 @@ function setupEventModal(modal) {
 async function handleTeacherLogin(e) {
     e.preventDefault();
     
+    const form = e.target;
+    const emailInput = form.querySelector('#teacher-email');
+    const passwordInput = form.querySelector('#teacher-password');
+    
+    console.log('Form elements:', {
+        formFound: !!form,
+        emailInput: !!emailInput,
+        passwordInput: !!passwordInput,
+        emailValue: emailInput?.value,
+        passwordLength: passwordInput?.value?.length
+    });
+
+    const email = emailInput?.value?.trim();
+    const password = passwordInput?.value;
+
+    if (!email || !password) {
+        console.log('Missing credentials:', { email: !!email, password: !!password });
+        showNotification('Please enter email and password', 'error');
+        return;
+    }
+
     try {
         const { data, error } = await supabaseClient.auth.signInWithPassword({
-            email: document.getElementById('teacher-email').value,
-            password: document.getElementById('teacher-password').value
+            email,
+            password
         });
+
+        console.log('Auth response:', { hasData: !!data, error });
 
         if (error) throw error;
 
         if (data.user) {
             currentUser = data.user;
-            const { data: profile } = await supabaseClient
-                .from('user_profiles')
-                .select('role')
-                .eq('id', currentUser.id)
-                .single();
-
-            if (profile?.role !== 'teacher') {
-                throw new Error('Access denied');
-            }
-
+            await validateTeacherRole(currentUser.id);
             closeModal();
             showTeacherDashboard();
         }
@@ -3679,6 +3685,20 @@ async function handleTeacherLogin(e) {
         showNotification(error.message, 'error');
     }
 }
+
+async function validateTeacherRole(userId) {
+    const { data: profile, error } = await supabaseClient
+        .from('user_profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+        
+    if (error || profile?.role !== 'teacher') {
+        throw new Error('Access denied: Teacher role required');
+    }
+    return profile;
+}
+
 
 async function deleteEvent(eventId) {
     if (!confirm('Are you sure you want to delete this event?')) return;
@@ -4596,101 +4616,59 @@ class PerkSystem {
 }
 
 class WordPoolManager {
-   constructor() {
-       this.pools = new Map();
-       this.currentPool = [];
-       this.usedWords = new Set();
-       this.gradeLevels = [];
-   }
+    constructor(gradeLevels) {
+        this.gradeLevels = gradeLevels;
+        this.pool = [];
+        this.usedWords = new Set();
+    }
 
-   async initialize(eventId) {
-       const { data: event } = await supabaseClient
-           .from('arcade_events')
-           .select('grade_levels')
-           .eq('id', eventId)
-           .single();
+    async initialize() {
+        const { data: lists } = await supabaseClient
+            .from('teacher_wordlists')
+            .select('words, translations')
+            .in('grade_level', this.gradeLevels);
 
-       this.gradeLevels = event.grade_levels;
-       await this.loadWordPools();
-       this.generateCurrentPool();
-   }
+        this.pool = lists.reduce((acc, list) => {
+            const words = list.words.map((word, i) => ({
+                word,
+                translation: list.translations[i]
+            }));
+            return [...acc, ...words];
+        }, []);
 
-   async loadWordPools() {
-       const { data: lists } = await supabaseClient
-           .from('teacher_wordlists')
-           .select('words, translations, grade_level')
-           .in('grade_level', this.gradeLevels);
+        this.shufflePool();
+    }
 
-       lists.forEach(list => {
-           const words = list.words.map((word, i) => ({
-               word,
-               translation: list.translations[i],
-               grade: list.grade_level
-           }));
-           
-           if (!this.pools.has(list.grade_level)) {
-               this.pools.set(list.grade_level, []);
-           }
-           this.pools.get(list.grade_level).push(...words);
-       });
-   }
+    shufflePool() {
+        for (let i = this.pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this.pool[i], this.pool[j]] = [this.pool[j], this.pool[i]];
+        }
+    }
 
-   generateCurrentPool() {
-       this.currentPool = [];
-       this.gradeLevels.forEach(grade => {
-           const pool = this.pools.get(grade) || [];
-           this.currentPool.push(...pool);
-       });
-       this.shufflePool();
-   }
+    getNextWord() {
+        if (this.usedWords.size >= this.pool.length * 0.8) {
+            this.usedWords.clear();
+            this.shufflePool();
+        }
 
-   shufflePool() {
-       for (let i = this.currentPool.length - 1; i > 0; i--) {
-           const j = Math.floor(Math.random() * (i + 1));
-           [this.currentPool[i], this.currentPool[j]] = 
-           [this.currentPool[j], this.currentPool[i]];
-       }
-   }
+        let word;
+        do {
+            word = this.pool[Math.floor(Math.random() * this.pool.length)];
+        } while (this.usedWords.has(word.word));
 
-   getNextWord() {
-       if (this.currentPool.length === 0 || 
-           this.usedWords.size === this.currentPool.length) {
-           this.usedWords.clear();
-           this.shufflePool();
-       }
+        this.usedWords.add(word.word);
+        return word;
+    }
 
-       let word;
-       do {
-           word = this.currentPool[Math.floor(Math.random() * this.currentPool.length)];
-       } while (this.usedWords.has(word.word));
-
-       this.usedWords.add(word.word);
-       return word;
-   }
-
-   getOptions(correct, count = 3) {
-       const options = [correct];
-       const available = this.currentPool.filter(w => 
-           w.translation !== correct && !options.includes(w.translation)
-       );
-
-       while (options.length < count + 1 && available.length > 0) {
-           const index = Math.floor(Math.random() * available.length);
-           options.push(available[index].translation);
-           available.splice(index, 1);
-       }
-
-       return this.shuffleArray(options);
-   }
-
-   shuffleArray(array) {
-       const newArray = [...array];
-       for (let i = newArray.length - 1; i > 0; i--) {
-           const j = Math.floor(Math.random() * (i + 1));
-           [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-       }
-       return newArray;
-   }
+    getOptions(correct, count = 3) {
+        const options = new Set([correct]);
+        while (options.size < count + 1) {
+            const word = this.pool[Math.floor(Math.random() * this.pool.length)];
+            options.add(word.translation);
+        }
+        return Array.from(options);
+    }
 }
 
 class WordPresenter {
@@ -4888,54 +4866,6 @@ class AchievementSystem {
     }
 }
 
-class LeaderboardManager {
-    constructor(gameManager) {
-        this.gameManager = gameManager;
-        this.container = this.createLeaderboard();
-        this.updateInterval = setInterval(() => this.updateLeaderboard(), 1000);
-    }
-
-    createLeaderboard() {
-        const container = document.createElement('div');
-        container.className = 'leaderboard';
-        container.innerHTML = `
-            <div class="leaderboard-header">Live Rankings</div>
-            <div class="leaderboard-entries"></div>
-        `;
-        document.querySelector('.arcade-screen').appendChild(container);
-        return container;
-    }
-
-    async updateLeaderboard() {
-        const { data: participants } = await supabaseClient
-            .from('arcade_participants')
-            .select(`
-                *,
-                user_profiles:player_id (username)
-            `)
-            .eq('event_id', this.gameManager.eventId)
-            .order('score', { ascending: false });
-
-        const entries = this.container.querySelector('.leaderboard-entries');
-        entries.innerHTML = participants.map((p, i) => `
-            <div class="leaderboard-entry ${p.player_id === currentUser.id ? 'current-player' : ''}">
-                <div class="rank">#${i + 1}</div>
-                <div class="player-info">
-                    <div class="username">${p.user_profiles.username}</div>
-                    <div class="progress-bar">
-                        <div class="progress" style="width: ${(p.words_completed / 200) * 100}%"></div>
-                    </div>
-                </div>
-                <div class="score">${p.score}</div>
-            </div>
-        `).join('');
-    }
-
-    cleanup() {
-        clearInterval(this.updateInterval);
-        this.container.remove();
-    }
-}
 
 async function handleStudentJoin() {
     const code = document.getElementById('access-code-input').value.trim().toUpperCase();
@@ -4976,7 +4906,8 @@ async function handleStudentJoin() {
 
 function initializeStudentGame(eventId) {
     const arcadeScreen = document.getElementById('arcade-screen');
-    const joinScreen = document.getElementById('student-join-screen');
+    document.getElementById('student-join-screen').classList.remove('visible');
+    arcadeScreen.classList.add('visible');
 
     arcadeScreen.innerHTML = `
         <div class="game-header">
@@ -4990,17 +4921,13 @@ function initializeStudentGame(eventId) {
                     <div class="stat-value current-score">0</div>
                 </div>
             </div>
-            <div class="perks-container"></div>
         </div>
         <div class="race-container"></div>
-        <div class="word-container"></div>
+        <div class="word-display"></div>
     `;
 
-    joinScreen.classList.remove('visible');
-    arcadeScreen.classList.add('visible');
-
-    window.gameManager = new GameStateManager(eventId);
-    window.gameManager.initialize();
+    const gameManager = new ArcadeGameManager();
+    gameManager.initialize(eventId);
 }
 
 function setupPerks(container) {
@@ -5068,6 +4995,99 @@ class EventStateManager {
 
     cleanup() {
         this.channel?.unsubscribe();
+    }
+}
+
+class StudentGameView {
+    constructor(eventId) {
+        this.eventId = eventId;
+        this.subscription = null;
+        this.wordDisplay = null;
+        this.leaderboard = null;
+        this.setupUI();
+    }
+
+    setupUI() {
+        const arcadeScreen = document.getElementById('arcade-screen');
+        arcadeScreen.innerHTML = `
+            <div class="game-header">
+                <div class="player-stats">
+                    <div class="stat-card">
+                        <div>Words Completed</div>
+                        <div class="stat-value words-completed">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div>Score</div>
+                        <div class="stat-value score">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="race-container"></div>
+            <div class="word-container"></div>
+        `;
+
+        this.setupRealTimeUpdates();
+    }
+
+    async setupRealTimeUpdates() {
+        this.subscription = supabaseClient
+            .channel(`game:${this.eventId}`)
+            .on('broadcast', { event: 'state_update' }, payload => {
+                this.handleGameUpdate(payload);
+            })
+            .subscribe();
+    }
+
+    handleGameUpdate(payload) {
+        // Update player positions, scores, etc.
+    }
+
+    cleanup() {
+        this.subscription?.unsubscribe();
+    }
+}
+
+class WordDisplay {
+    constructor(container) {
+        this.container = container;
+        this.currentWord = null;
+        this.setupDisplay();
+    }
+
+    setupDisplay() {
+        this.element = document.createElement('div');
+        this.element.className = 'word-display';
+        this.element.innerHTML = `
+            <div class="word"></div>
+            <div class="options"></div>
+            <div class="timer">
+                <div class="timer-bar"></div>
+            </div>
+        `;
+        this.container.appendChild(this.element);
+    }
+
+    presentWord(word, options) {
+        this.currentWord = word;
+        this.element.querySelector('.word').textContent = word.word;
+        
+        const optionsContainer = this.element.querySelector('.options');
+        optionsContainer.innerHTML = options.map((opt, i) => `
+            <button class="option-button" onclick="handleAnswer(${i})">
+                ${opt}
+            </button>
+        `).join('');
+        
+        this.startTimer();
+    }
+
+    startTimer() {
+        const timerBar = this.element.querySelector('.timer-bar');
+        timerBar.style.width = '100%';
+        requestAnimationFrame(() => {
+            timerBar.style.width = '0%';
+            timerBar.style.transition = 'width 7s linear';
+        });
     }
 }
 
