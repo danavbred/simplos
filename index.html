@@ -9413,6 +9413,9 @@ async function createNewEvent() {
         await loadTeacherEvents();
         showAccessCode(accessCode);
         
+        // Start polling immediately after creation
+        setupEventPolling();
+        
         return data;
     } catch (error) {
         console.error('Event creation error:', error);
@@ -9969,7 +9972,7 @@ function setupEventLobbyListener(event) {
         supabaseClient.removeChannel(lobbyContainer.dataset.channel);
     }
 
-    // Create a new real-time channel specifically for this event's participants
+    // Create a new real-time channel for this event's participants
     const channel = supabaseClient
         .channel(`event-participants-${event.id}`)
         .on('postgres_changes', {
@@ -9979,20 +9982,7 @@ function setupEventLobbyListener(event) {
             filter: `event_id=eq.${event.id}`
         }, payload => {
             console.log('New participant joined:', payload.new);
-            
-            // Create participant element
-            const participantElement = document.createElement('div');
-            participantElement.className = 'lobby-participant';
-            participantElement.dataset.participantId = payload.new.id;
-            participantElement.dataset.participantStatus = payload.new.status || 'waiting';
-            participantElement.textContent = payload.new.player_name || 'Anonymous Player';
-            
-            // Add to lobby container
-            lobbyContainer.appendChild(participantElement);
-            
-            // Update participant count
-            const currentCount = parseInt(participantCountElement.textContent) || 0;
-            participantCountElement.textContent = `${currentCount + 1} Participant${currentCount + 1 !== 1 ? 's' : ''}`;
+            addParticipantToLobby(payload.new, lobbyContainer, participantCountElement);
         })
         .on('postgres_changes', {
             event: 'DELETE', 
@@ -10001,20 +9991,9 @@ function setupEventLobbyListener(event) {
             filter: `event_id=eq.${event.id}`
         }, payload => {
             console.log('Participant left:', payload.old);
-            
-            // Remove participant from lobby
-            const participantToRemove = lobbyContainer.querySelector(`[data-participant-id="${payload.old.id}"]`);
-            if (participantToRemove) {
-                participantToRemove.remove();
-                
-                // Update participant count
-                const currentCount = parseInt(participantCountElement.textContent) || 0;
-                participantCountElement.textContent = `${Math.max(0, currentCount - 1)} Participant${currentCount - 1 !== 1 ? 's' : ''}`;
-            }
+            removeParticipantFromLobby(payload.old, lobbyContainer, participantCountElement);
         })
-        .subscribe(status => {
-            console.log(`Event ${event.id} lobby channel status:`, status);
-        });
+        .subscribe();
 
     // Store channel reference for cleanup
     lobbyContainer.dataset.channel = channel;
@@ -10155,8 +10134,11 @@ async function loadTeacherEvents() {
 
         // Set up real-time listeners for active events
         events
-    .filter(event => event.status === 'active')
-    .forEach(setupEventLobbyListener);
+            .filter(event => event.status === 'active')
+            .forEach(setupEventLobbyListener);
+
+        // Initialize polling for active events
+        setupEventPolling();
 
     } catch (error) {
         console.error('Error loading events:', error);
@@ -10177,7 +10159,6 @@ async function loadTeacherEvents() {
                 </div>
             `;
         }
-        setupEventPolling();
     }
 }
 
@@ -10192,7 +10173,6 @@ function escapeHTML(str) {
 }
 
 function initializeEventLobbyPolling() {
-    // Find all active event lobbies
     const activeEventLobbies = document.querySelectorAll('.event-lobby');
     
     activeEventLobbies.forEach(lobby => {
@@ -10215,15 +10195,32 @@ function initializeEventLobbyPolling() {
 
                 if (error) throw error;
 
-                // Update lobby participants
-                updateLobbyParticipants(eventId, participants, lobbyContainer, participantCountElement);
+                // Only add new participants that aren't already in the lobby
+                participants.forEach(participant => {
+                    const existingParticipant = lobbyContainer.querySelector(
+                        `[data-participant-id="${participant.id}"]`
+                    );
+                    
+                    if (!existingParticipant) {
+                        const participantElement = document.createElement('div');
+                        participantElement.className = 'lobby-participant';
+                        participantElement.dataset.participantId = participant.id;
+                        participantElement.dataset.participantStatus = participant.status || 'waiting';
+                        participantElement.textContent = participant.player_name || 'Anonymous Player';
+                        lobbyContainer.appendChild(participantElement);
+                    }
+                });
+
+                // Update count once
+                participantCountElement.textContent = 
+                    `${participants.length} Participant${participants.length !== 1 ? 's' : ''}`;
+
             } catch (error) {
                 console.error(`Error polling participants for event ${eventId}:`, error);
                 clearInterval(pollInterval);
             }
         }, 3000); // Poll every 3 seconds
 
-        // Store interval ID on the lobby for potential cleanup
         lobby.dataset.pollInterval = pollInterval;
     });
 }
@@ -10254,7 +10251,6 @@ function updateLobbyParticipants(eventId, participants, lobbyContainer, particip
     participantCountElement.textContent = `${participants.length} Participant${participants.length !== 1 ? 's' : ''}`;
 }
 
-// Call this function after loading teacher events
 function setupEventPolling() {
     // Slight delay to ensure DOM is fully populated
     setTimeout(initializeEventLobbyPolling, 500);
