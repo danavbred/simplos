@@ -995,6 +995,23 @@ body {
     color: white;
 }
 
+.lobby-participant {
+    padding: 0.5rem;
+    margin: 0.25rem 0;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.1);
+    transition: all 0.3s ease;
+}
+
+.lobby-participant.waiting {
+    border: 1px solid var(--accent);
+}
+
+.lobby-participant.playing {
+    background: var(--success);
+    color: white;
+}
+
 .coins-header .coin-icon {
   color: var(--gold);
   font-size: 1.5rem;
@@ -9341,71 +9358,7 @@ function copyAccessCode(code) {
         .catch(err => console.error('Error copying access code:', err));
 }
 
-function loadTeacherEvents() {
-    const eventsPanel = document.getElementById('custom-lists-container');
-    if (!eventsPanel) return;
 
-    supabaseClient
-        .from('arcade_events')
-        .select('*')
-        .eq('teacher_id', currentUser.id)
-        .then(({ data: events, error }) => {
-            if (error) {
-                console.error('Error loading events:', error);
-                return;
-            }
-
-            // Clear existing events
-            const eventsContainer = document.createElement('div');
-            eventsContainer.innerHTML = `
-                <h3 class="welcome-title">My Events</h3>
-                ${events && events.length > 0 ? `
-                    <div class="events-grid">
-                        ${events.map(event => `
-                            <div class="event-card">
-                                <div class="event-header">
-                                    <h3>${event.name}</h3>
-                                    <span class="status-badge ${event.status}">${event.status}</span>
-                                </div>
-                                <div class="event-details">
-                                    ${event.status !== 'completed' ? 
-                                        `<p>Access Code: ${event.access_code || 'Not set'}</p>` : ''}
-                                </div>
-                                <div class="event-actions">
-                                    ${event.status === 'completed' ? `
-                                        <button onclick="deleteEvent('${event.id}')" class="action-button danger">
-                                            Delete
-                                        </button>
-                                    ` : `
-                                        <button onclick="manageEvent('${event.id}')" class="action-button">
-                                            Manage
-                                        </button>
-                                    `}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : `
-                    <div class="empty-state">
-                        <i class="fas fa-calendar-plus"></i>
-                        <h3>No Events Yet</h3>
-                        <p>Create your first event to get started!</p>
-                        <button onclick="createNewEvent()" class="action-button">
-                            Create Event
-                        </button>
-                    </div>
-                `}
-            `;
-
-            // Replace existing events or append
-            const existingEventsSection = document.querySelector('#custom-lists-container .events-grid');
-            if (existingEventsSection) {
-                existingEventsSection.parentElement.replaceWith(eventsContainer);
-            } else {
-                eventsPanel.appendChild(eventsContainer);
-            }
-        });
-}
 
 async function deleteEvent(eventId) {
     try {
@@ -10019,7 +9972,22 @@ function setupEventLobbyListener(event) {
         })
         .subscribe(status => {
             console.log('Lobby channel status:', status);
+            
+            // Initial population of participants
+            if (status === 'SUBSCRIBED') {
+                populateExistingParticipants(event.id);
+            }
         });
+
+    // Store channel reference for cleanup
+    lobbyContainer.dataset.channel = channel;
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (channel) {
+            supabaseClient.removeChannel(channel);
+        }
+    });
 }
 
 function addParticipantToLobby(participant, lobbyContainer, participantCountElement) {
@@ -10031,6 +9999,13 @@ function addParticipantToLobby(participant, lobbyContainer, participantCountElem
     participantElement.className = 'lobby-participant';
     participantElement.dataset.participantId = participant.id;
     participantElement.textContent = participant.player_name || 'Anonymous Player';
+    
+    // Add status indication
+    if (participant.status === 'waiting') {
+        participantElement.classList.add('waiting');
+    } else if (participant.status === 'playing') {
+        participantElement.classList.add('playing');
+    }
     
     lobbyContainer.appendChild(participantElement);
     updateParticipantCount(lobbyContainer, participantCountElement);
@@ -10049,47 +10024,80 @@ function updateParticipantCount(lobbyContainer, participantCountElement) {
     participantCountElement.textContent = `${participantCount} Participant${participantCount !== 1 ? 's' : ''}`;
 }
 
-// Modify loadTeacherEvents to set up listeners immediately
 async function loadTeacherEvents() {
     try {
+        // Check if user is authenticated
+        if (!currentUser) {
+            console.error('User not authenticated');
+            return;
+        }
+
         const { data: events, error } = await supabaseClient
             .from('arcade_events')
-            .select('*')
+            .select(`
+                *,
+                arcade_participants (
+                    id,
+                    player_name,
+                    status
+                )
+            `)
             .eq('teacher_id', currentUser.id)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        const eventsContainer = document.getElementById('events-list');
-        if (!eventsContainer) return;
+        // Determine the correct container
+        const eventsContainer = document.getElementById('events-list') || 
+                                 document.getElementById('custom-lists-container');
+        
+        if (!eventsContainer) {
+            console.error('Events container not found');
+            return;
+        }
 
+        // Handle empty state
         if (!events || events.length === 0) {
             eventsContainer.innerHTML = `
                 <div class="empty-state">
-                    <p>No events created yet</p>
+                    <i class="fas fa-calendar-plus"></i>
+                    <h3>No Events Yet</h3>
+                    <p>Create your first event to get started!</p>
+                    <button onclick="createNewEvent()" class="action-button">
+                        Create Event
+                    </button>
                 </div>
             `;
             return;
         }
 
+        // Generate events HTML
         eventsContainer.innerHTML = events.map(event => `
-            <div class="event-card">
+            <div class="event-card" data-event-id="${event.id}">
                 <div class="event-header">
-                    <h3>${event.name}</h3>
+                    <h3>${escapeHTML(event.name)}</h3>
                     <span class="status-badge ${event.status}">${event.status}</span>
                 </div>
                 <div class="event-details">
-                    <p>Access Code: ${event.access_code}</p>
+                    <p>Access Code: ${event.access_code || 'Not set'}</p>
                     <p>Created: ${new Date(event.created_at).toLocaleDateString()}</p>
                 </div>
                 ${event.status === 'active' ? ` 
                     <div class="event-lobby"> 
                         <h4>Event Lobby</h4> 
                         <div class="lobby-participants" id="lobby-${event.id}"> 
-                            <!-- Participants will dynamically populate here --> 
+                            ${event.arcade_participants?.map(participant => `
+                                <div class="lobby-participant" 
+                                     data-participant-id="${participant.id}"
+                                     data-participant-status="${participant.status}">
+                                    ${escapeHTML(participant.player_name || 'Anonymous Player')}
+                                </div>
+                            `).join('') || ''}
                         </div> 
                         <div class="lobby-stats"> 
-                            <span class="participant-count">0 Participants</span> 
+                            <span class="participant-count">
+                                ${event.arcade_participants?.length || 0} Participant${event.arcade_participants?.length !== 1 ? 's' : ''}
+                            </span>
                         </div> 
                     </div> 
                 ` : ''}
@@ -10111,22 +10119,43 @@ async function loadTeacherEvents() {
             </div>
         `).join('');
 
-        // Set up real-time listeners for active events IMMEDIATELY
+        // Set up real-time listeners for active events
         events
             .filter(event => event.status === 'active')
             .forEach(setupEventLobbyListener);
 
     } catch (error) {
         console.error('Error loading events:', error);
-        eventsContainer.innerHTML = `
-            <div class="error-state">
-                <p>Error loading events</p>
-            </div>
-        `;
+        
+        // Use the container to show error state
+        const eventsContainer = document.getElementById('events-list') || 
+                                 document.getElementById('custom-lists-container');
+        
+        if (eventsContainer) {
+            eventsContainer.innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>Error Loading Events</h3>
+                    <p>${error.message || 'Unable to load events. Please try again.'}</p>
+                    <button onclick="loadTeacherEvents()" class="action-button">
+                        Retry
+                    </button>
+                </div>
+            `;
+        }
     }
 }
 
-// Fetch and pre-populate existing participants when page loads
+// Utility function to prevent XSS
+function escapeHTML(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 async function populateExistingParticipants(eventId) {
     const { data: participants, error } = await supabaseClient
         .from('arcade_participants')
@@ -10139,9 +10168,12 @@ async function populateExistingParticipants(eventId) {
     }
 
     const lobbyContainer = document.getElementById(`lobby-${eventId}`);
-    const participantCountElement = lobbyContainer.querySelector('.participant-count');
+    const participantCountElement = lobbyContainer?.querySelector('.participant-count');
 
-    if (lobbyContainer) {
+    if (lobbyContainer && participantCountElement) {
+        // Clear existing participants first
+        lobbyContainer.innerHTML = '';
+
         participants.forEach(participant => {
             addParticipantToLobby(participant, lobbyContainer, participantCountElement);
         });
