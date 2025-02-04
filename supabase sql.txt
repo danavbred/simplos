@@ -151,7 +151,6 @@ ADD COLUMN last_word_time timestamptz,
 ADD COLUMN correct_answers integer DEFAULT 0,
 ADD COLUMN total_attempts integer DEFAULT 0;
 
--- ADDITION to 🎮 ARCADE EVENTS section
 ALTER TABLE arcade_events
 ADD COLUMN config jsonb DEFAULT '{
     "endCondition": {"type": "time", "value": 300},
@@ -170,6 +169,25 @@ ALTER TABLE arcade_participants
 ADD COLUMN coins integer DEFAULT 0,
 ADD COLUMN perks_used jsonb DEFAULT '[]'::jsonb,
 ADD COLUMN active_effects jsonb DEFAULT '[]'::jsonb;
+
+-- Find the ALTER TABLE arcade_participants command and replace/add these columns:
+ALTER TABLE arcade_participants
+    ADD COLUMN current_streak integer DEFAULT 0,
+    ADD COLUMN highest_streak integer DEFAULT 0,
+    ADD COLUMN current_multiplier float DEFAULT 1,
+    ADD COLUMN power_word_count integer DEFAULT 0,
+    ADD COLUMN rush_time_points integer DEFAULT 0;
+
+ALTER TABLE arcade_participants
+ADD COLUMN coins integer DEFAULT 0,
+ADD COLUMN perks_used jsonb DEFAULT '[]'::jsonb,
+ADD COLUMN active_effects jsonb DEFAULT '[]'::jsonb;
+
+
+ALTER TABLE arcade_events
+    ADD COLUMN current_power_word text,
+    ADD COLUMN rush_time_active boolean DEFAULT false,
+    ADD COLUMN rush_time_start timestamptz;
 ----------------------------------------------------------------------------------------
 -- 🛡️ POLICIES
 ----------------------------------------------------------------------------------------
