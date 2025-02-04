@@ -10514,6 +10514,133 @@ function showGameConfigModal(eventId) {
     document.body.appendChild(modal);
 }
 
+function handleArcadeAnswer(isCorrect) {
+    const timestamp = Date.now();
+    const reactionTime = timestamp - currentGame.questionStartTime;
+    
+    if (isCorrect) {
+        // Calculate speed multiplier (1x-5x)
+        const speedMultiplier = calculateSpeedMultiplier(reactionTime);
+        
+        // Calculate streak multiplier
+        arcadeState.streak++;
+        const streakMultiplier = Math.floor(arcadeState.streak / 5) + 1;
+        
+        // Base points
+        let points = 10 * speedMultiplier * streakMultiplier;
+        
+        // Check for power word bonus
+        if (arcadeState.powerWordActive) {
+            points += 50;
+        }
+        
+        // Apply rush time bonus
+        if (arcadeState.rushTimeActive) {
+            points *= 2;
+        }
+        
+        arcadeState.score += points;
+        updateArcadeScore(arcadeState.participantId, arcadeState.score);
+    } else {
+        arcadeState.streak = 0;
+    }
+    
+    loadNextArcadeQuestion();
+}
+
+function initializeRushTime(eventId) {
+    setInterval(() => {
+        const shouldActivate = Math.random() < 0.3; // 30% chance every minute
+        if (shouldActivate) {
+            activateRushTime(eventId);
+        }
+    }, 60000);
+}
+
+async function activateRushTime(eventId) {
+    // Update event status
+    await supabaseClient
+        .from('arcade_events')
+        .update({ 
+            rush_time_active: true,
+            rush_time_start: new Date().toISOString()
+        })
+        .eq('id', eventId);
+    
+    // Visual effect for all players
+    broadcastRushTime(eventId);
+    
+    // End rush time after 30 seconds
+    setTimeout(() => endRushTime(eventId), 30000);
+}
+
+async function generatePowerWord(eventId, difficulty) {
+    // Get words from selected stages based on difficulty
+    const stages = {
+        'easy': [1, 2],
+        'medium': [2, 3],
+        'hard': [2, 3, 4]
+    };
+    
+    const selectedStages = stages[difficulty];
+    const words = [];
+    
+    // Collect words from vocabulary sets
+    selectedStages.forEach(stage => {
+        Object.keys(vocabularySets)
+            .filter(key => key.startsWith(`${stage}_`))
+            .forEach(setKey => {
+                words.push(...vocabularySets[setKey].words);
+            });
+    });
+    
+    // Select random word
+    const powerWord = words[Math.floor(Math.random() * words.length)];
+    
+    // Update event with new power word
+    await supabaseClient
+        .from('arcade_events')
+        .update({ current_power_word: powerWord })
+        .eq('id', eventId);
+        
+    return powerWord;
+}
+
+const ARCADE_COSTS = {
+    screenFreeze: 50,
+    wordScramble: 30,
+    timeAccelerator: 40,
+    blindMode: 35,
+    answerShuffle: 25
+};
+
+function updateArcadeCoins(amount) {
+    arcadeState.coins += amount;
+    
+    // Update visual display
+    const coinDisplay = document.querySelector('.arcade-coins');
+    if (coinDisplay) {
+        coinDisplay.textContent = arcadeState.coins;
+        coinDisplay.classList.add('coin-pulse');
+        setTimeout(() => coinDisplay.classList.remove('coin-pulse'), 500);
+    }
+    
+    // Update available perks
+    updateArcadePerkAvailability();
+}
+
+function updateArcadePerkAvailability() {
+    Object.entries(ARCADE_COSTS).forEach(([perk, cost]) => {
+        const perkButton = document.querySelector(`.perk-${perk}`);
+        if (perkButton) {
+            perkButton.disabled = arcadeState.coins < cost;
+            perkButton.classList.toggle('available', arcadeState.coins >= cost);
+        }
+    });
+}
+
+
+
 </script>
 </body>
 </html>
