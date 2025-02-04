@@ -1,0 +1,352 @@
+    async function startArcadeGame(eventId) {
+    try {
+        // Update event status to active
+        const { error: eventError } = await supabaseClient
+            .from('arcade_events')
+            .update({ 
+                status: 'active',
+                started_at: new Date().toISOString()
+            })
+            .eq('id', eventId);
+
+        if (eventError) throw eventError;
+
+        // Show arcade view modal
+        const arcadeViewModal = document.getElementById('arcade-view-modal');
+        arcadeViewModal.style.display = 'flex';
+
+        // Initialize race track view
+        initializeRaceTrack(eventId);
+
+        // Start real-time monitoring
+        setupArcadeMonitoring(eventId);
+
+        showNotification('Arcade game started!');
+
+    } catch (error) {
+        console.error('Error starting arcade game:', error);
+        showNotification('Error starting game', 'error');
+    }
+}
+
+function initializeRaceTrack(eventId) {
+    const raceTrack = document.querySelector('.race-track-container');
+    const leaderboard = document.querySelector('.arcade-rankings');
+    
+    // Set up real-time subscription for participant updates
+    const channel = supabaseClient
+        .channel(`arcade-game-${eventId}`)
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'arcade_participants',
+            filter: `event_id=eq.${eventId}`
+        }, 
+        payload => {
+            updatePlayerPosition(payload.new);
+            updateArcadeLeaderboard(eventId);
+        })
+        .subscribe();
+}
+
+function showGameConfigModal(eventId) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h2>Configure Arcade Game</h2>
+            
+            <div class="config-section">
+                <h3>Game End Condition</h3>
+                <select id="endConditionType" class="config-select">
+                    <option value="time">Time Limit</option>
+                    <option value="points">Points Target</option>
+                    <option value="words">Words Target</option>
+                </select>
+                
+                <div id="timeConfig" class="condition-config">
+                    <label>Minutes:
+                        <input type="number" id="timeLimit" value="5" min="1" max="30">
+                    </label>
+                </div>
+                
+                <div id="pointsConfig" class="condition-config" style="display:none">
+                    <label>Points Target:
+                        <input type="number" id="pointsTarget" value="2000" step="100">
+                    </label>
+                </div>
+                
+                <div id="wordsConfig" class="condition-config" style="display:none">
+                    <label>Words Target:
+                        <input type="number" id="wordsTarget" value="50">
+                    </label>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <h3>Game Features</h3>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="enablePowerWords" checked> 
+                    Enable Power Words (50 points)
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="enableRushTime" checked> 
+                    Enable Rush Time (Double Points)
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="showProgress" checked> 
+                    Show Progress to Players
+                </label>
+            </div>
+
+            <div class="modal-actions">
+                <button onclick="startArcadeGameWithConfig('${eventId}')" class="start-button">
+                    Start Game
+                </button>
+                <button onclick="closeModal()" class="cancel-button">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
+function handleArcadeAnswer(isCorrect) {
+    const timestamp = Date.now();
+    const reactionTime = timestamp - currentGame.questionStartTime;
+    
+    if (isCorrect) {
+        // Calculate speed multiplier (1x-5x)
+        const speedMultiplier = calculateSpeedMultiplier(reactionTime);
+        
+        // Calculate streak multiplier
+        arcadeState.streak++;
+        const streakMultiplier = Math.floor(arcadeState.streak / 5) + 1;
+        
+        // Base points
+        let points = 10 * speedMultiplier * streakMultiplier;
+        
+        // Check for power word bonus
+        if (arcadeState.powerWordActive) {
+            points += 50;
+        }
+        
+        // Apply rush time bonus
+        if (arcadeState.rushTimeActive) {
+            points *= 2;
+        }
+        
+        arcadeState.score += points;
+        updateArcadeScore(arcadeState.participantId, arcadeState.score);
+    } else {
+        arcadeState.streak = 0;
+    }
+    
+    loadNextArcadeQuestion();
+}
+
+function calculateArcadeScore(reactionTime, isPowerWord) {
+    // Base calculation
+    const basePoints = isPowerWord ? 50 : 10;
+    
+    // Speed multiplier (faster = higher multiplier)
+    const speedMultiplier = Math.max(1, 5 - (reactionTime / 1000));
+    
+    // Streak multiplier
+    const streakMultiplier = Math.floor(arcadeState.streak / 5) + 1;
+    
+    // Calculate total
+    let totalPoints = basePoints * speedMultiplier * streakMultiplier;
+    
+    // Apply rush time bonus if active
+    if (arcadeState.rushTimeActive) {
+        totalPoints *= 2;
+    }
+    
+    return Math.round(totalPoints);
+}
+
+function updatePlayerScore(participantId, newScore) {
+    supabaseClient
+        .from('arcade_participants')
+        .update({ 
+            score: newScore,
+            last_updated: new Date().toISOString()
+        })
+        .eq('id', participantId);
+}
+
+function initializeRushTime(eventId) {
+    setInterval(() => {
+        const shouldActivate = Math.random() < 0.3; // 30% chance every minute
+        if (shouldActivate) {
+            activateRushTime(eventId);
+        }
+    }, 60000);
+}
+
+async function activateRushTime(eventId) {
+    // Update event status
+    await supabaseClient
+        .from('arcade_events')
+        .update({ 
+            rush_time_active: true,
+            rush_time_start: new Date().toISOString()
+        })
+        .eq('id', eventId);
+    
+    // Visual effect for all players
+    broadcastRushTime(eventId);
+    
+    // End rush time after 30 seconds
+    setTimeout(() => endRushTime(eventId), 30000);
+}
+
+async function generatePowerWord(eventId, difficulty) {
+    // Get words from selected stages based on difficulty
+    const stages = {
+        'easy': [1, 2],
+        'medium': [2, 3],
+        'hard': [2, 3, 4]
+    };
+    
+    const selectedStages = stages[difficulty];
+    const words = [];
+    
+    // Collect words from vocabulary sets
+    selectedStages.forEach(stage => {
+        Object.keys(vocabularySets)
+            .filter(key => key.startsWith(`${stage}_`))
+            .forEach(setKey => {
+                words.push(...vocabularySets[setKey].words);
+            });
+    });
+    
+    // Select random word
+    const powerWord = words[Math.floor(Math.random() * words.length)];
+    
+    // Update event with new power word
+    await supabaseClient
+        .from('arcade_events')
+        .update({ current_power_word: powerWord })
+        .eq('id', eventId);
+        
+    return powerWord;
+}
+
+function generateGuestIdentity(usedNames = [], usedColors = []) {
+    const guestNames = [
+        'Simplosaurus', 'Simplodian', 'Simpleton', 'Simplonius', 
+        'Simplomancer', 'Simplonaut', 'Simplobot', 'Simplozilla', 
+        'Simplopedia', 'Simplotron', 'Simplodex', 'Simplomatic', 
+        'Simplomobile', 'Simplocopter', 'Simplonium', 'Simplotastic', 
+        'Simplominator', 'Simploverse', 'Simplonado', 'Simplophant', 
+        'Simplowizard', 'Simplodragon', 'Simplosapien', 'Simploninja', 
+        'Simplowarrior', 'Simplocket', 'Simploking', 'Simplord',
+        'Simploneer', 'Simplosity'
+    ];
+
+    const colorPalette = [
+        '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD', 
+        '#D4A5A5', '#9B6B6B', '#E9D985', '#7FD1B9', '#B0A4E3', 
+        '#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', 
+        '#C7CEEA', '#8860D0', '#5AB9EA', '#84CEEB', '#5680E9', 
+        '#8860D0', '#5AB9EA', '#84CEEB', '#5680E9', '#8860D0', 
+        '#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', 
+        '#C7CEEA', '#8860D0', '#5AB9EA', '#84CEEB', '#5680E9', 
+        '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD', 
+        '#D4A5A5', '#9B6B6B', '#E9D985', '#7FD1B9', '#B0A4E3', 
+        '#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7'
+    ];
+
+    const availableNames = guestNames.filter(name => !usedNames.includes(name));
+    const availableColors = colorPalette.filter(color => !usedColors.includes(color));
+
+    const randomName = availableNames[Math.floor(Math.random() * availableNames.length)];
+    const randomColor = availableColors[Math.floor(Math.random() * availableColors.length)];
+
+    return { name: randomName, color: randomColor };
+}
+
+// Modified join function to use guest identity
+async function joinArcadeEvent() {
+    const code = document.getElementById('access-code-input').value.trim().toUpperCase();
+    
+    try {
+        // Get existing participants to check used names/colors
+        const { data: existingParticipants } = await supabaseClient
+            .from('arcade_participants')
+            .select('player_name, color_code')
+            .eq('event_id', eventId);
+
+        const usedNames = existingParticipants.map(p => p.player_name);
+        const usedColors = existingParticipants.map(p => p.color_code);
+
+        // Generate unique identity for guest
+        const guestIdentity = currentUser ? 
+            { name: currentUser.user_metadata?.username, color: getRandomUnusedColor(usedColors) } :
+            generateGuestIdentity(usedNames, usedColors);
+
+        const { data: participant, error: joinError } = await supabaseClient
+            .from('arcade_participants')
+            .insert({
+                event_id: eventId,
+                player_name: guestIdentity.name,
+                color_code: guestIdentity.color,
+                status: 'waiting',
+                is_guest: !currentUser
+            })
+            .select()
+            .single();
+
+        if (joinError) throw joinError;
+
+        // Store participant info
+        localStorage.setItem('arcadeParticipant', JSON.stringify({
+            id: participant.id,
+            name: guestIdentity.name,
+            color: guestIdentity.color
+        }));
+
+        showWaitingScreen();
+
+    } catch (error) {
+        console.error('Join error:', error);
+        showNotification('Error joining event', 'error');
+    }
+}
+
+const ARCADE_COSTS = {
+    screenFreeze: 50,
+    wordScramble: 30,
+    timeAccelerator: 40,
+    blindMode: 35,
+    answerShuffle: 25
+};
+
+function updateArcadeCoins(amount) {
+    arcadeState.coins += amount;
+    
+    // Update visual display
+    const coinDisplay = document.querySelector('.arcade-coins');
+    if (coinDisplay) {
+        coinDisplay.textContent = arcadeState.coins;
+        coinDisplay.classList.add('coin-pulse');
+        setTimeout(() => coinDisplay.classList.remove('coin-pulse'), 500);
+    }
+    
+    // Update available perks
+    updateArcadePerkAvailability();
+}
+
+function updateArcadePerkAvailability() {
+    Object.entries(ARCADE_COSTS).forEach(([perk, cost]) => {
+        const perkButton = document.querySelector(`.perk-${perk}`);
+        if (perkButton) {
+            perkButton.disabled = arcadeState.coins < cost;
+            perkButton.classList.toggle('available', arcadeState.coins >= cost);
+        }
+    });
+}
