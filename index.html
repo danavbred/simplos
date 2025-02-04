@@ -9122,8 +9122,6 @@ async function joinArcadeEvent() {
             return;
         }
 
-        console.log('Event data:', event);
-        
         const { data: participant, error: joinError } = await supabaseClient
             .from('arcade_participants') 
             .insert({
@@ -9141,11 +9139,20 @@ async function joinArcadeEvent() {
             throw joinError;
         }
 
-        console.log('Participant data:', participant);
-        showNotification('Successfully joined event!');
-        
-        // Close modal
+        // Store event and participant info for later use
+        localStorage.setItem('currentArcadeEvent', JSON.stringify({
+            eventId: event.id,
+            participantId: participant.id
+        }));
+
+        // Close join modal and show waiting screen
         document.getElementById('arcade-join-modal').style.display = 'none';
+        showScreen('arcade-waiting-screen');
+        
+        // Subscribe to event status changes
+        subscribeToEventStatus(event.id, participant.id);
+
+        showNotification('Successfully joined event!');
 
     } catch (error) {
         console.error('Join error:', error);
@@ -9153,8 +9160,50 @@ async function joinArcadeEvent() {
     }
 }
 
+function subscribeToEventStatus(eventId, participantId) {
+    const channel = supabaseClient
+        .channel(`event-status-${eventId}`)
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'arcade_participants',
+            filter: `id=eq.${participantId}`
+        }, 
+        payload => {
+            if (payload.new.status === 'playing') {
+                // Event has started, transition to game screen
+                startArcadeGameForPlayer();
+            }
+        })
+        .subscribe();
+}
+
 function showArcadeJoin() {
     document.getElementById('arcade-join-modal').style.display = 'flex';
+}
+
+function startArcadeGameForPlayer() {
+    const eventData = JSON.parse(localStorage.getItem('currentArcadeEvent'));
+    if (!eventData) return;
+
+    // Switch to game screen
+    showScreen('question-screen');
+    
+    // Initialize arcade game state
+    currentGame = {
+        ...currentGame,
+        isArcadeMode: true,
+        eventId: eventData.eventId,
+        participantId: eventData.participantId,
+        score: 0,
+        timeBonus: 0,
+        streakBonus: true,
+        wrongStreak: 0
+    };
+
+    // Start the game (we'll implement full arcade mode logic later)
+    startTimer(currentGame.words.length);
+    loadNextQuestion();
 }
 
 async function checkTeacherRole() {
