@@ -1027,6 +1027,36 @@ body {
     color: white;
 }
 
+.waiting-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    text-align: center;
+    padding: 2rem;
+}
+
+.loading-spinner {
+    width: 100px;
+    height: 100px;
+}
+
+.spinner {
+    animation: spin 1.5s linear infinite;
+}
+
+.spinner circle {
+    stroke-dasharray: 130;
+    stroke-dashoffset: 30;
+    transform-origin: center;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 .coins-header .coin-icon {
   color: var(--gold);
   font-size: 1.5rem;
@@ -3890,7 +3920,18 @@ body {
     </div>
 </div>
 
-
+<!-- Add to index.html after arcade-join-modal -->
+<div id="arcade-waiting-screen" class="screen">
+    <div class="waiting-container">
+        <h2 class="welcome-title">Waiting for Teacher to Start</h2>
+        <div class="loading-spinner">
+            <svg viewBox="0 0 50 50" class="spinner">
+                <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="4"/>
+            </svg>
+        </div>
+        <p class="waiting-message">Get ready to play!</p>
+    </div>
+</div>
 
 
 
@@ -9933,33 +9974,28 @@ function createEventCard(event) {
                     <h3>Event Lobby</h3>
                     <div class="lobby-controls">
                         <span class="player-count">0 Players</span>
-                        <button onclick="startEvent('${event.id}')" class="start-button activate-button" disabled>
-                            Start Event
+                        <button onclick="startArcadeGame('${event.id}')" class="start-button" disabled>
+                            Start Game
                         </button>
                     </div>
                 </div>
-                <div class="lobby-container" id="player-lobby-${event.id}">
+                <div class="lobby-participants" id="lobby-${event.id}">
                     <!-- Players will be added here dynamically -->
                 </div>
             </div>
         ` : ''}
-
+        
         <div class="event-actions">
             ${event.status === 'active' ? `
                 <button onclick="endEvent('${event.id}')" class="end-button">
                     <i class="fas fa-stop"></i> End Event
                 </button>
-            ` : event.status === 'completed' ? `
-                <button onclick="deleteEvent('${event.id}')" class="delete-button">
-                    <i class="fas fa-trash"></i> Delete
-                </button>
             ` : ''}
         </div>
     `;
-
+    
     return card;
 }
-
 
 function setupEventLobbyListener(event) {
     const lobbyContainer = document.getElementById(`lobby-${event.id}`);
