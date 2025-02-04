@@ -963,6 +963,38 @@ body {
     opacity: 0.7;
 }
 
+.event-lobby {
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.lobby-participants {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.lobby-participant {
+    background: rgba(255,255,255,0.2);
+    padding: 0.5rem;
+    border-radius: 5px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.lobby-participant.waiting {
+    border: 1px solid var(--accent);
+}
+
+.lobby-participant.playing {
+    background: var(--success);
+    color: white;
+}
+
 .coins-header .coin-icon {
   color: var(--gold);
   font-size: 1.5rem;
@@ -9246,6 +9278,11 @@ async function manageEvent(eventId) {
                     ` : ''}
                 </div>
 
+<div id="event-lobby" class="lobby-section" style="display: none;">
+        <h3>Event Lobby</h3>
+        <div class="player-list"></div>
+    </div>
+
                 <div class="modal-actions">
                     <button onclick="closeModal()" class="action-button cancel">Close</button>
                 </div>
@@ -9764,63 +9801,94 @@ function showAccessCode(code) {
     document.body.appendChild(modal);
 }
 
-async function loadTeacherEvents() {
+
+
+function setupEventLobby(eventId) {
+    const lobbyContainer = document.getElementById(`player-lobby-${eventId}`);
+    const playerCount = lobbyContainer.closest('.lobby-section').querySelector('.player-count');
+    const startButton = lobbyContainer.closest('.lobby-section').querySelector('.start-button');
+    
+    const usedNames = new Set();
+    const usedColors = new Set();
+
+    const channel = supabaseClient
+        .channel(`event-${eventId}`)
+        .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'arcade_participants',
+            filter: `event_id=eq.${eventId}`
+        }, payload => {
+            addPlayerToLobby(payload.new);
+        })
+        .on('postgres_changes', {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'arcade_participants',
+            filter: `event_id=eq.${eventId}`
+        }, payload => {
+            removePlayerFromLobby(payload.old);
+        })
+        .subscribe();
+
+    // Store channel reference for cleanup
+    lobbyContainer.dataset.channel = `event-${eventId}`;
+
+    function addPlayerToLobby(player) {
+        const playerTag = document.createElement('div');
+        playerTag.className = 'player-tag';
+        playerTag.dataset.playerId = player.id;
+        playerTag.style.backgroundColor = player.color_code;
+        playerTag.innerHTML = `<span>${player.player_name}</span>`;
+        
+        lobbyContainer.appendChild(playerTag);
+        updatePlayerCount();
+    }
+
+    function removePlayerFromLobby(player) {
+        const playerTag = lobbyContainer.querySelector(`[data-player-id="${player.id}"]`);
+        if (playerTag) {
+            playerTag.remove();
+            updatePlayerCount();
+        }
+    }
+
+    function updatePlayerCount() {
+        const count = lobbyContainer.children.length;
+        playerCount.textContent = `${count} Player${count !== 1 ? 's' : ''}`;
+        startButton.disabled = count < 2;
+    }
+
+    // Load existing participants
+    loadExistingParticipants(eventId, lobbyContainer);
+}
+
+async function loadExistingParticipants(eventId, container) {
     try {
-        const { data: events, error } = await supabaseClient
-            .from('arcade_events')
+        const { data: participants, error } = await supabaseClient
+            .from('arcade_participants')
             .select('*')
-            .eq('teacher_id', currentUser.id)
-            .order('created_at', { ascending: false });
+            .eq('event_id', eventId);
 
         if (error) throw error;
 
-        const eventsContainer = document.getElementById('events-list');
-        if (!eventsContainer) return;
+        participants.forEach(participant => {
+            const playerTag = document.createElement('div');
+            playerTag.className = 'player-tag';
+            playerTag.dataset.playerId = participant.id;
+            playerTag.style.backgroundColor = participant.color_code;
+            playerTag.innerHTML = `<span>${participant.player_name}</span>`;
+            container.appendChild(playerTag);
+        });
 
-        if (!events || events.length === 0) {
-            eventsContainer.innerHTML = `
-                <div class="empty-state">
-                    <p>No events created yet</p>
-                </div>
-            `;
-            return;
-        }
-
-        eventsContainer.innerHTML = events.map(event => `
-            <div class="event-card">
-                <div class="event-header">
-                    <h3>${event.name}</h3>
-                    <span class="status-badge ${event.status}">${event.status}</span>
-                </div>
-                <div class="event-details">
-                    <p>Access Code: ${event.access_code}</p>
-                    <p>Created: ${new Date(event.created_at).toLocaleDateString()}</p>
-                </div>
-                <div class="event-actions">
-                    ${event.status === 'pending' ? `
-                        <button onclick="toggleEventStatus('${event.id}', 'pending')" class="activate-button">
-                            <i class="fas fa-play"></i> Activate Event
-                        </button>
-                    ` : event.status === 'active' ? `
-                        <button onclick="toggleEventStatus('${event.id}', 'active')" class="end-button">
-                            <i class="fas fa-stop"></i> End Event
-                        </button>
-                    ` : `
-                        <button onclick="toggleEventStatus('${event.id}', 'ended')" class="delete-button">
-                            <i class="fas fa-trash"></i> Delete Event
-                        </button>
-                    `}
-                </div>
-            </div>
-        `).join('');
+        const startButton = container.closest('.lobby-section').querySelector('.start-button');
+        startButton.disabled = participants.length < 2;
+        
+        const playerCount = container.closest('.lobby-section').querySelector('.player-count');
+        playerCount.textContent = `${participants.length} Player${participants.length !== 1 ? 's' : ''}`;
 
     } catch (error) {
-        console.error('Error loading events:', error);
-        eventsContainer.innerHTML = `
-            <div class="error-state">
-                <p>Error loading events</p>
-            </div>
-        `;
+        console.error('Error loading participants:', error);
     }
 }
 
@@ -9869,6 +9937,222 @@ function initializeTabs() {
 document.addEventListener('DOMContentLoaded', () => {
     initializeTabs();
 });
+
+function createEventCard(event) {
+    const card = document.createElement('div');
+    card.className = 'event-card';
+    card.dataset.eventId = event.id;
+
+    card.innerHTML = `
+        <div class="event-header">
+            <h3 class="event-title">${event.name}</h3>
+            <span class="status-badge ${event.status}">${event.status}</span>
+        </div>
+        
+        <div class="event-details">
+            <p>Access Code: ${event.access_code}</p>
+            <p>Created: ${new Date(event.created_at).toLocaleDateString()}</p>
+        </div>
+
+        ${event.status === 'pending' ? `
+            <div class="lobby-section">
+                <div class="lobby-header">
+                    <h3>Event Lobby</h3>
+                    <div class="lobby-controls">
+                        <span class="player-count">0 Players</span>
+                        <button onclick="startEvent('${event.id}')" class="start-button activate-button" disabled>
+                            Start Event
+                        </button>
+                    </div>
+                </div>
+                <div class="lobby-container" id="player-lobby-${event.id}">
+                    <!-- Players will be added here dynamically -->
+                </div>
+            </div>
+        ` : ''}
+
+        <div class="event-actions">
+            ${event.status === 'active' ? `
+                <button onclick="endEvent('${event.id}')" class="end-button">
+                    <i class="fas fa-stop"></i> End Event
+                </button>
+            ` : event.status === 'completed' ? `
+                <button onclick="deleteEvent('${event.id}')" class="delete-button">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+            ` : ''}
+        </div>
+    `;
+
+    return card;
+}
+
+
+function setupEventLobbyListener(event) {
+    const lobbyContainer = document.getElementById(`lobby-${event.id}`);
+    const participantCountElement = lobbyContainer.querySelector('.participant-count');
+
+    if (!lobbyContainer || !participantCountElement) return;
+
+    // Real-time channel for lobby updates
+    const channel = supabaseClient
+        .channel(`event-lobby-${event.id}`)
+        .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'arcade_participants',
+            filter: `event_id=eq.${event.id}`
+        }, payload => {
+            console.log('Participant joined:', payload.new);
+            addParticipantToLobby(payload.new, lobbyContainer, participantCountElement);
+        })
+        .on('postgres_changes', {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'arcade_participants',
+            filter: `event_id=eq.${event.id}`
+        }, payload => {
+            console.log('Participant left:', payload.old);
+            removeParticipantFromLobby(payload.old, lobbyContainer, participantCountElement);
+        })
+        .subscribe(status => {
+            console.log('Lobby channel status:', status);
+        });
+}
+
+function addParticipantToLobby(participant, lobbyContainer, participantCountElement) {
+    // Prevent duplicate entries
+    const existingParticipant = lobbyContainer.querySelector(`[data-participant-id="${participant.id}"]`);
+    if (existingParticipant) return;
+
+    const participantElement = document.createElement('div');
+    participantElement.className = 'lobby-participant';
+    participantElement.dataset.participantId = participant.id;
+    participantElement.textContent = participant.player_name || 'Anonymous Player';
+    
+    lobbyContainer.appendChild(participantElement);
+    updateParticipantCount(lobbyContainer, participantCountElement);
+}
+
+function removeParticipantFromLobby(participant, lobbyContainer, participantCountElement) {
+    const participantElement = lobbyContainer.querySelector(`[data-participant-id="${participant.id}"]`);
+    if (participantElement) {
+        participantElement.remove();
+        updateParticipantCount(lobbyContainer, participantCountElement);
+    }
+}
+
+function updateParticipantCount(lobbyContainer, participantCountElement) {
+    const participantCount = lobbyContainer.children.length;
+    participantCountElement.textContent = `${participantCount} Participant${participantCount !== 1 ? 's' : ''}`;
+}
+
+// Modify loadTeacherEvents to set up listeners immediately
+async function loadTeacherEvents() {
+    try {
+        const { data: events, error } = await supabaseClient
+            .from('arcade_events')
+            .select('*')
+            .eq('teacher_id', currentUser.id)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const eventsContainer = document.getElementById('events-list');
+        if (!eventsContainer) return;
+
+        if (!events || events.length === 0) {
+            eventsContainer.innerHTML = `
+                <div class="empty-state">
+                    <p>No events created yet</p>
+                </div>
+            `;
+            return;
+        }
+
+        eventsContainer.innerHTML = events.map(event => `
+            <div class="event-card">
+                <div class="event-header">
+                    <h3>${event.name}</h3>
+                    <span class="status-badge ${event.status}">${event.status}</span>
+                </div>
+                <div class="event-details">
+                    <p>Access Code: ${event.access_code}</p>
+                    <p>Created: ${new Date(event.created_at).toLocaleDateString()}</p>
+                </div>
+                ${event.status === 'active' ? ` 
+                    <div class="event-lobby"> 
+                        <h4>Event Lobby</h4> 
+                        <div class="lobby-participants" id="lobby-${event.id}"> 
+                            <!-- Participants will dynamically populate here --> 
+                        </div> 
+                        <div class="lobby-stats"> 
+                            <span class="participant-count">0 Participants</span> 
+                        </div> 
+                    </div> 
+                ` : ''}
+                <div class="event-actions">
+                    ${event.status === 'pending' ? `
+                        <button onclick="toggleEventStatus('${event.id}', 'pending')" class="activate-button">
+                            <i class="fas fa-play"></i> Activate Event
+                        </button>
+                    ` : event.status === 'active' ? `
+                        <button onclick="toggleEventStatus('${event.id}', 'active')" class="end-button">
+                            <i class="fas fa-stop"></i> End Event
+                        </button>
+                    ` : `
+                        <button onclick="toggleEventStatus('${event.id}', 'ended')" class="delete-button">
+                            <i class="fas fa-trash"></i> Delete Event
+                        </button>
+                    `}
+                </div>
+            </div>
+        `).join('');
+
+        // Set up real-time listeners for active events IMMEDIATELY
+        events
+            .filter(event => event.status === 'active')
+            .forEach(setupEventLobbyListener);
+
+    } catch (error) {
+        console.error('Error loading events:', error);
+        eventsContainer.innerHTML = `
+            <div class="error-state">
+                <p>Error loading events</p>
+            </div>
+        `;
+    }
+}
+
+// Fetch and pre-populate existing participants when page loads
+async function populateExistingParticipants(eventId) {
+    const { data: participants, error } = await supabaseClient
+        .from('arcade_participants')
+        .select('*')
+        .eq('event_id', eventId);
+
+    if (error) {
+        console.error('Error fetching participants:', error);
+        return;
+    }
+
+    const lobbyContainer = document.getElementById(`lobby-${eventId}`);
+    const participantCountElement = lobbyContainer.querySelector('.participant-count');
+
+    if (lobbyContainer) {
+        participants.forEach(participant => {
+            addParticipantToLobby(participant, lobbyContainer, participantCountElement);
+        });
+    }
+}
+
+// Call this on page load for each active event
+events
+    .filter(event => event.status === 'active')
+    .forEach(event => {
+        setupEventLobbyListener(event);
+        populateExistingParticipants(event.id);
+    });
 
 </script>
 </body>
