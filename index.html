@@ -1038,12 +1038,12 @@ body {
 }
 
 .loading-spinner {
-    width: 100px;
-    height: 100px;
-}
-
-.spinner {
-    animation: spin 1.5s linear infinite;
+    width: 60px;
+    height: 60px;
+    border: 3px solid var(--glass);
+    border-top: 3px solid var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
 }
 
 .spinner circle {
@@ -1072,6 +1072,179 @@ body {
 .start-arcade-button:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3);
+}
+
+.arcade-race-view {
+    display: flex;
+    gap: 2rem;
+    padding: 2rem;
+    height: 100vh;
+}
+
+.race-track-container {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.race-floor {
+    height: 80px;
+    background: var(--glass);
+    border-radius: 40px;
+    position: relative;
+    padding: 0.5rem;
+}
+
+.player-marker {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.player-name {
+    font-weight: bold;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.player-score {
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+
+.arcade-leaderboard {
+    flex: 1;
+    background: var(--glass);
+    border-radius: 20px;
+    padding: 1rem;
+}
+
+.arcade-race-view {
+    display: none;
+    width: 100%;
+    min-height: 100vh;
+    padding: 2rem;
+    background: var(--gradient);
+}
+
+.arcade-race-view.visible {
+    display: flex;
+    flex-direction: row;
+    gap: 2rem;
+}
+
+.race-track-wrapper {
+    flex: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.race-track-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    padding: 2rem;
+    background: var(--glass);
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.race-floor {
+    height: 100px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50px;
+    position: relative;
+    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.floor-label {
+    position: absolute;
+    left: -100px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text);
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+
+.arcade-sidebar {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.arcade-leaderboard {
+    background: var(--glass);
+    border-radius: 20px;
+    padding: 1.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.arcade-leaderboard h3 {
+    color: var(--gold);
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.arcade-rankings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.arcade-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    background: var(--glass);
+    border-radius: 20px;
+    padding: 1.5rem;
+    backdrop-filter: blur(10px);
+}
+
+.arcade-control-button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 25px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.arcade-control-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.arcade-control-button.end-game {
+    background: var(--accent);
+    margin-top: 1rem;
+}
+
+.arcade-control-button.end-game:hover {
+    background: var(--error);
+}
+
+.player-marker {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--glass);
+    border-radius: 25px;
+    transition: all 0.3s ease;
 }
 
 .coins-header .coin-icon {
@@ -3724,6 +3897,8 @@ body {
                     </div>
                 </div>
 
+
+                
                 <!-- Practice Section -->
                 <div class="practice-section">
                     <h2 class="welcome-title">Create Custom Word List</h2>
@@ -3949,7 +4124,19 @@ body {
     </div>
 </div>
 
-
+<div class="arcade-race-view screen">
+    <div class="race-track-container">
+        <div class="race-floor floor-1"></div>
+        <div class="race-floor floor-2"></div>
+        <div class="race-floor floor-3"></div>
+        <div class="race-floor floor-4"></div>
+    </div>
+    
+    <div class="arcade-leaderboard">
+        <h3>Live Rankings</h3>
+        <div class="arcade-rankings"></div>
+    </div>
+</div>
 
 
 
@@ -10421,53 +10608,169 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function startArcadeGame(eventId) {
     try {
-        // Update event status to active
+        console.log('Starting arcade game with event ID:', eventId);
+        
+        // First, verify we have enough players
+        const { data: participants } = await supabaseClient
+            .from('arcade_participants')
+            .select('id')
+            .eq('event_id', eventId);
+
+        if (!participants || participants.length < 2) {
+            showNotification('Need at least 2 players to start', 'error');
+            return;
+        }
+
+        // Update all participants to 'playing' status
+        const { error: updateError } = await supabaseClient
+            .from('arcade_participants')
+            .update({ 
+                status: 'playing'  // Only update status for now
+            })
+            .eq('event_id', eventId);
+
+        if (updateError) throw updateError;
+
+        // Update event state
         const { error: eventError } = await supabaseClient
             .from('arcade_events')
-            .update({ 
-                status: 'active',
-                started_at: new Date().toISOString()
+            .update({
+                status: 'active'
             })
             .eq('id', eventId);
 
         if (eventError) throw eventError;
 
-        // Show arcade view modal
-        const arcadeViewModal = document.getElementById('arcade-view-modal');
-        arcadeViewModal.style.display = 'flex';
+        // Show the race track view
+        const arcadeView = document.querySelector('.arcade-race-view');
+        if (!arcadeView) {
+            console.error('Arcade view not found');
+            return;
+        }
+        
+        // Hide all other content first
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.remove('visible');
+        });
 
-        // Initialize race track view
+        arcadeView.classList.remove('hidden');
+        arcadeView.classList.add('visible');
+        
+        // Initialize race track
         initializeRaceTrack(eventId);
-
-        // Start real-time monitoring
-        setupArcadeMonitoring(eventId);
-
-        showNotification('Arcade game started!');
 
     } catch (error) {
         console.error('Error starting arcade game:', error);
-        showNotification('Error starting game', 'error');
+        showNotification('Failed to start game', 'error');
+    }
+}
+
+function showArcadeView(eventId) {
+    // Hide other content and show arcade view
+    const mainContent = document.querySelector('.teacher-panel-container');
+    const arcadeView = document.querySelector('.arcade-race-view');
+    
+    if (mainContent) mainContent.style.display = 'none';
+    if (arcadeView) {
+        arcadeView.classList.remove('hidden');
+        initializeRaceTrack(eventId);
     }
 }
 
 function initializeRaceTrack(eventId) {
-    const raceTrack = document.querySelector('.race-track-container');
-    const leaderboard = document.querySelector('.arcade-rankings');
+    try {
+        console.log('Initializing race track for event:', eventId);
+        
+        const raceTrack = document.querySelector('.race-track-container');
+        if (!raceTrack) {
+            console.error('Race track container not found');
+            return;
+        }
+
+        // Set up race track floors
+        const floors = raceTrack.querySelectorAll('.race-floor');
+        floors.forEach((floor, index) => {
+            floor.innerHTML = ''; // Clear existing content
+            floor.dataset.floorNumber = index + 1;
+            console.log(`Initialized floor ${index + 1}`);
+        });
+
+        // Start real-time monitoring
+        setupRaceMonitoring(eventId);
+        
+    } catch (error) {
+        console.error('Error initializing race track:', error);
+        showNotification('Error initializing game view', 'error');
+    }
+}
+
+
+function setupRaceMonitoring(eventId) {
+    try {
+        console.log('Setting up race monitoring for event:', eventId);
+        
+        const channel = supabaseClient
+            .channel(`race-${eventId}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'arcade_participants',
+                filter: `event_id=eq.${eventId}`
+            }, payload => {
+                console.log('Participant update received:', payload);
+                updatePlayerPosition(payload.new);
+            })
+            .subscribe(status => {
+                console.log('Channel subscription status:', status);
+            });
+            
+    } catch (error) {
+        console.error('Error setting up race monitoring:', error);
+    }
+}
+
+function updatePlayerPosition(participant) {
+    const playerMarker = document.querySelector(
+        `.player-marker[data-participant-id="${participant.id}"]`
+    ) || createPlayerMarker(participant);
+
+    // Calculate floor and position
+    const totalProgress = participant.words_completed || 0;
+    const floor = Math.floor(totalProgress / 50) + 1;
+    const positionInFloor = totalProgress % 50;
+
+    // Update marker position
+    moveMarkerToPosition(playerMarker, floor, positionInFloor);
+}
+
+function createPlayerMarker(participant) {
+    const marker = document.createElement('div');
+    marker.className = 'player-marker';
+    marker.dataset.participantId = participant.id;
+    marker.innerHTML = `
+        <span class="player-name" style="color: ${participant.color_code}">
+            ${participant.player_name}
+        </span>
+        <span class="player-score">${participant.score || 0}</span>
+    `;
+    return marker;
+}
+
+function moveMarkerToPosition(marker, floor, position) {
+    const floorElement = document.querySelector(`.race-floor[data-floor-number="${floor}"]`);
+    if (!floorElement) return;
+
+    const isRightToLeft = floor % 2 === 0;
+    const percentagePosition = isRightToLeft 
+        ? 100 - ((position / 50) * 100)
+        : (position / 50) * 100;
+
+    marker.style.transform = `translateX(${percentagePosition}%)`;
     
-    // Set up real-time subscription for participant updates
-    const channel = supabaseClient
-        .channel(`arcade-game-${eventId}`)
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'arcade_participants',
-            filter: `event_id=eq.${eventId}`
-        }, 
-        payload => {
-            updatePlayerPosition(payload.new);
-            updateArcadeLeaderboard(eventId);
-        })
-        .subscribe();
+    // Move marker to new floor if needed
+    if (marker.parentElement !== floorElement) {
+        floorElement.appendChild(marker);
+    }
 }
 
 function showGameConfigModal(eventId) {
