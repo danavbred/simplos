@@ -979,11 +979,26 @@ body {
 }
 
 .lobby-participant {
-    background: rgba(255,255,255,0.2);
     padding: 0.5rem;
+    margin: 0.25rem 0;
+    background: rgba(255,255,255,0.1);
     border-radius: 5px;
-    text-align: center;
     transition: all 0.3s ease;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.lobby-participant[data-participant-status="waiting"] {
+    border: 1px solid var(--accent);
+}
+
+.lobby-participant[data-participant-status="playing"] {
+    background: var(--success);
+    color: white;
 }
 
 .lobby-participant.waiting {
@@ -9945,50 +9960,69 @@ function createEventCard(event) {
 
 function setupEventLobbyListener(event) {
     const lobbyContainer = document.getElementById(`lobby-${event.id}`);
-    const participantCountElement = lobbyContainer.querySelector('.participant-count');
+    const participantCountElement = lobbyContainer?.querySelector('.participant-count');
 
     if (!lobbyContainer || !participantCountElement) return;
 
-    // Real-time channel for lobby updates
+    // Remove any existing channel to prevent duplicate listeners
+    if (lobbyContainer.dataset.channel) {
+        supabaseClient.removeChannel(lobbyContainer.dataset.channel);
+    }
+
+    // Create a new real-time channel specifically for this event's participants
     const channel = supabaseClient
-        .channel(`event-lobby-${event.id}`)
+        .channel(`event-participants-${event.id}`)
         .on('postgres_changes', {
-            event: 'INSERT',
-            schema: 'public',
+            event: 'INSERT', 
+            schema: 'public', 
             table: 'arcade_participants',
             filter: `event_id=eq.${event.id}`
         }, payload => {
-            console.log('Participant joined:', payload.new);
-            addParticipantToLobby(payload.new, lobbyContainer, participantCountElement);
+            console.log('New participant joined:', payload.new);
+            
+            // Create participant element
+            const participantElement = document.createElement('div');
+            participantElement.className = 'lobby-participant';
+            participantElement.dataset.participantId = payload.new.id;
+            participantElement.dataset.participantStatus = payload.new.status || 'waiting';
+            participantElement.textContent = payload.new.player_name || 'Anonymous Player';
+            
+            // Add to lobby container
+            lobbyContainer.appendChild(participantElement);
+            
+            // Update participant count
+            const currentCount = parseInt(participantCountElement.textContent) || 0;
+            participantCountElement.textContent = `${currentCount + 1} Participant${currentCount + 1 !== 1 ? 's' : ''}`;
         })
         .on('postgres_changes', {
-            event: 'DELETE',
-            schema: 'public',
+            event: 'DELETE', 
+            schema: 'public', 
             table: 'arcade_participants',
             filter: `event_id=eq.${event.id}`
         }, payload => {
             console.log('Participant left:', payload.old);
-            removeParticipantFromLobby(payload.old, lobbyContainer, participantCountElement);
+            
+            // Remove participant from lobby
+            const participantToRemove = lobbyContainer.querySelector(`[data-participant-id="${payload.old.id}"]`);
+            if (participantToRemove) {
+                participantToRemove.remove();
+                
+                // Update participant count
+                const currentCount = parseInt(participantCountElement.textContent) || 0;
+                participantCountElement.textContent = `${Math.max(0, currentCount - 1)} Participant${currentCount - 1 !== 1 ? 's' : ''}`;
+            }
         })
         .subscribe(status => {
-            console.log('Lobby channel status:', status);
-            
-            // Initial population of participants
-            if (status === 'SUBSCRIBED') {
-                populateExistingParticipants(event.id);
-            }
+            console.log(`Event ${event.id} lobby channel status:`, status);
         });
 
     // Store channel reference for cleanup
     lobbyContainer.dataset.channel = channel;
 
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', () => {
-        if (channel) {
-            supabaseClient.removeChannel(channel);
-        }
-    });
+    // Initial population of existing participants
+    populateExistingParticipants(event.id);
 }
+
 
 function addParticipantToLobby(participant, lobbyContainer, participantCountElement) {
     // Prevent duplicate entries
@@ -10121,8 +10155,8 @@ async function loadTeacherEvents() {
 
         // Set up real-time listeners for active events
         events
-            .filter(event => event.status === 'active')
-            .forEach(setupEventLobbyListener);
+    .filter(event => event.status === 'active')
+    .forEach(setupEventLobbyListener);
 
     } catch (error) {
         console.error('Error loading events:', error);
@@ -10143,6 +10177,7 @@ async function loadTeacherEvents() {
                 </div>
             `;
         }
+        setupEventPolling();
     }
 }
 
@@ -10156,27 +10191,108 @@ function escapeHTML(str) {
         .replace(/'/g, '&#039;');
 }
 
+function initializeEventLobbyPolling() {
+    // Find all active event lobbies
+    const activeEventLobbies = document.querySelectorAll('.event-lobby');
+    
+    activeEventLobbies.forEach(lobby => {
+        const eventId = lobby.querySelector('.lobby-participants').id.replace('lobby-', '');
+        const participantCountElement = lobby.querySelector('.participant-count');
+        const lobbyContainer = lobby.querySelector('.lobby-participants');
+
+        // Clear any existing polling interval
+        if (lobby.dataset.pollInterval) {
+            clearInterval(parseInt(lobby.dataset.pollInterval));
+        }
+
+        // Set up new polling interval
+        const pollInterval = setInterval(async () => {
+            try {
+                const { data: participants, error } = await supabaseClient
+                    .from('arcade_participants')
+                    .select('*')
+                    .eq('event_id', eventId);
+
+                if (error) throw error;
+
+                // Update lobby participants
+                updateLobbyParticipants(eventId, participants, lobbyContainer, participantCountElement);
+            } catch (error) {
+                console.error(`Error polling participants for event ${eventId}:`, error);
+                clearInterval(pollInterval);
+            }
+        }, 3000); // Poll every 3 seconds
+
+        // Store interval ID on the lobby for potential cleanup
+        lobby.dataset.pollInterval = pollInterval;
+    });
+}
+
+function updateLobbyParticipants(eventId, participants, lobbyContainer, participantCountElement) {
+    // Create a Set of existing participant IDs to track changes
+    const existingParticipantIds = new Set(
+        Array.from(lobbyContainer.children).map(el => el.dataset.participantId)
+    );
+
+    // Track new participants to add
+    const newParticipants = participants.filter(
+        participant => !existingParticipantIds.has(participant.id.toString())
+    );
+
+    // Add new participants
+    newParticipants.forEach(participant => {
+        const participantElement = document.createElement('div');
+        participantElement.className = 'lobby-participant';
+        participantElement.dataset.participantId = participant.id;
+        participantElement.dataset.participantStatus = participant.status || 'waiting';
+        participantElement.textContent = participant.player_name || 'Anonymous Player';
+        
+        lobbyContainer.appendChild(participantElement);
+    });
+
+    // Update participant count
+    participantCountElement.textContent = `${participants.length} Participant${participants.length !== 1 ? 's' : ''}`;
+}
+
+// Call this function after loading teacher events
+function setupEventPolling() {
+    // Slight delay to ensure DOM is fully populated
+    setTimeout(initializeEventLobbyPolling, 500);
+}
+
 async function populateExistingParticipants(eventId) {
-    const { data: participants, error } = await supabaseClient
-        .from('arcade_participants')
-        .select('*')
-        .eq('event_id', eventId);
-
-    if (error) {
-        console.error('Error fetching participants:', error);
-        return;
-    }
-
     const lobbyContainer = document.getElementById(`lobby-${eventId}`);
     const participantCountElement = lobbyContainer?.querySelector('.participant-count');
 
-    if (lobbyContainer && participantCountElement) {
-        // Clear existing participants first
+    if (!lobbyContainer || !participantCountElement) return;
+
+    try {
+        const { data: participants, error } = await supabaseClient
+            .from('arcade_participants')
+            .select('*')
+            .eq('event_id', eventId);
+
+        if (error) throw error;
+
+        // Clear existing participants
         lobbyContainer.innerHTML = '';
 
+        // Add existing participants
         participants.forEach(participant => {
-            addParticipantToLobby(participant, lobbyContainer, participantCountElement);
+            const participantElement = document.createElement('div');
+            participantElement.className = 'lobby-participant';
+            participantElement.dataset.participantId = participant.id;
+            participantElement.dataset.participantStatus = participant.status || 'waiting';
+            participantElement.textContent = participant.player_name || 'Anonymous Player';
+            
+            lobbyContainer.appendChild(participantElement);
         });
+
+        // Update participant count
+        participantCountElement.textContent = `${participants.length} Participant${participants.length !== 1 ? 's' : ''}`;
+
+    } catch (error) {
+        console.error('Error populating existing participants:', error);
     }
 }
 
