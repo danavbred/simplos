@@ -10450,6 +10450,70 @@ function initializeRaceTrack(eventId) {
         .subscribe();
 }
 
+function showGameConfigModal(eventId) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <h2>Configure Arcade Game</h2>
+            
+            <div class="config-section">
+                <h3>Game End Condition</h3>
+                <select id="endConditionType" class="config-select">
+                    <option value="time">Time Limit</option>
+                    <option value="points">Points Target</option>
+                    <option value="words">Words Target</option>
+                </select>
+                
+                <div id="timeConfig" class="condition-config">
+                    <label>Minutes:
+                        <input type="number" id="timeLimit" value="5" min="1" max="30">
+                    </label>
+                </div>
+                
+                <div id="pointsConfig" class="condition-config" style="display:none">
+                    <label>Points Target:
+                        <input type="number" id="pointsTarget" value="2000" step="100">
+                    </label>
+                </div>
+                
+                <div id="wordsConfig" class="condition-config" style="display:none">
+                    <label>Words Target:
+                        <input type="number" id="wordsTarget" value="50">
+                    </label>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <h3>Game Features</h3>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="enablePowerWords" checked> 
+                    Enable Power Words (50 points)
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="enableRushTime" checked> 
+                    Enable Rush Time (Double Points)
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="showProgress" checked> 
+                    Show Progress to Players
+                </label>
+            </div>
+
+            <div class="modal-actions">
+                <button onclick="startArcadeGameWithConfig('${eventId}')" class="start-button">
+                    Start Game
+                </button>
+                <button onclick="closeModal()" class="cancel-button">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+}
+
 </script>
 </body>
 </html>
