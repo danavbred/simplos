@@ -10399,6 +10399,57 @@ document.addEventListener('DOMContentLoaded', () => {
     setupArcadeScreens();
 });
 
+async function startArcadeGame(eventId) {
+    try {
+        // Update event status to active
+        const { error: eventError } = await supabaseClient
+            .from('arcade_events')
+            .update({ 
+                status: 'active',
+                started_at: new Date().toISOString()
+            })
+            .eq('id', eventId);
+
+        if (eventError) throw eventError;
+
+        // Show arcade view modal
+        const arcadeViewModal = document.getElementById('arcade-view-modal');
+        arcadeViewModal.style.display = 'flex';
+
+        // Initialize race track view
+        initializeRaceTrack(eventId);
+
+        // Start real-time monitoring
+        setupArcadeMonitoring(eventId);
+
+        showNotification('Arcade game started!');
+
+    } catch (error) {
+        console.error('Error starting arcade game:', error);
+        showNotification('Error starting game', 'error');
+    }
+}
+
+function initializeRaceTrack(eventId) {
+    const raceTrack = document.querySelector('.race-track-container');
+    const leaderboard = document.querySelector('.arcade-rankings');
+    
+    // Set up real-time subscription for participant updates
+    const channel = supabaseClient
+        .channel(`arcade-game-${eventId}`)
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'arcade_participants',
+            filter: `event_id=eq.${eventId}`
+        }, 
+        payload => {
+            updatePlayerPosition(payload.new);
+            updateArcadeLeaderboard(eventId);
+        })
+        .subscribe();
+}
+
 </script>
 </body>
 </html>
