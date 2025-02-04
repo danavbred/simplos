@@ -107,8 +107,8 @@ ALTER TABLE public.school_classes
 
 INSERT INTO schools (name) VALUES ('Default School') RETURNING id;
 
-----------------------------------------------------------------------------------------
--- 🎮 ARCADE EVENTS
+
+ -- 🎮 ARCADE EVENTS section
 ----------------------------------------------------------------------------------------
 
 DROP TABLE IF EXISTS arcade_participants CASCADE;
@@ -120,80 +120,56 @@ CREATE TABLE IF NOT EXISTS arcade_events (
     name text NOT NULL,
     access_code text UNIQUE NOT NULL,
     status text DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed')),
-    created_at timestamptz DEFAULT now()
+    created_at timestamptz DEFAULT now(),
+    participants_count integer DEFAULT 0,
+    word_pool jsonb DEFAULT '[]'
 );
-
-DROP TABLE IF EXISTS arcade_participants;
 
 CREATE TABLE IF NOT EXISTS arcade_participants (
-  id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-  event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
-  player_name text NOT NULL,
-  status text DEFAULT 'waiting',
-  score integer DEFAULT 0,
-  words_completed integer DEFAULT 0,
-  joined_at timestamptz DEFAULT now()
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES auth.users(id),
+    player_name text NOT NULL,
+    color_code text NOT NULL,
+    status text DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
+    score integer DEFAULT 0,
+    words_completed integer DEFAULT 0,
+    mistakes_made integer DEFAULT 0,
+    position_y float DEFAULT 0,
+    joined_at timestamptz DEFAULT now()
 );
 
--- Disable RLS
-ALTER TABLE arcade_events DISABLE ROW LEVEL SECURITY;
-ALTER TABLE arcade_participants DISABLE ROW LEVEL SECURITY;
+ALTER TABLE arcade_participants
+ADD COLUMN game_status text DEFAULT 'waiting' CHECK (game_status IN ('waiting', 'playing', 'finished')),
+ADD COLUMN current_score integer DEFAULT 0,
+ADD COLUMN current_position integer DEFAULT 0;
 
--- Grant permissions
-GRANT ALL ON arcade_events TO authenticated;
-GRANT ALL ON arcade_participants TO authenticated;
+ALTER TABLE arcade_participants
+ADD COLUMN current_floor integer DEFAULT 1,
+ADD COLUMN position_in_floor float DEFAULT 0,
+ADD COLUMN last_word_time timestamptz,
+ADD COLUMN correct_answers integer DEFAULT 0,
+ADD COLUMN total_attempts integer DEFAULT 0;
 
-----------------------------------------------------------------------------------------
--- 🔑 USER PROFILES
-----------------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.user_profiles (
-    id uuid PRIMARY KEY REFERENCES auth.users,
-    username text UNIQUE,
-    email text,
-    role text CHECK (role IN ('student', 'teacher', 'admin')) DEFAULT 'student',
-    status text DEFAULT 'free' CHECK (status IN ('free', 'pending', 'premium')),
-    payment_pending boolean DEFAULT false,
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
-);
+-- ADDITION to 🎮 ARCADE EVENTS section
+ALTER TABLE arcade_events
+ADD COLUMN config jsonb DEFAULT '{
+    "endCondition": {"type": "time", "value": 300},
+    "scoringSystem": "combo",
+    "enablePowerUps": false,
+    "showProgress": true
+}'::jsonb,
+ADD COLUMN game_state jsonb DEFAULT '{
+    "started": false,
+    "currentPhase": "waiting",
+    "timeRemaining": null,
+    "powerUpsActive": []
+}'::jsonb;
 
--- Trigger for automatic profile creation on user signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO public.user_profiles (
-        id,
-        username,
-        email,
-        role,
-        status
-    ) VALUES (
-        NEW.id,
-        COALESCE(
-            NEW.raw_user_meta_data->>'username', 
-            split_part(NEW.email, '@', 1)
-        ),
-        NEW.email,
-        'student',
-        'free'
-    );
-    RETURN NEW;
-EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Error in handle_new_user: %', SQLERRM;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_new_user();
-
-CREATE POLICY "Students can join as guests"
-ON user_profiles
-FOR INSERT
-TO authenticated
-WITH CHECK (role = 'student');
-
+ALTER TABLE arcade_participants
+ADD COLUMN coins integer DEFAULT 0,
+ADD COLUMN perks_used jsonb DEFAULT '[]'::jsonb,
+ADD COLUMN active_effects jsonb DEFAULT '[]'::jsonb;
 ----------------------------------------------------------------------------------------
 -- 🛡️ POLICIES
 ----------------------------------------------------------------------------------------
