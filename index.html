@@ -1010,22 +1010,6 @@ body {
     color: white;
 }
 
-.lobby-participant {
-    padding: 0.5rem;
-    margin: 0.25rem 0;
-    border-radius: 5px;
-    background: rgba(255,255,255,0.1);
-    transition: all 0.3s ease;
-}
-
-.lobby-participant.waiting {
-    border: 1px solid var(--accent);
-}
-
-.lobby-participant.playing {
-    background: var(--success);
-    color: white;
-}
 
 .waiting-container {
     display: flex;
@@ -10989,14 +10973,26 @@ async function initializeArcadeEvent(eventId) {
 }
 
 async function handleParticipantJoin(eventId) {
-    const playerDetails = generatePlayerDetails();
-    
-    const { data: participant, error: joinError } = await supabaseClient
+    let playerName, playerColor;
+
+    if (currentUser) {
+        // Use registered username
+        playerName = currentUser.user_metadata?.username;
+    } else {
+        // Prefer predefined pseudonyms
+        const usedNames = new Set();
+        const usedColors = new Set();
+        
+        playerName = getRandomUnusedName(usedNames);
+        playerColor = getRandomUnusedColor(usedColors);
+    }
+
+    const { data: participant, error } = await supabaseClient
         .from('arcade_participants') 
         .insert({
             event_id: eventId,
-            player_name: currentUser ? currentUser.user_metadata?.username : playerDetails.name,
-            color_code: playerDetails.color,
+            player_name: playerName,
+            color_code: playerColor || getRandomUnusedColor(new Set()),
             status: 'waiting',
             words_completed: 0,
             score: 0
@@ -11004,12 +11000,25 @@ async function handleParticipantJoin(eventId) {
         .select()
         .single();
 
-    if (joinError) {
-        console.error('Join error details:', joinError);
-        throw joinError;
+    if (error) {
+        console.error('Participant join error:', error);
+        return null;
     }
 
     return participant;
+}
+
+function getRandomUnusedName(usedNames) {
+    const availableNames = guestNames.filter(name => !usedNames.has(name));
+    
+    if (availableNames.length === 0) {
+        // Fallback to random guest name if all predefined names used
+        return 'Guest_' + Math.random().toString(36).substring(2, 7);
+    }
+
+    const name = availableNames[Math.floor(Math.random() * availableNames.length)];
+    usedNames.add(name);
+    return name;
 }
 
 function setupRealTimeTracking(eventId) {
@@ -11291,7 +11300,12 @@ function generatePlayerDetails() {
 
 function getRandomUnusedName(usedNames) {
     const availableNames = guestNames.filter(name => !usedNames.has(name));
-    if (!availableNames.length) return 'Simplo_' + Math.random().toString(36).substr(2, 4);
+    
+    if (availableNames.length === 0) {
+        // Cycle back to original names if all used
+        return guestNames[Math.floor(Math.random() * guestNames.length)];
+    }
+
     const name = availableNames[Math.floor(Math.random() * availableNames.length)];
     usedNames.add(name);
     return name;
@@ -11299,7 +11313,12 @@ function getRandomUnusedName(usedNames) {
 
 function getRandomUnusedColor(usedColors) {
     const availableColors = colorPalette.filter(color => !usedColors.has(color));
-    if (!availableColors.length) return '#' + Math.floor(Math.random()*16777215).toString(16);
+    
+    if (availableColors.length === 0) {
+        // Cycle back to original colors if all used
+        return colorPalette[Math.floor(Math.random() * colorPalette.length)];
+    }
+
     const color = availableColors[Math.floor(Math.random() * availableColors.length)];
     usedColors.add(color);
     return color;
@@ -12244,6 +12263,32 @@ function updateRaceTrack(eventId) {
                 }
             });
         });
+}
+
+function getUniqueGuestName(usedNames) {
+    const availableNames = guestNames.filter(name => !usedNames.has(name));
+    
+    if (availableNames.length === 0) {
+        // Fallback: generate random unique name
+        return `Simplo_${Math.random().toString(36).substring(7)}`;
+    }
+
+    const name = availableNames[Math.floor(Math.random() * availableNames.length)];
+    usedNames.add(name);
+    return name;
+}
+
+function getUniqueColor(usedColors) {
+    const availableColors = colorPalette.filter(color => !usedColors.has(color));
+    
+    if (availableColors.length === 0) {
+        // Fallback: generate random color
+        return `#${Math.floor(Math.random()*16777215).toString(16)}`;
+    }
+
+    const color = availableColors[Math.floor(Math.random() * availableColors.length)];
+    usedColors.add(color);
+    return color;
 }
 
 </script>
