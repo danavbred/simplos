@@ -111,9 +111,13 @@ INSERT INTO schools (name) VALUES ('Default School') RETURNING id;
  -- 🎮 ARCADE EVENTS section
 ----------------------------------------------------------------------------------------
 
+-- 🎮 ARCADE EVENTS section
+----------------------------------------------------------------------------------------
+
 DROP TABLE IF EXISTS arcade_participants CASCADE;
 DROP TABLE IF EXISTS arcade_events CASCADE;
 
+-- Base arcade_events table
 CREATE TABLE IF NOT EXISTS arcade_events (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     teacher_id uuid REFERENCES auth.users(id),
@@ -122,72 +126,57 @@ CREATE TABLE IF NOT EXISTS arcade_events (
     status text DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed')),
     created_at timestamptz DEFAULT now(),
     participants_count integer DEFAULT 0,
-    word_pool jsonb DEFAULT '[]'
+    word_pool jsonb DEFAULT '[]',
+    current_power_word text,
+    rush_time_active boolean DEFAULT false,
+    rush_time_start timestamptz,
+    config jsonb DEFAULT '{
+        "endCondition": {"type": "time", "value": 300},
+        "scoringSystem": "combo",
+        "enablePowerUps": false,
+        "showProgress": true
+    }'::jsonb,
+    game_state jsonb DEFAULT '{
+        "started": false,
+        "currentPhase": "waiting",
+        "timeRemaining": null,
+        "powerUpsActive": []
+    }'::jsonb
 );
 
+-- Base arcade_participants table
 CREATE TABLE IF NOT EXISTS arcade_participants (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
     user_id uuid REFERENCES auth.users(id),
     player_name text NOT NULL,
-    color_code text NOT NULL,
+    color_code text DEFAULT '#' || lpad(to_hex(floor(random() * 16777215)::int), 6, '0'),
     status text DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
     score integer DEFAULT 0,
     words_completed integer DEFAULT 0,
     mistakes_made integer DEFAULT 0,
     position_y float DEFAULT 0,
-    joined_at timestamptz DEFAULT now()
+    joined_at timestamptz DEFAULT now(),
+    game_status text DEFAULT 'waiting' CHECK (game_status IN ('waiting', 'playing', 'finished')),
+    current_score integer DEFAULT 0,
+    current_position integer DEFAULT 0,
+    current_floor integer DEFAULT 1,
+    position_in_floor float DEFAULT 0,
+    last_word_time timestamptz,
+    correct_answers integer DEFAULT 0,
+    total_attempts integer DEFAULT 0,
+    current_streak integer DEFAULT 0,
+    highest_streak integer DEFAULT 0,
+    current_multiplier float DEFAULT 1,
+    power_word_count integer DEFAULT 0,
+    rush_time_points integer DEFAULT 0,
+    coins integer DEFAULT 0,
+    perks_used jsonb DEFAULT '[]'::jsonb,
+    active_effects jsonb DEFAULT '[]'::jsonb
 );
-
-ALTER TABLE arcade_participants
-ADD COLUMN game_status text DEFAULT 'waiting' CHECK (game_status IN ('waiting', 'playing', 'finished')),
-ADD COLUMN current_score integer DEFAULT 0,
-ADD COLUMN current_position integer DEFAULT 0;
-
-ALTER TABLE arcade_participants
-ADD COLUMN current_floor integer DEFAULT 1,
-ADD COLUMN position_in_floor float DEFAULT 0,
-ADD COLUMN last_word_time timestamptz,
-ADD COLUMN correct_answers integer DEFAULT 0,
-ADD COLUMN total_attempts integer DEFAULT 0;
-
-ALTER TABLE arcade_events
-ADD COLUMN config jsonb DEFAULT '{
-    "endCondition": {"type": "time", "value": 300},
-    "scoringSystem": "combo",
-    "enablePowerUps": false,
-    "showProgress": true
-}'::jsonb,
-ADD COLUMN game_state jsonb DEFAULT '{
-    "started": false,
-    "currentPhase": "waiting",
-    "timeRemaining": null,
-    "powerUpsActive": []
-}'::jsonb;
-
-ALTER TABLE arcade_participants
-ADD COLUMN coins integer DEFAULT 0,
-ADD COLUMN perks_used jsonb DEFAULT '[]'::jsonb,
-ADD COLUMN active_effects jsonb DEFAULT '[]'::jsonb;
-
--- Find the ALTER TABLE arcade_participants command and replace/add these columns:
-ALTER TABLE arcade_participants
-    ADD COLUMN current_streak integer DEFAULT 0,
-    ADD COLUMN highest_streak integer DEFAULT 0,
-    ADD COLUMN current_multiplier float DEFAULT 1,
-    ADD COLUMN power_word_count integer DEFAULT 0,
-    ADD COLUMN rush_time_points integer DEFAULT 0;
-
-ALTER TABLE arcade_participants
-ADD COLUMN coins integer DEFAULT 0,
-ADD COLUMN perks_used jsonb DEFAULT '[]'::jsonb,
-ADD COLUMN active_effects jsonb DEFAULT '[]'::jsonb;
-
-
-ALTER TABLE arcade_events
-    ADD COLUMN current_power_word text,
-    ADD COLUMN rush_time_active boolean DEFAULT false,
-    ADD COLUMN rush_time_start timestamptz;
+ALTER TABLE arcade_participants DROP COLUMN IF EXISTS game_status;
+ALTER TABLE arcade_participants ADD COLUMN game_status text DEFAULT 'waiting' 
+    CHECK (game_status IN ('waiting', 'playing', 'finished'));
 ----------------------------------------------------------------------------------------
 -- 🛡️ POLICIES
 ----------------------------------------------------------------------------------------
