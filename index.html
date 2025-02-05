@@ -10576,45 +10576,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function startArcadeGame(eventId) {
     try {
-        console.log('Starting arcade game for event:', eventId);
-        
-        // Update participants to playing status
+        // Update all participants to playing
         await supabaseClient
             .from('arcade_participants')
             .update({ status: 'playing' })
             .eq('event_id', eventId);
 
-        // For teacher: show race view
-        const arcadeView = document.querySelector('.arcade-race-view');
-        if (arcadeView) {
-            console.log('Initializing teacher view');
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
-            arcadeView.classList.add('visible');
-            
-            // Initialize floors with participants
-            const { data: participants } = await supabaseClient
-                .from('arcade_participants')
-                .select('*')
-                .eq('event_id', eventId);
-                
-            if (participants) {
-                console.log('Loading participants:', participants);
-                participants.forEach(participant => {
-                    const marker = createPlayerMarker(participant);
-                    document.querySelector('.floor-1').appendChild(marker);
-                });
-            }
-            
-            initializeEventMonitoring(eventId);
-        }
+        const { data: participants } = await supabaseClient
+            .from('arcade_participants')
+            .select('*')
+            .eq('event_id', eventId);
 
-        // For players: start game interface
-        const currentEvent = JSON.parse(localStorage.getItem('currentArcadeEvent'));
-        if (currentEvent) {
-            console.log('Current player event:', currentEvent);
-            await initializeArcadeWords(eventId);
-            showArcadeGameInterface();
-        }
+        // Initialize the race track
+        showArcadeRaceView(eventId);
+        
+        // Start game for all participants
+        participants?.forEach(participant => {
+            const playerMarker = createPlayerMarker(participant);
+            document.querySelector('.floor-1')?.appendChild(playerMarker);
+        });
+
+        // Start real-time monitoring
+        initializeEventMonitoring(eventId);
+        
+        // Start power-ups and rush time cycles
+        initializePowerUps(eventId);
+        initializeRushTime(eventId);
 
     } catch (error) {
         console.error('Error starting arcade game:', error);
@@ -10794,38 +10781,43 @@ function showGameConfigModal(eventId) {
     document.body.appendChild(modal);
 }
 
-function handleArcadeAnswer(isCorrect) {
-    const timestamp = Date.now();
-    const reactionTime = timestamp - currentGame.questionStartTime;
+async function handleArcadeAnswer(isCorrect) {
+    if (!window.arcadeState) return;
+    
+    const responseTime = Date.now() - window.arcadeState.questionStartTime;
+    const speedMultiplier = Math.max(1, 5 - Math.floor(responseTime / 1000));
     
     if (isCorrect) {
-        // Calculate speed multiplier (1x-5x)
-        const speedMultiplier = calculateSpeedMultiplier(reactionTime);
+        // Calculate score
+        let score = 10 * speedMultiplier;
+        if (window.arcadeState.rushTimeActive) score *= 2;
+        if (window.arcadeState.powerWordActive) score += 50;
         
-        // Calculate streak multiplier
-        arcadeState.streak++;
-        const streakMultiplier = Math.floor(arcadeState.streak / 5) + 1;
+        window.arcadeState.streak++;
+        window.arcadeState.score += score;
         
-        // Base points
-        let points = 10 * speedMultiplier * streakMultiplier;
-        
-        // Check for power word bonus
-        if (arcadeState.powerWordActive) {
-            points += 50;
-        }
-        
-        // Apply rush time bonus
-        if (arcadeState.rushTimeActive) {
-            points *= 2;
-        }
-        
-        arcadeState.score += points;
-        updateArcadeScore(arcadeState.participantId, arcadeState.score);
+        // Update participant data
+        await supabaseClient
+            .from('arcade_participants')
+            .update({
+                score: window.arcadeState.score,
+                words_completed: window.arcadeState.wordsCompleted + 1,
+                current_streak: window.arcadeState.streak,
+                current_position: calculatePosition(window.arcadeState.wordsCompleted + 1)
+            })
+            .eq('id', window.arcadeState.participantId);
+            
+        loadNextArcadeWord();
     } else {
-        arcadeState.streak = 0;
+        window.arcadeState.streak = 0;
+        await supabaseClient
+            .from('arcade_participants')
+            .update({
+                current_streak: 0,
+                mistakes_made: window.arcadeState.mistakes + 1
+            })
+            .eq('id', window.arcadeState.participantId);
     }
-    
-    loadNextArcadeQuestion();
 }
 
 function initializeRushTime(eventId) {
@@ -10973,39 +10965,40 @@ async function initializeArcadeEvent(eventId) {
 }
 
 async function handleParticipantJoin(eventId) {
-    let playerName, playerColor;
+    const usedNames = new Set();
+    const usedColors = new Set();
 
-    if (currentUser) {
-        // Use registered username
-        playerName = currentUser.user_metadata?.username;
+    let playerName, playerColor;
+    
+    if (currentUser?.user_metadata?.username) {
+        playerName = currentUser.user_metadata.username;
+        playerColor = getRandomUnusedColor(usedColors); // Still give registered users unique colors
     } else {
-        // Prefer predefined pseudonyms
-        const usedNames = new Set();
-        const usedColors = new Set();
-        
         playerName = getRandomUnusedName(usedNames);
         playerColor = getRandomUnusedColor(usedColors);
     }
 
-    const { data: participant, error } = await supabaseClient
-        .from('arcade_participants') 
-        .insert({
-            event_id: eventId,
-            player_name: playerName,
-            color_code: playerColor || getRandomUnusedColor(new Set()),
-            status: 'waiting',
-            words_completed: 0,
-            score: 0
-        })
-        .select()
-        .single();
+    try {
+        const { data: participant, error } = await supabaseClient
+            .from('arcade_participants') 
+            .insert({
+                event_id: eventId,
+                player_name: playerName,
+                color_code: playerColor,
+                status: 'waiting',
+                words_completed: 0,
+                score: 0
+            })
+            .select()
+            .single();
 
-    if (error) {
-        console.error('Participant join error:', error);
+        if (error) throw error;
+        return participant;
+    } catch (error) {
+        console.error('Join error:', error);
+        showNotification('Error joining event', 'error');
         return null;
     }
-
-    return participant;
 }
 
 function getRandomUnusedName(usedNames) {
@@ -11046,31 +11039,7 @@ function setupRealTimeTracking(eventId) {
     window.gameChannel = channel; // Store for cleanup
 }
 
-function initializeWordPool(gradeLevel) {
-    const wordPool = [];
-    const stageLevels = {
-        'junior': [1, 2],
-        'high': [1, 2, 3],
-        'advanced': [1, 2, 3, 4]
-    };
-    
-    const levels = stageLevels[gradeLevel];
-    
-    levels.forEach(stage => {
-        Object.keys(vocabularySets)
-            .filter(key => key.startsWith(`${stage}_`))
-            .forEach(setKey => {
-                const set = vocabularySets[setKey];
-                wordPool.push(...set.words.map((word, index) => ({
-                    word,
-                    translation: set.translations[index],
-                    stage
-                })));
-            });
-    });
-    
-    return wordPool;
-}
+
 
 const PERK_COSTS = {
     freeze: 50,
@@ -11324,35 +11293,7 @@ function getRandomUnusedColor(usedColors) {
     return color;
 }
 
-function updatePlayerPositions(eventId) {
-    const participantsContainer = document.querySelector('.arcade-participants');
-    if (!participantsContainer) return;
 
-    const height = participantsContainer.offsetHeight;
-    
-    supabaseClient
-        .from('arcade_participants')
-        .select('*')
-        .eq('event_id', eventId)
-        .order('score', { ascending: false })
-        .then(({ data: participants, error }) => {
-            if (error || !participants) return;
-
-            participants.forEach((participant, index) => {
-                const playerTag = document.querySelector(`[data-participant-id="${participant.id}"]`);
-                if (!playerTag) return;
-
-                const topPosition = (index * 60) / participants.length;
-                playerTag.style.transform = `translateY(${topPosition}%)`;
-                
-                // Add rank-based styling
-                playerTag.classList.remove('rank-1', 'rank-2', 'rank-3');
-                if (index < 3) {
-                    playerTag.classList.add(`rank-${index + 1}`);
-                }
-            });
-        });
-}
 
 function applyPerkEffect(type, target) {
     const effectDurations = {
@@ -11491,12 +11432,6 @@ function initializeTeacherMonitoring(eventId) {
     window.monitoringInterval = updateInterval;
 }
 
-const ACHIEVEMENTS = {
-    SPEED_DEMON: { threshold: 5, type: 'streak', icon: '⚡' },
-    WORD_MASTER: { threshold: 20, type: 'words', icon: '📚' },
-    PERFECT_TEN: { threshold: 10, type: 'streak', icon: '🎯' },
-    UNSTOPPABLE: { threshold: 15, type: 'streak', icon: '🔥' }
-};
 
 function checkAchievements(playerStats) {
     playerStats.forEach(player => {
@@ -11953,81 +11888,6 @@ function setupArcadeAnswerHandling() {
     });
 }
 
-const arcadeStyles = document.createElement('style');
-arcadeStyles.textContent = `
-    .arcade-mode {
-        position: relative;
-    }
-
-    .arcade-ui {
-        position: fixed;
-        top: 1rem;
-        right: 1rem;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        z-index: 100;
-    }
-
-    .arcade-stats {
-        background: var(--glass);
-        padding: 1rem;
-        border-radius: 15px;
-        backdrop-filter: blur(10px);
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-
-    .arcade-score, .arcade-streak {
-        font-size: 1.2rem;
-        font-weight: bold;
-        color: var(--text);
-    }
-
-    .arcade-perks {
-        display: flex;
-        gap: 0.5rem;
-    }
-
-    .perk-button {
-        background: var(--glass);
-        border: none;
-        border-radius: 50%;
-        width: 50px;
-        height: 50px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        position: relative;
-    }
-
-    .perk-button:hover:not(:disabled) {
-        transform: translateY(-2px);
-        background: rgba(255, 255, 255, 0.2);
-    }
-
-    .perk-button .cost {
-        position: absolute;
-        bottom: -0.5rem;
-        right: -0.5rem;
-        background: var(--accent);
-        color: var(--text);
-        padding: 0.2rem 0.4rem;
-        border-radius: 10px;
-        font-size: 0.8rem;
-    }
-
-    .perk-button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-`;
-
-document.head.appendChild(arcadeStyles);
 
 function updateRankings(eventId) {
     const rankingsContainer = document.querySelector('.arcade-rankings');
@@ -12289,6 +12149,1194 @@ function getUniqueColor(usedColors) {
     const color = availableColors[Math.floor(Math.random() * availableColors.length)];
     usedColors.add(color);
     return color;
+}
+
+function initializePowerUps(eventId) {
+    const effects = {
+        freeze: {
+            duration: 10000,
+            cost: 50,
+            apply: (targetId) => freezePlayer(targetId)
+        },
+        scramble: {
+            duration: 15000,
+            cost: 30,
+            apply: (targetId) => scrambleWords(targetId)
+        },
+        blind: {
+            duration: 8000,
+            cost: 35,
+            apply: (targetId) => applyBlindEffect(targetId)
+        }
+    };
+
+    // Listen for perk usage
+    window.gameChannel = supabaseClient
+        .channel(`game-${eventId}`)
+        .on('broadcast', { event: 'perk_used' }, payload => {
+            const effect = effects[payload.type];
+            if (effect) {
+                effect.apply(payload.targetId);
+                setTimeout(() => removePerkEffect(payload.targetId, payload.type), 
+                    effect.duration);
+            }
+        })
+        .subscribe();
+}
+
+function calculatePosition(wordsCompleted) {
+    const WORDS_PER_FLOOR = 50;
+    const floor = Math.floor(wordsCompleted / WORDS_PER_FLOOR) + 1;
+    const positionInFloor = (wordsCompleted % WORDS_PER_FLOOR) / WORDS_PER_FLOOR;
+    
+    return {
+        floor,
+        position: positionInFloor,
+        direction: floor % 2 === 0 ? 'right-to-left' : 'left-to-right'
+    };
+}
+
+function updatePlayerPosition(participant) {
+    const marker = document.querySelector(
+        `.player-marker[data-participant-id="${participant.id}"]`
+    );
+    
+    if (!marker) return;
+    
+    const position = calculatePosition(participant.words_completed);
+    const floorElement = document.querySelector(`.floor-${position.floor}`);
+    
+    if (floorElement) {
+        // Move to new floor if needed
+        if (marker.parentElement !== floorElement) {
+            floorElement.appendChild(marker);
+        }
+        
+        // Update position within floor
+        const xPosition = position.direction === 'right-to-left' 
+            ? (1 - position.position) * 100
+            : position.position * 100;
+            
+        marker.style.transform = `translateX(${xPosition}%)`;
+        
+        // Update score display
+        const scoreElement = marker.querySelector('.player-score');
+        if (scoreElement) {
+            scoreElement.textContent = participant.score;
+        }
+    }
+}
+
+// Remove any existing ACHIEVEMENTS declaration and keep this one
+const ACHIEVEMENTS = {
+    SPEED_DEMON: {
+        id: 'speed_demon',
+        threshold: { type: 'speed', value: 2 },
+        icon: '⚡',
+        points: 50
+    },
+    PERFECT_TEN: {
+        id: 'perfect_ten',
+        threshold: { type: 'streak', value: 10 },
+        icon: '🎯',
+        points: 100
+    },
+    UNSTOPPABLE: {
+        id: 'unstoppable',
+        threshold: { type: 'words', value: 30 },
+        icon: '🔥',
+        points: 150
+    }
+};
+
+function checkAchievements(participant) {
+    const newAchievements = [];
+    
+    Object.entries(ACHIEVEMENTS).forEach(([key, achievement]) => {
+        // Skip if already earned
+        if (participant.achievements?.includes(achievement.id)) return;
+        
+        let earned = false;
+        switch(achievement.threshold.type) {
+            case 'speed':
+                earned = participant.average_time <= achievement.threshold.value;
+                break;
+            case 'streak':
+                earned = participant.current_streak >= achievement.threshold.value;
+                break;
+            case 'words':
+                earned = participant.words_completed >= achievement.threshold.value;
+                break;
+        }
+        
+        if (earned) {
+            newAchievements.push(achievement);
+            awardAchievement(participant.id, achievement);
+        }
+    });
+    
+    return newAchievements;
+}
+
+async function handleArcadeCompletion(eventId) {
+    try {
+        // Get final standings
+        const { data: finalScores } = await supabaseClient
+            .from('arcade_participants')
+            .select('*')
+            .eq('event_id', eventId)
+            .order('score', { ascending: false });
+
+        if (!finalScores) return;
+
+        // Award coins based on position
+        const coinRewards = {
+            0: 50, // First place
+            1: 30, // Second place
+            2: 20, // Third place
+            default: 10 // Participation reward
+        };
+
+        // Process each participant
+        await Promise.all(finalScores.map(async (participant, index) => {
+            if (!participant.user_id) return; // Skip guests
+
+            const coinAward = coinRewards[index] || coinRewards.default;
+            const achievements = await checkAchievements(participant);
+            const achievementBonus = achievements.reduce((sum, a) => sum + a.points, 0);
+
+            // Update user's game progress
+            await supabaseClient.from('game_progress')
+                .update({ 
+                    coins: supabase.sql`coins + ${coinAward + achievementBonus}`
+                })
+                .eq('user_id', participant.user_id);
+        }));
+
+        // Update event status
+        await supabaseClient
+            .from('arcade_events')
+            .update({ 
+                status: 'completed',
+                completed_at: new Date().toISOString()
+            })
+            .eq('id', eventId);
+
+        // Show results to all participants
+        window.gameChannel?.send({
+            type: 'broadcast',
+            event: 'game_end',
+            payload: { finalScores }
+        });
+
+    } catch (error) {
+        console.error('Error handling game completion:', error);
+    }
+}
+
+
+function showArcadeResults(results) {
+    const resultsHTML = document.createElement('div');
+    resultsHTML.className = 'arcade-results screen visible';
+    resultsHTML.innerHTML = `
+        <div class="results-container">
+            <h2 class="welcome-title">Game Results</h2>
+            
+            <div class="podium">
+                ${results.slice(0, 3).map((player, index) => `
+                    <div class="podium-place rank-${index + 1}">
+                        <div class="player-avatar" style="background-color: ${player.color_code}">
+                            ${player.player_name.charAt(0)}
+                        </div>
+                        <div class="player-name">${player.player_name}</div>
+                        <div class="player-score">${player.score}</div>
+                        <div class="achievement-icons">
+                            ${(player.achievements || [])
+                                .map(id => ACHIEVEMENTS[id]?.icon || '')
+                                .join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            <div class="results-list">
+                ${results.slice(3).map((player, index) => `
+                    <div class="result-row">
+                        <span class="position">${index + 4}</span>
+                        <span class="name">${player.player_name}</span>
+                        <span class="score">${player.score}</span>
+                        <span class="achievements">
+                            ${(player.achievements || [])
+                                .map(id => ACHIEVEMENTS[id]?.icon || '')
+                                .join('')}
+                        </span>
+                    </div>
+                `).join('')}
+            </div>
+
+            <button onclick="returnToLobby()" class="start-button">
+                Return to Lobby
+            </button>
+        </div>
+    `;
+
+    document.body.appendChild(resultsHTML);
+}
+
+const arcadeStyles = document.createElement('style');
+arcadeStyles.textContent = `
+    .arcade-mode {
+        position: relative;
+    }
+
+    .arcade-ui {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        z-index: 100;
+    }
+
+    .arcade-stats {
+        background: var(--glass);
+        padding: 1rem;
+        border-radius: 15px;
+        backdrop-filter: blur(10px);
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .arcade-score, .arcade-streak {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: var(--text);
+    }
+
+    .arcade-perks {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .perk-button {
+        background: var(--glass);
+        border: none;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .race-floor {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .race-floor::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, 
+            transparent, 
+            rgba(255,255,255,0.2), 
+            transparent);
+        animation: floorScan 2s linear infinite;
+    }
+
+    .player-marker {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: var(--glass);
+        border-radius: 25px;
+        transition: all 0.3s ease;
+    }
+
+    .score-update {
+        animation: scoreIncrease 0.5s ease-out;
+    }
+
+    .player-marker.moving {
+        animation: playerAdvance 0.5s ease-out forwards;
+    }
+
+    .rush-time-active .race-track {
+        animation: rushTimeActive 2s infinite;
+    }
+
+    .achievement-icon.new {
+        animation: achievementUnlock 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    .player-marker[data-streak="5"] .player-name::after {
+        content: "🔥";
+        margin-left: 5px;
+        animation: fireBreath 1s infinite;
+    }
+
+    .power-word {
+        animation: powerWordPulse 2s infinite;
+        text-shadow: 0 0 10px var(--gold);
+    }
+
+    @keyframes scoreIncrease {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.2); color: var(--gold); }
+        100% { transform: scale(1); }
+    }
+
+    @keyframes playerAdvance {
+        0% { transform: translateX(var(--startX)); }
+        50% { transform: translateX(var(--startX)) translateY(-10px); }
+        100% { transform: translateX(var(--endX)); }
+    }
+
+    @keyframes rushTimeActive {
+        0%, 100% { box-shadow: 0 0 20px var(--gold); }
+        50% { box-shadow: 0 0 40px var(--gold); }
+    }
+
+    @keyframes achievementUnlock {
+        0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+        60% { transform: scale(1.2) rotate(10deg); opacity: 1; }
+        100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+
+    @keyframes floorScan {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+
+    @keyframes fireBreath {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+    }
+
+    @keyframes powerWordPulse {
+        0%, 100% { transform: scale(1); filter: brightness(1); }
+        50% { transform: scale(1.05); filter: brightness(1.2); }
+    }
+
+    /* Results screen styles */
+    .arcade-results {
+        background: var(--gradient);
+        color: var(--text);
+    }
+
+    .results-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .podium {
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 1rem;
+        margin: 2rem 0;
+        min-height: 300px;
+    }
+
+    .podium-place {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem;
+        background: var(--glass);
+        border-radius: 20px;
+        transition: all 0.3s ease;
+    }
+
+    .effect-freeze {
+        animation: freeze 10s linear;
+        pointer-events: none;
+    }
+
+    .effect-blind {
+        animation: blind 8s linear;
+    }
+
+    .effect-scramble {
+        animation: scramble 0.3s infinite;
+    }
+
+    @keyframes freeze {
+        0%, 100% { filter: none; }
+        50% { filter: brightness(0.7) saturate(2) hue-rotate(180deg); }
+    }
+
+    @keyframes blind {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.2; }
+    }
+
+    @keyframes scramble {
+        0% { transform: translateX(-2px) translateY(-2px); }
+        25% { transform: translateX(2px) translateY(-2px); }
+        50% { transform: translateX(-2px) translateY(2px); }
+        75% { transform: translateX(2px) translateY(2px); }
+        100% { transform: translateX(-2px) translateY(-2px); }
+    }
+`;
+
+document.head.appendChild(arcadeStyles);
+
+const perkEffects = {
+    freeze: {
+        apply: (target) => {
+            target.classList.add('effect-freeze');
+            target.setAttribute('data-frozen', 'true');
+        },
+        remove: (target) => {
+            target.classList.remove('effect-freeze');
+            target.removeAttribute('data-frozen');
+        }
+    },
+    blind: {
+        apply: (target) => {
+            target.classList.add('effect-blind');
+        },
+        remove: (target) => {
+            target.classList.remove('effect-blind');
+        }
+    },
+    scramble: {
+        apply: (target) => {
+            const word = target.textContent;
+            target.setAttribute('data-original', word);
+            target.textContent = scrambleWord(word);
+            target.classList.add('effect-scramble');
+        },
+        remove: (target) => {
+            target.textContent = target.getAttribute('data-original');
+            target.removeAttribute('data-original');
+            target.classList.remove('effect-scramble');
+        }
+    }
+};
+
+function applyPerkEffect(type, targetId) {
+    const target = document.querySelector(`[data-participant-id="${targetId}"]`);
+    if (!target) return;
+
+    const effect = perkEffects[type];
+    if (!effect) return;
+
+    effect.apply(target);
+    setTimeout(() => effect.remove(target), type === 'scramble' ? 15000 : 10000);
+}
+
+function scrambleWord(word) {
+    const letters = word.split('');
+    for (let i = letters.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [letters[i], letters[j]] = [letters[j], letters[i]];
+    }
+    return letters.join('');
+}
+
+async function activateRushTime(eventId) {
+    const RUSH_TIME_DURATION = 30000; // 30 seconds
+
+    await supabaseClient
+        .from('arcade_events')
+        .update({
+            rush_time_active: true,
+            rush_time_start: new Date().toISOString()
+        })
+        .eq('id', eventId);
+
+    // Notify all players
+    window.gameChannel?.send({
+        type: 'broadcast',
+        event: 'rush_time_start',
+        payload: { duration: RUSH_TIME_DURATION }
+    });
+
+    // Visual indicator for all players
+    document.querySelectorAll('.player-marker').forEach(marker => {
+        marker.classList.add('rush-time');
+    });
+
+    setTimeout(() => endRushTime(eventId), RUSH_TIME_DURATION);
+}
+
+async function endRushTime(eventId) {
+    await supabaseClient
+        .from('arcade_events')
+        .update({
+            rush_time_active: false,
+            rush_time_start: null
+        })
+        .eq('id', eventId);
+
+    window.gameChannel?.send({
+        type: 'broadcast',
+        event: 'rush_time_end'
+    });
+
+    document.querySelectorAll('.player-marker').forEach(marker => {
+        marker.classList.remove('rush-time');
+    });
+}
+
+function initializeRushTime(eventId) {
+    setInterval(() => {
+        if (Math.random() < 0.3) { // 30% chance every minute
+            activateRushTime(eventId);
+        }
+    }, 60000);
+}
+
+async function initializeWordPool(eventId, gradeLevel) {
+    const poolSizes = {
+        'junior': 50,
+        'intermediate': 75,
+        'advanced': 100
+    };
+
+    const stageMappings = {
+        'junior': [1, 2],
+        'intermediate': [1, 2, 3],
+        'advanced': [1, 2, 3, 4]
+    };
+
+    const stages = stageMappings[gradeLevel] || [1, 2];
+    const size = poolSizes[gradeLevel] || 50;
+    
+    const words = [];
+    const translations = [];
+
+    // Collect words from appropriate stages
+    stages.forEach(stage => {
+        Object.keys(vocabularySets)
+            .filter(key => key.startsWith(`${stage}_`))
+            .forEach(setKey => {
+                const set = vocabularySets[setKey];
+                for (let i = 0; i < set.words.length; i++) {
+                    words.push(set.words[i]);
+                    translations.push(set.translations[i]);
+                }
+            });
+    });
+
+    // Shuffle arrays together
+    for (let i = words.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [words[i], words[j]] = [words[j], words[i]];
+        [translations[i], translations[j]] = [translations[j], translations[i]];
+    }
+
+    // Take required number of words
+    const wordPool = {
+        words: words.slice(0, size),
+        translations: translations.slice(0, size)
+    };
+
+    // Save to event
+    await supabaseClient
+        .from('arcade_events')
+        .update({
+            word_pool: wordPool.words,
+            translations: wordPool.translations
+        })
+        .eq('id', eventId);
+
+    return wordPool;
+}
+
+class PlayerTracker {
+    constructor(eventId) {
+        this.eventId = eventId;
+        this.stats = new Map();
+        this.lastUpdate = Date.now();
+        this.startTracking();
+    }
+
+    async startTracking() {
+        const channel = supabaseClient
+            .channel(`progress_${this.eventId}`)
+            .on('broadcast', { event: 'answer' }, payload => {
+                this.recordAnswer(payload.participantId, payload.data);
+            })
+            .subscribe();
+
+        // Store channel for cleanup
+        this.channel = channel;
+        
+        // Start periodic updates
+        this.updateInterval = setInterval(() => this.pushStats(), 1000);
+    }
+
+    recordAnswer(participantId, data) {
+        if (!this.stats.has(participantId)) {
+            this.stats.set(participantId, {
+                answers: [],
+                streaks: 0,
+                averageTime: 0,
+                totalWords: 0
+            });
+        }
+
+        const stats = this.stats.get(participantId);
+        stats.answers.push({
+            time: data.time,
+            correct: data.correct
+        });
+
+        if (data.correct) {
+            stats.streaks++;
+            stats.totalWords++;
+            
+            // Update average time
+            const times = stats.answers
+                .filter(a => a.correct)
+                .map(a => a.time);
+            stats.averageTime = times.reduce((a, b) => a + b, 0) / times.length;
+        } else {
+            stats.streaks = 0;
+        }
+    }
+
+    async pushStats() {
+        const updates = Array.from(this.stats.entries()).map(([participantId, stats]) => ({
+            participant_id: participantId,
+            average_time: stats.averageTime,
+            current_streak: stats.streaks,
+            words_completed: stats.totalWords,
+            last_updated: new Date().toISOString()
+        }));
+
+        if (updates.length > 0) {
+            await supabaseClient
+                .from('arcade_participants')
+                .upsert(updates, { onConflict: 'participant_id' });
+        }
+    }
+
+    cleanup() {
+        if (this.channel) {
+            this.channel.unsubscribe();
+        }
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+        }
+    }
+}
+
+class ArcadeGameState {
+    constructor(eventId) {
+        this.eventId = eventId;
+        this.participants = new Map();
+        this.gamePhase = 'waiting';
+        this.startTime = null;
+        this.setupListeners();
+    }
+
+    async setupListeners() {
+        // Listen for participant updates
+        this.participantChannel = supabaseClient
+            .channel(`participants_${this.eventId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'arcade_participants',
+                filter: `event_id=eq.${this.eventId}`
+            }, payload => {
+                this.handleParticipantUpdate(payload);
+            })
+            .subscribe();
+
+        // Listen for event state changes
+        this.eventChannel = supabaseClient
+            .channel(`event_${this.eventId}`)
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'arcade_events',
+                filter: `id=eq.${this.eventId}`
+            }, payload => {
+                this.handleEventUpdate(payload);
+            })
+            .subscribe();
+    }
+
+    handleParticipantUpdate(payload) {
+        const participant = payload.new;
+        this.participants.set(participant.id, participant);
+        this.updateUI();
+    }
+
+    handleEventUpdate(payload) {
+        const event = payload.new;
+        
+        switch(event.status) {
+            case 'active':
+                if (!this.startTime) {
+                    this.startTime = Date.now();
+                    this.gamePhase = 'playing';
+                }
+                break;
+            case 'completed':
+                this.gamePhase = 'ended';
+                this.handleGameEnd();
+                break;
+        }
+
+        // Handle special states
+        if (event.rush_time_active) {
+            this.handleRushTime(true);
+        }
+    }
+
+    updateUI() {
+        // Sort participants by score
+        const sortedParticipants = Array.from(this.participants.values())
+            .sort((a, b) => b.score - a.score);
+
+        // Update race track
+        sortedParticipants.forEach(participant => {
+            updatePlayerPosition(participant);
+        });
+
+        // Update leaderboard
+        updateLeaderboard(sortedParticipants);
+    }
+
+    handleRushTime(active) {
+        document.body.classList.toggle('rush-time', active);
+        if (active) {
+            showNotification('Rush Time! Double Points!', 'success');
+        }
+    }
+
+    async handleGameEnd() {
+        const sortedParticipants = Array.from(this.participants.values())
+            .sort((a, b) => b.score - a.score);
+            
+        await handleArcadeCompletion(this.eventId);
+        showArcadeResults(sortedParticipants);
+    }
+
+    cleanup() {
+        this.participantChannel?.unsubscribe();
+        this.eventChannel?.unsubscribe();
+    }
+}
+
+function updateLeaderboard(participants) {
+    const leaderboard = document.querySelector('.arcade-leaderboard');
+    if (!leaderboard) return;
+
+    leaderboard.innerHTML = `
+        <h3>Live Rankings</h3>
+        <div class="rankings">
+            ${participants.map((p, index) => `
+                <div class="ranking-item ${index < 3 ? `rank-${index + 1}` : ''}"
+                     data-participant-id="${p.id}">
+                    <div class="rank">${index + 1}</div>
+                    <div class="player-info">
+                        <span class="name" style="color: ${p.color_code}">
+                            ${p.player_name}
+                        </span>
+                        <div class="stats">
+                            <span class="score">${p.score}</span>
+                            <span class="words">${p.words_completed} words</span>
+                            ${p.current_streak > 4 ? 
+                                `<span class="streak">🔥 ${p.current_streak}</span>` : 
+                                ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function setupErrorHandling(eventId) {
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
+
+    window.addEventListener('offline', () => {
+        showNotification('Connection lost. Attempting to reconnect...', 'error');
+        attemptReconnect();
+    });
+
+    async function attemptReconnect() {
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            showNotification('Unable to reconnect. Please rejoin the game.', 'error');
+            return;
+        }
+
+        try {
+            // Check connection
+            const { error } = await supabaseClient
+                .from('arcade_events')
+                .select('id')
+                .eq('id', eventId)
+                .single();
+
+            if (!error) {
+                showNotification('Reconnected!', 'success');
+                // Refresh game state
+                window.gameState?.setupListeners();
+                reconnectAttempts = 0;
+            } else {
+                throw error;
+            }
+        } catch (error) {
+            reconnectAttempts++;
+            setTimeout(attemptReconnect, 2000 * reconnectAttempts);
+        }
+    }
+
+    // Handle unexpected errors
+    window.addEventListener('error', (event) => {
+        console.error('Game error:', event.error);
+        
+        // Log error to Supabase for monitoring
+        supabaseClient
+            .from('error_logs')
+            .insert({
+                event_id: eventId,
+                error: event.error.message,
+                stack: event.error.stack,
+                timestamp: new Date().toISOString()
+            })
+            .then(() => {
+                showNotification('An error occurred. Attempting to recover...', 'error');
+                attemptReconnect();
+            });
+    });
+}
+
+const arcadeAnimations = document.createElement('style');
+arcadeAnimations.textContent = `
+    @keyframes scoreIncrease {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.2); color: var(--gold); }
+        100% { transform: scale(1); }
+    }
+
+    @keyframes playerAdvance {
+        0% { transform: translateX(var(--startX)); }
+        50% { transform: translateX(var(--startX)) translateY(-10px); }
+        100% { transform: translateX(var(--endX)); }
+    }
+
+    @keyframes rushTimeActive {
+        0%, 100% { box-shadow: 0 0 20px var(--gold); }
+        50% { box-shadow: 0 0 40px var(--gold); }
+    }
+
+    @keyframes achievementUnlock {
+        0% { transform: scale(0) rotate(-180deg); opacity: 0; }
+        60% { transform: scale(1.2) rotate(10deg); opacity: 1; }
+        100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+
+    .score-update {
+        animation: scoreIncrease 0.5s ease-out;
+    }
+
+    .player-marker.moving {
+        animation: playerAdvance 0.5s ease-out forwards;
+    }
+
+    .rush-time-active .race-track {
+        animation: rushTimeActive 2s infinite;
+    }
+
+    .achievement-icon.new {
+        animation: achievementUnlock 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    .race-floor {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .race-floor::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, 
+            transparent, 
+            rgba(255,255,255,0.2), 
+            transparent);
+        animation: floorScan 2s linear infinite;
+    }
+
+    @keyframes floorScan {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+
+    .player-marker[data-streak="5"] .player-name::after {
+        content: "🔥";
+        margin-left: 5px;
+        animation: fireBreath 1s infinite;
+    }
+
+    @keyframes fireBreath {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+    }
+
+    .power-word {
+        animation: powerWordPulse 2s infinite;
+        text-shadow: 0 0 10px var(--gold);
+    }
+
+    @keyframes powerWordPulse {
+        0%, 100% { transform: scale(1); filter: brightness(1); }
+        50% { transform: scale(1.05); filter: brightness(1.2); }
+    }
+`;
+
+document.head.appendChild(arcadeAnimations);
+
+class ArcadePerformanceManager {
+    constructor() {
+        this.lastRender = 0;
+        this.frames = [];
+        this.updateQueue = new Set();
+        this.init();
+    }
+
+    init() {
+        // Use RequestAnimationFrame for smooth updates
+        this.animate = this.animate.bind(this);
+        requestAnimationFrame(this.animate);
+
+        // Throttle participant updates
+        this.updateThrottled = _.throttle(this.batchUpdate.bind(this), 100);
+    }
+
+    animate(timestamp) {
+        // Calculate FPS
+        const delta = timestamp - this.lastRender;
+        this.frames.push(delta);
+        if (this.frames.length > 60) this.frames.shift();
+
+        // Process queued updates
+        if (this.updateQueue.size > 0) {
+            this.processUpdates();
+        }
+
+        this.lastRender = timestamp;
+        requestAnimationFrame(this.animate);
+    }
+
+    queueUpdate(participantId, data) {
+        this.updateQueue.add({ id: participantId, ...data });
+        this.updateThrottled();
+    }
+
+    async batchUpdate() {
+        if (this.updateQueue.size === 0) return;
+
+        const updates = Array.from(this.updateQueue);
+        this.updateQueue.clear();
+
+        // Batch DOM updates
+        const fragment = document.createDocumentFragment();
+        updates.forEach(update => {
+            const marker = this.createOrUpdateMarker(update, fragment);
+            if (marker) fragment.appendChild(marker);
+        });
+
+        // Apply all updates at once
+        const container = document.querySelector('.race-track-container');
+        if (container) container.appendChild(fragment);
+    }
+
+    createOrUpdateMarker(data, container) {
+        let marker = document.querySelector(`[data-participant-id="${data.id}"]`);
+        const isNew = !marker;
+
+        if (isNew) {
+            marker = document.createElement('div');
+            marker.className = 'player-marker';
+            marker.dataset.participantId = data.id;
+        }
+
+        // Update only changed properties
+        if (data.position !== marker.dataset.position) {
+            marker.style.transform = `translateX(${data.position}%)`;
+            marker.dataset.position = data.position;
+        }
+
+        if (data.score !== marker.dataset.score) {
+            const scoreElement = marker.querySelector('.player-score');
+            if (scoreElement) {
+                scoreElement.textContent = data.score;
+                scoreElement.classList.add('score-update');
+                setTimeout(() => scoreElement.classList.remove('score-update'), 500);
+            }
+            marker.dataset.score = data.score;
+        }
+
+        return isNew ? marker : null;
+    }
+
+    cleanup() {
+        this.updateQueue.clear();
+        cancelAnimationFrame(this.animationFrame);
+    }
+}
+
+const ArcadeTestUtils = {
+    async simulateParticipants(eventId, count = 5) {
+        const participants = [];
+        
+        for (let i = 0; i < count; i++) {
+            const { data: participant } = await supabaseClient
+                .from('arcade_participants')
+                .insert({
+                    event_id: eventId,
+                    player_name: `Test Player ${i + 1}`,
+                    color_code: `hsl(${360 * i / count}, 70%, 60%)`,
+                    status: 'playing'
+                })
+                .select()
+                .single();
+                
+            if (participant) participants.push(participant);
+        }
+        
+        return participants;
+    },
+
+    async simulateGameplay(eventId, participants) {
+        const interval = setInterval(async () => {
+            participants.forEach(async (participant) => {
+                const isCorrect = Math.random() > 0.2;
+                const score = Math.floor(Math.random() * 10) + 1;
+                
+                await supabaseClient
+                    .from('arcade_participants')
+                    .update({
+                        score: supabase.sql`score + ${score}`,
+                        words_completed: supabase.sql`words_completed + 1`,
+                        current_streak: isCorrect ? supabase.sql`current_streak + 1` : 0
+                    })
+                    .eq('id', participant.id);
+            });
+        }, 2000);
+
+        return () => clearInterval(interval);
+    },
+
+    injectDebugControls() {
+        const debugPanel = document.createElement('div');
+        debugPanel.className = 'debug-panel';
+        debugPanel.innerHTML = `
+            <button onclick="ArcadeTestUtils.triggerRushTime()">
+                Trigger Rush Time
+            </button>
+            <button onclick="ArcadeTestUtils.simulateAchievement()">
+                Simulate Achievement
+            </button>
+            <button onclick="ArcadeTestUtils.toggleSlowMotion()">
+                Toggle Slow Motion
+            </button>
+        `;
+        document.body.appendChild(debugPanel);
+    }
+};
+
+class ArcadeEventManager {
+    constructor(eventId) {
+        this.eventId = eventId;
+        this.components = new Set();
+        this.initialize();
+    }
+
+    async initialize() {
+        // Initialize all components
+        this.state = new ArcadeGameState(this.eventId);
+        this.tracker = new PlayerTracker(this.eventId);
+        this.performance = new ArcadePerformanceManager();
+        
+        // Set up error handling
+        setupErrorHandling(this.eventId);
+        
+        // Track components for cleanup
+        this.components.add(this.state);
+        this.components.add(this.tracker);
+        this.components.add(this.performance);
+
+        // Initialize word pool
+        await initializeWordPool(this.eventId);
+        
+        // Set up special events
+        initializeRushTime(this.eventId);
+    }
+
+    cleanup() {
+        this.components.forEach(component => {
+            if (typeof component.cleanup === 'function') {
+                component.cleanup();
+            }
+        });
+        this.components.clear();
+    }
+}
+
+function showCustomListsManager() {
+    showScreen('custom-practice-screen');
+    
+    const container = document.getElementById('custom-lists-container');
+    if (!container) return;
+
+    if (customPracticeLists.lists.length === 0) {
+        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
+        return;
+    }
+
+    container.innerHTML = customPracticeLists.lists.map(list => `
+        <div class="custom-list-item collapsed ${list.is_shared ? 'shared-list' : ''}" 
+             data-list-id="${list.id}">
+            <div class="list-actions">
+                <button class="start-button practice-button" onclick="startCustomListPractice(${list.id})">
+                    Practice
+                </button>
+                <button class="edit-button" onclick="editCustomList(${list.id})">
+                    Edit
+                </button>
+                <button class="start-button delete-button" onclick="deleteCustomList(${list.id})">
+                    Delete
+                </button>
+            </div>
+            <div class="list-header">
+                <h3>${list.name}</h3>
+                <div class="list-summary">
+                    <span>${list.words.length} words</span>
+                    <p class="word-preview">
+                        ${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}
+                    </p>
+                </div>
+            </div>
+        </div>
+    `).join('');
 }
 
 </script>
