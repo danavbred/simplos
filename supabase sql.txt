@@ -196,6 +196,15 @@ BEGIN
     AND NOT (achievements @> ARRAY[achievement_id]);
 END;
 $$ LANGUAGE plpgsql;
+
+ALTER TABLE arcade_participants DROP COLUMN IF EXISTS position_y;
+ALTER TABLE arcade_participants DROP COLUMN IF EXISTS current_floor;
+ALTER TABLE arcade_participants DROP COLUMN IF EXISTS position_in_floor;
+
+ALTER TABLE arcade_events 
+ADD COLUMN started_at timestamp with time zone,
+ADD COLUMN word_pool jsonb DEFAULT '[]',
+ADD COLUMN translations jsonb DEFAULT '[]';
 ----------------------------------------------------------------------------------------
 -- 🛡️ POLICIES
 ----------------------------------------------------------------------------------------

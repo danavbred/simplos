@@ -13473,6 +13473,189 @@ function showWaitingIndicator() {
     }
 }
 
+// ADD
+function setupArcadeWaiting(eventId, participantId) {
+    // Disable all welcome buttons except arcade
+    const buttons = document.querySelectorAll('.welcome-buttons button:not(.arcade-button)');
+    buttons.forEach(button => {
+        button.disabled = true;
+        button.style.opacity = '0.5';
+    });
+
+    // Convert arcade button to waiting indicator
+    const arcadeButton = document.querySelector('.arcade-button');
+    if (arcadeButton) {
+        arcadeButton.innerHTML = `
+            <div class="loading-spinner"></div>
+            <span>Get ready to play!</span>
+        `;
+        arcadeButton.disabled = true;
+        arcadeButton.classList.add('waiting');
+    }
+
+    // Set up event status listener
+    const channel = supabaseClient
+        .channel(`event-status-${eventId}`)
+        .on('postgres_changes', {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'arcade_events',
+            filter: `id=eq.${eventId}`
+        }, 
+        payload => {
+            if (payload.new.status === 'playing') {
+                initializeArcadeGameForPlayer(eventId, participantId);
+            }
+        })
+        .subscribe();
+
+    return channel;
+}
+
+// ADD
+function initializeArcadeGameForPlayer(eventId, participantId) {
+    showScreen('question-screen');
+    
+    window.arcadeState = {
+        eventId: eventId,
+        participantId: participantId,
+        score: 0,
+        streak: 0,
+        currentWordIndex: 0,
+        startTime: Date.now(),
+        perks: {
+            timeFreeze: 0,
+            wordScramble: 0,
+            timeAccelerator: 0,
+            blind: 0,
+            answerShuffle: 0
+        }
+    };
+
+    // Start game with current vocabulary set
+    loadNextArcadeWord();
+}
+
+
+
+// ADD
+async function buyPerk(perkType) {
+    const cost = PERK_COSTS[perkType];
+    if (!window.arcadeState || window.arcadeState.coins < cost) {
+        showNotification('Not enough coins!', 'error');
+        return;
+    }
+
+    try {
+        // Deduct coins
+        window.arcadeState.coins -= cost;
+        window.arcadeState.perks[perkType]++;
+
+        // Update UI
+        updateCoins(-cost);
+        updatePerkCounts();
+
+        showNotification(`${perkType} perk purchased!`, 'success');
+    } catch (error) {
+        console.error('Error buying perk:', error);
+        showNotification('Failed to purchase perk', 'error');
+    }
+}
+
+// ADD
+async function usePerk(perkType, targetId = null) {
+    if (!window.arcadeState?.perks[perkType]) {
+        showNotification('No perks available!', 'error');
+        return;
+    }
+
+    try {
+        // If no target specified, pick random opponent
+        if (!targetId) {
+            const { data: participants } = await supabaseClient
+                .from('arcade_participants')
+                .select('id')
+                .eq('event_id', window.arcadeState.eventId)
+                .neq('id', window.arcadeState.participantId);
+
+            if (!participants?.length) return;
+            
+            targetId = participants[Math.floor(Math.random() * participants.length)].id;
+        }
+
+        // Apply perk effect
+        await supabaseClient
+            .from('arcade_participants')
+            .update({
+                active_effects: supabase.sql`array_append(active_effects, jsonb_build_object(
+                    'type', ${perkType},
+                    'start_time', now(),
+                    'duration', 
+                    CASE 
+                        WHEN ${perkType} = 'timeFreeze' THEN interval '10 seconds'
+                        WHEN ${perkType} = 'wordScramble' THEN interval '15 seconds'
+                        WHEN ${perkType} = 'timeAccelerator' THEN interval '20 seconds'
+                        WHEN ${perkType} = 'blind' THEN interval '8 seconds'
+                        WHEN ${perkType} = 'answerShuffle' THEN interval '0 seconds'
+                    END
+                ))`
+            })
+            .eq('id', targetId);
+
+        // Deduct perk
+        window.arcadeState.perks[perkType]--;
+        updatePerkCounts();
+
+        showNotification('Perk used successfully!', 'success');
+    } catch (error) {
+        console.error('Error using perk:', error);
+        showNotification('Failed to use perk', 'error');
+    }
+}
+
+// ADD
+function handlePerkEffect(effect) {
+    const effectHandlers = {
+        timeFreeze: () => {
+            isFrozen = true;
+            setTimeout(() => { isFrozen = false; }, 10000);
+        },
+        wordScramble: () => {
+            const word = document.getElementById('question-word');
+            const originalWord = word.textContent;
+            word.textContent = scrambleWord(originalWord);
+            setTimeout(() => { word.textContent = originalWord; }, 15000);
+        },
+        timeAccelerator: () => {
+            const timerSpeed = 2;
+            setTimeout(() => { timerSpeed = 1; }, 20000);
+        },
+        blind: () => {
+            document.getElementById('question-screen').style.opacity = '0.3';
+            setTimeout(() => {
+                document.getElementById('question-screen').style.opacity = '1';
+            }, 8000);
+        },
+        answerShuffle: () => {
+            const buttons = document.querySelectorAll('.buttons button');
+            const buttonsArray = Array.from(buttons);
+            buttonsArray.forEach(button => {
+                const randomIndex = Math.floor(Math.random() * buttonsArray.length);
+                button.style.order = randomIndex;
+            });
+        }
+    };
+
+    if (effectHandlers[effect.type]) {
+        effectHandlers[effect.type]();
+    }
+}
+
+// ADD
+function scrambleWord(word) {
+    return word.split('').sort(() => Math.random() - 0.5).join('');
+}
+
 </script>
 </body>
 </html>
