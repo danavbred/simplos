@@ -9234,6 +9234,9 @@ async function joinArcadeEvent() {
             participantId: participant.id
         }));
 
+        // Set up event listener for game start
+        window.gameChannel = setupArcadeEventListener(event.id, participant.id);
+
         // Modify welcome screen appearance
         disableWelcomeButtons();
         showWaitingIndicator();
@@ -10481,26 +10484,15 @@ async function startArcadeGame(eventId) {
             .update({ status: 'playing' })
             .eq('event_id', eventId);
 
-        const { data: participants } = await supabaseClient
-            .from('arcade_participants')
-            .select('*')
-            .eq('event_id', eventId);
-
-        // Initialize the race track
-        showArcadeRaceView(eventId);
-        
-        // Start game for all participants
-        participants?.forEach(participant => {
-            const playerMarker = createPlayerMarker(participant);
-            document.querySelector('.floor-1')?.appendChild(playerMarker);
+        // Notify all participants
+        window.gameChannel?.send({
+            type: 'broadcast',
+            event: 'game_start',
+            payload: { eventId }
         });
 
-        // Start real-time monitoring
-        initializeEventMonitoring(eventId);
-        
-        // Start power-ups and rush time cycles
-        initializePowerUps(eventId);
-        initializeRushTime(eventId);
+        // Show moderator view after starting the game
+        showModeratorView(eventId);
 
     } catch (error) {
         console.error('Error starting arcade game:', error);
@@ -11953,6 +11945,50 @@ function initializeArcadeGameForPlayer(eventId, participantId) {
     loadNextArcadeWord();
 }
 
+async function loadNextArcadeWord() {
+    // Fetch the current word from the event's word pool
+    const { data: event } = await supabaseClient
+        .from('arcade_events')
+        .select('word_pool, translations')
+        .eq('id', window.arcadeState.eventId)
+        .single();
+
+    if (!event?.word_pool) return;
+
+    const wordIndex = window.arcadeState.currentWordIndex;
+    const currentWord = event.word_pool[wordIndex];
+    const correctAnswer = event.translations[wordIndex];
+
+    // Display the word and options (you can adapt this to your existing question screen)
+    document.getElementById('question-word').textContent = currentWord;
+    // ... generate and display answer options
+}
+
+async function handleArcadeAnswer(isCorrect) {
+    if (isCorrect) {
+        window.arcadeState.streak++;
+        window.arcadeState.score += 10; // Adjust scoring as needed
+
+        await supabaseClient
+            .from('arcade_participants')
+            .update({
+                score: window.arcadeState.score,
+                words_completed: window.arcadeState.currentWordIndex + 1,
+                current_streak: window.arcadeState.streak
+            })
+            .eq('id', window.arcadeState.participantId);
+
+        window.arcadeState.currentWordIndex++;
+        loadNextArcadeWord();
+    } else {
+        window.arcadeState.streak = 0;
+        await supabaseClient
+            .from('arcade_participants')
+            .update({ current_streak: 0 })
+            .eq('id', window.arcadeState.participantId);
+    }
+}
+
 function handleGameUpdate(payload) {
     if (!window.arcadeState) return;
 
@@ -13308,7 +13344,7 @@ function showModeratorView(eventId) {
         <div class="moderator-header">
             <h2>Arcade Event</h2>
             <div class="moderator-controls">
-                <button class="start-arcade-button" onclick="startArcadeGameForAll('${eventId}')">
+                <button class="start-arcade-button" data-event-id="${eventId}">
                     Start Game
                 </button>
             </div>
@@ -13330,6 +13366,10 @@ function showModeratorView(eventId) {
         mainContent.innerHTML = '';
         mainContent.appendChild(container);
     }
+
+    // Add event listener for start game button
+    const startButton = container.querySelector('.start-arcade-button');
+    startButton.addEventListener('click', () => startArcadeGameForAll(eventId));
 
     // Start real-time updates
     setupModeratorUpdates(eventId);
@@ -13355,12 +13395,18 @@ function setupModeratorUpdates(eventId) {
                 <div>${participant.player_name}</div>
                 <div>${participant.score}</div>
                 <div>
-                    <button onclick="removeParticipant('${participant.id}')" class="remove-participant">
+                    <button class="remove-participant" data-participant-id="${participant.id}">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
             </div>
         `).join('');
+
+        // Add event listeners for remove participant buttons
+        const removeButtons = entriesContainer.querySelectorAll('.remove-participant');
+        removeButtons.forEach(button => {
+            button.addEventListener('click', () => removeParticipant(button.dataset.participantId));
+        });
     };
 
     // Initial update
