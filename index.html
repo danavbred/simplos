@@ -963,6 +963,22 @@ body {
     opacity: 0.7;
 }
 
+/* Loading Spinner */
+.loading-spinner {
+    width: 60px;
+    height: 60px;
+    border: 3px solid var(--glass);
+    border-top: 3px solid var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Event Cards and Lobby */
 .event-lobby {
     background: rgba(255,255,255,0.1);
     border-radius: 10px;
@@ -992,65 +1008,35 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 
-.lobby-participant[data-participant-status="waiting"] {
-    border: 1px solid var(--accent);
-}
-
-.lobby-participant[data-participant-status="playing"] {
-    background: var(--success);
-    color: white;
-}
-
-.lobby-participant.waiting {
-    border: 1px solid var(--accent);
-}
-
-.lobby-participant.playing {
-    background: var(--success);
-    color: white;
-}
-
-
-.waiting-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2rem;
-    text-align: center;
+/* Moderator View */
+.moderator-view {
     padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
-.loading-spinner {
-    width: 60px;
-    height: 60px;
-    border: 3px solid var(--glass);
-    border-top: 3px solid var(--accent);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+.moderator-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
 }
 
-.spinner circle {
-    stroke-dasharray: 130;
-    stroke-dashoffset: 30;
-    transform-origin: center;
+.moderator-controls {
+    display: flex;
+    gap: 1rem;
 }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
+/* Arcade Controls */
 .start-arcade-button {
     background: linear-gradient(135deg, var(--gold), var(--accent));
     color: var(--text);
     border: none;
-    padding: 0.5rem 1.5rem;
+    padding: 0.75rem 1.5rem;
     border-radius: 25px;
     cursor: pointer;
     transition: all 0.3s ease;
     font-weight: bold;
-    margin-left: 0.5rem;
 }
 
 .start-arcade-button:hover {
@@ -1058,112 +1044,26 @@ body {
     box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3);
 }
 
-.arcade-race-view {
+/* Participant Management */
+.remove-participant {
+    background: var(--error);
+    color: var(--text);
+    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
     display: flex;
-    gap: 2rem;
-    padding: 2rem;
-    height: 100vh;
-}
-
-.race-track-container {
-    flex: 2;
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
-}
-
-.race-floor {
-    height: 80px;
-    background: var(--glass);
-    border-radius: 40px;
-    position: relative;
-    padding: 0.5rem;
-}
-
-.player-marker {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
-    flex-direction: column;
     align-items: center;
+    justify-content: center;
+    cursor: pointer;
     transition: all 0.3s ease;
 }
 
-.player-name {
-    font-weight: bold;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+.remove-participant:hover {
+    transform: scale(1.1);
 }
 
-.player-score {
-    font-size: 0.8rem;
-    opacity: 0.8;
-}
-
-.arcade-leaderboard {
-    flex: 1;
-    background: var(--glass);
-    border-radius: 20px;
-    padding: 1rem;
-}
-
-.arcade-race-view {
-    display: none;
-    width: 100%;
-    min-height: 100vh;
-    padding: 2rem;
-    background: var(--gradient);
-}
-
-.arcade-race-view.visible {
-    display: flex;
-    flex-direction: row;
-    gap: 2rem;
-}
-
-.race-track-wrapper {
-    flex: 2;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.race-track-container {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
-    padding: 2rem;
-    background: var(--glass);
-    border-radius: 20px;
-    backdrop-filter: blur(10px);
-}
-
-.race-floor {
-    height: 100px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 50px;
-    position: relative;
-    padding: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.floor-label {
-    position: absolute;
-    left: -100px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text);
-    font-size: 0.8rem;
-    opacity: 0.8;
-}
-
-.arcade-sidebar {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
-}
-
+/* Arcade Leaderboard */
 .arcade-leaderboard {
     background: var(--glass);
     border-radius: 20px;
@@ -1177,58 +1077,57 @@ body {
     text-align: center;
 }
 
-.arcade-rankings {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+.arcade-leaderboard .leaderboard-entry {
+    display: grid;
+    grid-template-columns: 0.5fr 2fr 1fr 0.5fr;
+    padding: 1rem;
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
+    background: rgba(255,255,255,0.05);
+    transition: background-color 0.3s ease;
 }
 
-.arcade-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    background: var(--glass);
-    border-radius: 20px;
-    padding: 1.5rem;
-    backdrop-filter: blur(10px);
+/* Status Indicators */
+.lobby-participant[data-participant-status="waiting"] {
+    border: 1px solid var(--accent);
 }
 
-.arcade-control-button {
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 25px;
-    background: rgba(255, 255, 255, 0.1);
+.lobby-participant[data-participant-status="playing"] {
+    background: var(--success);
+    color: white;
+}
+
+/* New Styles for Arcade Button in Welcome Screen */
+.arcade-button {
+    position: relative;
+    padding: 0.5rem 1rem;
+    border: 2px solid var(--accent);
+    background: transparent;
     color: var(--text);
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.arcade-control-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateY(-2px);
-}
-
-.arcade-control-button.end-game {
-    background: var(--accent);
     margin-top: 1rem;
-}
-
-.arcade-control-button.end-game:hover {
-    background: var(--error);
-}
-
-.player-marker {
-    position: absolute;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: var(--glass);
-    border-radius: 25px;
-    transition: all 0.3s ease;
+}
+
+.arcade-button:hover {
+    box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent);
+}
+
+.arcade-button.waiting {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.arcade-button.waiting .loading-spinner {
+    width: 20px;
+    height: 20px;
+    border-width: 2px;
 }
 
 .coins-header .coin-icon {
@@ -9309,11 +9208,14 @@ async function joinArcadeEvent() {
             return;
         }
 
+        // Generate player name
+        const playerName = generatePlayerName(currentUser);
+
         const { data: participant, error: joinError } = await supabaseClient
-            .from('arcade_participants') 
+            .from('arcade_participants')
             .insert({
                 event_id: event.id,
-                player_name: currentUser ? currentUser.user_metadata?.username : 'Guest_' + Math.random().toString(36).substring(2, 6),        
+                player_name: playerName,
                 status: 'waiting',
                 words_completed: 0,
                 score: 0
@@ -9326,18 +9228,15 @@ async function joinArcadeEvent() {
             throw joinError;
         }
 
-        // Store event and participant info for later use
+        // Store event and participant info
         localStorage.setItem('currentArcadeEvent', JSON.stringify({
             eventId: event.id,
             participantId: participant.id
         }));
 
-        // Close join modal and show waiting screen
-        document.getElementById('arcade-join-modal').style.display = 'none';
-        showScreen('arcade-waiting-screen');
-        
-        // Subscribe to event status changes
-        subscribeToEventStatus(event.id, participant.id);
+        // Modify welcome screen appearance
+        disableWelcomeButtons();
+        showWaitingIndicator();
 
         showNotification('Successfully joined event!');
 
@@ -12050,13 +11949,8 @@ function initializeArcadeGameForPlayer(eventId, participantId) {
         startTime: Date.now()
     };
 
-    // Setup real-time updates
-    const channel = supabaseClient
-        .channel(`game-${eventId}`)
-        .on('broadcast', { event: 'game_update' }, handleGameUpdate)
-        .subscribe();
-
-    loadArcadeWord();
+    // Start game with current vocabulary set
+    loadNextArcadeWord();
 }
 
 function handleGameUpdate(payload) {
@@ -13501,6 +13395,81 @@ async function removeParticipant(participantId) {
     } catch (error) {
         console.error('Error removing participant:', error);
         showNotification('Error removing participant', 'error');
+    }
+}
+
+async function activateEvent(eventId) {
+    try {
+        const { error } = await supabaseClient
+            .from('arcade_events')
+            .update({ status: 'active' })
+            .eq('id', eventId);
+
+        if (error) throw error;
+        
+        // Show moderator view after activation
+        showModeratorView(eventId);
+        
+    } catch (error) {
+        console.error('Error activating event:', error);
+        showNotification('Error activating event', 'error');
+    }
+}
+
+function setupEventParticipantUpdates(eventId) {
+    const lobbyContainer = document.getElementById(`lobby-${eventId}`);
+    const participantCount = document.querySelector(`#lobby-${eventId}`).previousElementSibling.querySelector('.participant-count');
+    
+    if (!lobbyContainer || !participantCount) return;
+
+    const channel = supabaseClient
+        .channel(`event-${eventId}`)
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'arcade_participants',
+            filter: `event_id=eq.${eventId}`
+        }, 
+        payload => {
+            updateEventParticipants(eventId);
+        })
+        .subscribe();
+
+    // Initial load
+    updateEventParticipants(eventId);
+}
+
+async function updateEventParticipants(eventId) {
+    const lobbyContainer = document.getElementById(`lobby-${eventId}`);
+    const participantCount = document.querySelector(`#lobby-${eventId}`).previousElementSibling.querySelector('.participant-count');
+    
+    if (!lobbyContainer || !participantCount) return;
+
+    const { data: participants } = await supabaseClient
+        .from('arcade_participants')
+        .select('*')
+        .eq('event_id', eventId);
+
+    if (!participants) return;
+
+    lobbyContainer.innerHTML = participants.map(participant => `
+        <div class="participant-tag" data-participant-id="${participant.id}">
+            ${participant.player_name}
+        </div>
+    `).join('');
+
+    participantCount.textContent = `${participants.length} Participant${participants.length !== 1 ? 's' : ''}`;
+}
+
+function showWaitingIndicator() {
+    const arcadeButton = document.querySelector('.arcade-button');
+    if (arcadeButton) {
+        arcadeButton.classList.add('waiting');
+        arcadeButton.innerHTML = `
+            <div class="loading-spinner"></div>
+            <span>Get ready to play!</span>
+        `;
+        arcadeButton.disabled = true;
     }
 }
 
