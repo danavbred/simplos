@@ -13339,6 +13339,171 @@ function showCustomListsManager() {
     `).join('');
 }
 
+// ADD
+function generatePlayerName(currentUser, usedNames = new Set()) {
+    if (currentUser?.user_metadata?.username) {
+        return currentUser.user_metadata.username;
+    }
+
+    const availableNames = guestNames.filter(name => !usedNames.has(name));
+    if (availableNames.length === 0) {
+        return `Guest_${Math.random().toString(36).substring(2, 6)}`;
+    }
+
+    const name = availableNames[Math.floor(Math.random() * availableNames.length)];
+    usedNames.add(name);
+    return name;
+}
+
+function disableWelcomeButtons() {
+    const buttons = document.querySelectorAll('.welcome-buttons button:not(.arcade-button)');
+    buttons.forEach(button => {
+        button.disabled = true;
+        button.style.opacity = '0.5';
+    });
+
+    // Replace arcade button with spinner
+    const arcadeButton = document.querySelector('.arcade-button');
+    if (arcadeButton) {
+        arcadeButton.innerHTML = `
+            <div class="loading-spinner"></div>
+            <span>Get ready to play!</span>
+        `;
+        arcadeButton.disabled = true;
+    }
+}
+
+// ADD
+async function startArcadeGameForAll(eventId) {
+    try {
+        // Update event status
+        await supabaseClient
+            .from('arcade_events')
+            .update({ status: 'playing' })
+            .eq('id', eventId);
+
+        // Notify all participants
+        window.gameChannel?.send({
+            type: 'broadcast',
+            event: 'game_start',
+            payload: { eventId }
+        });
+
+    } catch (error) {
+        console.error('Error starting game:', error);
+        showNotification('Error starting game', 'error');
+    }
+}
+
+function setupArcadeEventListener(eventId, participantId) {
+    const channel = supabaseClient
+        .channel(`game-${eventId}`)
+        .on('broadcast', { event: 'game_start' }, () => {
+            initializeArcadeGameForPlayer(eventId, participantId);
+        })
+        .subscribe();
+
+    return channel;
+}
+
+// ADD
+function showModeratorView(eventId) {
+    const container = document.createElement('div');
+    container.className = 'moderator-view';
+    container.innerHTML = `
+        <div class="moderator-header">
+            <h2>Arcade Event</h2>
+            <div class="moderator-controls">
+                <button class="start-arcade-button" onclick="startArcadeGameForAll('${eventId}')">
+                    Start Game
+                </button>
+            </div>
+        </div>
+        <div class="arcade-leaderboard">
+            <div class="leaderboard-header">
+                <div>Rank</div>
+                <div>Player</div>
+                <div>Score</div>
+                <div>Actions</div>
+            </div>
+            <div id="arcade-leaderboard-entries"></div>
+        </div>
+    `;
+
+    // Replace current content
+    const mainContent = document.querySelector('.teacher-panel-container');
+    if (mainContent) {
+        mainContent.innerHTML = '';
+        mainContent.appendChild(container);
+    }
+
+    // Start real-time updates
+    setupModeratorUpdates(eventId);
+}
+
+// ADD
+function setupModeratorUpdates(eventId) {
+    const updateLeaderboard = async () => {
+        const { data: participants } = await supabaseClient
+            .from('arcade_participants')
+            .select('*')
+            .eq('event_id', eventId)
+            .order('score', { ascending: false });
+
+        if (!participants) return;
+
+        const entriesContainer = document.getElementById('arcade-leaderboard-entries');
+        if (!entriesContainer) return;
+
+        entriesContainer.innerHTML = participants.map((participant, index) => `
+            <div class="leaderboard-entry" data-participant-id="${participant.id}">
+                <div>${index + 1}</div>
+                <div>${participant.player_name}</div>
+                <div>${participant.score}</div>
+                <div>
+                    <button onclick="removeParticipant('${participant.id}')" class="remove-participant">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    };
+
+    // Initial update
+    updateLeaderboard();
+
+    // Set up real-time updates
+    const channel = supabaseClient
+        .channel(`moderator-${eventId}`)
+        .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'arcade_participants',
+            filter: `event_id=eq.${eventId}`
+        }, () => {
+            updateLeaderboard();
+        })
+        .subscribe();
+
+    return channel;
+}
+
+// ADD
+async function removeParticipant(participantId) {
+    try {
+        const { error } = await supabaseClient
+            .from('arcade_participants')
+            .delete()
+            .eq('id', participantId);
+
+        if (error) throw error;
+        showNotification('Participant removed successfully');
+    } catch (error) {
+        console.error('Error removing participant:', error);
+        showNotification('Error removing participant', 'error');
+    }
+}
+
 </script>
 </body>
 </html>

@@ -107,10 +107,6 @@ ALTER TABLE public.school_classes
 
 INSERT INTO schools (name) VALUES ('Default School') RETURNING id;
 
-
- -- 🎮 ARCADE EVENTS section
-----------------------------------------------------------------------------------------
-
 -- 🎮 ARCADE EVENTS section
 ----------------------------------------------------------------------------------------
 
@@ -177,6 +173,29 @@ CREATE TABLE IF NOT EXISTS arcade_participants (
 ALTER TABLE arcade_participants DROP COLUMN IF EXISTS game_status;
 ALTER TABLE arcade_participants ADD COLUMN game_status text DEFAULT 'waiting' 
     CHECK (game_status IN ('waiting', 'playing', 'finished'));
+
+    ALTER TABLE arcade_participants 
+ALTER COLUMN color_code SET NOT NULL;
+
+-- Add to arcade_participants table
+ALTER TABLE arcade_participants 
+ADD COLUMN achievements text[] DEFAULT '{}',
+ADD COLUMN average_time float DEFAULT NULL,
+ADD COLUMN power_ups_used jsonb DEFAULT '{}',
+ADD COLUMN earned_achievements jsonb DEFAULT '[]';
+
+-- Add function to handle achievement awards
+CREATE OR REPLACE FUNCTION award_achievement(
+    participant_id uuid,
+    achievement_id text
+) RETURNS void AS $$
+BEGIN
+    UPDATE arcade_participants
+    SET achievements = array_append(achievements, achievement_id)
+    WHERE id = participant_id
+    AND NOT (achievements @> ARRAY[achievement_id]);
+END;
+$$ LANGUAGE plpgsql;
 ----------------------------------------------------------------------------------------
 -- 🛡️ POLICIES
 ----------------------------------------------------------------------------------------
