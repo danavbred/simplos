@@ -110,6 +110,10 @@ INSERT INTO schools (name) VALUES ('Default School') RETURNING id;
 -- 🎮 ARCADE EVENTS section
 ----------------------------------------------------------------------------------------
 
+----------------------------------------------------------------------------------------
+-- 🎮 ARCADE EVENTS
+----------------------------------------------------------------------------------------
+
 DROP TABLE IF EXISTS arcade_participants CASCADE;
 DROP TABLE IF EXISTS arcade_events CASCADE;
 
@@ -121,8 +125,10 @@ CREATE TABLE IF NOT EXISTS arcade_events (
     access_code text UNIQUE NOT NULL,
     status text DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed')),
     created_at timestamptz DEFAULT now(),
+    started_at timestamptz,
     participants_count integer DEFAULT 0,
     word_pool jsonb DEFAULT '[]',
+    translations jsonb DEFAULT '[]',
     current_power_word text,
     rush_time_active boolean DEFAULT false,
     rush_time_start timestamptz,
@@ -146,18 +152,15 @@ CREATE TABLE IF NOT EXISTS arcade_participants (
     event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
     user_id uuid REFERENCES auth.users(id),
     player_name text NOT NULL,
-    color_code text DEFAULT '#' || lpad(to_hex(floor(random() * 16777215)::int), 6, '0'),
+    color_code text NOT NULL DEFAULT '#' || lpad(to_hex(floor(random() * 16777215)::int), 6, '0'),
     status text DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
     score integer DEFAULT 0,
     words_completed integer DEFAULT 0,
     mistakes_made integer DEFAULT 0,
-    position_y float DEFAULT 0,
     joined_at timestamptz DEFAULT now(),
     game_status text DEFAULT 'waiting' CHECK (game_status IN ('waiting', 'playing', 'finished')),
     current_score integer DEFAULT 0,
     current_position integer DEFAULT 0,
-    current_floor integer DEFAULT 1,
-    position_in_floor float DEFAULT 0,
     last_word_time timestamptz,
     correct_answers integer DEFAULT 0,
     total_attempts integer DEFAULT 0,
@@ -168,23 +171,14 @@ CREATE TABLE IF NOT EXISTS arcade_participants (
     rush_time_points integer DEFAULT 0,
     coins integer DEFAULT 0,
     perks_used jsonb DEFAULT '[]'::jsonb,
-    active_effects jsonb DEFAULT '[]'::jsonb
+    active_effects jsonb DEFAULT '[]'::jsonb,
+    achievements text[] DEFAULT '{}',
+    average_time float DEFAULT NULL,
+    power_ups_used jsonb DEFAULT '{}',
+    earned_achievements jsonb DEFAULT '[]'
 );
-ALTER TABLE arcade_participants DROP COLUMN IF EXISTS game_status;
-ALTER TABLE arcade_participants ADD COLUMN game_status text DEFAULT 'waiting' 
-    CHECK (game_status IN ('waiting', 'playing', 'finished'));
 
-    ALTER TABLE arcade_participants 
-ALTER COLUMN color_code SET NOT NULL;
-
--- Add to arcade_participants table
-ALTER TABLE arcade_participants 
-ADD COLUMN achievements text[] DEFAULT '{}',
-ADD COLUMN average_time float DEFAULT NULL,
-ADD COLUMN power_ups_used jsonb DEFAULT '{}',
-ADD COLUMN earned_achievements jsonb DEFAULT '[]';
-
--- Add function to handle achievement awards
+-- Achievement award function
 CREATE OR REPLACE FUNCTION award_achievement(
     participant_id uuid,
     achievement_id text
@@ -197,14 +191,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-ALTER TABLE arcade_participants DROP COLUMN IF EXISTS position_y;
-ALTER TABLE arcade_participants DROP COLUMN IF EXISTS current_floor;
-ALTER TABLE arcade_participants DROP COLUMN IF EXISTS position_in_floor;
-
+-- MODIFICATION to 🎮 ARCADE EVENTS section
 ALTER TABLE arcade_events 
-ADD COLUMN started_at timestamp with time zone,
-ADD COLUMN word_pool jsonb DEFAULT '[]',
-ADD COLUMN translations jsonb DEFAULT '[]';
+ADD COLUMN current_phase text DEFAULT 'pending' 
+CHECK (current_phase IN ('pending', 'preparing', 'active', 'completed'));
 ----------------------------------------------------------------------------------------
 -- 🛡️ POLICIES
 ----------------------------------------------------------------------------------------
