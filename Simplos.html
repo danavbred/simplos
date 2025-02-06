@@ -1130,6 +1130,97 @@ body {
     border-width: 2px;
 }
 
+/* Add to your CSS */
+.arcade-race-view {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    background: var(--gradient);
+}
+
+.arcade-race-view.visible {
+    display: flex;
+}
+
+.arcade-leaderboard {
+    background: var(--glass);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 800px;
+    backdrop-filter: blur(10px);
+}
+
+.arcade-rankings {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.ranking-item {
+    display: grid;
+    grid-template-columns: 0.5fr 2fr 1fr;
+    padding: 1rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    align-items: center;
+}
+
+.ranking-item .player-name {
+    font-weight: bold;
+}
+
+.ranking-item .score {
+    text-align: right;
+    font-weight: bold;
+    color: var(--gold);
+}
+
+.rank-1 {
+    background: rgba(255,215,0,0.1);
+    border: 1px solid var(--gold);
+}
+
+.rank-2 {
+    background: rgba(192,192,192,0.1);
+    border: 1px solid var(--silver);
+}
+
+.rank-3 {
+    background: rgba(205,127,50,0.1);
+    border: 1px solid var(--bronze);
+}
+
+.arcade-controls {
+    margin-top: 2rem;
+    display: flex;
+    justify-content: center;
+}
+
+.start-arcade-button {
+    background: linear-gradient(135deg, var(--gold), var(--accent));
+    color: var(--text);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.start-arcade-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3);
+}
+
+.start-arcade-button i {
+    font-size: 1.2rem;
+}
+
 .coins-header .coin-icon {
   color: var(--gold);
   font-size: 1.5rem;
@@ -4007,22 +4098,20 @@ body {
     </div>
 </div>
 
+
 <div class="arcade-race-view screen">
     <div class="race-track-container">
-        <div class="race-floor floor-1"></div>
-        <div class="race-floor floor-2"></div>
-        <div class="race-floor floor-3"></div>
-        <div class="race-floor floor-4"></div>
-    </div>
-    
-    <div class="arcade-leaderboard">
-        <h3>Live Rankings</h3>
-        <div class="arcade-rankings"></div>
+        <div class="arcade-leaderboard">
+            <h3>Live Rankings</h3>
+            <div class="arcade-rankings"></div>
+            <div class="arcade-controls">
+                <button onclick="startArcadeGameForAll(getCurrentEventId())" class="start-arcade-button">
+                    <i class="fas fa-play"></i> Start Game
+                </button>
+            </div>
+        </div>
     </div>
 </div>
-
-
-
 
 
 
@@ -9196,11 +9285,12 @@ async function joinArcadeEvent() {
     const code = document.getElementById('access-code-input').value.trim().toUpperCase(); 
     
     try {
+        // First just check by access code
         const { data: event, error } = await supabaseClient
             .from('arcade_events')
             .select('*')
-            .eq('access_code', code) 
-            .eq('status', 'active')
+            .eq('access_code', code)
+            .not('status', 'eq', 'completed')  // Allow both pending and active
             .single();
 
         if (error || !event) {
@@ -9215,6 +9305,7 @@ async function joinArcadeEvent() {
             .from('arcade_participants')
             .insert({
                 event_id: event.id,
+                user_id: currentUser?.id,
                 player_name: playerName,
                 status: 'waiting',
                 words_completed: 0,
@@ -9234,12 +9325,11 @@ async function joinArcadeEvent() {
             participantId: participant.id
         }));
 
-        // Set up event listener for game start
-        window.gameChannel = setupArcadeEventListener(event.id, participant.id);
+        // Hide join modal
+        document.getElementById('arcade-join-modal').style.display = 'none';
 
-        // Modify welcome screen appearance
-        disableWelcomeButtons();
-        showWaitingIndicator();
+        // Set up waiting state
+        setupArcadeWaiting(event.id, participant.id);
 
         showNotification('Successfully joined event!');
 
@@ -10413,8 +10503,16 @@ function updateLobbyParticipants(eventId, participants, lobbyContainer, particip
 }
 
 function setupEventPolling() {
-    // Slight delay to ensure DOM is fully populated
-    setTimeout(initializeEventLobbyPolling, 500);
+    const updateInterval = setInterval(async () => {
+        const activeEvents = document.querySelectorAll('[data-event-id]');
+        activeEvents.forEach(eventElement => {
+            const eventId = eventElement.dataset.eventId;
+            updateRankings(eventId);
+        });
+    }, 1000);
+
+    // Store interval ID for cleanup
+    window.currentEventInterval = updateInterval;
 }
 
 async function populateExistingParticipants(eventId) {
@@ -11795,9 +11893,11 @@ function updateRankings(eventId) {
             rankingsContainer.innerHTML = participants.map((participant, index) => `
                 <div class="ranking-item ${index < 3 ? `rank-${index + 1}` : ''}" 
                      data-participant-id="${participant.id}">
-                    <span class="rank">${index + 1}</span>
-                    <span class="name">${participant.player_name}</span>
-                    <span class="score">${participant.score}</span>
+                    <div class="rank">${index + 1}</div>
+                    <div class="name" style="color: ${participant.color_code}">
+                        ${participant.player_name}
+                    </div>
+                    <div class="score">${participant.score || 0}</div>
                 </div>
             `).join('');
         });
@@ -11919,7 +12019,7 @@ async function handleArcadeAnswer(button) {
             .eq('id', state.participantId);
 
         state.currentWordIndex++;
-        loadArcadeWord();
+        loadNextArcadeWord();
     } else {
         state.streak = 0;
         await supabaseClient
@@ -11959,9 +12059,27 @@ async function loadNextArcadeWord() {
     const currentWord = event.word_pool[wordIndex];
     const correctAnswer = event.translations[wordIndex];
 
-    // Display the word and options (you can adapt this to your existing question screen)
+    // Display the word and options
     document.getElementById('question-word').textContent = currentWord;
-    // ... generate and display answer options
+    
+    // Generate answer options like in the main game
+    const buttonsContainer = document.getElementById('buttons');
+    if (!buttonsContainer) return;
+
+    const wrongAnswers = event.translations
+        .filter((_, i) => i !== wordIndex)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, 3);
+
+    const options = [correctAnswer, ...wrongAnswers]
+        .sort(() => Math.random() - 0.5);
+
+    buttonsContainer.innerHTML = options.map(option => `
+        <button onclick="handleArcadeAnswer(this)" 
+                data-correct="${option === correctAnswer}">
+            ${option}
+        </button>
+    `).join('');
 }
 
 async function handleArcadeAnswer(isCorrect) {
@@ -13306,74 +13424,81 @@ function disableWelcomeButtons() {
 // ADD
 async function startArcadeGameForAll(eventId) {
     try {
-        // Update event status
-        await supabaseClient
+        console.log('Starting game for event:', eventId);
+        
+        // Update participants first
+        const { error: participantError } = await supabaseClient
+            .from('arcade_participants')
+            .update({ 
+                status: 'playing'
+            })
+            .eq('event_id', eventId);
+
+        if (participantError) {
+            console.error('Participant update error:', participantError);
+            throw participantError;
+        }
+
+        // Then update event
+        const { error: eventError } = await supabaseClient
             .from('arcade_events')
-            .update({ status: 'playing' })
+            .update({ 
+                status: 'playing',
+                started_at: new Date().toISOString()
+            })
             .eq('id', eventId);
 
-        // Notify all participants
-        window.gameChannel?.send({
-            type: 'broadcast',
-            event: 'game_start',
-            payload: { eventId }
-        });
+        if (eventError) {
+            console.error('Event update error:', eventError);
+            throw eventError;
+        }
+
+        console.log('Event and participants updated');
+        showModeratorView(eventId);
 
     } catch (error) {
-        console.error('Error starting game:', error);
-        showNotification('Error starting game', 'error');
+        console.error('Detailed error starting game:', error);
+        showNotification('Error starting game: ' + error.message, 'error');
     }
 }
 
 function setupArcadeEventListener(eventId, participantId) {
+    console.log('Setting up event listener for:', eventId);
+    
     const channel = supabaseClient
         .channel(`game-${eventId}`)
         .on('broadcast', { event: 'game_start' }, () => {
+            console.log('Received game start signal');
             initializeArcadeGameForPlayer(eventId, participantId);
         })
-        .subscribe();
+        .subscribe(status => {
+            console.log('Channel subscription status:', status);
+        });
 
     return channel;
 }
 
 // ADD
 function showModeratorView(eventId) {
-    const container = document.createElement('div');
-    container.className = 'moderator-view';
-    container.innerHTML = `
-        <div class="moderator-header">
-            <h2>Arcade Event</h2>
-            <div class="moderator-controls">
-                <button class="start-arcade-button" data-event-id="${eventId}">
-                    Start Game
-                </button>
-            </div>
-        </div>
-        <div class="arcade-leaderboard">
-            <div class="leaderboard-header">
-                <div>Rank</div>
-                <div>Player</div>
-                <div>Score</div>
-                <div>Actions</div>
-            </div>
-            <div id="arcade-leaderboard-entries"></div>
-        </div>
-    `;
+    console.log('Showing moderator view for event:', eventId);
+    
+    // Hide all screens first
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('visible');
+    });
 
-    // Replace current content
-    const mainContent = document.querySelector('.teacher-panel-container');
-    if (mainContent) {
-        mainContent.innerHTML = '';
-        mainContent.appendChild(container);
+    // Show arcade view
+    const arcadeView = document.querySelector('.arcade-race-view');
+    if (arcadeView) {
+        arcadeView.classList.add('visible');
+        // Initialize leaderboard
+        updateRankings(eventId);
+        // Start polling for updates
+        setupEventPolling();
     }
-
-    // Add event listener for start game button
-    const startButton = container.querySelector('.start-arcade-button');
-    startButton.addEventListener('click', () => startArcadeGameForAll(eventId));
-
-    // Start real-time updates
-    setupModeratorUpdates(eventId);
 }
+
+
 
 // ADD
 function setupModeratorUpdates(eventId) {
@@ -13700,6 +13825,65 @@ function handlePerkEffect(effect) {
 // ADD
 function scrambleWord(word) {
     return word.split('').sort(() => Math.random() - 0.5).join('');
+}
+
+function setupWordPool(gradeLevel) {
+    const pools = {
+        'junior': { stages: [1, 2], count: 50 },
+        'high': { stages: [1, 2, 3], count: 75 },
+        'advanced': { stages: [1, 2, 3, 4], count: 100 }
+    };
+
+    const pool = pools[gradeLevel];
+    const words = [];
+    const translations = [];
+
+    // Collect words from appropriate stages
+    pool.stages.forEach(stage => {
+        Object.keys(vocabularySets)
+            .filter(key => key.startsWith(`${stage}_`))
+            .forEach(setKey => {
+                for (let i = 0; i < vocabularySets[setKey].words.length; i++) {
+                    words.push(vocabularySets[setKey].words[i]);
+                    translations.push(vocabularySets[setKey].translations[i]);
+                }
+            });
+    });
+
+    // Shuffle arrays together
+    for (let i = words.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [words[i], words[j]] = [words[j], words[i]];
+        [translations[i], translations[j]] = [translations[j], translations[i]];
+    }
+
+    // Take required number of words
+    return {
+        words: words.slice(0, pool.count),
+        translations: translations.slice(0, pool.count)
+    };
+}
+
+function getCurrentEventId() {
+    const eventData = localStorage.getItem('currentArcadeEvent');
+    if (eventData) {
+        return JSON.parse(eventData).eventId;
+    }
+    // If no event ID in localStorage, try to get from URL or other source
+    const activeEvent = document.querySelector('[data-event-id]');
+    return activeEvent ? activeEvent.dataset.eventId : null;
+}
+
+function showWaitingIndicator() {
+    const arcadeButton = document.querySelector('.arcade-button');
+    if (arcadeButton) {
+        arcadeButton.classList.add('waiting');
+        arcadeButton.innerHTML = `
+            <div class="loading-spinner"></div>
+            <span>Get ready to play!</span>
+        `;
+        arcadeButton.disabled = true;
+    }
 }
 
 </script>
