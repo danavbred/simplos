@@ -107,13 +107,11 @@ ALTER TABLE public.school_classes
 
 INSERT INTO schools (name) VALUES ('Default School') RETURNING id;
 
--- 🎮 ARCADE EVENTS section
-----------------------------------------------------------------------------------------
-
 ----------------------------------------------------------------------------------------
 -- 🎮 ARCADE EVENTS
 ----------------------------------------------------------------------------------------
 
+-- Drop existing tables first
 DROP TABLE IF EXISTS arcade_participants CASCADE;
 DROP TABLE IF EXISTS arcade_events CASCADE;
 
@@ -129,9 +127,7 @@ CREATE TABLE IF NOT EXISTS arcade_events (
     participants_count integer DEFAULT 0,
     word_pool jsonb DEFAULT '[]',
     translations jsonb DEFAULT '[]',
-    current_power_word text,
-    rush_time_active boolean DEFAULT false,
-    rush_time_start timestamptz,
+    current_phase text DEFAULT 'pending' CHECK (current_phase IN ('pending', 'preparing', 'active', 'completed')),
     config jsonb DEFAULT '{
         "endCondition": {"type": "time", "value": 300},
         "scoringSystem": "combo",
@@ -152,33 +148,55 @@ CREATE TABLE IF NOT EXISTS arcade_participants (
     event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
     user_id uuid REFERENCES auth.users(id),
     player_name text NOT NULL,
-    color_code text NOT NULL DEFAULT '#' || lpad(to_hex(floor(random() * 16777215)::int), 6, '0'),
+    color_code text DEFAULT '#' || lpad(to_hex(floor(random() * 16777215)::int), 6, '0'),
     status text DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
     score integer DEFAULT 0,
     words_completed integer DEFAULT 0,
     mistakes_made integer DEFAULT 0,
     joined_at timestamptz DEFAULT now(),
-    game_status text DEFAULT 'waiting' CHECK (game_status IN ('waiting', 'playing', 'finished')),
-    current_score integer DEFAULT 0,
-    current_position integer DEFAULT 0,
-    last_word_time timestamptz,
-    correct_answers integer DEFAULT 0,
-    total_attempts integer DEFAULT 0,
-    current_streak integer DEFAULT 0,
-    highest_streak integer DEFAULT 0,
-    current_multiplier float DEFAULT 1,
-    power_word_count integer DEFAULT 0,
-    rush_time_points integer DEFAULT 0,
-    coins integer DEFAULT 0,
-    perks_used jsonb DEFAULT '[]'::jsonb,
-    active_effects jsonb DEFAULT '[]'::jsonb,
-    achievements text[] DEFAULT '{}',
-    average_time float DEFAULT NULL,
-    power_ups_used jsonb DEFAULT '{}',
-    earned_achievements jsonb DEFAULT '[]'
+    current_streak integer DEFAULT 0
 );
 
--- Achievement award function
+-- Remove all existing policies first
+DROP POLICY IF EXISTS "Anyone can view active events" ON arcade_events;
+DROP POLICY IF EXISTS "Teachers can create and manage events" ON arcade_events;
+DROP POLICY IF EXISTS "Anyone can join events" ON arcade_participants;
+DROP POLICY IF EXISTS "Anyone can view participants" ON arcade_participants;
+DROP POLICY IF EXISTS "Participants can update their own data" ON arcade_participants;
+DROP POLICY IF EXISTS "Enable read access for all users" ON arcade_events;
+DROP POLICY IF EXISTS "Enable read access for all users" ON arcade_participants;
+
+-- Enable RLS on both tables
+ALTER TABLE arcade_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
+
+-- More permissive RLS policies for arcade_events
+CREATE POLICY "Enable read access for all users" ON arcade_events
+    FOR SELECT USING (true);
+
+CREATE POLICY "Enable insert for authenticated users" ON arcade_events
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Enable update for authenticated users" ON arcade_events
+    FOR UPDATE USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Enable delete for authenticated users" ON arcade_events
+    FOR DELETE USING (auth.role() = 'authenticated');
+
+-- More permissive RLS policies for arcade_participants
+CREATE POLICY "Enable read access for all users" ON arcade_participants
+    FOR SELECT USING (true);
+
+CREATE POLICY "Enable insert for authenticated users" ON arcade_participants
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Enable update for authenticated users" ON arcade_participants
+    FOR UPDATE USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Enable delete for authenticated users" ON arcade_participants
+    FOR DELETE USING (auth.role() = 'authenticated');
+
+-- Function to award achievements
 CREATE OR REPLACE FUNCTION award_achievement(
     participant_id uuid,
     achievement_id text
@@ -191,10 +209,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- MODIFICATION to 🎮 ARCADE EVENTS section
-ALTER TABLE arcade_events 
-ADD COLUMN current_phase text DEFAULT 'pending' 
-CHECK (current_phase IN ('pending', 'preparing', 'active', 'completed'));
+-- Grant full permissions to authenticated users
+GRANT ALL ON arcade_events TO authenticated;
+GRANT ALL ON arcade_participants TO authenticated;
 ----------------------------------------------------------------------------------------
 -- 🛡️ POLICIES
 ----------------------------------------------------------------------------------------

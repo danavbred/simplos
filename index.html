@@ -9222,51 +9222,78 @@ function initializeStatusCheck() {
 }
 
 async function joinArcadeEvent() {
+    const tablesExist = await checkArcadeTables();
+if (!tablesExist) {
+    showNotification('Game system not properly initialized', 'error');
+    return;
+}
     const code = document.getElementById('access-code-input').value.trim().toUpperCase(); 
     
     try {
         console.log('Attempting to join with code:', code);
         
-        // First get the event
-        const { data: events, error: eventError } = await supabaseClient
+        // First try to get the event
+        const eventQuery = await supabaseClient
             .from('arcade_events')
             .select('*')
             .eq('access_code', code)
             .not('status', 'eq', 'completed');
             
-        console.log('Event query result:', { data: events, error: eventError });
+        console.log('Event query result:', eventQuery);
 
-        if (eventError || !events?.[0]) {
-            console.error('Event query error:', eventError);
+        if (eventQuery.error || !eventQuery.data?.[0]) {
+            console.error('Event query error:', eventQuery.error);
             showNotification('Invalid or expired access code', 'error');
             return;
         }
 
-        const event = events[0];
+        const event = eventQuery.data[0];
         
-        // Join as participant with minimal data
-        const { data: participant, error: participantError } = await supabaseClient
+        // Generate player details
+        const playerName = currentUser ? 
+            currentUser.user_metadata?.username : 
+            guestNames[Math.floor(Math.random() * guestNames.length)];
+            
+        const colorCode = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+        
+        console.log('Attempting to join as:', {
+            event_id: event.id,
+            user_id: currentUser?.id,
+            player_name: playerName,
+            color_code: colorCode
+        });
+
+        // Try to join as participant
+        const participantQuery = await supabaseClient
             .from('arcade_participants')
             .insert({
                 event_id: event.id,
                 user_id: currentUser?.id,
-                player_name: currentUser?.user_metadata?.username || 'Guest',
-                status: 'waiting'
+                player_name: playerName,
+                color_code: colorCode,
+                status: 'waiting',
+                score: 0,
+                words_completed: 0
             })
-            .select()
-            .single();
+            .select();
             
-        console.log('Participant insert result:', { data: participant, error: participantError });
+        console.log('Participant insert result:', participantQuery);
 
-        if (participantError) {
-            throw participantError;
+        if (participantQuery.error) {
+            console.error('Detailed participant error:', participantQuery.error);
+            throw participantQuery.error;
         }
 
+        const participant = participantQuery.data[0];
+
         // Store event info
-        localStorage.setItem('currentArcadeEvent', JSON.stringify({
+        const eventInfo = {
             eventId: event.id,
             participantId: participant.id
-        }));
+        };
+        
+        console.log('Storing event info:', eventInfo);
+        localStorage.setItem('currentArcadeEvent', JSON.stringify(eventInfo));
 
         // Hide join modal
         document.getElementById('arcade-join-modal').style.display = 'none';
