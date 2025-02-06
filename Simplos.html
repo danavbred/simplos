@@ -5853,135 +5853,75 @@ function loadNextQuestion() {
         });
 }
 
-function handleAnswer(isCorrect, fromPerk = false) {
-    console.log('Before handleAnswer:', {
-        timeRemaining, 
-        initialTimeRemaining: currentGame.initialTimeRemaining,
-        currentIndex: currentGame.currentIndex
-    });
-
-    const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
-    const isLevelCompleted = gameState.perfectLevels.has(levelKey);
-
-    if (!isCorrect) {
-        currentGame.firstAttempt = false;
-        currentGame.streakBonus = false;
-        currentGame.wrongStreak++;
-        
-        // Deduct coins and update perks
-        gameState.coins = Math.max(0, gameState.coins - 3);
-        updateAllCoinDisplays();
-        updatePerkCounts(); // Update perk availability after coin deduction
-
-        // Move progress bar backwards
-        if (currentGame.currentIndex > 0) {
-            currentGame.progressLost++;
-            currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
-        }
-
-        // Check for game over condition
-        if (currentGame.wrongStreak >= 3) {
-    if (currentGame.isCustomPractice) {
-        showGameOverOverlay();
-        document.querySelector('.restart-button').onclick = () => {
-            document.querySelector('.failure-overlay').style.display = 'none';
-            // Use the stored currentCustomLevel instead of resetting to 1
-            startCustomLevel(currentGame.currentCustomLevel, {
-                ...currentGame.practiceState,
-                currentLevel: currentGame.currentCustomLevel
-            });
-        };
-        return;
-    } else {
-        showGameOverOverlay();
-        return;
-    }
-}
-        if (currentGame.isCustomPractice) {
-    if (!isCorrect) {
-        currentGame.firstAttempt = false;
-        currentGame.streakBonus = false;
-        gameState.coins = Math.max(0, gameState.coins - 3);
-        updateAllCoinDisplays();
-        updatePerkCounts();
-    } else if (!fromPerk) {
-        const timeBonus = awardTimeBonus();
-        if (timeBonus > 0) {
-            gameState.coins += timeBonus;
-            pulseCoins(timeBonus);
-        }
-        if (currentGame.firstAttempt) {
-            gameState.coins += 3;
-            pulseCoins(3);
-        } else {
-            gameState.coins += 1;
-            pulseCoins(1);
-        }
-        updateAllCoinDisplays();
-        updatePerkCounts();
-    }
-}
-    } else {
-        currentGame.wrongStreak = 0; // Reset wrong streak on correct answer
-    }
-
+async function handleAnswer(isCorrect) {
+    const buttons = document.querySelectorAll('.buttons button');
     const correctAnswer = currentGame.isHebrewToEnglish ? 
         currentGame.words[currentGame.currentIndex] : 
         currentGame.translations[currentGame.currentIndex];
 
-    if (isCorrect && !isLevelCompleted && !fromPerk) {
-        // Award time bonus and update perks
-        const timeBonus = awardTimeBonus();
-        if (timeBonus > 0) {
-            gameState.coins += timeBonus;
-            pulseCoins(timeBonus);
-            updatePerkCounts(); // Update perk availability after bonus coins
-        }
-
-        // Award coins based on first attempt and update perks
-        if (currentGame.firstAttempt) {
-            gameState.coins += 3;
-            pulseCoins(3);
-        } else {
-            gameState.coins += 1;
-            pulseCoins(1);
-        }
-       
-        currentGame.correctAnswers++;
-        updateAllCoinDisplays();
-        updatePerkCounts(); // Update perk availability after answer coins
-    } else if (isCorrect) {
-        currentGame.correctAnswers++;
-    }
-
-    document.querySelectorAll('.buttons button').forEach(btn => {
+    // Visual feedback
+    buttons.forEach(btn => {
         if (btn.textContent === correctAnswer) {
             btn.classList.add('correct');
-        } else if (!isCorrect && btn.textContent === event.target.textContent) {
+        } else if (!isCorrect && btn === event.target) {
             btn.classList.add('wrong');
         }
     });
 
     if (isCorrect) {
+        // Update stats
+        currentGame.correctAnswers++;
+        currentGame.streak++;
+        currentGame.score += 10;
+
+        // Award coins
+        if (currentGame.firstAttempt) {
+            gameState.coins += 3;
+            pulseCoins(3);
+        } else {
+            gameState.coins += 1;
+            pulseCoins(1);
+        }
+
+        // If in arcade mode, update participant
+        if (currentGame.isArcadeMode) {
+            await supabaseClient
+                .from('arcade_participants')
+                .update({
+                    score: currentGame.score,
+                    words_completed: currentGame.correctAnswers,
+                    current_streak: currentGame.streak
+                })
+                .eq('id', currentGame.participantId);
+        }
+
         currentGame.currentIndex++;
+        
+    } else {
+        currentGame.firstAttempt = false;
+        currentGame.streak = 0;
+        
+        if (currentGame.isArcadeMode) {
+            await supabaseClient
+                .from('arcade_participants')
+                .update({ current_streak: 0 })
+                .eq('id', currentGame.participantId);
+        }
     }
     
+    // Update visual progress
     updateProgressCircle();
+    updateAllCoinDisplays();
     saveProgress();
-   
-    // Use a promise-based delay for better timing control
-    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-    
-    delay(333).then(() => {
+
+    // Load next question after delay
+    setTimeout(() => {
         if (currentGame.currentIndex < currentGame.words.length) {
-            console.log('Restarting timer:', currentGame.initialTimeRemaining);
-            startTimer(currentGame.words.length - currentGame.currentIndex);
             loadNextQuestion();
-            updatePerkCounts(); // Ensure perks are up to date after state changes
         } else {
             handleLevelCompletion();
         }
-    });
+    }, 1000);
 }
 
 function awardTimeBonus() {
@@ -10037,27 +9977,6 @@ async function handleEventSubmit(event) {
     }
 }
 
-function showAccessCode(code) {
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.innerHTML = `
-        <div class="modal-content">
-            <h2>Event Created!</h2>
-            <p>Share this code with your students to join:</p>
-            <div class="code-display">
-                <span>${code}</span>
-                <button onclick="copyToClipboard('${code}')" class="action-button">
-                    <i class="fas fa-copy"></i> Copy
-                </button>
-            </div>
-            <p class="hint">This code can be accessed later from event management</p>
-            <button onclick="closeModal()" class="action-button">Close</button>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-
 
 function setupEventLobby(eventId) {
     const lobbyContainer = document.getElementById(`player-lobby-${eventId}`);
@@ -13483,17 +13402,12 @@ async function startArcadeGameForAll(eventId) {
 }
 
 function setupArcadeEventListener(eventId, participantId) {
-    console.log('Setting up event listener for:', eventId);
-    
     const channel = supabaseClient
         .channel(`game-${eventId}`)
-        .on('broadcast', { event: 'force_game_start' }, (payload) => {
-            console.log('Received force game start signal', payload);
-            forceStartArcadeGame(eventId, participantId);
+        .on('broadcast', { event: 'force_game_start' }, () => {
+            initializeArcadeGameForPlayer(eventId, participantId);
         })
-        .subscribe(status => {
-            console.log('Channel subscription status:', status);
-        });
+        .subscribe();
 
     return channel;
 }
@@ -13738,28 +13652,40 @@ function setupArcadeWaiting(eventId, participantId) {
     return channel;
 }
 
-// ADD
-function initializeArcadeGameForPlayer(eventId, participantId) {
+async function initializeArcadeGameForPlayer(eventId, participantId) {
+    // Switch to question screen
     showScreen('question-screen');
     
-    window.arcadeState = {
+    // Get event words
+    const { data: event } = await supabaseClient
+        .from('arcade_events')
+        .select('word_pool, translations')
+        .eq('id', eventId)
+        .single();
+
+    if (!event?.word_pool) {
+        showNotification('Error loading game data', 'error');
+        return;
+    }
+
+    // Initialize using existing game state structure
+    currentGame = {
+        words: event.word_pool,
+        translations: event.translations,
+        currentIndex: 0,
+        correctAnswers: 0,
+        firstAttempt: true,
+        isArcadeMode: true,
         eventId: eventId,
         participantId: participantId,
-        score: 0,
-        streak: 0,
-        currentWordIndex: 0,
         startTime: Date.now(),
-        perks: {
-            timeFreeze: 0,
-            wordScramble: 0,
-            timeAccelerator: 0,
-            blind: 0,
-            answerShuffle: 0
-        }
+        streak: 0,
+        score: 0
     };
 
-    // Start game with current vocabulary set
-    loadNextArcadeWord();
+    // Start game using existing mechanics
+    loadNextQuestion();
+    startTimer(currentGame.words.length);
 }
 
 
@@ -13940,6 +13866,30 @@ function showWaitingIndicator() {
         arcadeButton.disabled = true;
     }
 }
+
+async function checkArcadeTables() {
+    try {
+        const { data: event, error: eventError } = await supabaseClient
+            .from('arcade_events')
+            .select('id')
+            .limit(1);
+            
+        console.log('Event check:', { data: event, error: eventError });
+        
+        const { data: participant, error: participantError } = await supabaseClient
+            .from('arcade_participants')
+            .select('id')
+            .limit(1);
+            
+        console.log('Participant check:', { data: participant, error: participantError });
+        
+        return !eventError && !participantError;
+    } catch (error) {
+        console.error('Table check error:', error);
+        return false;
+    }
+}
+
 
 </script>
 </body>
