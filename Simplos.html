@@ -9328,10 +9328,13 @@ async function joinArcadeEvent() {
         // Hide join modal
         document.getElementById('arcade-join-modal').style.display = 'none';
 
-        // Set up waiting state
-        setupArcadeWaiting(event.id, participant.id);
+        // Show waiting screen
+        showScreen('arcade-waiting-screen');
 
         showNotification('Successfully joined event!');
+
+        // Set up event listener for game start
+        setupArcadeEventListener(event.id, participant.id);
 
     } catch (error) {
         console.error('Join error:', error);
@@ -9339,7 +9342,34 @@ async function joinArcadeEvent() {
     }
 }
 
+function setupModeratorLiveView(eventId) {
+    supabaseClient
+        .channel(`event-participants-${eventId}`)
+        .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'arcade_participants',
+            filter: `event_id=eq.${eventId}`
+        }, payload => {
+            updateModeratorParticipantList(payload.new);
+        })
+        .subscribe();
+}
 
+function updateModeratorParticipantList(participant) {
+    const leaderboard = document.querySelector('.arcade-leaderboard .arcade-rankings');
+    
+    const participantElement = document.createElement('div');
+    participantElement.classList.add('ranking-item');
+    participantElement.dataset.participantId = participant.id;
+    participantElement.innerHTML = `
+        <div class="rank">-</div>
+        <div class="player-name">${participant.player_name}</div>
+        <div class="score">0</div>
+    `;
+    
+    leaderboard.appendChild(participantElement);
+}
 
 function showArcadeJoin() {
     document.getElementById('arcade-join-modal').style.display = 'flex';
@@ -13424,23 +13454,8 @@ function disableWelcomeButtons() {
 // ADD
 async function startArcadeGameForAll(eventId) {
     try {
-        console.log('Starting game for event:', eventId);
-        
-        // Update participants first
-        const { error: participantError } = await supabaseClient
-            .from('arcade_participants')
-            .update({ 
-                status: 'playing'
-            })
-            .eq('event_id', eventId);
-
-        if (participantError) {
-            console.error('Participant update error:', participantError);
-            throw participantError;
-        }
-
-        // Then update event
-        const { error: eventError } = await supabaseClient
+        // Update event status
+        await supabaseClient
             .from('arcade_events')
             .update({ 
                 status: 'playing',
@@ -13448,17 +13463,22 @@ async function startArcadeGameForAll(eventId) {
             })
             .eq('id', eventId);
 
-        if (eventError) {
-            console.error('Event update error:', eventError);
-            throw eventError;
-        }
+        // Broadcast game start signal
+        supabaseClient
+            .channel(`game-${eventId}`)
+            .send({
+                type: 'broadcast',
+                event: 'force_game_start',
+                payload: { 
+                    eventId: eventId,
+                    startTime: new Date().toISOString() 
+                }
+            });
 
-        console.log('Event and participants updated');
-        showModeratorView(eventId);
-
+        console.log('Arcade game started for all participants');
     } catch (error) {
-        console.error('Detailed error starting game:', error);
-        showNotification('Error starting game: ' + error.message, 'error');
+        console.error('Error starting arcade game:', error);
+        showNotification('Error starting game', 'error');
     }
 }
 
@@ -13467,15 +13487,50 @@ function setupArcadeEventListener(eventId, participantId) {
     
     const channel = supabaseClient
         .channel(`game-${eventId}`)
-        .on('broadcast', { event: 'game_start' }, () => {
-            console.log('Received game start signal');
-            initializeArcadeGameForPlayer(eventId, participantId);
+        .on('broadcast', { event: 'force_game_start' }, (payload) => {
+            console.log('Received force game start signal', payload);
+            forceStartArcadeGame(eventId, participantId);
         })
         .subscribe(status => {
             console.log('Channel subscription status:', status);
         });
 
     return channel;
+}
+
+function forceStartArcadeGame(eventId, participantId) {
+    console.log('Force starting arcade game:', { eventId, participantId });
+
+    // Clear any existing game state
+    window.arcadeState = null;
+
+    // Force show question screen
+    showScreen('question-screen');
+
+    // Initialize game state
+    window.arcadeState = {
+        eventId: eventId,
+        participantId: participantId,
+        score: 0,
+        streak: 0,
+        currentWordIndex: 0,
+        startTime: Date.now(),
+        questionStartTime: Date.now()
+    };
+
+    // Fetch and initialize word pool
+    initializeArcadeWords(eventId)
+        .then(() => {
+            // Start the game
+            loadNextArcadeWord();
+            
+            // Start timer
+            startTimer(currentGame.words.length);
+        })
+        .catch(error => {
+            console.error('Error initializing words:', error);
+            showNotification('Error starting game', 'error');
+        });
 }
 
 // ADD
