@@ -9225,62 +9225,60 @@ async function joinArcadeEvent() {
     const code = document.getElementById('access-code-input').value.trim().toUpperCase(); 
     
     try {
-        console.log('Attempting to join with code:', code);
-        
-        // First get the event
-        const { data: events, error: eventError } = await supabaseClient
+        // First just check by access code
+        const { data: event, error } = await supabaseClient
             .from('arcade_events')
             .select('*')
             .eq('access_code', code)
-            .not('status', 'eq', 'completed');
-            
-        console.log('Event query result:', { data: events, error: eventError });
+            .not('status', 'eq', 'completed')  // Allow both pending and active
+            .single();
 
-        if (eventError || !events?.[0]) {
-            console.error('Event query error:', eventError);
+        if (error || !event) {
             showNotification('Invalid or expired access code', 'error');
             return;
         }
 
-        const event = events[0];
-        
-        // Join as participant with minimal data
-        const { data: participant, error: participantError } = await supabaseClient
+        // Generate player name
+        const playerName = generatePlayerName(currentUser);
+
+        const { data: participant, error: joinError } = await supabaseClient
             .from('arcade_participants')
             .insert({
                 event_id: event.id,
                 user_id: currentUser?.id,
-                player_name: currentUser?.user_metadata?.username || 'Guest',
-                status: 'waiting'
+                player_name: playerName,
+                status: 'waiting',
+                words_completed: 0,
+                score: 0
             })
             .select()
             .single();
-            
-        console.log('Participant insert result:', { data: participant, error: participantError });
 
-        if (participantError) {
-            throw participantError;
+        if (joinError) {
+            console.error('Join error details:', joinError);
+            throw joinError;
         }
 
-        // Store event info
+        // Store event and participant info
         localStorage.setItem('currentArcadeEvent', JSON.stringify({
             eventId: event.id,
             participantId: participant.id
         }));
 
-  // Hide join modal
+        // Hide join modal
         document.getElementById('arcade-join-modal').style.display = 'none';
 
         // Show waiting screen
         showScreen('arcade-waiting-screen');
 
-        showNotification('Successfully joined event!');        
-        // Set up event listener
+        showNotification('Successfully joined event!');
+
+        // Set up event listener for game start
         setupArcadeEventListener(event.id, participant.id);
 
     } catch (error) {
-        console.error('Detailed join error:', error);
-        showNotification(`Error joining event: ${error.message}`, 'error'); 
+        console.error('Join error:', error);
+        showNotification('Error joining event', 'error'); 
     }
 }
 
