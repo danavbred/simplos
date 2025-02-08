@@ -833,6 +833,167 @@ body {
     100% { transform: translateY(0); }
 }
 
+.moderator-container {
+    display: flex;
+    height: 100vh;
+    width: 100%;
+}
+
+.session-info-panel {
+    width: 25%;
+    background: var(--glass);
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    backdrop-filter: blur(10px);
+    border-right: 1px solid rgba(255,255,255,0.1);
+}
+
+.session-details {
+    text-align: center;
+}
+
+.session-details h2 {
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+}
+
+.otp-display {
+    font-size: 3rem;
+    color: var(--gold);
+    margin: 1rem 0;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.session-metadata {
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    padding: 1rem;
+    margin: 1rem 0;
+    text-align: left;
+}
+
+.session-metadata p {
+    margin: 0.5rem 0;
+    color: var(--text);
+    opacity: 0.8;
+}
+
+.leaderboard-panel {
+    width: 75%;
+    overflow-y: auto;
+    background: var(--primary-dark);
+}
+
+.moderator-leaderboard .leaderboard-entry {
+    display: grid;
+    grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
+    padding: 1.5rem;
+    margin: 0.5rem;
+    background: var(--glass);
+    border-radius: 15px;
+    font-size: 1.2rem;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.moderator-leaderboard .leaderboard-entry .player-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.moderator-leaderboard .leaderboard-entry .player-actions button {
+    padding: 0.5rem;
+    border-radius: 5px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .moderator-container {
+        flex-direction: column;
+    }
+    
+    .session-info-panel,
+    .leaderboard-panel {
+        width: 100%;
+    }
+}
+
+.arcade-completion-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.arcade-completion-modal.show {
+    opacity: 1;
+}
+
+.completion-modal-content {
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 2rem;
+    text-align: center;
+    max-width: 500px;
+    width: 90%;
+    transform: scale(0.7);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.arcade-completion-modal.show .completion-modal-content {
+    transform: scale(1);
+}
+
+.completion-stats {
+    display: flex;
+    justify-content: space-around;
+    margin: 2rem 0;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--text);
+}
+
+.stat-item i {
+    font-size: 2rem;
+    color: var(--gold);
+    margin-bottom: 0.5rem;
+}
+
+.stat-item strong {
+    font-size: 1.5rem;
+    color: var(--gold);
+}
+
+.completion-rank {
+    margin: 1rem 0;
+    font-size: 1.2rem;
+    color: var(--text);
+}
+
+.completion-modal-content .start-button {
+    margin-top: 1rem;
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+}
+
 .coins-header .coin-icon {
   color: var(--gold);
   font-size: 1.5rem;
@@ -3646,19 +3807,40 @@ body {
 </div>
 
 <div id="moderator-screen" class="screen">
-    <div class="moderator-header">
-        <h2>Session Code:</h2>
-        <div class="otp-display" id="moderatorOtp"></div>
-        <div class="game-controls">
-            <button class="start-button initialize-button" onclick="initializeArcade()">
-                Initialize Arcade
-            </button>
-            <button class="end-arcade-button" onclick="endArcade()">
-                End Arcade
-            </button>
+    <div class="moderator-container">
+        <div class="session-info-panel">
+            <div class="session-details">
+                <h2>Arcade Session</h2>
+                <div class="otp-display" id="moderatorOtp"></div>
+                <div class="session-metadata">
+                    <p>Date: <span id="sessionDate"></span></p>
+                    <p>Start Time: <span id="sessionStartTime"></span></p>
+                    <p>Word Goal: <span id="sessionWordGoal"></span></p>
+                    <p>Active Participants: <span id="activeParticipantCount">0</span></p>
+                </div>
+                <div class="game-controls">
+                    <button class="start-button initialize-button" onclick="initializeArcade()">
+                        Initialize Arcade
+                    </button>
+                    <button class="end-arcade-button" onclick="endArcade()">
+                        End Arcade
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="leaderboard-panel">
+            <div id="arcade-leaderboard" class="moderator-leaderboard">
+                <div class="leaderboard-header">
+                    <div>Rank</div>
+                    <div>Player</div>
+                    <div>Words</div>
+                    <div>Coins</div>
+                    <div>Actions</div>
+                </div>
+                <!-- Participants will be dynamically populated here -->
+            </div>
         </div>
     </div>
-    <div id="arcade-leaderboard"></div>
 </div>
 
 <div id="remove-player-modal" class="modal">
@@ -9159,17 +9341,26 @@ function updateAllPlayersProgress() {
     // Update leaderboard display
     const entries = sortedPlayers.map((player, index) => `
         <div class="leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}"
-             onclick="showRemovePlayerModal('${player.username}')">
+             data-rank="${index + 1}">
             <div>${index + 1}</div>
             <div data-username="${player.username}">${player.username}</div>
             <div>${player.wordsCompleted || 0}</div>
             <div>${player.coins || 0}</div>
+            <div class="player-actions">
+                <button onclick="removePlayer('${player.username}')">Remove</button>
+            </div>
         </div>
     `).join('');
     
     const leaderboard = document.getElementById('arcade-leaderboard');
     const header = leaderboard.querySelector('.leaderboard-header').outerHTML;
     leaderboard.innerHTML = header + entries;
+
+    // Update session metadata
+    document.getElementById('activeParticipantCount').textContent = sortedPlayers.length;
+    document.getElementById('sessionDate').textContent = new Date().toLocaleDateString();
+    document.getElementById('sessionStartTime').textContent = new Date().toLocaleTimeString();
+    document.getElementById('sessionWordGoal').textContent = currentArcadeSession.wordGoal;
 }
 
 async function startArcade() {
@@ -9400,19 +9591,58 @@ function updateArcadeProgress() {
     circle.style.strokeDashoffset = circumference * (1 - progress);
 }
 
-function showArcadeCompletionScreen() {
-    const screenHTML = `
-        <div class="completion-overlay">
-            <div class="completion-content">
-                <h2>Great Job!</h2>
-                <p>Words Completed: ${currentGame.wordsCompleted}</p>
-                <p>Coins Earned: ${currentGame.coins}</p>
-                <button onclick="exitArcade()" class="start-button">Exit</button>
+function showArcadeCompletionScreen(playerData) {
+    console.log('Showing Arcade Completion Screen with data:', playerData);
+
+    // Remove any existing completion modals first
+    const existingModal = document.querySelector('.arcade-completion-modal');
+    if (existingModal) {
+        document.body.removeChild(existingModal);
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'arcade-completion-modal';
+    overlay.innerHTML = `
+        <div class="completion-modal-content">
+            <h2>Arcade Session Complete!</h2>
+            <div class="completion-stats">
+                <div class="stat-item">
+                    <i class="fas fa-language"></i>
+                    <span>Words Learned</span>
+                    <strong>${playerData.wordsCompleted || 0}</strong>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-coins"></i>
+                    <span>Coins Earned</span>
+                    <strong>${playerData.coins || 0}</strong>
+                </div>
             </div>
+            <div class="completion-rank">
+                <p>Your Rank: ${playerData.rank || 'N/A'}</p>
+            </div>
+            <button onclick="exitArcadeCompletion()" class="start-button">
+                Return to Welcome
+            </button>
         </div>
     `;
     
-    document.body.insertAdjacentHTML('beforeend', screenHTML);
+    document.body.appendChild(overlay);
+    
+    // Ensure the modal is visible
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
+}
+
+function exitArcadeCompletion() {
+    const modal = document.querySelector('.arcade-completion-modal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            document.body.removeChild(modal);
+            showScreen('welcome-screen');
+        }, 300);
+    }
 }
 
 function exitArcade() {
@@ -9543,24 +9773,65 @@ async function endArcade() {
 }
 
 function handleGameEnd() {
-    // Save earned coins for registered users
-    if (currentUser) {
-        updateUserCoins(currentGame.coins);
+    console.log('handleGameEnd called');
+    console.log('Current User:', currentUser);
+    console.log('Arcade Session Participants:', currentArcadeSession.participants);
+
+    // Ensure we have a user and participants
+    if (!currentUser) {
+        console.warn('No current user found');
+        return;
+    }
+
+    const playerUsername = currentUser?.user_metadata?.username || getRandomSimploName();
+    console.log('Player Username:', playerUsername);
+
+    const playerData = currentArcadeSession.participants.find(p => p.username === playerUsername);
+    console.log('Player Data:', playerData);
+
+    if (!playerData) {
+        console.warn('No player data found for username:', playerUsername);
+        
+        // Fallback: Use the first participant or create a default
+        const fallbackPlayerData = currentArcadeSession.participants[0] || {
+            username: playerUsername,
+            wordsCompleted: 0,
+            coins: 0
+        };
+
+        console.log('Using fallback player data:', fallbackPlayerData);
+        showArcadeCompletionScreen(fallbackPlayerData);
+        return;
+    }
+
+    // Find player's rank
+    const sortedPlayers = currentArcadeSession.participants
+        .sort((a, b) => b.wordsCompleted - a.wordsCompleted);
+    
+    playerData.rank = sortedPlayers.findIndex(p => p.username === playerUsername) + 1;
+    
+    console.log('Final Player Data with Rank:', playerData);
+    
+    showArcadeCompletionScreen(playerData);
+}
+
+function removePlayer(username) {
+    // Remove player from current arcade session
+    currentArcadeSession.participants = currentArcadeSession.participants.filter(
+        player => player.username !== username
+    );
+    
+    // Broadcast player removal
+    if (window.arcadeChannel) {
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'player_removed',
+            payload: { username }
+        });
     }
     
-    const overlay = document.createElement('div');
-    overlay.className = 'completion-overlay';
-    overlay.innerHTML = `
-        <div class="completion-content">
-            <h2>Game Over!</h2>
-            <p>The arcade session has ended</p>
-            <p>Words Completed: ${currentGame.wordsCompleted || 0}</p>
-            <p>Coins Earned: ${currentGame.coins || 0}</p>
-            <button onclick="exitArcade()" class="start-button">Exit</button>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
+    // Update leaderboard
+    updateAllPlayersProgress();
 }
 
 </script>
