@@ -919,9 +919,9 @@ body {
     backdrop-filter: blur(10px);
     border-radius: 20px;
     padding: 2rem;
-    text-align: center;
     max-width: 500px;
     width: 90%;
+    text-align: center;
     transform: scale(0.7);
     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -940,7 +940,6 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    color: var(--text);
 }
 
 .stat-item i {
@@ -954,16 +953,35 @@ body {
     color: var(--gold);
 }
 
-.completion-rank {
-    margin: 1rem 0;
-    font-size: 1.2rem;
-    color: var(--text);
+.leaderboard-preview {
+    margin: 2rem 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 15px;
+    padding: 1rem;
 }
 
-.completion-modal-content .start-button {
-    margin-top: 1rem;
-    padding: 1rem 2rem;
-    font-size: 1.2rem;
+.podium-player {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem;
+    margin: 0.5rem 0;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+}
+
+.podium-player.rank-1 {
+    background: linear-gradient(135deg, var(--gold), #FFD700);
+    color: var(--primary-dark);
+}
+
+.podium-player.rank-2 {
+    background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
+    color: var(--primary-dark);
+}
+
+.podium-player.rank-3 {
+    background: linear-gradient(135deg, #CD7F32, #B87333);
+    color: var(--primary-dark);
 }
 
 
@@ -9673,8 +9691,8 @@ async function joinArcade() {
         let stateCheckInterval;
         
         window.arcadeChannel
-            .on('broadcast', { event: 'game_state_response' }, ({ payload }) => {
-                console.log('Received state response:', payload);
+        .on('broadcast', { event: 'game_end' }, ({ payload }) => {
+            handleGameEnd(payload);
                 currentArcadeSession.state = payload.state;
                 
                 if (payload.state === 'active') {
@@ -10285,23 +10303,28 @@ function checkGameEnd() {
 
 async function endArcade() {
     try {
-        // Broadcast end game event
+        // Broadcast end game event to all participants
         await window.arcadeChannel.send({
             type: 'broadcast',
             event: 'game_end',
             payload: {
-                message: 'Game ended by moderator'
+                participants: currentArcadeSession.participants,
+                teacherId: currentUser.id  // Add teacher ID to help identify moderator
             }
         });
         
         currentArcadeSession.isActive = false;
         
-        // Clean up and return to welcome screen
+        // Clean up channel
         if (window.arcadeChannel) {
             window.arcadeChannel.unsubscribe();
         }
         
-        showScreen('welcome-screen');
+        // For the moderator, explicitly trigger game end
+        handleGameEnd({
+            participants: currentArcadeSession.participants,
+            teacherId: currentUser.id
+        });
         
     } catch (error) {
         console.error('End game error:', error);
@@ -10309,47 +10332,92 @@ async function endArcade() {
     }
 }
 
-function handleGameEnd() {
-    console.log('handleGameEnd called');
-    console.log('Current User:', currentUser);
-    console.log('Arcade Session Participants:', currentArcadeSession.participants);
+function handleGameEnd(payload) {
+    console.log('Game End Payload:', payload);
 
-    // Ensure we have a user and participants
-    if (!currentUser) {
-        console.warn('No current user found');
+    // If no payload or no participants, exit
+    if (!payload || !payload.participants) return;
+
+    // Determine if current user is a participant or moderator
+    const playerUsername = currentUser?.user_metadata?.username || 
+                           (currentUser?.id === payload.teacherId ? 'Moderator' : getRandomSimploName());
+
+    // If moderator, just show welcome screen
+    if (currentUser?.id === payload.teacherId) {
+        showScreen('welcome-screen');
         return;
     }
 
-    const playerUsername = currentUser?.user_metadata?.username || getRandomSimploName();
-    console.log('Player Username:', playerUsername);
-
-    const playerData = currentArcadeSession.participants.find(p => p.username === playerUsername);
-    console.log('Player Data:', playerData);
+    const playerData = payload.participants.find(p => p.username === playerUsername);
 
     if (!playerData) {
-        console.warn('No player data found for username:', playerUsername);
-        
-        // Fallback: Use the first participant or create a default
-        const fallbackPlayerData = currentArcadeSession.participants[0] || {
-            username: playerUsername,
-            wordsCompleted: 0,
-            coins: 0
-        };
-
-        console.log('Using fallback player data:', fallbackPlayerData);
-        showArcadeCompletionScreen(fallbackPlayerData);
+        console.warn('No player data found for:', playerUsername);
+        showScreen('welcome-screen');
         return;
     }
 
-    // Find player's rank
-    const sortedPlayers = currentArcadeSession.participants
-        .sort((a, b) => b.wordsCompleted - a.wordsCompleted);
+    // Sort participants to get ranks
+    const sortedPlayers = payload.participants
+        .sort((a, b) => {
+            if (b.wordsCompleted !== a.wordsCompleted) {
+                return b.wordsCompleted - a.wordsCompleted;
+            }
+            return b.coins - a.coins;
+        });
     
     playerData.rank = sortedPlayers.findIndex(p => p.username === playerUsername) + 1;
     
-    console.log('Final Player Data with Rank:', playerData);
+    // Create completion modal (same as previous implementation)
+    const overlay = document.createElement('div');
+    overlay.className = 'arcade-completion-modal';
+    overlay.innerHTML = `
+        <div class="completion-modal-content">
+            <h2>Arcade Session Complete!</h2>
+            <div class="completion-stats">
+                <div class="stat-item">
+                    <i class="fas fa-language"></i>
+                    <span>Words Learned</span>
+                    <strong>${playerData.wordsCompleted || 0}</strong>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-coins"></i>
+                    <span>Coins Earned</span>
+                    <strong>${playerData.coins || 0}</strong>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-trophy"></i>
+                    <span>Rank</span>
+                    <strong>${playerData.rank || 'N/A'}</strong>
+                </div>
+            </div>
+            <div class="leaderboard-preview">
+                <h3>Top 3 Players</h3>
+                ${sortedPlayers.slice(0, 3).map((player, index) => `
+                    <div class="podium-player rank-${index + 1}">
+                        <span class="player-name">${player.username}</span>
+                        <span class="player-words">${player.wordsCompleted} words</span>
+                    </div>
+                `).join('')}
+            </div>
+            <button onclick="exitArcadeCompletion()" class="start-button">
+                Return to Welcome
+            </button>
+        </div>
+    `;
     
-    showArcadeCompletionScreen(playerData);
+    // Make the modal closable by clicking anywhere
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            exitArcadeCompletion();
+        }
+    });
+    
+    document.body.appendChild(overlay);
+    
+    // Ensure the modal is visible
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
 }
 
 function removePlayer(username) {
