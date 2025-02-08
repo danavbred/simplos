@@ -105,7 +105,6 @@ body {
 .auth-tab,
 .auth-form-login-button,
 .auth-form-signup-button,
-.logout-button,
 .edit-button,
 .delete-button,
 .process-words-button,
@@ -137,7 +136,6 @@ body {
 .auth-tab:hover,
 .auth-form-login-button:hover,
 .auth-form-signup-button:hover,
-.logout-button:hover,
 .edit-button:hover,
 .delete-button:hover,
 .process-words-button:hover,
@@ -152,7 +150,6 @@ body {
 .auth-tab::before,
 .auth-form-login-button::before,
 .auth-form-signup-button::before,
-.logout-button::before,
 .edit-button::before,
 .delete-button::before,
 .process-words-button::before,
@@ -173,7 +170,6 @@ body {
 .auth-tab:hover::before,
 .auth-form-login-button:hover::before,
 .auth-form-signup-button:hover::before,
-.logout-button:hover::before,
 .edit-button:hover::before,
 .delete-button:hover::before,
 .process-words-button:hover::before,
@@ -468,26 +464,6 @@ body {
     display: block;
 }
 
-.logout-button {
-    position: fixed;
-    bottom: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 0.5rem 1rem;
-    font-size: 0.8rem;
-    opacity: 0.7;
-    transition: opacity 0.3s ease, box-shadow 0.3s ease;
-    z-index: 100;
-}
-
-.logout-button:hover {
-    opacity: 1;
-    box-shadow: 0 5px 15px rgba(244, 67, 54, 0.4);
-}
-
-.hidden {
-    display: none !important;
-}
 
 @media (max-width: 768px) {
     .auth-container {
@@ -1076,12 +1052,17 @@ body {
     opacity: 1;
 }
 
+.hidden {
+    display: none;
+}
+
+
 /* Side Panel Core */
 .side-panel {
     position: fixed;
     top: 0;
     right: -100%;
-    width: 280px;
+    width: 320px;
     height: 100vh;
     background: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(10px);
@@ -1101,23 +1082,107 @@ body {
 .side-panel .welcome-buttons {
     display: flex;
     flex-direction: column;
-    margin-top: 2rem;
+    margin-top: 1rem;
+    gap: 0.5rem;
+    align-items: stretch; /* This makes all items stretch to full width */
 }
 
 .side-panel .nav-link {
-    color: var(--text);
-    text-decoration: none;
-    padding: 0.75rem 0;
-    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
     transition: all 0.3s ease;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    justify-content: flex-start;
+    text-align: left;
+    color: var(--text); /* Ensure text color is consistent */
+    text-decoration: none; /* Remove underline */
+    background: transparent;
+    border-radius: 10px;
+    cursor: pointer;
     opacity: 0.8;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.side-panel .nav-link:hover {
+    background: rgba(255,255,255,0.1);
+    opacity: 1;
+    transform: translateX(5px);
+}
+
+.side-panel .nav-link i {
+    color: var(--gold);
+    margin-right: 0.5rem;
+    opacity: 0.7;
+    transition: all 0.3s ease;
+}
+
+.side-panel .nav-link:hover i {
+    opacity: 1;
+    color: var(--accent);
 }
 
 .side-panel .nav-link:hover {
     opacity: 1;
     color: var(--gold);
     transform: translateX(10px);
+}
+
+.side-panel .nav-link i {
+    min-width: 20px;
+    text-align: center;
+    opacity: 0.7;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    transition: all 0.3s ease;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    justify-content: flex-start;
+    text-align: left;
+    color: var(--text); /* Ensure text color is consistent */
+    text-decoration: none; /* Remove underline */
+    background: transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.side-panel .logout-top-button {
+    display: flex;
+    align-items: center;
+    padding: 0.875rem 1rem;
+
+    text-align: center;
+    color: var(--text); /* Ensure text color is consistent */
+    background: transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    opacity: 0.8;
+}
+.side-panel .logout-top-button:hover {
+    background: rgb(187, 81, 6);
+    opacity: 1;
+    transform: translateX(5px);
+}
+
+.side-panel-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    align-items: center; /* Center items horizontally */
+}
+.user-profile-bottom {
+    margin-top: auto;
+    padding: 1rem;
+    border-top: 1px solid rgba(255,255,255,0.1);
 }
 
 /* User Profile Section */
@@ -1164,6 +1229,29 @@ body {
 .status-badge.trial {
     background: linear-gradient(135deg, #9C27B0, #673AB7);
     color: white;
+}
+
+@media (max-width: 768px) {
+    .side-panel {
+        width: 85%;
+        padding: 1.5rem 1rem;
+    }
+    
+    .hamburger-button.open {
+        right: 87%;
+    }
+    
+    .main-buttons {
+        padding: 0 1rem;
+    }
+}
+
+/* Small Screen Optimization */
+@media (max-width: 360px) {
+    .side-panel {
+        width: 90%;
+        padding: 1.25rem 0.75rem;
+    }
 }
 
 /* Stats Section */
@@ -1237,25 +1325,6 @@ body {
     transform: rotate(90deg);
 }
 
-/* Logout Button */
-.logout-button {
-    margin-top: auto;
-    padding: 0.875rem 1.5rem;
-    background: rgba(244, 67, 54, 0.1);
-    border: 1px solid rgba(244, 67, 54, 0.5);
-    color: var(--text);
-    border-radius: 50px;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    opacity: 0.8;
-}
-
-.logout-button:hover {
-    opacity: 1;
-    background: rgba(244, 67, 54, 0.2);
-    transform: translateY(-2px);
-}
 
 /* Welcome Screen Buttons */
 .main-buttons {
@@ -3796,13 +3865,12 @@ body {
    <div class="side-panel">
     <div class="side-panel-content">
         <button class="logout-button logout-top-button">
-            <i class="fas fa-sign-out-alt"></i> Logout
-        </button>
-        
+    <i class="fas fa-sign-out-alt"></i> Logout
+</button>        
         <div class="welcome-buttons">
-            <a href="#" class="nav-link" onclick="showSetScreen(gameState.currentStage || 1); return false;">
-                <i class="fas fa-map-marked-alt"></i> Level Map
-            </a>
+            <a href="#" class="nav-link" onclick="showScreen('stage-screen'); return false;">
+    <i class="fas fa-map-marked-alt"></i> Level Map
+</a>
             <a href="#" class="nav-link" onclick="showCustomListsManager(); return false;">
                 <i class="fas fa-list"></i> My Lists
             </a>
@@ -4236,6 +4304,13 @@ body {
 </div>
 
 <script>
+
+    document.addEventListener('DOMContentLoaded', () => {
+    const logoutButton = document.querySelector('.logout-button');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', handleLogout);
+    }
+});
 
 document.addEventListener('click', (e) => {
     const sidePanel = document.querySelector('.side-panel');
@@ -4780,13 +4855,6 @@ async function loadUserGameProgress(userId) {
 
 async function handleLogout() {
     try {
-        // Clear any existing status check interval
-        if (window.statusCheckInterval) {
-            clearInterval(window.statusCheckInterval);
-            window.statusCheckInterval = null;
-        }
-
-        // Sign out from Supabase
         const { error } = await supabaseClient.auth.signOut();
         
         if (error) {
@@ -10416,6 +10484,26 @@ function updateGuestPlayButton() {
     } else {
         guestPlayButton.textContent = 'Start Game';
     }
+}
+
+function showPricesScreen() {
+    // TODO: Implement prices screen
+    alert('Prices screen coming soon!');
+}
+
+function showRightsAndPolicies() {
+    // TODO: Implement rights and policies page
+    alert('Rights & Policies page coming soon!');
+}
+
+function showAboutPage() {
+    // TODO: Implement about page
+    alert('About page coming soon!');
+}
+
+function showContactUs() {
+    // TODO: Implement contact us functionality
+    alert('Contact Us page coming soon!');
 }
 
 </script>

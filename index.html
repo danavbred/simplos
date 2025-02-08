@@ -1052,6 +1052,11 @@ body {
     opacity: 1;
 }
 
+.hidden {
+    display: none;
+}
+
+
 /* Side Panel Core */
 .side-panel {
     position: fixed;
@@ -1131,7 +1136,7 @@ body {
     opacity: 0.7;
 }
 
-.logout-top-button {
+.nav-link {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -1142,32 +1147,30 @@ body {
     overflow: hidden;
     justify-content: flex-start;
     text-align: left;
-    color: var(--text);
-    text-decoration: none;
+    color: var(--text); /* Ensure text color is consistent */
+    text-decoration: none; /* Remove underline */
     background: transparent;
     border-radius: 10px;
     cursor: pointer;
     opacity: 0.8;
-    margin: 0 auto 1rem;
-    width: calc(100% - 2rem); /* Ensure it spans almost full width with some margin */
 }
 
-.logout-top-button:hover {
-    background: rgba(255, 69, 0, 0.2); /* Orange-red hover background */
+.side-panel .logout-top-button {
+    display: flex;
+    align-items: center;
+    padding: 0.875rem 1rem;
+
+    text-align: center;
+    color: var(--text); /* Ensure text color is consistent */
+    background: transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    opacity: 0.8;
+}
+.side-panel .logout-top-button:hover {
+    background: rgb(187, 81, 6);
     opacity: 1;
     transform: translateX(5px);
-}
-
-.logout-top-button i {
-    color: #FF4500; /* Orange-red icon color */
-    margin-right: 0.5rem;
-    opacity: 0.7;
-    transition: all 0.3s ease;
-}
-
-.logout-top-button:hover i {
-    opacity: 1;
-    color: #FF4500; /* Slightly brighter on hover */
 }
 
 .side-panel-content {
@@ -1226,6 +1229,29 @@ body {
 .status-badge.trial {
     background: linear-gradient(135deg, #9C27B0, #673AB7);
     color: white;
+}
+
+@media (max-width: 768px) {
+    .side-panel {
+        width: 85%;
+        padding: 1.5rem 1rem;
+    }
+    
+    .hamburger-button.open {
+        right: 87%;
+    }
+    
+    .main-buttons {
+        padding: 0 1rem;
+    }
+}
+
+/* Small Screen Optimization */
+@media (max-width: 360px) {
+    .side-panel {
+        width: 90%;
+        padding: 1.25rem 0.75rem;
+    }
 }
 
 /* Stats Section */
@@ -1299,7 +1325,6 @@ body {
     transform: rotate(90deg);
 }
 
-/* Logout Button */
 
 /* Welcome Screen Buttons */
 .main-buttons {
@@ -3840,13 +3865,12 @@ body {
    <div class="side-panel">
     <div class="side-panel-content">
         <button class="logout-button logout-top-button">
-            <i class="fas fa-sign-out-alt"></i> Logout
-        </button>
-        
+    <i class="fas fa-sign-out-alt"></i> Logout
+</button>        
         <div class="welcome-buttons">
-            <a href="#" class="nav-link" onclick="showSetScreen(gameState.currentStage || 1); return false;">
-                <i class="fas fa-map-marked-alt"></i> Level Map
-            </a>
+            <a href="#" class="nav-link" onclick="showScreen('stage-screen'); return false;">
+    <i class="fas fa-map-marked-alt"></i> Level Map
+</a>
             <a href="#" class="nav-link" onclick="showCustomListsManager(); return false;">
                 <i class="fas fa-list"></i> My Lists
             </a>
@@ -4280,6 +4304,13 @@ body {
 </div>
 
 <script>
+
+    document.addEventListener('DOMContentLoaded', () => {
+    const logoutButton = document.querySelector('.logout-button');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', handleLogout);
+    }
+});
 
 document.addEventListener('click', (e) => {
     const sidePanel = document.querySelector('.side-panel');
@@ -4824,13 +4855,6 @@ async function loadUserGameProgress(userId) {
 
 async function handleLogout() {
     try {
-        // Clear any existing status check interval
-        if (window.statusCheckInterval) {
-            clearInterval(window.statusCheckInterval);
-            window.statusCheckInterval = null;
-        }
-
-        // Sign out from Supabase
         const { error } = await supabaseClient.auth.signOut();
         
         if (error) {
