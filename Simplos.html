@@ -3625,7 +3625,14 @@ body {
 
        <div id="player-view" style="display: none;">
            <h2>Join Arcade</h2>
-           <input type="text" id="otpInput" placeholder="Enter OTP">
+           <input 
+    type="text" 
+    id="otpInput" 
+    placeholder="Enter 4-digit OTP" 
+    maxlength="4" 
+    pattern="[0-9]{4}" 
+    inputmode="numeric"
+>
            <button class="start-button" onclick="joinArcade()">Join</button>
        </div>
    </div>
@@ -8840,7 +8847,20 @@ function initializeStatusCheck() {
 
 // ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE
 
-
+document.addEventListener('DOMContentLoaded', () => {
+    const otpInput = document.getElementById('otpInput');
+    if (otpInput) {
+        otpInput.addEventListener('input', function(e) {
+            // Remove any non-numeric characters
+            this.value = this.value.replace(/[^0-9]/g, '');
+            
+            // Limit to 4 digits
+            if (this.value.length > 4) {
+                this.value = this.value.slice(0, 4);
+            }
+        });
+    }
+});
 
 let currentArcadeSession = {
     eventId: null,
@@ -8868,7 +8888,7 @@ async function showArcadeModal() {
 
             if (profile?.role === 'teacher') {
                 // Generate OTP
-                const otp = Math.random().toString(36).substring(2, 8).toUpperCase();
+                const otp = Math.floor(1000 + Math.random() * 9000).toString();
                 
                 // Store in session
                 currentArcadeSession.otp = otp;
