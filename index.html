@@ -4449,7 +4449,7 @@ async function handleSignup() {
 
         if (authError) throw authError;
 
-        // Step 2: Upsert user profile (handles existing records)
+        // Step 2: Upsert user profile
         const { error: profileError } = await supabaseClient
             .from('user_profiles')
             .upsert({
@@ -4459,12 +4459,11 @@ async function handleSignup() {
                 status: 'free',
                 role: 'student'
             }, {
-                onConflict: 'id'  // Use 'id' as the conflict target
+                onConflict: 'id'
             });
 
         if (profileError) {
             console.error('Profile upsert error:', profileError);
-            // Continue even if profile update fails
         }
 
         // Step 3: Initialize game progress
@@ -4487,7 +4486,6 @@ async function handleSignup() {
 
         if (progressError) {
             console.error('Progress initialization error:', progressError);
-            // Continue even if progress update fails
         }
 
         // Step 4: Auto-login
@@ -4498,9 +4496,14 @@ async function handleSignup() {
 
         if (loginError) throw loginError;
 
+        // Hide auth modal first
+        hideAuthModal();
+
         // Update current user and UI
         currentUser = loginData.user;
         updateAuthUI();
+        
+        // Show welcome screen
         showScreen('welcome-screen');
 
     } catch (error) {
@@ -4550,11 +4553,7 @@ async function handleLogin() {
         });
 
         if (error) {
-            console.error('Detailed Login Error:', {
-                message: error.message,
-                status: error.status,
-                type: error.type
-            });
+            console.error('Login Error:', error);
             alert(error.message);
             return;
         }
@@ -4562,7 +4561,10 @@ async function handleLogin() {
         if (data.user) {
             currentUser = data.user;
             
-            // Get user profile and status
+            // Hide auth modal first
+            hideAuthModal();
+            
+            // Then update UI and load data
             const { data: profile } = await supabaseClient
                 .from('user_profiles')
                 .select('status')
@@ -4573,13 +4575,11 @@ async function handleLogin() {
                 updateUserStatusDisplay(profile.status);
             }
 
-            // Load user data
             await Promise.all([
                 loadCustomLists(),
                 loadUserGameProgress(currentUser.id)
             ]);
 
-            // Update UI
             updateAuthUI();
             showScreen('welcome-screen');
         }
