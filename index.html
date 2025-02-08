@@ -695,10 +695,6 @@ body {
     cursor: pointer;
 }
 
-.moderator .leaderboard-entry:hover {
-    background: rgba(255,255,255,0.15);
-}
-
 .moderator-header {
     display: flex;
     flex-direction: column;
@@ -2168,7 +2164,6 @@ body {
 }
 
 .leaderboard-entry:hover {
-    transform: translateY(-2px);
     background: rgba(255,255,255,0.1);
 }
 
@@ -2203,7 +2198,6 @@ body {
         font-size: 0.9rem;
         padding: 0.75rem;
     }
-}
 
 .premium-celebration {
     position: fixed;
@@ -3768,7 +3762,7 @@ body {
     
     <div class="main-buttons">
     <button class="main-button primary" onclick="showAuthModal()">Login / Sign Up</button>
-    <button class="main-button" onclick="startGame()">Play as Guest</button>
+    <button class="main-button guest-play-button" onclick="startGame()">Play as Guest</button>
     <button class="main-button arcade-button" onclick="showArcadeModal()">Arcade</button>
     <button class="main-button" disabled>Download the App</button>
 </div>
@@ -4414,11 +4408,17 @@ function showSetScreen(stageId) {
 }
 
 
-// Event listener initialization
 document.addEventListener('DOMContentLoaded', async () => {
     await checkExistingSession();
     initializeGame();
-    initializeParticles(document.getElementById('welcome-screen'));
+    updatePerkCounts();
+    updateGuestPlayButton(); // Add this line
+    
+    // Ensure particles on welcome screen
+    const welcomeScreen = document.getElementById('welcome-screen');
+    initializeParticles(welcomeScreen);
+    
+    await loadCustomLists();
 });
 
 // Auth UI functions
@@ -4572,6 +4572,7 @@ async function handleLogin() {
                 .single();
                 
             if (profile) {
+                currentUser.status = profile.status;
                 updateUserStatusDisplay(profile.status);
             }
 
@@ -4581,6 +4582,7 @@ async function handleLogin() {
             ]);
 
             updateAuthUI();
+            updateGuestPlayButton(); // Add this line
             showScreen('welcome-screen');
         }
 
@@ -4791,6 +4793,7 @@ async function handleLogout() {
         currentUser = null;
         updateAuthUI();
         updateUserStatusDisplay(null);
+        updateGuestPlayButton(); // Add this line
         
         // Show welcome screen
         showScreen('welcome-screen');
@@ -4800,6 +4803,8 @@ async function handleLogout() {
         // Ensure UI is reset even if logout fails
         currentUser = null;
         updateAuthUI();
+        updateUserStatusDisplay(null);
+        updateGuestPlayButton(); // Add this line
         showScreen('welcome-screen');
     }
 }
@@ -9316,17 +9321,20 @@ async function checkExistingSession() {
                 loadCustomLists()
             ]);
             updateAuthUI();
+            updateGuestPlayButton(); // Add this line
         } else {
             // Explicitly reset user and UI
             currentUser = null;
             updateAuthUI();
             updateUserStatusDisplay(null);
+            updateGuestPlayButton(); // Add this line
         }
     } catch (error) {
         console.error('Session check error:', error);
         currentUser = null;
         updateAuthUI();
         updateUserStatusDisplay(null);
+        updateGuestPlayButton(); // Add this line
     }
 }
 
@@ -10378,6 +10386,16 @@ function toggleAuthMode() {
     
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
+}
+
+function updateGuestPlayButton() {
+    const guestPlayButton = document.querySelector('.guest-play-button');
+    
+    if (!currentUser || (currentUser && currentUser.status === 'unregistered')) {
+        guestPlayButton.textContent = 'Play as Guest';
+    } else {
+        guestPlayButton.textContent = 'Start Game';
+    }
 }
 
 </script>
