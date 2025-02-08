@@ -736,6 +736,28 @@ body {
     backdrop-filter: blur(5px);
 }
 
+.leaderboard-entry.moving-up {
+    background: rgba(76, 175, 80, 0.08);
+    animation: moveUp 0.8s ease-in-out forwards;
+    z-index: 2;
+}
+
+.leaderboard-entry.moving-down {
+    background: rgba(244, 67, 54, 0.08);
+    animation: moveDown 0.8s ease-in-out forwards;
+    z-index: 1;
+}
+
+@keyframes moveUp {
+    0% { transform: translateY(65px); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes moveDown {
+    0% { transform: translateY(-65px); }
+    100% { transform: translateY(0); }
+}
+
 .coins-header .coin-icon {
   color: var(--gold);
   font-size: 1.5rem;
@@ -9272,14 +9294,19 @@ function updatePlayerProgress(payload) {
         p => p.username === payload.username
     );
     
+    // Store old positions for animation
+    const oldPositions = {};
+    document.querySelectorAll('.leaderboard-entry').forEach(entry => {
+        const username = entry.querySelector('[data-username]').dataset.username;
+        oldPositions[username] = entry.getBoundingClientRect();
+    });
+    
     if (existingPlayerIndex !== -1) {
-        // Update existing player
         currentArcadeSession.participants[existingPlayerIndex] = {
             ...currentArcadeSession.participants[existingPlayerIndex],
             ...payload
         };
     } else {
-        // Add new player
         currentArcadeSession.participants.push({
             username: payload.username,
             wordsCompleted: payload.wordsCompleted || 0,
@@ -9287,19 +9314,18 @@ function updatePlayerProgress(payload) {
         });
     }
     
-    // Sort by words completed
+    // Sort and create new entries
     const sortedPlayers = [...currentArcadeSession.participants]
         .sort((a, b) => {
             if (b.wordsCompleted === a.wordsCompleted) {
-                return b.coins - a.coins; // Secondary sort by coins
+                return b.coins - a.coins;
             }
             return b.wordsCompleted - a.wordsCompleted;
         });
     
-    // Update leaderboard display
     const entries = sortedPlayers.map((player, index) => `
         <div class="leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}"
-             onclick="showRemovePlayerModal('${player.username}')">
+             data-rank="${index + 1}">
             <div>${index + 1}</div>
             <div data-username="${player.username}">${player.username}</div>
             <div>${player.wordsCompleted || 0}</div>
@@ -9309,6 +9335,27 @@ function updatePlayerProgress(payload) {
     
     const leaderboard = document.getElementById('arcade-leaderboard');
     leaderboard.innerHTML = leaderboard.querySelector('.leaderboard-header').outerHTML + entries;
+
+    // Apply animations
+    const newEntries = leaderboard.querySelectorAll('.leaderboard-entry');
+    newEntries.forEach(entry => {
+        const username = entry.querySelector('[data-username]').dataset.username;
+        if (oldPositions[username]) {
+            const oldPos = oldPositions[username];
+            const newPos = entry.getBoundingClientRect();
+            const diff = oldPos.top - newPos.top;
+            
+            if (diff > 0) {
+                entry.classList.add('moving-up');
+            } else if (diff < 0) {
+                entry.classList.add('moving-down');
+            }
+            
+            entry.addEventListener('animationend', () => {
+                entry.classList.remove('moving-up', 'moving-down');
+            }, { once: true });
+        }
+    });
 }
 
 function checkGameEnd() {
