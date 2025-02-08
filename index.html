@@ -8,6 +8,8 @@
     <title>Simplos</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2.39.7"></script>
     <script src="vocabs.js"></script>
    <style>
@@ -831,6 +833,36 @@ body {
 @keyframes moveDown {
     0% { transform: translateY(-65px); }
     100% { transform: translateY(0); }
+}
+
+.join-methods {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+}
+
+.divider {
+    position: relative;
+    width: 100%;
+    text-align: center;
+}
+
+.divider span {
+    background: var(--glass);
+    padding: 0 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    border-top: 1px solid rgba(255,255,255,0.2);
+    z-index: 0;
 }
 
 .coins-header .coin-icon {
@@ -3625,8 +3657,19 @@ body {
 
        <div id="player-view" style="display: none;">
            <h2>Join Arcade</h2>
-           <input type="text" id="otpInput" placeholder="Enter OTP">
-           <button class="start-button" onclick="joinArcade()">Join</button>
+           <div class="join-methods">
+               <div class="otp-input-section">
+                   <input type="text" id="otpInput" placeholder="Enter OTP">
+                   <button class="start-button" onclick="joinArcade()">Join with OTP</button>
+               </div>
+               <div class="divider">
+                   <span>OR</span>
+               </div>
+               <div class="qr-scan-section">
+                   <button class="start-button" onclick="showQRScanner()">Scan QR Code</button>
+               </div>
+           </div>
+           <div id="qr-reader" style="width: 100%; display: none;"></div>
        </div>
    </div>
 </div>
@@ -3642,6 +3685,9 @@ body {
     <div class="moderator-header">
         <h2>Session Code:</h2>
         <div class="otp-display" id="moderatorOtp"></div>
+        <div id="qr-code-container" style="margin-top: 1rem; display: flex; justify-content: center;">
+            <div id="qr-code"></div>
+        </div>
         <div class="game-controls">
             <button class="start-button initialize-button" onclick="initializeArcade()">
                 Initialize Arcade
@@ -8840,8 +8886,6 @@ function initializeStatusCheck() {
 
 // ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE
 
-
-
 let currentArcadeSession = {
     eventId: null,
     otp: null,
@@ -8852,6 +8896,27 @@ let currentArcadeSession = {
     state: 'pre-start',  // 'pre-start', 'started', 'active'
 };
 
+document.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const arcadeOtp = urlParams.get('arcade_otp');
+    
+    if (arcadeOtp) {
+        const otpInput = document.getElementById('otpInput');
+        const playerView = document.getElementById('player-view');
+        
+        if (otpInput && playerView) {
+            otpInput.value = arcadeOtp;
+            playerView.style.display = 'block';
+            document.getElementById('teacher-view').style.display = 'none';
+            
+            // Optional: Automatically try to join
+            setTimeout(() => {
+                const joinButton = document.querySelector('#player-view .start-button');
+                if (joinButton) joinButton.click();
+            }, 500);
+        }
+    }
+});
 
 async function showArcadeModal() {
     const modal = document.getElementById('arcade-modal');
@@ -9093,7 +9158,7 @@ async function initializeArcade() {
 }
 
 function showModeratorScreen() {
-    // Hide all screens
+    // Hide all existing screens
     document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.remove('visible');
     });
@@ -9106,10 +9171,49 @@ function showModeratorScreen() {
     const otpDisplay = document.getElementById('moderatorOtp');
     if (otpDisplay && currentArcadeSession.otp) {
         otpDisplay.textContent = currentArcadeSession.otp;
+        
+        // Clear previous QR code
+        const qrContainer = document.getElementById('qr-code');
+        qrContainer.innerHTML = '';
+        
+        // Generate QR Code
+        const currentUrl = window.location.origin;
+        const qrCodeData = `${currentUrl}?arcade_otp=${currentArcadeSession.otp}`;
+        
+        try {
+            new QRCode(qrContainer, {
+                text: qrCodeData,
+                width: 200,
+                height: 200,
+                colorDark: "#1a1a2e",    // Match game's dark background
+                colorLight: "#ffffff",   // White QR code background
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        } catch (error) {
+            console.error('QR Code generation error:', error);
+        }
     }
     
-    // Make sure leaderboard is initialized
+    // Initialize player count
+    const playerCountElement = document.getElementById('player-count');
+    if (playerCountElement) {
+        playerCountElement.textContent = '0';
+    }
+    
+    // Initialize leaderboard
     initializeLeaderboard();
+    
+    // Show/hide appropriate buttons
+    const initButton = document.querySelector('.initialize-button');
+    const endButton = document.querySelector('.end-arcade-button');
+    
+    if (initButton) {
+        initButton.style.display = 'block';
+        initButton.textContent = 'Initialize Arcade';
+    }
+    if (endButton) {
+        endButton.classList.remove('visible');
+    }
 }
 
 function initializeLeaderboard() {
@@ -9541,6 +9645,78 @@ function handleGameEnd() {
     `;
     
     document.body.appendChild(overlay);
+}
+
+function generateQRCode(otp) {
+    const qrContainer = document.getElementById('qr-code');
+    qrContainer.innerHTML = ''; // Clear previous QR code
+    
+    const currentUrl = window.location.origin;
+    const qrCodeData = `${currentUrl}?arcade_otp=${otp}`;
+    
+    new QRCode(qrContainer, {
+        text: qrCodeData,
+        width: 200,
+        height: 200,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+    });
+}
+
+function showQRScanner() {
+    const qrReaderElement = document.getElementById('qr-reader');
+    const otpInputSection = document.querySelector('.otp-input-section');
+    const qrScanSection = document.querySelector('.qr-scan-section');
+
+    // Show QR reader, hide other sections
+    qrReaderElement.style.display = 'block';
+    otpInputSection.style.display = 'none';
+    qrScanSection.style.display = 'none';
+
+    const html5QrCode = new Html5Qrcode("qr-reader");
+    
+    // Start scanning
+    html5QrCode.start(
+        { facingMode: "environment" }, // Use back camera if available
+        {
+            fps: 10,    // Frames per second to scan
+            qrbox: 250  // Size of scanning box
+        },
+        (decodedText, decodedResult) => {
+            // Stop scanning
+            html5QrCode.stop();
+            
+            // Parse the URL to extract OTP
+            const url = new URL(decodedText);
+            const arcadeOtp = url.searchParams.get('arcade_otp');
+            
+            if (arcadeOtp) {
+                // Fill OTP input and trigger join
+                const otpInput = document.getElementById('otpInput');
+                otpInput.value = arcadeOtp;
+                
+                // Reset view
+                qrReaderElement.style.display = 'none';
+                otpInputSection.style.display = 'block';
+                qrScanSection.style.display = 'block';
+                
+                // Call join function
+                joinArcade();
+            } else {
+                alert('Invalid QR code. Please scan a valid Simplos Arcade QR code.');
+                
+                // Reset view
+                qrReaderElement.style.display = 'none';
+                otpInputSection.style.display = 'block';
+                qrScanSection.style.display = 'block';
+            }
+        },
+        (errorMessage) => {
+            // Handle scan errors
+            console.error('QR Scan error:', errorMessage);
+        }
+    );
 }
 
 </script>
