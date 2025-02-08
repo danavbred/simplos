@@ -695,10 +695,6 @@ body {
     cursor: pointer;
 }
 
-.moderator .leaderboard-entry:hover {
-    background: rgba(255,255,255,0.15);
-}
-
 .moderator-header {
     display: flex;
     flex-direction: column;
@@ -2168,7 +2164,6 @@ body {
 }
 
 .leaderboard-entry:hover {
-    transform: translateY(-2px);
     background: rgba(255,255,255,0.1);
 }
 
@@ -2203,7 +2198,6 @@ body {
         font-size: 0.9rem;
         padding: 0.75rem;
     }
-}
 
 .premium-celebration {
     position: fixed;
@@ -3768,7 +3762,7 @@ body {
     
     <div class="main-buttons">
     <button class="main-button primary" onclick="showAuthModal()">Login / Sign Up</button>
-    <button class="main-button" onclick="startGame()">Play as Guest</button>
+    <button class="main-button guest-play-button" onclick="startGame()">Play as Guest</button>
     <button class="main-button arcade-button" onclick="showArcadeModal()">Arcade</button>
     <button class="main-button" disabled>Download the App</button>
 </div>
@@ -3800,35 +3794,55 @@ body {
    </button>
 
    <div class="side-panel">
-       <div class="welcome-buttons">
-           <a href="#" class="nav-link" onclick="showScreen('stage-screen'); return false;">Level Map</a>
-           <a href="#" class="nav-link" onclick="showCustomListsManager(); return false;">My Lists</a>
-           <a href="#" class="nav-link" onclick="showLeaderboard(); return false;">Speedboard</a>
-       </div>
-       
-       <div class="user-profile-section">
-           <div class="username-display" id="userEmail"></div>
-           <div class="status-badge" id="userTierText"></div>
-           
-           <div class="user-stats">
-               <div class="stat-item">
-                   <div class="stat-label">Words</div>
-                   <div class="stat-value" id="totalWords">0</div>
-               </div>
-               <div class="stat-item">
-                   <div class="stat-label">Coins</div>
-                   <div class="stat-value">
-                       <i class="fas fa-coins coin-icon"></i>
-                       <span id="totalCoins">0</span>
-                   </div>
-               </div>
-           </div>
-       </div>
-       
-       <button class="logout-button" onclick="handleLogout()">
-           <i class="fas fa-sign-out-alt"></i> Logout
-       </button>
-   </div>
+    <div class="side-panel-content">
+        <button class="logout-button logout-top-button">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+        
+        <div class="welcome-buttons">
+            <a href="#" class="nav-link" onclick="showSetScreen(gameState.currentStage || 1); return false;">
+                <i class="fas fa-map-marked-alt"></i> Level Map
+            </a>
+            <a href="#" class="nav-link" onclick="showCustomListsManager(); return false;">
+                <i class="fas fa-list"></i> My Lists
+            </a>
+            <a href="#" class="nav-link" onclick="showLeaderboard(); return false;">
+                <i class="fas fa-trophy"></i> Speedboard
+            </a>
+            <a href="#" class="nav-link" onclick="showPricesScreen(); return false;">
+                <i class="fas fa-dollar-sign"></i> Prices
+            </a>
+            <a href="#" class="nav-link" onclick="showRightsAndPolicies(); return false;">
+                <i class="fas fa-balance-scale"></i> Rights & Policies
+            </a>
+            <a href="#" class="nav-link" onclick="showAboutPage(); return false;">
+                <i class="fas fa-info-circle"></i> About
+            </a>
+            <a href="#" class="nav-link" onclick="showContactUs(); return false;">
+                <i class="fas fa-envelope"></i> Contact Us
+            </a>
+        </div>
+        
+        <div class="user-profile-section user-profile-bottom">
+            <div class="username-display" id="userEmail"></div>
+            <div class="status-badge" id="userTierText"></div>
+            
+            <div class="user-stats">
+                <div class="stat-item">
+                    <div class="stat-label">Words</div>
+                    <div class="stat-value" id="totalWords">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Coins</div>
+                    <div class="stat-value">
+                        <i class="fas fa-coins coin-icon"></i>
+                        <span id="totalCoins">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 </div>
 
 <div id="stage-screen" class="screen">
@@ -4414,11 +4428,17 @@ function showSetScreen(stageId) {
 }
 
 
-// Event listener initialization
 document.addEventListener('DOMContentLoaded', async () => {
     await checkExistingSession();
     initializeGame();
-    initializeParticles(document.getElementById('welcome-screen'));
+    updatePerkCounts();
+    updateGuestPlayButton(); // Add this line
+    
+    // Ensure particles on welcome screen
+    const welcomeScreen = document.getElementById('welcome-screen');
+    initializeParticles(welcomeScreen);
+    
+    await loadCustomLists();
 });
 
 // Auth UI functions
@@ -4572,6 +4592,7 @@ async function handleLogin() {
                 .single();
                 
             if (profile) {
+                currentUser.status = profile.status;
                 updateUserStatusDisplay(profile.status);
             }
 
@@ -4581,6 +4602,7 @@ async function handleLogin() {
             ]);
 
             updateAuthUI();
+            updateGuestPlayButton(); // Add this line
             showScreen('welcome-screen');
         }
 
@@ -4791,6 +4813,7 @@ async function handleLogout() {
         currentUser = null;
         updateAuthUI();
         updateUserStatusDisplay(null);
+        updateGuestPlayButton(); // Add this line
         
         // Show welcome screen
         showScreen('welcome-screen');
@@ -4800,6 +4823,8 @@ async function handleLogout() {
         // Ensure UI is reset even if logout fails
         currentUser = null;
         updateAuthUI();
+        updateUserStatusDisplay(null);
+        updateGuestPlayButton(); // Add this line
         showScreen('welcome-screen');
     }
 }
@@ -9316,17 +9341,20 @@ async function checkExistingSession() {
                 loadCustomLists()
             ]);
             updateAuthUI();
+            updateGuestPlayButton(); // Add this line
         } else {
             // Explicitly reset user and UI
             currentUser = null;
             updateAuthUI();
             updateUserStatusDisplay(null);
+            updateGuestPlayButton(); // Add this line
         }
     } catch (error) {
         console.error('Session check error:', error);
         currentUser = null;
         updateAuthUI();
         updateUserStatusDisplay(null);
+        updateGuestPlayButton(); // Add this line
     }
 }
 
@@ -10378,6 +10406,16 @@ function toggleAuthMode() {
     
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
+}
+
+function updateGuestPlayButton() {
+    const guestPlayButton = document.querySelector('.guest-play-button');
+    
+    if (!currentUser || (currentUser && currentUser.status === 'unregistered')) {
+        guestPlayButton.textContent = 'Play as Guest';
+    } else {
+        guestPlayButton.textContent = 'Start Game';
+    }
 }
 
 </script>
