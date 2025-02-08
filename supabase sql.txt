@@ -102,45 +102,50 @@ ALTER TABLE public.school_classes
     ADD COLUMN status text DEFAULT 'active' CHECK (status IN ('active', 'archived', 'pending'));
 
 ----------------------------------------------------------------------------------------
--- 📝 DEFAULT DATA - RUN THIS THIRD
+-- 🔑 USER PROFILES
 ----------------------------------------------------------------------------------------
-
-INSERT INTO schools (name) VALUES ('Default School') RETURNING id;
-
-----------------------------------------------------------------------------------------
--- 🎮 ARCADE EVENTS
-----------------------------------------------------------------------------------------
--- Drop existing tables to recreate them
-DROP TABLE IF EXISTS arcade_events CASCADE;
-DROP TABLE IF EXISTS arcade_participants CASCADE;
-
--- Recreate arcade_events with precise column order
-CREATE TABLE IF NOT EXISTS public.arcade_events (
-    name text NOT NULL,
-    teacher_name text NOT NULL,
-    type text CHECK (type IN ('arcade', 'standard')) NOT NULL,
-    status text DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'completed', 'cancelled')),
-    access_code text UNIQUE,
-    word_pool jsonb,
-    grade_levels integer[],
-    max_players integer DEFAULT 30,
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    started_at timestamp with time zone,
-    completed_at timestamp with time zone
+CREATE TABLE IF NOT EXISTS public.user_profiles (
+    id uuid PRIMARY KEY REFERENCES auth.users,
+    username text UNIQUE,
+    email text,
+    role text CHECK (role IN ('student', 'teacher', 'admin')) DEFAULT 'student',
+    status text DEFAULT 'free' CHECK (status IN ('free', 'pending', 'premium')),
+    payment_pending boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
 
--- Recreate arcade_participants with precise column order
-CREATE TABLE IF NOT EXISTS arcade_participants (
-    player_username text NOT NULL,
-    words_completed integer DEFAULT 0,
-    coins_earned integer DEFAULT 0,
-    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    status text DEFAULT 'waiting' CHECK (status IN ('waiting', 'playing', 'finished')),
-    player_id uuid REFERENCES auth.users(id),
-    event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
-    PRIMARY KEY (event_id, player_id)
-);
+-- Trigger for automatic profile creation on user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.user_profiles (
+        id,
+        username,
+        email,
+        role,
+        status
+    ) VALUES (
+        NEW.id,
+        COALESCE(
+            NEW.raw_user_meta_data->>'username', 
+            split_part(NEW.email, '@', 1)
+        ),
+        NEW.email,
+        'student',
+        'free'
+    );
+    RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Error in handle_new_user: %', SQLERRM;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_new_user();
+
 ----------------------------------------------------------------------------------------
 -- 🛡️ POLICIES
 ----------------------------------------------------------------------------------------
@@ -199,6 +204,8 @@ ON game_progress FOR ALL
 USING (auth.uid() = user_id);
 
 CREATE UNIQUE INDEX unique_user_game_progress ON game_progress (user_id);
+
+
 
 ----------------------------------------------------------------------------------------
 -- 📊 STATS
@@ -367,3 +374,35 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION insert_shared_list TO authenticated;
+
+
+
+
+----------------------------------------------------------------------------------------
+-- 🎮 ARCADE EVENTS - MINIMAL VERSION
+----------------------------------------------------------------------------------------
+DROP TABLE IF EXISTS arcade_events CASCADE;
+DROP TABLE IF EXISTS arcade_participants CASCADE;
+
+CREATE TABLE IF NOT EXISTS arcade_events (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    teacher_id uuid,
+    otp text,
+    status text DEFAULT 'waiting'
+);
+
+CREATE TABLE IF NOT EXISTS arcade_participants (
+    event_id uuid REFERENCES arcade_events(id),
+    username text,
+    words integer DEFAULT 0,
+    coins integer DEFAULT 0
+);
+
+ALTER TABLE arcade_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all" ON arcade_events FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow all" ON arcade_participants FOR ALL TO authenticated USING (true);
+
+GRANT ALL ON arcade_events TO authenticated;
+GRANT ALL ON arcade_participants TO authenticated;
