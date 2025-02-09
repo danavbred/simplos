@@ -1603,6 +1603,7 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 1000;
+    padding: 1rem;
 }
 
 .arcade-join-modal .modal-content {
@@ -1610,88 +1611,78 @@ body {
     backdrop-filter: blur(10px);
     padding: 2rem;
     border-radius: 20px;
-    width: 90%;
+    width: 100%;
     max-width: 400px;
     text-align: center;
-}
-
-.input-group {
-    margin: 2rem;
-    position: absolute;
-    width: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
 }
 
 #player-view {
-    width: 90%;
-    max-width: 400px;
-    margin: 0 auto;
-    padding: 2rem;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
 }
 
 #player-view h2 {
     font-size: 1.5rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     text-align: center;
+    color: var(--gold);
+}
+
+.input-group {
+    width: 100%;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
 }
 
 .input-group input,
 #otpInput {
     width: 100%;
     padding: 1rem;
-    font-size: 1.1rem;
+    font-size: 1rem;
     background: rgba(255, 255, 255, 0.1);
     border: 2px solid rgba(255, 255, 255, 0.2);
     border-radius: 15px;
     color: var(--text);
     text-align: center;
     transition: all 0.3s ease;
+    outline: none;
 }
 
 .input-group input:focus,
 #otpInput:focus {
-    outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 15px rgba(233, 69, 96, 0.2);
 }
 
-.input-hint {
-    position: absolute;
-    bottom: -20px;
-    left: 0;
-    font-size: 0.8rem;
-    opacity: 0.7;
-    color: var(--text);
+#arcadeUsername {
+    margin-bottom: 0.5rem;
 }
 
 #otpInput {
-    margin: 1.5rem 0;
-    width: 100%;
-    padding: 0.75rem 1rem;
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    border-radius: 10px;
-    color: var(--text);
-    font-size: 1rem;
-    text-align: center;
+    margin: 0;
     letter-spacing: 0.2em;
 }
 
-#otpInput:focus {
-    outline: none;
-    background: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 0 10px rgba(233, 69, 96, 0.3);
-}
-
 .join-button {
-    margin-top: 2rem;
-    padding: 1rem 2rem;
+    width: 100%;
+    padding: 1rem;
     border: none;
     border-radius: 25px;
     background: var(--accent);
     color: var(--text);
-    font-size: 1.1rem;
+    font-size: 1rem;
     cursor: pointer;
     transition: all 0.3s ease;
+    margin-top: 1rem;
 }
 
 .join-button:hover {
@@ -1700,18 +1691,29 @@ body {
 }
 
 @media (max-width: 768px) {
-    #player-view {
+    .arcade-join-modal {
+        padding: 0.5rem;
+    }
+
+    .arcade-join-modal .modal-content {
         padding: 1.5rem;
+        max-width: 350px;
+    }
+
+    #player-view h2 {
+        font-size: 1.3rem;
+        margin-bottom: 0.75rem;
     }
 
     .input-group input,
     #otpInput {
-        font-size: 1rem;
+        font-size: 0.95rem;
         padding: 0.875rem;
     }
 
-    .input-hint {
-        font-size: 0.75rem;
+    .join-button {
+        font-size: 0.95rem;
+        padding: 0.875rem;
     }
 }
 
@@ -4554,7 +4556,7 @@ body {
        </div>
 
        <div id="player-view" style="display: none;">
-    <h2>Join Arcade</h2>
+        <h2>Join Arcade</h2>
     <div class="input-group">
         <input 
             type="text" 
@@ -4562,16 +4564,16 @@ body {
             placeholder="Choose your username"
             maxlength="15"
         >
+        <input 
+            type="text" 
+            id="otpInput" 
+            placeholder="Enter 4-digit Game Code"
+            maxlength="4" 
+            pattern="[0-9]{4}"
+            inputmode="numeric"
+        >
     </div>
-    <input 
-        type="text" 
-        id="otpInput" 
-        placeholder="Enter 4-digit OTP"
-        maxlength="4" 
-        pattern="[0-9]{4}"
-        inputmode="numeric"
-    >
-    <button class="start-button" onclick="joinArcadeWithUsername()">Join</button>
+    <button class="join-button" onclick="joinArcadeWithUsername()">Join Game</button>
 </div>
    </div>
 </div>
