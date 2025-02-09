@@ -1301,6 +1301,52 @@ body {
     gap: 0.5rem;
 }
 
+.arcade-status {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.arcade-coin-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.5rem;
+    color: var(--gold);
+}
+
+.arcade-coin-status i {
+    color: var(--gold);
+}
+
+.perk-effect-status {
+    font-size: 1.2rem;
+    font-weight: bold;
+    min-height: 1.5rem;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.perk-effect-status.good {
+    color: var(--success);
+}
+
+.perk-effect-status.bad {
+    color: var(--error);
+}
+
+.perk-effect-status.show {
+    opacity: 1;
+    animation: statusPop 0.3s ease-out;
+}
+
+@keyframes statusPop {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
 .coin-icon {
     color: var(--gold);
     animation: coinPulse 3s ease-in-out infinite;
@@ -1447,6 +1493,298 @@ body {
 @keyframes moveDown {
     0% { transform: translateY(-65px); }
     100% { transform: translateY(0); }
+}
+
+/* Arcade-specific styles */
+#arcade-question-screen {
+    background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.player-info-bar {
+    position: fixed;
+    top: 1rem;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 2rem;
+    z-index: 10;
+}
+
+.player-rank {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    background: var(--glass);
+    padding: 0.75rem 1.5rem;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    animation: slideInLeft 0.5s ease-out;
+}
+
+.arcade-perks-menu {
+    position: fixed;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: var(--glass);
+    padding: 0.75rem;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    animation: slideInRight 0.5s ease-out;
+}
+
+.arcade-game-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    padding: 6rem 2rem;
+}
+
+.arcade-question-word {
+    font-size: 4rem;
+    font-weight: 700;
+    color: var(--gold);
+    text-shadow: 0 2px 10px rgba(255,215,0,0.3);
+    margin-bottom: 2rem;
+    animation: floatIn 0.5s ease-out;
+}
+
+.stat-display {
+    display: flex;
+    gap: 3rem;
+    margin: 2rem 0;
+    animation: fadeInUp 0.5s ease-out;
+}
+
+.arcade-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    max-width: 800px;
+    width: 100%;
+    margin: 1rem auto;
+    padding: 0 1rem;
+    animation: fadeInUp 0.6s ease-out;
+}
+
+/* Animations */
+@keyframes slideInLeft {
+    from { transform: translateX(-100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInRight {
+    from { transform: translate(100%, -50%); opacity: 0; }
+    to { transform: translate(0, -50%); opacity: 1; }
+}
+
+@keyframes floatIn {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeInUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .arcade-question-word {
+        font-size: 2.5rem;
+    }
+    
+    .stat-display {
+        gap: 1.5rem;
+    }
+    
+    .player-info-bar {
+        padding: 0 1rem;
+    }
+}
+
+.arcade-answer-button {
+    width: 100%;
+    padding: 1.2rem;
+    font-size: 1.2rem;
+    color: var(--text);
+    background: var(--glass);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 15px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+    animation: buttonPop 0.3s ease-out forwards;
+}
+
+.arcade-answer-button:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.15);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.arcade-buttons {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+}
+
+@keyframes rankUpdate {
+    0% { transform: scale(1.2); opacity: 0; }
+    50% { transform: scale(1.4); opacity: 0.5; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.arcade-active-perks {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin: 2rem 0;
+    width: 100%;
+    max-width: 800px;
+    padding: 0 1rem;
+}
+
+.perk-slot {
+    flex: 1;
+    max-width: 200px;
+}
+
+.arcade-perk-button {
+    width: 100%;
+    padding: 1rem;
+    background: var(--glass);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 15px;
+    color: var(--text);
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.arcade-perk-button:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    background: rgba(255,255,255,0.15);
+}
+
+.arcade-perk-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.arcade-perk-button i {
+    font-size: 1.5rem;
+    color: var(--gold);
+}
+
+.perk-name {
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+
+.perk-cost {
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.perk-cost i {
+    font-size: 0.8rem;
+}
+
+/* Add to your CSS */
+.arcade-perk-button.good-perk {
+    border: 2px solid var(--success);
+}
+
+.arcade-perk-button.bad-perk {
+    border: 2px solid var(--error);
+}
+
+.arcade-perk-button.good-perk i {
+    color: var(--success);
+}
+
+.arcade-perk-button.bad-perk i {
+    color: var(--error);
+}
+
+/* Purchase animation */
+.arcade-perk-button.purchasing {
+    animation: purchaseEffect 0.5s ease-out;
+}
+
+@keyframes purchaseEffect {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.9); opacity: 0.5; }
+    100% { transform: scale(0); opacity: 0; }
+}
+
+/* Perk effect overlay for receivers */
+.perk-effect-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    animation: overlayFade 2s forwards;
+    pointer-events: none;
+}
+
+.perk-effect-message {
+    font-size: 2rem;
+    font-weight: bold;
+    text-align: center;
+    padding: 2rem;
+    border-radius: 20px;
+    animation: messageScale 0.5s ease-out;
+}
+
+.perk-effect-message.good {
+    color: var(--success);
+    text-shadow: 0 0 10px var(--success);
+}
+
+.perk-effect-message.bad {
+    color: var(--error);
+    text-shadow: 0 0 10px var(--error);
+}
+
+@keyframes overlayFade {
+    0% { opacity: 0; }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+@keyframes messageScale {
+    0% { transform: scale(0.5); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
 }
 
 .coins-header .coin-icon {
@@ -4349,6 +4687,58 @@ body {
            <button class="start-button" onclick="confirmRemovePlayer()">Remove</button>
            <button class="start-button secondary" onclick="closeRemoveModal()">Cancel</button>
        </div>
+   </div>
+</div>
+
+<div id="arcade-question-screen" class="screen">
+   <div class="player-info-bar">
+       <div class="player-rank">
+           <span class="player-name">Simploninja</span>
+       </div>
+       <div class="coin-display">
+           <i class="fas fa-coins coin-icon"></i>
+           <span class="coin-count"></span>
+       </div>
+   </div>
+
+   <div class="arcade-game-area">
+    <!-- Add this status section -->
+    <div class="arcade-status">
+        <div class="perk-effect-status"></div>
+        <div class="arcade-coin-status">
+            <i class="fas fa-coins"></i>
+            <span class="arcade-coin-amount">0</span>
+        </div>
+    </div>
+
+    <div class="arcade-question-word" id="arcade-question-word"></div>
+    
+    
+       <div class="arcade-active-perks">
+           <div class="perk-slot" id="perkSlot1">
+               <button class="arcade-perk-button" disabled>
+                   <i class="fas fa-spinner"></i>
+                   <span class="perk-name">Loading...</span>
+                   <span class="perk-cost">50 <i class="fas fa-coins"></i></span>
+               </button>
+           </div>
+           <div class="perk-slot" id="perkSlot2">
+               <button class="arcade-perk-button" disabled>
+                   <i class="fas fa-spinner"></i>
+                   <span class="perk-name">Loading...</span>
+                   <span class="perk-cost">50 <i class="fas fa-coins"></i></span>
+               </button>
+           </div>
+           <div class="perk-slot" id="perkSlot3">
+               <button class="arcade-perk-button" disabled>
+                   <i class="fas fa-spinner"></i>
+                   <span class="perk-name">Loading...</span>
+                   <span class="perk-cost">50 <i class="fas fa-coins"></i></span>
+               </button>
+           </div>
+       </div>
+       
+       <div class="arcade-buttons" id="arcade-buttons"></div>
    </div>
 </div>
 
@@ -10084,8 +10474,8 @@ function generateWordPool(stages) {
 }
 
 async function startArcadeGame() {
-    const questionScreen = document.getElementById('question-screen');
-    questionScreen.classList.add('visible');
+    const arcadeQuestionScreen = document.getElementById('arcade-question-screen');
+    arcadeQuestionScreen.classList.add('visible');
     document.getElementById('waiting-screen').classList.remove('visible');
     
     let initialCoins = 0;
@@ -10111,59 +10501,54 @@ async function startArcadeGame() {
     // Reset game state
     currentGame = {
         currentIndex: 0,
-        correctStreak: 0,
-        wrongStreak: 0,
         words: currentArcadeSession.wordPool,
         wordsCompleted: 0,
-        coins: initialCoins // Use loaded coins for premium users
+        coins: initialCoins,
+        activeEffects: {}, // Track active perk effects
+        isScreenFrozen: false,
+        effectTimeouts: [] // Store timeouts for cleanup
     };
 
+    // Update UI with initial values
+    document.querySelector('.arcade-coin-amount').textContent = initialCoins;
+    
+    // Set player name
+    const playerName = currentUser?.user_metadata?.username || currentArcadeSession.playerName;
+    document.querySelector('.player-name').textContent = playerName;
+
+    // Initialize perk slots
+    updatePerkSlots();
+
+    // Set up coin observer for perk button states
+    const observer = new MutationObserver(() => {
+        document.querySelectorAll('.arcade-perk-button').forEach(button => {
+            button.disabled = currentGame.coins < 50;
+        });
+    });
+
+    const coinDisplay = document.querySelector('.coin-count');
+    observer.observe(coinDisplay, { characterData: true, childList: true });
+
+    // Set up channel listeners for perk effects
+    window.arcadeChannel
+        .on('broadcast', { event: 'perk_used' }, ({ payload }) => {
+            // If we're the target, apply the effect
+            if (payload.targetPlayer === playerName) {
+                showPerkEffect(payload.effect, payload.type, payload.perkName);
+                handlePerkEffect(payload.effect);
+            }
+        })
+        .on('broadcast', { event: 'game_end' }, () => {
+            // Cleanup
+            observer.disconnect();
+            currentGame.effectTimeouts.forEach(timeout => clearTimeout(timeout));
+            currentGame.activeEffects = {};
+        });
+
+    // Start first question
     loadNextArcadeQuestion();
 }
 
-function loadNextArcadeQuestion() {
-    if (!currentGame.words.length) return;
-    
-    const questionWord = document.getElementById('question-word');
-    const buttonsDiv = document.getElementById('buttons');
-    
-    // Get random word from pool
-    const currentIndex = Math.floor(Math.random() * currentGame.words.length);
-    const currentWord = currentGame.words[currentIndex];
-    
-    // 50% chance for Hebrew to English
-    const isHebrewToEnglish = Math.random() < 0.5;
-    
-    questionWord.textContent = isHebrewToEnglish ? 
-        currentWord.translation : currentWord.word;
-    
-    // Generate options
-    let options = [isHebrewToEnglish ? currentWord.word : currentWord.translation];
-    while (options.length < 3) {
-        const randomWord = currentGame.words[Math.floor(Math.random() * currentGame.words.length)];
-        const option = isHebrewToEnglish ? randomWord.word : randomWord.translation;
-        if (!options.includes(option)) {
-            options.push(option);
-        }
-    }
-    
-    // Shuffle options
-    options = options.sort(() => Math.random() - 0.5);
-    
-    // Create buttons
-    buttonsDiv.innerHTML = '';
-    options.forEach(option => {
-        const button = document.createElement('button');
-        button.textContent = option;
-        button.onclick = () => handleArcadeAnswer(
-            option === (isHebrewToEnglish ? currentWord.word : currentWord.translation)
-        );
-        buttonsDiv.appendChild(button);
-    });
-    
-    // Remove used word from pool
-    currentGame.words.splice(currentIndex, 1);
-}
 
 
 
@@ -10282,6 +10667,15 @@ function exitArcade() {
 }
 
 async function handleArcadeAnswer(isCorrect) {
+    // Early return if screen is frozen
+    if (currentGame.isScreenFrozen) return;
+
+    // Check for autoCorrect effect
+    if (!isCorrect && currentGame.activeEffects.autoCorrect) {
+        isCorrect = true;
+        currentGame.activeEffects.autoCorrect = false;
+    }
+
     const playerUsername = currentArcadeSession.playerName || 
         (currentUser?.user_metadata?.username || getRandomSimploName());
     
@@ -10289,13 +10683,14 @@ async function handleArcadeAnswer(isCorrect) {
     
     if (isCorrect) {
         currentGame.wordsCompleted++;
-        currentGame.correctStreak++;
-        currentGame.wrongStreak = 0;
+        if (currentGame.activeEffects.doubleProgress) {
+            currentGame.wordsCompleted++;
+        }
         
-        // Award coins with streak bonus
-        let coinsEarned = 5;
-        if (currentGame.correctStreak >= 3) {
-            coinsEarned += 5;
+        // Award coins with possible double effect
+        let coinsEarned = 50;
+        if (currentGame.activeEffects.doubleCoins) {
+            coinsEarned *= 2;
         }
         
         const oldCoins = currentGame.coins;
@@ -10306,16 +10701,17 @@ async function handleArcadeAnswer(isCorrect) {
         const coinElement = document.querySelector('.coin-count');
         animateCoinsChange(coinElement, oldCoins, currentGame.coins);
         
-        updateArcadeProgress();
-        
     } else {
-        currentGame.wrongStreak++;
-        currentGame.correctStreak = 0;
+        // Check for shield effect
+        if (currentGame.activeEffects.shield) {
+            currentGame.activeEffects.shield = false;
+            return; // Skip coin loss
+        }
         
-        // Lose coins with streak penalty
+        // Calculate coin loss with possible double penalty
         let coinsLost = 2;
-        if (currentGame.wrongStreak >= 3) {
-            coinsLost += 3;
+        if (currentGame.activeEffects.doublePenalty) {
+            coinsLost *= 2;
         }
         
         const oldCoins = currentGame.coins;
@@ -10327,7 +10723,7 @@ async function handleArcadeAnswer(isCorrect) {
         animateCoinsChange(coinElement, oldCoins, currentGame.coins);
     }
     
-    // Broadcast progress with updated coins
+    // Broadcast progress
     if (window.arcadeChannel) {
         try {
             await window.arcadeChannel.send({
@@ -10643,6 +11039,391 @@ function showAboutPage() {
 function showContactUs() {
     // TODO: Implement contact us functionality
     alert('Contact Us page coming soon!');
+}
+
+function loadNextArcadeQuestion() {
+    if (!currentGame.words.length) return;
+    
+    const questionWord = document.getElementById('arcade-question-word');
+    const buttonsDiv = document.getElementById('arcade-buttons');
+    
+    // Ensure elements exist
+    if (!questionWord || !buttonsDiv) {
+        console.error('Required elements not found');
+        return;
+    }
+    
+    // Get random word pair
+    const currentIndex = Math.floor(Math.random() * currentGame.words.length);
+    const currentWord = currentGame.words[currentIndex];
+    
+    if (!currentWord) {
+        console.error('No word found at index:', currentIndex);
+        return;
+    }
+    
+    // 50% chance for Hebrew to English
+    const isHebrewToEnglish = Math.random() < 0.5;
+    
+    // Set question word with animation
+    questionWord.style.animation = 'none';
+    questionWord.offsetHeight; // Trigger reflow
+    questionWord.style.animation = 'floatIn 0.5s ease-out';
+    questionWord.textContent = isHebrewToEnglish ? 
+        currentWord.translation : currentWord.word;
+    
+    // Generate options
+    let options = [isHebrewToEnglish ? currentWord.word : currentWord.translation];
+    while (options.length < 3) {
+        const randomIndex = Math.floor(Math.random() * currentGame.words.length);
+        const randomWord = currentGame.words[randomIndex];
+        const option = isHebrewToEnglish ? randomWord.word : randomWord.translation;
+        if (!options.includes(option)) {
+            options.push(option);
+        }
+    }
+    
+    // Shuffle options
+    options = options.sort(() => Math.random() - 0.5);
+    
+    // Create buttons with animation classes
+    buttonsDiv.innerHTML = '';
+    options.forEach((option, index) => {
+        const button = document.createElement('button');
+        button.className = 'arcade-answer-button';
+        button.textContent = option;
+        button.style.animationDelay = `${index * 0.1}s`;
+        button.onclick = () => handleArcadeAnswer(
+            option === (isHebrewToEnglish ? currentWord.word : currentWord.translation)
+        );
+        buttonsDiv.appendChild(button);
+    });
+    
+    // Store current word info for answer checking
+    currentGame.currentWordPair = {
+        word: currentWord.word,
+        translation: currentWord.translation,
+        isHebrewToEnglish: isHebrewToEnglish
+    };
+    
+    // Remove used word from pool
+    currentGame.words.splice(currentIndex, 1);
+    
+    // Update counters
+    document.querySelector('.words-completed').textContent = currentGame.wordsCompleted;
+}
+
+async function updateArcadeRank(playerUsername) {
+    // Get all participants sorted by score
+    const sortedParticipants = [...currentArcadeSession.participants]
+        .sort((a, b) => {
+            if (b.wordsCompleted !== a.wordsCompleted) {
+                return b.wordsCompleted - a.wordsCompleted;
+            }
+            return b.coins - a.coins;
+        });
+
+    // Find player's position
+    const playerIndex = sortedParticipants.findIndex(p => p.username === playerUsername);
+    
+    // Convert index to ordinal number
+    let rankText;
+    if (playerIndex === -1) {
+        rankText = 'N/A';
+    } else {
+        const rank = playerIndex + 1;
+        const ordinal = getOrdinalSuffix(rank);
+        rankText = `${rank}${ordinal}`;
+    }
+
+    // Update rank display with animation
+    const rankDisplay = document.querySelector('.rank-number');
+    if (rankDisplay) {
+        const oldRank = rankDisplay.textContent;
+        if (oldRank !== rankText) {
+            rankDisplay.style.animation = 'none';
+            rankDisplay.offsetHeight; // Trigger reflow
+            rankDisplay.style.animation = 'rankUpdate 0.5s ease-out';
+            rankDisplay.textContent = rankText;
+        }
+    }
+}
+
+function getOrdinalSuffix(number) {
+    const j = number % 10;
+    const k = number % 100;
+    if (j == 1 && k != 11) {
+        return "st";
+    }
+    if (j == 2 && k != 12) {
+        return "nd";
+    }
+    if (j == 3 && k != 13) {
+        return "rd";
+    }
+    return "th";
+}
+
+const arcadePerks = {
+    good: [
+        { name: 'Lucky Bonus', icon: 'fa-gift', effect: 'award15Coins' },
+        { name: 'Speed Boost', icon: 'fa-bolt', effect: 'doubleCoins' },
+        { name: 'Shield', icon: 'fa-shield-alt', effect: 'preventLoss' },
+        { name: 'Hot Streak', icon: 'fa-fire', effect: 'doubleProgress' },
+        { name: 'Second Chance', icon: 'fa-redo', effect: 'autoCorrect' }
+    ],
+    bad: [
+        { name: 'Coin Tax', icon: 'fa-hand-holding-usd', effect: 'deductCoins' },
+        { name: 'Word Reset', icon: 'fa-history', effect: 'undoProgress' },
+        { name: 'Double Trouble', icon: 'fa-bomb', effect: 'doublePenalty' },
+        { name: 'Freeze', icon: 'fa-snowflake', effect: 'freezeScreen' },
+        { name: 'Scramble', icon: 'fa-random', effect: 'shuffleAnswers' }
+    ]
+};
+
+function getRandomPerk() {
+    const perkType = Math.random() < 0.5 ? 'good' : 'bad';
+    const perks = arcadePerks[perkType];
+    return perks[Math.floor(Math.random() * perks.length)];
+}
+
+function updatePerkSlots() {
+    const slots = document.querySelectorAll('.perk-slot');
+    slots.forEach(slot => {
+        if (!slot.querySelector('.arcade-perk-button') || slot.querySelector('.arcade-perk-button').disabled) {
+            const perk = getRandomPerk();
+            const button = document.createElement('button');
+            button.className = `arcade-perk-button ${perk.type}-perk`;
+            button.disabled = currentGame.coins < 50;
+            button.innerHTML = `
+                <i class="fas ${perk.icon}"></i>
+                <span class="perk-name">${perk.name}</span>
+                <span class="perk-cost">50 <i class="fas fa-coins"></i></span>
+            `;
+            button.onclick = () => usePerk(perk, button);
+            slot.innerHTML = '';
+            slot.appendChild(button);
+        }
+    });
+}
+
+async function usePerk(perk, button) {
+    if (currentGame.coins < 50) return;
+    
+    // Visual feedback for purchase
+    button.classList.add('purchasing');
+    
+    // Deduct coins
+    currentGame.coins -= 50;
+    document.querySelector('.coin-count').textContent = currentGame.coins;
+    
+    // Get random target (excluding self)
+    const possibleTargets = currentArcadeSession.participants.filter(
+        p => p.username !== currentArcadeSession.playerName
+    );
+    
+    if (possibleTargets.length === 0) return;
+    
+    const target = possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
+    
+    // Broadcast perk use
+    await window.arcadeChannel.send({
+        type: 'broadcast',
+        event: 'perk_used',
+        payload: {
+            perkName: perk.name,
+            effect: perk.effect,
+            type: perk.type,
+            sourcePlayer: currentArcadeSession.playerName,
+            targetPlayer: target.username
+        }
+    });
+    
+    // Replace used perk after animation
+    setTimeout(() => {
+        updatePerkSlots();
+    }, 500);
+}
+
+window.arcadeChannel
+    .on('broadcast', { event: 'perk_used' }, ({ payload }) => {
+        // Update moderator screen
+        const moderatorMessage = `${payload.sourcePlayer} just used ${payload.perkName} on ${payload.targetPlayer}!`;
+        updateModeratorLog(moderatorMessage);
+        
+        // If we're the target, apply the effect
+        if (payload.targetPlayer === currentArcadeSession.playerName) {
+            handlePerkEffect(payload.effect);
+        }
+    });
+
+    function showPerkEffect(effect, type, perkName) {
+    const overlay = document.createElement('div');
+    overlay.className = 'perk-effect-overlay';
+    
+    const message = document.createElement('div');
+    message.className = `perk-effect-message ${type}`;
+    
+    // Customize message based on effect
+    const messages = {
+        award15Coins: 'Lucky Bonus! +15 Coins! 🎁',
+        doubleCoins: 'Double Coins Active! ⚡',
+        preventLoss: 'Shield Active! 🛡️',
+        doubleProgress: 'Double Progress Active! 🔥',
+        autoCorrect: 'Second Chance Ready! 🎯',
+        deductCoins: 'Coin Tax! -10 Coins! 💸',
+        undoProgress: 'Progress Reset! ⏮️',
+        doublePenalty: 'Double Penalty Active! 💣',
+        freezeScreen: 'Screen Frozen! ❄️',
+        shuffleAnswers: 'Answers Scrambled! 🔄'
+    };
+    
+    message.innerHTML = `
+        <div>${messages[effect] || perkName}</div>
+        <div style="font-size: 1rem; margin-top: 0.5rem">
+            From ${currentArcadeSession.playerName}
+        </div>
+    `;
+    
+    overlay.appendChild(message);
+    document.body.appendChild(overlay);
+    
+    // Remove overlay after animation
+    setTimeout(() => {
+        overlay.remove();
+    }, 2000);
+}
+
+async function handlePerkEffect(effect, type, perkName) {
+    // Show visual effect first
+    showPerkEffect(effect, type, perkName);
+    
+    // Then proceed with the effect logic
+    switch (effect) {
+        // ... (rest of your switch cases remain the same)
+    }
+}
+
+async function handlePerkEffect(effect) {
+    switch (effect) {
+        case 'award15Coins':
+            currentGame.coins += 15;
+            animateCoinsChange(document.querySelector('.coin-count'), currentGame.coins - 15, currentGame.coins);
+            break;
+
+        case 'doubleCoins':
+            currentGame.activeEffects.doubleCoins = true;
+            currentGame.effectTimeouts.push(setTimeout(() => {
+                currentGame.activeEffects.doubleCoins = false;
+            }, 5 * 1000));
+            break;
+
+        case 'preventLoss':
+            currentGame.activeEffects.shield = true;
+            break;
+
+        case 'doubleProgress':
+            currentGame.activeEffects.doubleProgress = true;
+            currentGame.effectTimeouts.push(setTimeout(() => {
+                currentGame.activeEffects.doubleProgress = false;
+            }, 3 * 1000));
+            break;
+
+        case 'autoCorrect':
+            currentGame.activeEffects.autoCorrect = true;
+            break;
+
+        case 'deductCoins':
+            const deduction = Math.min(currentGame.coins, 10);
+            currentGame.coins -= deduction;
+            animateCoinsChange(document.querySelector('.coin-count'), currentGame.coins + deduction, currentGame.coins);
+            break;
+
+        case 'undoProgress':
+            if (currentGame.wordsCompleted > 0) {
+                currentGame.wordsCompleted--;
+                // Broadcast updated progress
+                await window.arcadeChannel.send({
+                    type: 'broadcast',
+                    event: 'progress_update',
+                    payload: {
+                        username: currentArcadeSession.playerName,
+                        wordsCompleted: currentGame.wordsCompleted,
+                        coins: currentGame.coins
+                    }
+                });
+            }
+            break;
+
+        case 'doublePenalty':
+            currentGame.activeEffects.doublePenalty = true;
+            currentGame.effectTimeouts.push(setTimeout(() => {
+                currentGame.activeEffects.doublePenalty = false;
+            }, 3 * 1000));
+            break;
+
+        case 'freezeScreen':
+            if (!currentGame.isScreenFrozen) {
+                currentGame.isScreenFrozen = true;
+                const buttons = document.querySelectorAll('.arcade-buttons button');
+                buttons.forEach(btn => btn.disabled = true);
+                
+                currentGame.effectTimeouts.push(setTimeout(() => {
+                    currentGame.isScreenFrozen = false;
+                    buttons.forEach(btn => btn.disabled = false);
+                }, 3000));
+            }
+            break;
+
+        case 'shuffleAnswers':
+            const buttons = document.querySelectorAll('.arcade-buttons button');
+            const answerTexts = Array.from(buttons).map(btn => btn.textContent);
+            answerTexts.sort(() => Math.random() - 0.5);
+            buttons.forEach((btn, i) => btn.textContent = answerTexts[i]);
+            break;
+    }
+}
+
+function showStatusEffect(text, type) {
+    const statusEl = document.querySelector('.perk-effect-status');
+    statusEl.textContent = text;
+    statusEl.className = `perk-effect-status ${type} show`;
+    
+    setTimeout(() => {
+        statusEl.classList.remove('show');
+    }, 2000);
+}
+
+async function handlePerkEffect(effect) {
+    const coinStatus = document.querySelector('.arcade-coin-amount');
+    
+    switch (effect) {
+        case 'award15Coins':
+            showStatusEffect('Lucky Bonus +15', 'good');
+            currentGame.coins += 15;
+            animateCoinsChange(coinStatus, currentGame.coins - 15, currentGame.coins);
+            break;
+
+        case 'doubleCoins':
+            showStatusEffect('Double Coins Active!', 'good');
+            currentGame.activeEffects.doubleCoins = true;
+            currentGame.effectTimeouts.push(setTimeout(() => {
+                currentGame.activeEffects.doubleCoins = false;
+            }, 5 * 1000));
+            break;
+
+        case 'deductCoins':
+            const deduction = Math.min(currentGame.coins, 10);
+            showStatusEffect(`Coin Tax -${deduction}`, 'bad');
+            currentGame.coins -= deduction;
+            animateCoinsChange(coinStatus, currentGame.coins + deduction, currentGame.coins);
+            break;
+
+        // ... rest of your cases ...
+    }
+    
+    // Update coin display
+    document.querySelector('.arcade-coin-amount').textContent = currentGame.coins;
 }
 
 </script>
