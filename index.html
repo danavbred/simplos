@@ -1449,6 +1449,40 @@ body {
     100% { transform: translateY(0); }
 }
 
+.powerups-container {
+    display: none;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.powerups-container.arcade-visible {
+    display: flex;
+}
+
+.powerup-button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 15px;
+    color: white;
+    cursor: pointer;
+}
+
+.powerup-button.blue {
+    background: #3498db;
+}
+
+.powerup-button.red {
+    background: #e74c3c;
+}
+
+.coin-count {
+    transition: none; /* Remove existing transitions */
+}
+
+.coin-count.animating {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .coins-header .coin-icon {
   color: var(--gold);
   font-size: 1.5rem;
@@ -4081,6 +4115,17 @@ body {
         </button>
     </div>
 
+    <div class="powerups-container">
+    <button class="powerup-button blessing" id="blessingButton">
+        <i class="fas fa-hand-holding-heart"></i>
+        Blessing (5)
+    </button>
+    <button class="powerup-button curse" id="curseButton">
+        <i class="fas fa-skull"></i>
+        Curse (5)
+    </button>
+</div>
+
     <!-- Timer Container -->
     <div class="timer-container">
         <div class="timer-value">00:00</div>
@@ -5937,6 +5982,13 @@ async function startLevel(levelId) {
     currentGame.firstAttempt = true;
     currentGame.streakBonus = true;
 
+    // Toggle menus for regular game
+    const perksContainer = document.querySelector('.perks-container');
+    const powerupsContainer = document.querySelector('.powerups-container');
+    
+    perksContainer.style.display = 'flex';
+    powerupsContainer.style.display = 'none';
+
     // Regular game initialization
     gameState.currentStage = gameState.currentStage || 1;
     gameState.currentSet = gameState.currentSet || 1;
@@ -6392,25 +6444,24 @@ function pulseCoins(times = 1) {
 }
 
 function updateAllCoinDisplays() {
-    // Get all coin displays, including both header and in-game displays
-    const displays = document.querySelectorAll('.coin-count');
-    
-    displays.forEach(display => {
-        const currentValue = parseInt(display.textContent) || 0;
-        if (currentValue !== gameState.coins) {
-            animateCoinsChange(display, currentValue, gameState.coins);
-        }
+    console.log('Updating coin displays:', {
+        currentCoins: currentGame.coins,
+        playerName: currentArcadeSession.playerName,
+        displays: document.querySelectorAll('.coin-count').length
     });
 
-    // Handle visibility of coins header based on screen
-    const questionScreenCoins = document.querySelector('#question-screen .coins-header');
-    const otherScreenCoins = document.querySelectorAll('#welcome-screen .coins-header, #stage-screen .coins-header, #set-screen .coins-header, #level-screen .coins-header');
-    
-    otherScreenCoins.forEach(coinHeader => coinHeader.style.display = 'none');
-    if (questionScreenCoins) {
-        questionScreenCoins.style.display = 'flex';
-    }
+    const displays = document.querySelectorAll('.coin-count');
+    displays.forEach(display => {
+        const currentValue = parseInt(display.textContent) || 0;
+        console.log('Display update:', {
+            from: currentValue,
+            to: currentGame.coins
+        });
+        display.textContent = currentGame.coins;
+    });
 }
+
+
 function usePerk(perkType) {
     if (gameState.perks[perkType] <= 0) return;
 
@@ -10088,6 +10139,13 @@ async function startArcadeGame() {
     questionScreen.classList.add('visible');
     document.getElementById('waiting-screen').classList.remove('visible');
     
+    // Toggle menus for arcade mode
+    const perksContainer = document.querySelector('.perks-container');
+    const powerupsContainer = document.querySelector('.powerups-container');
+    
+    perksContainer.style.display = 'none';
+    powerupsContainer.style.display = 'flex';
+    
     let initialCoins = 0;
     
     // For premium users, get current coins from game progress
@@ -10102,6 +10160,22 @@ async function startArcadeGame() {
             if (!error && data) {
                 initialCoins = data.coins;
                 console.log('Loaded initial coins:', initialCoins);
+                
+                // Immediately update UI and broadcast initial state
+                currentGame.coins = initialCoins;
+                updateAllCoinDisplays();
+                
+                // Broadcast initial coin state
+                await window.arcadeChannel.send({
+                    type: 'broadcast',
+                    event: 'progress_update',
+                    payload: {
+                        username: currentArcadeSession.playerName,
+                        wordsCompleted: 0,
+                        coins: initialCoins,
+                        timestamp: Date.now()
+                    }
+                });
             }
         } catch (error) {
             console.error('Failed to load coins:', error);
@@ -10115,9 +10189,71 @@ async function startArcadeGame() {
         wrongStreak: 0,
         words: currentArcadeSession.wordPool,
         wordsCompleted: 0,
-        coins: initialCoins // Use loaded coins for premium users
+        coins: initialCoins,
+        lastBroadcast: Date.now()
     };
 
+    // Initialize powerups
+    initializePowerups();
+
+    // Set up broadcast channel listeners
+    window.arcadeChannel
+        .on('broadcast', { event: 'progress_update' }, ({ payload }) => {
+            console.log('Progress update received:', payload);
+            if (payload.username !== currentArcadeSession.playerName) {
+                const existingPlayerIndex = currentArcadeSession.participants.findIndex(
+                    p => p.username === payload.username
+                );
+                
+                if (existingPlayerIndex !== -1) {
+                    currentArcadeSession.participants[existingPlayerIndex] = {
+                        ...currentArcadeSession.participants[existingPlayerIndex],
+                        ...payload
+                    };
+                } else {
+                    currentArcadeSession.participants.push({
+                        username: payload.username,
+                        wordsCompleted: payload.wordsCompleted || 0,
+                        coins: payload.coins || 0
+                    });
+                }
+                
+                updatePlayerProgress({
+                    username: payload.username,
+                    wordsCompleted: payload.wordsCompleted,
+                    coins: payload.coins
+                });
+            }
+        })
+        .on('broadcast', { event: 'coin_effect' }, ({ payload }) => {
+            if (payload.targetUser === currentArcadeSession.playerName) {
+                console.log('Before coin effect:', {
+                    currentCoins: currentGame.coins,
+                    incomingAmount: payload.amount,
+                    playerName: currentArcadeSession.playerName
+                });
+
+                currentGame.coins += payload.amount;
+
+                console.log('After coin effect:', {
+                    newCoins: currentGame.coins,
+                    playerName: currentArcadeSession.playerName
+                });
+
+                updateAllCoinDisplays();
+                
+                updatePlayerProgress({
+                    username: currentArcadeSession.playerName,
+                    coins: currentGame.coins,
+                    wordsCompleted: currentGame.wordsCompleted
+                });
+            }
+        });
+
+    // Update UI elements
+    updateAllCoinDisplays();
+    
+    // Start first question
     loadNextArcadeQuestion();
 }
 
@@ -10643,6 +10779,86 @@ function showAboutPage() {
 function showContactUs() {
     // TODO: Implement contact us functionality
     alert('Contact Us page coming soon!');
+}
+
+function initializePowerups() {
+    const blessingButton = document.getElementById('blessingButton');
+    const curseButton = document.getElementById('curseButton');
+
+    function animateCoinsChange(element, startValue, endValue) {
+        element.classList.add('animating');
+        element.textContent = startValue;
+        
+        // Force reflow
+        element.offsetHeight;
+        
+        element.textContent = endValue;
+        
+        setTimeout(() => {
+            element.classList.remove('animating');
+        }, 300);
+    }
+
+    blessingButton.onclick = async () => {
+        if (currentGame.coins < 5) return;
+        
+        // Get random player except self
+        const otherPlayers = currentArcadeSession.participants.filter(
+            p => p.username !== currentArcadeSession.playerName
+        );
+        if (!otherPlayers.length) return;
+        
+        const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+        
+        // Update my coins with animation
+        const oldCoins = currentGame.coins;
+        currentGame.coins -= 5;
+        
+        const displays = document.querySelectorAll('.coin-count');
+        displays.forEach(display => {
+            animateCoinsChange(display, oldCoins, currentGame.coins);
+        });
+        
+        // Send update
+        await window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'coin_effect',
+            payload: {
+                targetUser: targetPlayer.username,
+                amount: 30
+            }
+        });
+    };
+
+    curseButton.onclick = async () => {
+        if (currentGame.coins < 5) return;
+        
+        const otherPlayers = currentArcadeSession.participants.filter(
+            p => p.username !== currentArcadeSession.playerName
+        );
+        if (!otherPlayers.length) return;
+        
+        const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+        
+        // Update my coins with animation
+        const oldCoins = currentGame.coins;
+        currentGame.coins -= 5;
+        
+        const displays = document.querySelectorAll('.coin-count');
+        displays.forEach(display => {
+            animateCoinsChange(display, oldCoins, currentGame.coins);
+        });
+        
+        // Send update
+        await window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'coin_effect',
+            payload: {
+                targetUser: targetPlayer.username,
+                amount: -10
+            }
+        });
+    };
 }
 
 </script>
