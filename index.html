@@ -1494,101 +1494,86 @@ body {
 }
 
 .powerups-container {
-    display: none;
+    display: flex;
     gap: 1rem;
-    margin: 1rem 0;
+    margin: 2rem auto;
+    justify-content: center;
+    width: 90%;
+    max-width: 800px;
 }
 
-.powerups-container.arcade-visible {
-    display: flex;
-}
-
-.powerup-button {
+.powerup-card {
     position: relative;
-    padding: 1rem 2rem;
-    border: none;
+    width: 120px;
+    height: 160px;
+    background: var(--glass);
     border-radius: 15px;
-    color: white;
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 1.1rem;
-    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
     overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
-    min-width: 180px;
+    padding: 1rem;
 }
 
-.powerup-button.blessing {
-    background: linear-gradient(135deg, #3498db, #2980b9);
-    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+.powerup-card.goodie {
+    border: 2px solid #3498db;
+    box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
 }
 
-.powerup-button.curse {
-    background: linear-gradient(135deg, #e74c3c, #c0392b);
-    box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+.powerup-card.baddie {
+    border: 2px solid #e74c3c;
+    box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
 }
 
-.powerup-button::before {
-    content: '';
+.powerup-card:hover {
+    transform: translateY(-5px);
+}
+
+.powerup-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.powerup-name {
+    font-size: 0.9rem;
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.powerup-cost {
     position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-        120deg,
-        transparent,
-        rgba(255, 255, 255, 0.3),
-        transparent
-    );
-    transition: 0.5s;
+    bottom: 0.5rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.25rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
 }
 
-.powerup-button:hover::before {
-    left: 100%;
-}
-
-.powerup-button:disabled {
+.powerup-card:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
 
-.powerup-cost {
-    font-size: 0.8rem;
-    opacity: 0.8;
-    background: rgba(0, 0, 0, 0.2);
-    padding: 0.25rem 0.5rem;
-    border-radius: 10px;
-    margin-left: auto;
-}
-
-/* Mobile optimization */
 @media (max-width: 768px) {
     .powerups-container {
-        flex-direction: column;
-        gap: 0.75rem;
-        width: 90%;
-        margin: 1rem auto;
+        gap: 0.5rem;
     }
 
-    .powerup-button {
-        width: 100%;
-        padding: 0.875rem 1.5rem;
-        font-size: 1rem;
+    .powerup-card {
+        width: 100px;
+        height: 140px;
+        padding: 0.75rem;
     }
 
-    .question-word {
-        font-size: 2.5rem;
-        padding: 0 1rem;
-        text-align: center;
+    .powerup-icon {
+        font-size: 1.5rem;
     }
 
-    .game-notification {
-        width: 90%;
-        max-width: 300px;
-        font-size: 0.9rem;
+    .powerup-name {
+        font-size: 0.8rem;
     }
 }
 
@@ -1616,26 +1601,42 @@ body {
 }
 
 .input-group {
-    margin: 1.5rem 0;
+    margin: 2rem;
     position: relative;
     width: 100%;
 }
 
-.input-group input {
+#player-view {
+    width: 90%;
+    max-width: 400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+#player-view h2 {
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.input-group input,
+#otpInput {
     width: 100%;
-    padding: 0.75rem 1rem;
-    border: none;
-    border-radius: 10px;
+    padding: 1rem;
+    font-size: 1.1rem;
     background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 15px;
     color: var(--text);
-    font-size: 1rem;
+    text-align: center;
     transition: all 0.3s ease;
 }
 
-.input-group input:focus {
+.input-group input:focus,
+#otpInput:focus {
     outline: none;
-    background: rgba(255, 255, 255, 0.15);
-    box-shadow: 0 0 10px rgba(233, 69, 96, 0.3);
+    border-color: var(--accent);
+    box-shadow: 0 0 15px rgba(233, 69, 96, 0.2);
 }
 
 .input-hint {
@@ -1683,12 +1684,165 @@ body {
     box-shadow: 0 5px 15px rgba(233, 69, 96, 0.4);
 }
 
+@media (max-width: 768px) {
+    #player-view {
+        padding: 1.5rem;
+    }
+
+    .input-group input,
+    #otpInput {
+        font-size: 1rem;
+        padding: 0.875rem;
+    }
+
+    .input-hint {
+        font-size: 0.75rem;
+    }
+}
+
 .coin-count {
     transition: none; /* Remove existing transitions */
 }
 
 .coin-count.animating {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.powerups-container {
+    display: flex;
+    gap: 1rem;
+    margin: 2rem auto;
+    justify-content: center;
+    width: 90%;
+    max-width: 800px;
+    flex-wrap: wrap;
+}
+
+.powerup-card {
+    position: relative;
+    width: 120px;
+    height: 160px;
+    background: var(--glass);
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+}
+
+.powerup-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.powerup-card:hover::before {
+    opacity: 1;
+}
+
+.powerup-card.goodie {
+    border: 2px solid #3498db;
+    box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
+}
+
+.powerup-card.baddie {
+    border: 2px solid #e74c3c;
+    box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
+}
+
+.powerup-card:hover {
+    transform: translateY(-5px) scale(1.05);
+}
+
+.powerup-card:active {
+    transform: translateY(-2px) scale(0.98);
+}
+
+.powerup-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: var(--text);
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+.powerup-name {
+    font-size: 0.9rem;
+    text-align: center;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+}
+
+.powerup-cost {
+    position: absolute;
+    bottom: 0.5rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.25rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.powerup-cost::before {
+    content: '\f51e';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    color: var(--gold);
+}
+
+.powerup-card:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+@keyframes screenShake {
+    0%, 100% { transform: translate(0, 0) rotate(0); }
+    25% { transform: translate(5px, 5px) rotate(1deg); }
+    50% { transform: translate(-5px, -5px) rotate(-1deg); }
+    75% { transform: translate(-5px, 5px) rotate(1deg); }
+}
+
+.screen-shake {
+    animation: screenShake 0.5s ease-in-out infinite;
+}
+
+@media (max-width: 768px) {
+    .powerups-container {
+        gap: 0.75rem;
+        margin: 1rem auto;
+    }
+
+    .powerup-card {
+        width: calc(33.33% - 0.5rem);
+        height: 140px;
+        padding: 0.75rem;
+        min-width: 90px;
+    }
+
+    .powerup-icon {
+        font-size: 1.5rem;
+    }
+
+    .powerup-name {
+        font-size: 0.8rem;
+    }
+
+    .powerup-cost {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+    }
 }
 
 .coins-header .coin-icon {
@@ -4309,15 +4463,41 @@ body {
         </button>
     </div>
 
-    <div class="powerups-container">
-    <button class="powerup-button blessing" id="blessingButton">
-        <i class="fas fa-hand-holding-heart"></i>
-        Blessing (30)
-    </button>
-    <button class="powerup-button curse" id="curseButton">
-        <i class="fas fa-skull"></i>
-        Curse (150)
-    </button>
+    <!-- Replace the old powerups-container content with this -->
+<div class="powerups-container">
+    <!-- Goodies -->
+    <div class="powerup-card goodie" id="highFiveCard">
+        <i class="fas fa-hand-paper powerup-icon"></i>
+        <div class="powerup-name">High Five</div>
+        <div class="powerup-cost">30</div>
+    </div>
+    <div class="powerup-card goodie" id="fistBumpCard">
+        <i class="fas fa-fist-raised powerup-icon"></i>
+        <div class="powerup-name">Fist Bump</div>
+        <div class="powerup-cost">40</div>
+    </div>
+    <div class="powerup-card goodie" id="energyBoostCard">
+        <i class="fas fa-bolt powerup-icon"></i>
+        <div class="powerup-name">Energy Boost</div>
+        <div class="powerup-cost">45</div>
+    </div>
+
+    <!-- Baddies -->
+    <div class="powerup-card baddie" id="freezeCard">
+        <i class="fas fa-snowflake powerup-icon"></i>
+        <div class="powerup-name">Freeze</div>
+        <div class="powerup-cost">150</div>
+    </div>
+    <div class="powerup-card baddie" id="coinStormCard">
+        <i class="fas fa-cloud-showers-heavy powerup-icon"></i>
+        <div class="powerup-name">Coin Storm</div>
+        <div class="powerup-cost">160</div>
+    </div>
+    <div class="powerup-card baddie" id="screenShakeCard">
+        <i class="fas fa-shake powerup-icon"></i>
+        <div class="powerup-name">Screen Shake</div>
+        <div class="powerup-cost">130</div>
+    </div>
 </div>
 
     <!-- Timer Container -->
@@ -10347,7 +10527,8 @@ async function startArcadeGame() {
     const questionScreen = document.getElementById('question-screen');
     questionScreen.classList.add('visible');
     document.getElementById('waiting-screen').classList.remove('visible');
-    
+    initializeArcadeParticles();
+
     // Toggle menus for arcade mode
     const perksContainer = document.querySelector('.perks-container');
     const powerupsContainer = document.querySelector('.powerups-container');
@@ -10434,6 +10615,63 @@ async function startArcadeGame() {
                 });
             }
         })
+        .on('broadcast', { event: 'powerup_effect' }, ({ payload }) => {
+    if (payload.targetUser === currentArcadeSession.playerName) {
+        const powerup = powerups[payload.powerupKey];
+        
+        if (!powerup) return;
+
+        // Show notification
+        showNotification(
+            `${payload.fromUser} ${powerup.message} you!`,
+            powerup.type
+        );
+
+        // Apply effect based on powerup type
+        switch (payload.powerupKey) {
+            case 'highFive':
+            case 'fistBump':
+                const oldCoins = currentGame.coins;
+                currentGame.coins += powerup.effect;
+                document.querySelectorAll('.coin-count').forEach(display => {
+                    animateNumber(display, oldCoins, currentGame.coins);
+                });
+                break;
+
+            case 'energyBoost':
+                currentGame.coinMultiplier = 2;
+                currentGame.boostedAnswersLeft = 3;
+                break;
+
+            case 'freeze':
+                const buttons = document.querySelectorAll('.buttons button');
+                buttons.forEach(btn => btn.disabled = true);
+                setTimeout(() => {
+                    buttons.forEach(btn => btn.disabled = false);
+                }, powerup.duration);
+                break;
+
+            case 'coinStorm':
+                currentGame.coinBlockedAnswers = 3;
+                break;
+
+            case 'screenShake':
+                const questionScreen = document.getElementById('question-screen');
+                questionScreen.classList.add('screen-shake');
+                setTimeout(() => {
+                    questionScreen.classList.remove('screen-shake');
+                }, powerup.duration);
+                break;
+        }
+
+        updatePlayerProgress({
+            username: currentArcadeSession.playerName,
+            coins: currentGame.coins,
+            wordsCompleted: currentGame.wordsCompleted
+        });
+    }
+})
+        
         .on('broadcast', { event: 'coin_effect' }, ({ payload }) => {
     if (payload.targetUser === currentArcadeSession.playerName) {
         const oldCoins = currentGame.coins;
@@ -11227,6 +11465,140 @@ async function joinArcadeWithUsername() {
     }
 }
 
+function initializeArcadeParticles() {
+    const container = document.querySelector('.particle-container');
+    if (!container) return;
+
+    container.innerHTML = ''; // Clear existing particles
+
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+    const particleCount = 50;
+
+    for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'letter-particle';
+        
+        // Random starting positions across the entire screen
+        const startX = Math.random() * windowWidth;
+        const startY = Math.random() * windowHeight;
+        
+        particle.style.setProperty('--startX', startX);
+        particle.style.setProperty('--startY', startY);
+        particle.style.setProperty('--endX', startX + (Math.random() - 0.5) * 200);
+        particle.style.setProperty('--endY', startY + (Math.random() - 0.5) * 200);
+        particle.style.setProperty('--opacity', 0.1 + Math.random() * 0.3);
+        
+        container.appendChild(particle);
+    }
+}
+
+function initializePowerups() {
+    const powerups = {
+        highFive: {
+            id: 'highFiveCard',
+            cost: 30,
+            effect: 50,
+            type: 'goodie',
+            message: 'high-fived'
+        },
+        fistBump: {
+            id: 'fistBumpCard',
+            cost: 40,
+            effect: 75,
+            type: 'goodie',
+            message: 'fist-bumped'
+        },
+        energyBoost: {
+            id: 'energyBoostCard',
+            cost: 45,
+            type: 'goodie',
+            message: 'boosted'
+        },
+        freeze: {
+            id: 'freezeCard',
+            cost: 150,
+            duration: 10000,
+            type: 'baddie',
+            message: 'froze'
+        },
+        coinStorm: {
+            id: 'coinStormCard',
+            cost: 160,
+            duration: 3,
+            type: 'baddie',
+            message: 'cast a coin storm on'
+        },
+        screenShake: {
+            id: 'screenShakeCard',
+            cost: 130,
+            duration: 5000,
+            type: 'baddie',
+            message: 'shook'
+        }
+    };
+
+    Object.entries(powerups).forEach(([key, powerup]) => {
+        const card = document.getElementById(powerup.id);
+        if (!card) return;
+
+        card.onclick = async () => {
+            if (currentGame.coins < powerup.cost) return;
+
+            const otherPlayers = currentArcadeSession.participants.filter(
+                p => p.username !== currentArcadeSession.playerName
+            );
+            if (!otherPlayers.length) return;
+
+            const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+            
+            // Deduct cost
+            const oldCoins = currentGame.coins;
+            currentGame.coins -= powerup.cost;
+            
+            // Animate coin deduction
+            document.querySelectorAll('.coin-count').forEach(display => {
+                animateNumber(display, oldCoins, currentGame.coins);
+            });
+
+            // Create effect at button location
+            const rect = card.getBoundingClientRect();
+            createParticles(
+                rect.left + rect.width / 2,
+                rect.top + rect.height / 2,
+                powerup.type
+            );
+
+            // Send effect
+            await window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'powerup_effect',
+                payload: {
+                    powerupKey: key,
+                    targetUser: targetPlayer.username,
+                    fromUser: currentArcadeSession.playerName
+                }
+            });
+        };
+    });
+
+    // Update powerup availability based on coins
+    function updatePowerupAvailability() {
+        Object.values(powerups).forEach(powerup => {
+            const card = document.getElementById(powerup.id);
+            if (card) {
+                card.disabled = currentGame.coins < powerup.cost;
+            }
+        });
+    }
+
+    // Watch for coin changes
+    const coinDisplay = document.querySelector('.coin-count');
+    if (coinDisplay) {
+        const observer = new MutationObserver(updatePowerupAvailability);
+        observer.observe(coinDisplay, { childList: true });
+    }
+}
 
 </script>
 </body>
