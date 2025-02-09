@@ -11198,28 +11198,44 @@ function createParticles(x, y, type) {
 }
 
 async function joinArcadeWithUsername() {
-    const username = document.getElementById('arcadeUsername').value.trim();
-    const otp = document.getElementById('otpInput').value.trim();
+    const usernameInput = document.getElementById('arcadeUsername');
+    const otpInput = document.getElementById('otpInput');
+    const username = usernameInput.value.trim();
+    const otp = otpInput.value.trim();
     
-    if (!username || username.length < 3 || username.length > 15 || 
-        !/^[a-zA-Z0-9]+$/.test(username)) {
-        alert('Please enter a valid username (3-15 characters, letters and numbers only)');
+    // Username validation
+    if (!username || username.length < 2 || username.length > 15) {
+        showErrorToast('Username must be between 2 and 15 characters');
+        usernameInput.focus();
+        return;
+    }
+
+    // Allow Hebrew, English, numbers, and some special characters
+    const validUsernameRegex = /^[a-zA-Z0-9\u0590-\u05FF\s._-]+$/;
+    if (!validUsernameRegex.test(username)) {
+        showErrorToast('Username can contain letters, numbers, spaces, periods, underscores, and hyphens');
+        usernameInput.focus();
         return;
     }
     
-    if (!otp || otp.length !== 4) {
-        alert('Please enter a valid 4-digit game code');
+    // OTP validation
+    if (!otp || otp.length !== 4 || !/^\d+$/.test(otp)) {
+        showErrorToast('Please enter a valid 4-digit game code');
+        otpInput.focus();
         return;
     }
 
     try {
+        // Create Supabase channel for the specific arcade session
         window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`);
         
+        // Set the player name for the current session
         currentArcadeSession.playerName = username;
         
         // Start state polling for late joiners
         let stateCheckInterval;
         
+        // Set up channel listeners
         window.arcadeChannel
             .on('broadcast', { event: 'game_end' }, ({ payload }) => {
                 handleGameEnd(payload);
@@ -11242,7 +11258,7 @@ async function joinArcadeWithUsername() {
             })
             .subscribe();
 
-        // Broadcast join
+        // Broadcast player join event
         await window.arcadeChannel.send({
             type: 'broadcast',
             event: 'player_join',
@@ -11274,8 +11290,8 @@ async function joinArcadeWithUsername() {
         }
 
     } catch (error) {
-        console.error('Join error:', error);
-        alert('Failed to join arcade');
+        console.error('Join arcade error:', error);
+        showErrorToast('Failed to join arcade. Please try again.');
     }
 }
 
