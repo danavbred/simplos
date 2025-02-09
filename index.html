@@ -1301,6 +1301,48 @@ body {
     gap: 0.5rem;
 }
 
+.game-notification {
+    position: fixed;
+    top: 20%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: var(--glass);
+    padding: 1rem 2rem;
+    border-radius: 25px;
+    color: var(--text);
+    backdrop-filter: blur(10px);
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.game-notification.blessing {
+    border: 2px solid #3498db;
+}
+
+.game-notification.curse {
+    border: 2px solid #e74c3c;
+}
+
+.game-notification.show {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+.particle {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.particle.blessing {
+    background: #3498db;
+}
+
+.particle.curse {
+    background: #e74c3c;
+}
+
 .coin-icon {
     color: var(--gold);
     animation: coinPulse 3s ease-in-out infinite;
@@ -4061,22 +4103,6 @@ body {
 <div id="question-screen" class="screen">
     <div class="particle-container"></div>
     
-    
-
-    <!-- Navigation Buttons -->
-    <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">
-        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-            <i class="fas fa-home navigation-icon"></i>
-        </button>
-        <button class="navigation-button reset-button" onclick="handleResetProgress()">
-            <i class="fas fa-trash-alt navigation-icon"></i>
-        </button>
-        <button class="navigation-button restart-level" onclick="handleRestartLevel()">
-            <i class="fas fa-redo navigation-icon"></i>
-        </button>
-    </div>
-
-
 
     <!-- Question Word -->
     <div class="question-word" id="question-word"></div>
@@ -10226,29 +10252,30 @@ async function startArcadeGame() {
             }
         })
         .on('broadcast', { event: 'coin_effect' }, ({ payload }) => {
-            if (payload.targetUser === currentArcadeSession.playerName) {
-                console.log('Before coin effect:', {
-                    currentCoins: currentGame.coins,
-                    incomingAmount: payload.amount,
-                    playerName: currentArcadeSession.playerName
-                });
-
-                currentGame.coins += payload.amount;
-
-                console.log('After coin effect:', {
-                    newCoins: currentGame.coins,
-                    playerName: currentArcadeSession.playerName
-                });
-
-                updateAllCoinDisplays();
-                
-                updatePlayerProgress({
-                    username: currentArcadeSession.playerName,
-                    coins: currentGame.coins,
-                    wordsCompleted: currentGame.wordsCompleted
-                });
-            }
+    if (payload.targetUser === currentArcadeSession.playerName) {
+        const oldCoins = currentGame.coins;
+        currentGame.coins += payload.amount;
+        
+        // Animate coin changes
+        document.querySelectorAll('.coin-count').forEach(display => {
+            animateNumber(display, oldCoins, currentGame.coins);
         });
+        
+        // Show notification
+        if (payload.type === 'blessing') {
+            showNotification(`${payload.fromUser} high-fived you!`, 'blessing');
+        } else if (payload.type === 'curse') {
+            showNotification(`${payload.fromUser} poisoned you!`, 'curse');
+        }
+        
+        // Update leaderboard
+        updatePlayerProgress({
+            username: currentArcadeSession.playerName,
+            coins: currentGame.coins,
+            wordsCompleted: currentGame.wordsCompleted
+        });
+    }
+})
 
     // Update UI elements
     updateAllCoinDisplays();
@@ -10785,24 +10812,9 @@ function initializePowerups() {
     const blessingButton = document.getElementById('blessingButton');
     const curseButton = document.getElementById('curseButton');
 
-    function animateCoinsChange(element, startValue, endValue) {
-        element.classList.add('animating');
-        element.textContent = startValue;
-        
-        // Force reflow
-        element.offsetHeight;
-        
-        element.textContent = endValue;
-        
-        setTimeout(() => {
-            element.classList.remove('animating');
-        }, 300);
-    }
-
     blessingButton.onclick = async () => {
         if (currentGame.coins < 5) return;
         
-        // Get random player except self
         const otherPlayers = currentArcadeSession.participants.filter(
             p => p.username !== currentArcadeSession.playerName
         );
@@ -10810,13 +10822,20 @@ function initializePowerups() {
         
         const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
         
+        // Get button position for particles
+        const rect = blessingButton.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        
+        // Create effect
+        createParticles(x, y, 'blessing');
+        
         // Update my coins with animation
         const oldCoins = currentGame.coins;
         currentGame.coins -= 5;
         
-        const displays = document.querySelectorAll('.coin-count');
-        displays.forEach(display => {
-            animateCoinsChange(display, oldCoins, currentGame.coins);
+        document.querySelectorAll('.coin-count').forEach(display => {
+            animateNumber(display, oldCoins, currentGame.coins);
         });
         
         // Send update
@@ -10825,7 +10844,9 @@ function initializePowerups() {
             event: 'coin_effect',
             payload: {
                 targetUser: targetPlayer.username,
-                amount: 30
+                amount: 30,
+                type: 'blessing',
+                fromUser: currentArcadeSession.playerName
             }
         });
     };
@@ -10840,13 +10861,20 @@ function initializePowerups() {
         
         const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
         
+        // Get button position for particles
+        const rect = curseButton.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        
+        // Create effect
+        createParticles(x, y, 'curse');
+        
         // Update my coins with animation
         const oldCoins = currentGame.coins;
         currentGame.coins -= 5;
         
-        const displays = document.querySelectorAll('.coin-count');
-        displays.forEach(display => {
-            animateCoinsChange(display, oldCoins, currentGame.coins);
+        document.querySelectorAll('.coin-count').forEach(display => {
+            animateNumber(display, oldCoins, currentGame.coins);
         });
         
         // Send update
@@ -10855,11 +10883,87 @@ function initializePowerups() {
             event: 'coin_effect',
             payload: {
                 targetUser: targetPlayer.username,
-                amount: -10
+                amount: -10,
+                type: 'curse',
+                fromUser: currentArcadeSession.playerName
             }
         });
     };
 }
+
+function animateNumber(element, start, end, duration = 500) {
+    const difference = end - start;
+    const frames = 20;
+    const step = difference / frames;
+    let current = start;
+    
+    function updateNumber() {
+        current += step;
+        if ((step > 0 && current >= end) || (step < 0 && current <= end)) {
+            element.textContent = end;
+            return;
+        }
+        
+        element.textContent = Math.round(current);
+        requestAnimationFrame(updateNumber);
+    }
+    
+    requestAnimationFrame(updateNumber);
+}
+
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.className = `game-notification ${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.classList.add('show'), 10);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 2000);
+}
+
+function createParticles(x, y, type) {
+    const particleCount = 15;
+    const colors = type === 'blessing' ? 
+        ['#3498db', '#2980b9', '#1abc9c'] : 
+        ['#e74c3c', '#c0392b', '#d35400'];
+    
+    for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = `particle ${type}`;
+        
+        const size = Math.random() * 8 + 4;
+        const angle = (Math.random() * Math.PI * 2);
+        const velocity = Math.random() * 100 + 50;
+        
+        particle.style.width = `${size}px`;
+        particle.style.height = `${size}px`;
+        particle.style.borderRadius = '50%';
+        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        particle.style.position = 'fixed';
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        
+        document.body.appendChild(particle);
+        
+        const destinationX = x + Math.cos(angle) * velocity;
+        const destinationY = y + Math.sin(angle) * velocity;
+        
+        particle.animate([
+            { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+            { transform: `translate(${destinationX - x}px, ${destinationY - y}px) scale(0)`, opacity: 0 }
+        ], {
+            duration: 1000,
+            easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
+        }).onfinish = () => particle.remove();
+    }
+}
+
+
+
 
 </script>
 </body>
