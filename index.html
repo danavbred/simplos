@@ -6398,8 +6398,11 @@ function calculateWordsForLevel(level, vocabulary) {
 }
 
 async function startLevel(levelId) {
-    // Reset stats tracking
-    currentGame.wrongStreak = 0;
+    currentGame.coins = gameState.coins;
+    console.log('Starting level with coins:', gameState.coins);
+    console.log('Current game coins:', currentGame.coins);
+    updateAllCoinDisplays();
+currentGame.wrongStreak = 0;
     currentGame.correctAnswers = 0;
     currentGame.levelStartTime = Date.now();
     currentGame.firstAttempt = true;
@@ -6868,19 +6871,14 @@ function pulseCoins(times = 1) {
 
 function updateAllCoinDisplays() {
     console.log('Updating coin displays:', {
-        currentCoins: currentGame.coins,
-        playerName: currentArcadeSession.playerName,
+        currentCoins: gameState.coins,
         displays: document.querySelectorAll('.coin-count').length
     });
 
     const displays = document.querySelectorAll('.coin-count');
     displays.forEach(display => {
         const currentValue = parseInt(display.textContent) || 0;
-        console.log('Display update:', {
-            from: currentValue,
-            to: currentGame.coins
-        });
-        display.textContent = currentGame.coins;
+        animateNumber(display, currentValue, gameState.coins);
     });
 }
 
@@ -11376,7 +11374,7 @@ function initializePowerups() {
 
 function animateNumber(element, start, end, duration = 500) {
     const difference = end - start;
-    const frames = 20;
+    const frames = Math.min(Math.abs(difference), 20); // Limit frames to prevent too rapid animation
     const step = difference / frames;
     let current = start;
     
