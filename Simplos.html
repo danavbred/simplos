@@ -1301,6 +1301,48 @@ body {
     gap: 0.5rem;
 }
 
+.game-notification {
+    position: fixed;
+    top: 20%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: var(--glass);
+    padding: 1rem 2rem;
+    border-radius: 25px;
+    color: var(--text);
+    backdrop-filter: blur(10px);
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.game-notification.blessing {
+    border: 2px solid #3498db;
+}
+
+.game-notification.curse {
+    border: 2px solid #e74c3c;
+}
+
+.game-notification.show {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+.particle {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.particle.blessing {
+    background: #3498db;
+}
+
+.particle.curse {
+    background: #e74c3c;
+}
+
 .coin-icon {
     color: var(--gold);
     animation: coinPulse 3s ease-in-out infinite;
@@ -1422,6 +1464,65 @@ body {
         width: 90%;
         padding: 1.25rem 0.75rem;
     }
+}
+
+.leaderboard-entry div[data-words],
+.leaderboard-entry div[data-coins] {
+    transition: color 0.3s ease;
+}
+
+.leaderboard-entry.moving-up {
+    animation: moveUp 0.8s ease-in-out forwards;
+    z-index: 2;
+}
+
+.leaderboard-entry.moving-down {
+    animation: moveDown 0.8s ease-in-out forwards;
+    z-index: 1;
+}
+
+@keyframes moveUp {
+    0% { transform: translateY(65px); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes moveDown {
+    0% { transform: translateY(-65px); }
+    100% { transform: translateY(0); }
+}
+
+.powerups-container {
+    display: none;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.powerups-container.arcade-visible {
+    display: flex;
+}
+
+.powerup-button {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 15px;
+    color: white;
+    cursor: pointer;
+}
+
+.powerup-button.blue {
+    background: #3498db;
+}
+
+.powerup-button.red {
+    background: #e74c3c;
+}
+
+.coin-count {
+    transition: none; /* Remove existing transitions */
+}
+
+.coin-count.animating {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .coins-header .coin-icon {
@@ -4002,22 +4103,6 @@ body {
 <div id="question-screen" class="screen">
     <div class="particle-container"></div>
     
-    
-
-    <!-- Navigation Buttons -->
-    <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">
-        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-            <i class="fas fa-home navigation-icon"></i>
-        </button>
-        <button class="navigation-button reset-button" onclick="handleResetProgress()">
-            <i class="fas fa-trash-alt navigation-icon"></i>
-        </button>
-        <button class="navigation-button restart-level" onclick="handleRestartLevel()">
-            <i class="fas fa-redo navigation-icon"></i>
-        </button>
-    </div>
-
-
 
     <!-- Question Word -->
     <div class="question-word" id="question-word"></div>
@@ -4055,6 +4140,17 @@ body {
             <span class="perk-count">0</span>
         </button>
     </div>
+
+    <div class="powerups-container">
+    <button class="powerup-button blessing" id="blessingButton">
+        <i class="fas fa-hand-holding-heart"></i>
+        Blessing (5)
+    </button>
+    <button class="powerup-button curse" id="curseButton">
+        <i class="fas fa-skull"></i>
+        Curse (5)
+    </button>
+</div>
 
     <!-- Timer Container -->
     <div class="timer-container">
@@ -5414,6 +5510,7 @@ function animateCoinsChange(element, startValue, endValue) {
     const frameRate = 60;
     const frames = duration / (1000 / frameRate);
     const increment = (endValue - startValue) / frames;
+    
     let currentFrame = 0;
     let currentValue = startValue;
 
@@ -5422,15 +5519,129 @@ function animateCoinsChange(element, startValue, endValue) {
         currentValue += increment;
         
         if (currentFrame <= frames) {
+            // Round to nearest integer for whole number display
             element.textContent = Math.round(currentValue);
+            
+            // Add color change based on increase/decrease
+            if (increment > 0) {
+                element.style.color = 'var(--success)';
+            } else if (increment < 0) {
+                element.style.color = 'var(--error)';
+            }
+            
             requestAnimationFrame(updateFrame);
         } else {
+            // Final frame
             element.textContent = endValue;
+            
+            // Reset color after animation
+            setTimeout(() => {
+                element.style.color = 'var(--text)';
+            }, 300);
         }
     }
 
     updateFrame();
 }
+
+function updatePlayerProgress(payload) {
+    const existingPlayerIndex = currentArcadeSession.participants.findIndex(
+        p => p.username === payload.username
+    );
+    
+    // Store old positions and values for animation
+    const oldPositions = {};
+    const oldValues = {};
+    document.querySelectorAll('.leaderboard-entry').forEach(entry => {
+        const username = entry.querySelector('[data-username]').dataset.username;
+        oldPositions[username] = entry.getBoundingClientRect();
+        
+        const wordsElement = entry.querySelector('[data-words]');
+        const coinsElement = entry.querySelector('[data-coins]');
+        
+        if (wordsElement) oldValues[username] = {
+            words: parseInt(wordsElement.textContent),
+            coins: parseInt(coinsElement.textContent)
+        };
+    });
+    
+    if (existingPlayerIndex !== -1) {
+        currentArcadeSession.participants[existingPlayerIndex] = {
+            ...currentArcadeSession.participants[existingPlayerIndex],
+            ...payload
+        };
+    } else {
+        currentArcadeSession.participants.push({
+            username: payload.username,
+            wordsCompleted: payload.wordsCompleted || 0,
+            coins: payload.coins || 0
+        });
+    }
+    
+    // Sort and create new entries
+    const sortedPlayers = [...currentArcadeSession.participants]
+        .sort((a, b) => {
+            if (b.wordsCompleted !== a.wordsCompleted) {
+                return b.wordsCompleted - a.wordsCompleted;
+            }
+            return b.coins - a.coins;
+        });
+    
+    const entries = sortedPlayers.map((player, index) => `
+        <div class="leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}"
+             data-rank="${index + 1}">
+            <div>${index + 1}</div>
+            <div data-username="${player.username}">${player.username}</div>
+            <div data-words="${player.wordsCompleted}">${player.wordsCompleted || 0}</div>
+            <div data-coins="${player.coins}">${player.coins || 0}</div>
+        </div>
+    `).join('');
+    
+    const leaderboard = document.getElementById('arcade-leaderboard');
+    leaderboard.innerHTML = leaderboard.querySelector('.leaderboard-header').outerHTML + entries;
+
+    // Apply animations
+    const newEntries = leaderboard.querySelectorAll('.leaderboard-entry');
+    newEntries.forEach(entry => {
+        const username = entry.querySelector('[data-username]').dataset.username;
+        if (oldPositions[username]) {
+            const oldPos = oldPositions[username];
+            const newPos = entry.getBoundingClientRect();
+            const diff = oldPos.top - newPos.top;
+            
+            if (diff > 0) {
+                entry.classList.add('moving-up');
+            } else if (diff < 0) {
+                entry.classList.add('moving-down');
+            }
+            
+            // Animate words and coins if values changed
+            if (oldValues[username]) {
+                const wordsElement = entry.querySelector('[data-words]');
+                const coinsElement = entry.querySelector('[data-coins]');
+                
+                animateCoinsChange(
+                    wordsElement, 
+                    oldValues[username].words, 
+                    parseInt(wordsElement.textContent)
+                );
+                
+                animateCoinsChange(
+                    coinsElement, 
+                    oldValues[username].coins, 
+                    parseInt(coinsElement.textContent)
+                );
+            }
+            
+            entry.addEventListener('animationend', () => {
+                entry.classList.remove('moving-up', 'moving-down');
+            }, { once: true });
+        }
+    });
+}
+
+// Update the handleArcadeAnswer function to use the new animation
+
 
 function handleTimeUp() {
     if (currentGame.currentIndex >= currentGame.words.length) return; // Don't show if level is complete
@@ -5796,6 +6007,13 @@ async function startLevel(levelId) {
     currentGame.levelStartTime = Date.now();
     currentGame.firstAttempt = true;
     currentGame.streakBonus = true;
+
+    // Toggle menus for regular game
+    const perksContainer = document.querySelector('.perks-container');
+    const powerupsContainer = document.querySelector('.powerups-container');
+    
+    perksContainer.style.display = 'flex';
+    powerupsContainer.style.display = 'none';
 
     // Regular game initialization
     gameState.currentStage = gameState.currentStage || 1;
@@ -6252,25 +6470,24 @@ function pulseCoins(times = 1) {
 }
 
 function updateAllCoinDisplays() {
-    // Get all coin displays, including both header and in-game displays
-    const displays = document.querySelectorAll('.coin-count');
-    
-    displays.forEach(display => {
-        const currentValue = parseInt(display.textContent) || 0;
-        if (currentValue !== gameState.coins) {
-            animateCoinsChange(display, currentValue, gameState.coins);
-        }
+    console.log('Updating coin displays:', {
+        currentCoins: currentGame.coins,
+        playerName: currentArcadeSession.playerName,
+        displays: document.querySelectorAll('.coin-count').length
     });
 
-    // Handle visibility of coins header based on screen
-    const questionScreenCoins = document.querySelector('#question-screen .coins-header');
-    const otherScreenCoins = document.querySelectorAll('#welcome-screen .coins-header, #stage-screen .coins-header, #set-screen .coins-header, #level-screen .coins-header');
-    
-    otherScreenCoins.forEach(coinHeader => coinHeader.style.display = 'none');
-    if (questionScreenCoins) {
-        questionScreenCoins.style.display = 'flex';
-    }
+    const displays = document.querySelectorAll('.coin-count');
+    displays.forEach(display => {
+        const currentValue = parseInt(display.textContent) || 0;
+        console.log('Display update:', {
+            from: currentValue,
+            to: currentGame.coins
+        });
+        display.textContent = currentGame.coins;
+    });
 }
+
+
 function usePerk(perkType) {
     if (gameState.perks[perkType] <= 0) return;
 
@@ -9948,6 +10165,13 @@ async function startArcadeGame() {
     questionScreen.classList.add('visible');
     document.getElementById('waiting-screen').classList.remove('visible');
     
+    // Toggle menus for arcade mode
+    const perksContainer = document.querySelector('.perks-container');
+    const powerupsContainer = document.querySelector('.powerups-container');
+    
+    perksContainer.style.display = 'none';
+    powerupsContainer.style.display = 'flex';
+    
     let initialCoins = 0;
     
     // For premium users, get current coins from game progress
@@ -9962,6 +10186,22 @@ async function startArcadeGame() {
             if (!error && data) {
                 initialCoins = data.coins;
                 console.log('Loaded initial coins:', initialCoins);
+                
+                // Immediately update UI and broadcast initial state
+                currentGame.coins = initialCoins;
+                updateAllCoinDisplays();
+                
+                // Broadcast initial coin state
+                await window.arcadeChannel.send({
+                    type: 'broadcast',
+                    event: 'progress_update',
+                    payload: {
+                        username: currentArcadeSession.playerName,
+                        wordsCompleted: 0,
+                        coins: initialCoins,
+                        timestamp: Date.now()
+                    }
+                });
             }
         } catch (error) {
             console.error('Failed to load coins:', error);
@@ -9975,9 +10215,72 @@ async function startArcadeGame() {
         wrongStreak: 0,
         words: currentArcadeSession.wordPool,
         wordsCompleted: 0,
-        coins: initialCoins // Use loaded coins for premium users
+        coins: initialCoins,
+        lastBroadcast: Date.now()
     };
 
+    // Initialize powerups
+    initializePowerups();
+
+    // Set up broadcast channel listeners
+    window.arcadeChannel
+        .on('broadcast', { event: 'progress_update' }, ({ payload }) => {
+            console.log('Progress update received:', payload);
+            if (payload.username !== currentArcadeSession.playerName) {
+                const existingPlayerIndex = currentArcadeSession.participants.findIndex(
+                    p => p.username === payload.username
+                );
+                
+                if (existingPlayerIndex !== -1) {
+                    currentArcadeSession.participants[existingPlayerIndex] = {
+                        ...currentArcadeSession.participants[existingPlayerIndex],
+                        ...payload
+                    };
+                } else {
+                    currentArcadeSession.participants.push({
+                        username: payload.username,
+                        wordsCompleted: payload.wordsCompleted || 0,
+                        coins: payload.coins || 0
+                    });
+                }
+                
+                updatePlayerProgress({
+                    username: payload.username,
+                    wordsCompleted: payload.wordsCompleted,
+                    coins: payload.coins
+                });
+            }
+        })
+        .on('broadcast', { event: 'coin_effect' }, ({ payload }) => {
+    if (payload.targetUser === currentArcadeSession.playerName) {
+        const oldCoins = currentGame.coins;
+        currentGame.coins += payload.amount;
+        
+        // Animate coin changes
+        document.querySelectorAll('.coin-count').forEach(display => {
+            animateNumber(display, oldCoins, currentGame.coins);
+        });
+        
+        // Show notification
+        if (payload.type === 'blessing') {
+            showNotification(`${payload.fromUser} high-fived you!`, 'blessing');
+        } else if (payload.type === 'curse') {
+            showNotification(`${payload.fromUser} poisoned you!`, 'curse');
+        }
+        
+        // Update leaderboard
+        updatePlayerProgress({
+            username: currentArcadeSession.playerName,
+            coins: currentGame.coins,
+            wordsCompleted: currentGame.wordsCompleted
+        });
+    }
+})
+
+    // Update UI elements
+    updateAllCoinDisplays();
+    
+    // Start first question
     loadNextArcadeQuestion();
 }
 
@@ -10025,85 +10328,7 @@ function loadNextArcadeQuestion() {
     currentGame.words.splice(currentIndex, 1);
 }
 
-async function handleArcadeAnswer(isCorrect) {
-    const playerUsername = currentArcadeSession.playerName || 
-        (currentUser?.user_metadata?.username || getRandomSimploName());
-    
-    let coinsChanged = false;
-    
-    if (isCorrect) {
-        currentGame.wordsCompleted++;
-        currentGame.correctStreak++;
-        currentGame.wrongStreak = 0;
-        
-        // Award coins with streak bonus
-        let coinsEarned = 5;
-        if (currentGame.correctStreak >= 3) {
-            coinsEarned += 5;
-        }
-        currentGame.coins += coinsEarned;
-        coinsChanged = true;
-        
-        // Visual feedback
-        pulseCoins(coinsEarned);
-        document.querySelector('.coin-count').textContent = currentGame.coins;
-        updateArcadeProgress();
-        
-    } else {
-        currentGame.wrongStreak++;
-        currentGame.correctStreak = 0;
-        
-        // Lose coins with streak penalty
-        let coinsLost = 2;
-        if (currentGame.wrongStreak >= 3) {
-            coinsLost += 3;
-        }
-        currentGame.coins = Math.max(0, currentGame.coins - coinsLost);
-        coinsChanged = true;
-        document.querySelector('.coin-count').textContent = currentGame.coins;
-    }
-    
-    // Sync coins for premium users after each change
-    if (coinsChanged && currentUser && currentUser.status === 'premium') {
-        try {
-            const { error } = await supabaseClient
-                .from('game_progress')
-                .update({ coins: currentGame.coins })
-                .eq('user_id', currentUser.id);
 
-            if (error) {
-                console.error('Error syncing coins:', error);
-            }
-        } catch (error) {
-            console.error('Failed to sync coins:', error);
-        }
-    }
-    
-    // Broadcast progress
-    if (window.arcadeChannel) {
-        try {
-            await window.arcadeChannel.send({
-                type: 'broadcast',
-                event: 'progress_update',
-                payload: {
-                    username: playerUsername,
-                    wordsCompleted: currentGame.wordsCompleted,
-                    coins: currentGame.coins,
-                    timestamp: Date.now()
-                }
-            });
-        } catch (error) {
-            console.error('Failed to broadcast progress:', error);
-        }
-    }
-    
-    if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
-        await handleArcadeCompletion();
-        return;
-    }
-    
-    loadNextArcadeQuestion();
-}
 
 async function handleArcadeCompletion() {
     if (currentUser && currentUser.status === 'premium') {
@@ -10219,73 +10444,76 @@ function exitArcade() {
     document.querySelector('.completion-overlay')?.remove();
 }
 
-function updatePlayerProgress(payload) {
-    const existingPlayerIndex = currentArcadeSession.participants.findIndex(
-        p => p.username === payload.username
-    );
+async function handleArcadeAnswer(isCorrect) {
+    const playerUsername = currentArcadeSession.playerName || 
+        (currentUser?.user_metadata?.username || getRandomSimploName());
     
-    // Store old positions for animation
-    const oldPositions = {};
-    document.querySelectorAll('.leaderboard-entry').forEach(entry => {
-        const username = entry.querySelector('[data-username]').dataset.username;
-        oldPositions[username] = entry.getBoundingClientRect();
-    });
+    let coinsChanged = false;
     
-    if (existingPlayerIndex !== -1) {
-        currentArcadeSession.participants[existingPlayerIndex] = {
-            ...currentArcadeSession.participants[existingPlayerIndex],
-            ...payload
-        };
+    if (isCorrect) {
+        currentGame.wordsCompleted++;
+        currentGame.correctStreak++;
+        currentGame.wrongStreak = 0;
+        
+        // Award coins with streak bonus
+        let coinsEarned = 5;
+        if (currentGame.correctStreak >= 3) {
+            coinsEarned += 5;
+        }
+        
+        const oldCoins = currentGame.coins;
+        currentGame.coins += coinsEarned;
+        coinsChanged = true;
+        
+        // Animate coin changes
+        const coinElement = document.querySelector('.coin-count');
+        animateCoinsChange(coinElement, oldCoins, currentGame.coins);
+        
+        updateArcadeProgress();
+        
     } else {
-        currentArcadeSession.participants.push({
-            username: payload.username,
-            wordsCompleted: payload.wordsCompleted || 0,
-            coins: payload.coins || 0
-        });
+        currentGame.wrongStreak++;
+        currentGame.correctStreak = 0;
+        
+        // Lose coins with streak penalty
+        let coinsLost = 2;
+        if (currentGame.wrongStreak >= 3) {
+            coinsLost += 3;
+        }
+        
+        const oldCoins = currentGame.coins;
+        currentGame.coins = Math.max(0, currentGame.coins - coinsLost);
+        coinsChanged = true;
+        
+        // Animate coin changes
+        const coinElement = document.querySelector('.coin-count');
+        animateCoinsChange(coinElement, oldCoins, currentGame.coins);
     }
     
-    // Sort and create new entries
-    const sortedPlayers = [...currentArcadeSession.participants]
-        .sort((a, b) => {
-            if (b.wordsCompleted === a.wordsCompleted) {
-                return b.coins - a.coins;
-            }
-            return b.wordsCompleted - a.wordsCompleted;
-        });
-    
-    const entries = sortedPlayers.map((player, index) => `
-        <div class="leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}"
-             data-rank="${index + 1}">
-            <div>${index + 1}</div>
-            <div data-username="${player.username}">${player.username}</div>
-            <div>${player.wordsCompleted || 0}</div>
-            <div>${player.coins || 0}</div>
-        </div>
-    `).join('');
-    
-    const leaderboard = document.getElementById('arcade-leaderboard');
-    leaderboard.innerHTML = leaderboard.querySelector('.leaderboard-header').outerHTML + entries;
-
-    // Apply animations
-    const newEntries = leaderboard.querySelectorAll('.leaderboard-entry');
-    newEntries.forEach(entry => {
-        const username = entry.querySelector('[data-username]').dataset.username;
-        if (oldPositions[username]) {
-            const oldPos = oldPositions[username];
-            const newPos = entry.getBoundingClientRect();
-            const diff = oldPos.top - newPos.top;
-            
-            if (diff > 0) {
-                entry.classList.add('moving-up');
-            } else if (diff < 0) {
-                entry.classList.add('moving-down');
-            }
-            
-            entry.addEventListener('animationend', () => {
-                entry.classList.remove('moving-up', 'moving-down');
-            }, { once: true });
+    // Broadcast progress with updated coins
+    if (window.arcadeChannel) {
+        try {
+            await window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'progress_update',
+                payload: {
+                    username: playerUsername,
+                    wordsCompleted: currentGame.wordsCompleted,
+                    coins: currentGame.coins,
+                    timestamp: Date.now()
+                }
+            });
+        } catch (error) {
+            console.error('Failed to broadcast progress:', error);
         }
-    });
+    }
+    
+    if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
+        await handleArcadeCompletion();
+        return;
+    }
+    
+    loadNextArcadeQuestion();
 }
 
 function checkGameEnd() {
@@ -10579,6 +10807,163 @@ function showContactUs() {
     // TODO: Implement contact us functionality
     alert('Contact Us page coming soon!');
 }
+
+function initializePowerups() {
+    const blessingButton = document.getElementById('blessingButton');
+    const curseButton = document.getElementById('curseButton');
+
+    blessingButton.onclick = async () => {
+        if (currentGame.coins < 5) return;
+        
+        const otherPlayers = currentArcadeSession.participants.filter(
+            p => p.username !== currentArcadeSession.playerName
+        );
+        if (!otherPlayers.length) return;
+        
+        const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+        
+        // Get button position for particles
+        const rect = blessingButton.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        
+        // Create effect
+        createParticles(x, y, 'blessing');
+        
+        // Update my coins with animation
+        const oldCoins = currentGame.coins;
+        currentGame.coins -= 5;
+        
+        document.querySelectorAll('.coin-count').forEach(display => {
+            animateNumber(display, oldCoins, currentGame.coins);
+        });
+        
+        // Send update
+        await window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'coin_effect',
+            payload: {
+                targetUser: targetPlayer.username,
+                amount: 30,
+                type: 'blessing',
+                fromUser: currentArcadeSession.playerName
+            }
+        });
+    };
+
+    curseButton.onclick = async () => {
+        if (currentGame.coins < 5) return;
+        
+        const otherPlayers = currentArcadeSession.participants.filter(
+            p => p.username !== currentArcadeSession.playerName
+        );
+        if (!otherPlayers.length) return;
+        
+        const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+        
+        // Get button position for particles
+        const rect = curseButton.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        
+        // Create effect
+        createParticles(x, y, 'curse');
+        
+        // Update my coins with animation
+        const oldCoins = currentGame.coins;
+        currentGame.coins -= 5;
+        
+        document.querySelectorAll('.coin-count').forEach(display => {
+            animateNumber(display, oldCoins, currentGame.coins);
+        });
+        
+        // Send update
+        await window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'coin_effect',
+            payload: {
+                targetUser: targetPlayer.username,
+                amount: -10,
+                type: 'curse',
+                fromUser: currentArcadeSession.playerName
+            }
+        });
+    };
+}
+
+function animateNumber(element, start, end, duration = 500) {
+    const difference = end - start;
+    const frames = 20;
+    const step = difference / frames;
+    let current = start;
+    
+    function updateNumber() {
+        current += step;
+        if ((step > 0 && current >= end) || (step < 0 && current <= end)) {
+            element.textContent = end;
+            return;
+        }
+        
+        element.textContent = Math.round(current);
+        requestAnimationFrame(updateNumber);
+    }
+    
+    requestAnimationFrame(updateNumber);
+}
+
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.className = `game-notification ${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.classList.add('show'), 10);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 2000);
+}
+
+function createParticles(x, y, type) {
+    const particleCount = 15;
+    const colors = type === 'blessing' ? 
+        ['#3498db', '#2980b9', '#1abc9c'] : 
+        ['#e74c3c', '#c0392b', '#d35400'];
+    
+    for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = `particle ${type}`;
+        
+        const size = Math.random() * 8 + 4;
+        const angle = (Math.random() * Math.PI * 2);
+        const velocity = Math.random() * 100 + 50;
+        
+        particle.style.width = `${size}px`;
+        particle.style.height = `${size}px`;
+        particle.style.borderRadius = '50%';
+        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        particle.style.position = 'fixed';
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        
+        document.body.appendChild(particle);
+        
+        const destinationX = x + Math.cos(angle) * velocity;
+        const destinationY = y + Math.sin(angle) * velocity;
+        
+        particle.animate([
+            { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+            { transform: `translate(${destinationX - x}px, ${destinationY - y}px) scale(0)`, opacity: 0 }
+        ], {
+            duration: 1000,
+            easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
+        }).onfinish = () => particle.remove();
+    }
+}
+
+
+
 
 </script>
 </body>
