@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2.39.7"></script>
     <script src="vocabs.js"></script>
     <style>
@@ -1764,6 +1765,35 @@ body {
         width: 20px;
         height: 20px;
         font-size: 0.65rem;
+    }
+}
+
+.qr-section {
+    background: white;
+    padding: 1rem;
+    border-radius: 15px;
+    margin: 1rem 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.qr-section canvas {
+    width: 200px;
+    height: 200px;
+}
+
+.qr-hint {
+    color: var(--primary-dark);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .qr-section canvas {
+        width: 150px;
+        height: 150px;
     }
 }
 
@@ -4657,9 +4687,13 @@ body {
     <div class="moderator-container">
         <div class="session-info-panel">
             <div class="session-details">
-                <h2>Arcade Session</h2>
-                <div class="otp-display" id="moderatorOtp"></div>
-                <div class="session-metadata">
+    <h2>Arcade Session</h2>
+    <div class="otp-display" id="moderatorOtp"></div>
+    <div class="qr-section">
+        <canvas id="qrCode"></canvas>
+        <p class="qr-hint">Scan to join game</p>
+                </div>
+                    <div class="session-metadata">
                     <p>Date: <span id="sessionDate"></span></p>
                     <p>Start Time: <span id="sessionStartTime"></span></p>
                     <p>Word Goal: <span id="sessionWordGoal"></span></p>
@@ -4901,9 +4935,18 @@ function showSetScreen(stageId) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Your existing initialization code here...
+    await checkExistingSession();
+    initializeGame();
+    updatePerkCounts();
+    updateGuestPlayButton();
     
-    // Add fullscreen request for mobile
+    // Ensure particles on welcome screen
+    const welcomeScreen = document.getElementById('welcome-screen');
+    initializeParticles(welcomeScreen);
+    
+    await loadCustomLists();
+
+    // Mobile fullscreen handling
     if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
         // Request on first touch
         document.addEventListener('touchstart', function onFirstTouch() {
@@ -4924,7 +4967,56 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .catch(err => console.log('Failed to lock orientation:', err));
         }
     }
+
+    // Setup hash change handlers with logging
+    window.addEventListener('hashchange', () => {
+        console.log('Hash changed:', window.location.hash);
+        const hash = window.location.hash;
+        if (hash.startsWith('#join=')) {
+            const otp = hash.replace('#join=', '');
+            console.log('Join OTP detected:', otp);
+            history.pushState("", document.title, window.location.pathname);
+            showJoinModal(otp);
+        }
+    });
+
+    // Check for join hash on initial load
+    if (window.location.hash.startsWith('#join=')) {
+        console.log('Initial join hash detected');
+        const otp = window.location.hash.replace('#join=', '');
+        history.pushState("", document.title, window.location.pathname);
+        showJoinModal(otp);
+    }
+
+    // Initialize real-time channels if user is logged in
+    if (currentUser) {
+        setupUserStatusSubscription();
+        initializeStatusCheck();
+    }
 });
+
+function showJoinModal(otp = '') {
+    console.log('Opening join modal with OTP:', otp);
+    const modal = document.getElementById('arcade-modal');
+    const teacherView = document.getElementById('teacher-view');
+    const playerView = document.getElementById('player-view');
+    const otpInput = document.getElementById('otpInput');
+    
+    if (modal) {
+        modal.style.display = 'block';
+        if (teacherView) teacherView.style.display = 'none';
+        if (playerView) playerView.style.display = 'block';
+        
+        if (otpInput && otp) {
+            otpInput.value = otp;
+            // Auto-focus username input
+            const usernameInput = document.getElementById('arcadeUsername');
+            if (usernameInput) {
+                setTimeout(() => usernameInput.focus(), 300);
+            }
+        }
+    }
+}
 
 // Auth UI functions
 // Modify the existing authentication functions
@@ -10369,13 +10461,41 @@ function showModeratorScreen() {
     const moderatorScreen = document.getElementById('moderator-screen');
     moderatorScreen.classList.add('visible');
     
-    // Display OTP
+    // Display OTP and generate QR
     const otpDisplay = document.getElementById('moderatorOtp');
     if (otpDisplay && currentArcadeSession.otp) {
         otpDisplay.textContent = currentArcadeSession.otp;
+        
+        // Generate QR code with proper URL construction
+        const currentUrl = window.location.origin + window.location.pathname;
+        const joinUrl = `${currentUrl}#join=${currentArcadeSession.otp}`;
+        console.log('QR URL generated:', joinUrl);
+        
+        new QRious({
+            element: document.getElementById('qrCode'),
+            value: joinUrl,
+            size: 200,
+            backgroundAlpha: 1,
+            foreground: '#16213e',
+            background: '#ffffff',
+            level: 'H'
+        });
+        
+        // Update all session info at once
+        const now = new Date();
+        const sessionInfo = {
+            'sessionDate': now.toLocaleDateString(),
+            'sessionStartTime': now.toLocaleTimeString(),
+            'sessionWordGoal': currentArcadeSession.wordGoal,
+            'activeParticipantCount': currentArcadeSession.participants.length
+        };
+        
+        Object.entries(sessionInfo).forEach(([id, value]) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        });
     }
     
-    // Make sure leaderboard is initialized
     initializeLeaderboard();
 }
 
@@ -11747,6 +11867,58 @@ function requestFullscreenMode() {
         root.webkitRequestFullscreen().catch(err => console.log('Fullscreen request failed:', err));
     } else if (root.msRequestFullscreen) {
         root.msRequestFullscreen().catch(err => console.log('Fullscreen request failed:', err));
+    }
+}
+
+function generateQRCode(otp) {
+    const currentUrl = window.location.href;
+    const baseUrl = currentUrl.split('#')[0]; // Remove any hash
+    const joinUrl = `${baseUrl}#join=${otp}`;
+    
+    const qr = new QRious({
+        element: document.getElementById('qrCode'),
+        value: joinUrl,
+        size: 200,
+        backgroundAlpha: 1,
+        foreground: '#16213e', // var(--primary)
+        background: '#ffffff',
+        level: 'H' // highest error correction
+    });
+}
+
+function handleHashChange() {
+    console.log('Hash changed:', window.location.hash);  // Add logging
+    const hash = window.location.hash;
+    if (hash.startsWith('#join=')) {
+        const otp = hash.replace('#join=', '');
+        console.log('Found OTP in hash:', otp);  // Add logging
+        // Clear hash
+        history.pushState("", document.title, window.location.pathname);
+        // Show join modal with pre-filled OTP
+        showJoinModal(otp);
+    }
+}
+
+function showJoinModal(otp = '') {
+    console.log('Showing join modal with OTP:', otp);  // Add logging
+    const modal = document.getElementById('arcade-modal');
+    const teacherView = document.getElementById('teacher-view');
+    const playerView = document.getElementById('player-view');
+    const otpInput = document.getElementById('otpInput');
+    
+    if (modal) {
+        modal.style.display = 'block';
+        if (teacherView) teacherView.style.display = 'none';
+        if (playerView) playerView.style.display = 'block';
+        
+        if (otpInput && otp) {
+            otpInput.value = otp;
+            // Focus username input if it exists
+            const usernameInput = document.getElementById('arcadeUsername');
+            if (usernameInput) {
+                usernameInput.focus();
+            }
+        }
     }
 }
 
