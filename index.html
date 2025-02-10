@@ -1887,6 +1887,125 @@ body {
     animation: pulseGlow 1.5s ease-in-out infinite;
 }
 
+.waiting-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    position: relative;
+    overflow: hidden;
+}
+
+.spinner-container {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin-bottom: 2rem;
+}
+
+.spinner {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 4px solid rgba(255,255,255,0.1);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.waiting-title {
+    font-size: 2rem;
+    color: var(--gold);
+    margin-bottom: 1rem;
+    text-shadow: 0 2px 10px rgba(255,215,0,0.3);
+}
+
+.player-count {
+    font-size: 1.2rem;
+    color: var(--text);
+    opacity: 0.8;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Floating particles */
+.floating-particles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
+.floating-particle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--gold);
+    border-radius: 50%;
+    opacity: 0.3;
+    animation: float 3s infinite ease-in-out;
+}
+
+.fade-transition {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--primary-dark);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    z-index: 9999;
+}
+
+.fade-transition.show {
+    opacity: 1;
+}
+
+.slide-panels {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.slide-panel-left, .slide-panel-right {
+    position: absolute;
+    width: 50%;
+    height: 100%;
+    background: var(--primary-dark);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-panel-left {
+    left: 0;
+    transform: translateX(-100%);
+}
+
+.slide-panel-right {
+    right: 0;
+    transform: translateX(100%);
+}
+
+.slide-panels.show .slide-panel-left {
+    transform: translateX(0);
+}
+
+.slide-panels.show .slide-panel-right {
+    transform: translateX(0);
+}
+
+
+
 .coins-header .coin-icon {
   color: var(--gold);
   font-size: 1.5rem;
@@ -4778,10 +4897,16 @@ body {
 </div>
 
 <div id="waiting-screen" class="screen">
-   <h2>Waiting to start...</h2>
-   <button id="joinGameButton" class="join-game-button" style="display: none;" onclick="startArcadeGame()">
-       Join Game
-   </button>
+    <div class="waiting-container">
+        <div class="spinner-container">
+            <div class="spinner"></div>
+        </div>
+        <h2 class="waiting-title">Waiting for Game to Start...</h2>
+        <div class="player-count">
+            <span id="waiting-player-count">0</span> Players Ready
+        </div>
+        <div class="floating-particles"></div>
+    </div>
 </div>
 
 <div id="moderator-screen" class="screen">
@@ -10061,17 +10186,16 @@ async function showLeaderboard() {
         await fetchAndRenderLeaderboard();
 
         // Set up polling
-        const pollInterval = setInterval(fetchAndRenderLeaderboard, 1500);
+        const pollInterval = setInterval(fetchAndRenderLeaderboard, 10000);
 
         // Store interval for cleanup
         const leaderboardScreen = document.getElementById('leaderboard-screen');
-        if (leaderboardScreen) {
-            if (leaderboardScreen.dataset.pollInterval) {
-                clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
-            }
-            leaderboardScreen.dataset.pollInterval = pollInterval;
+    if (leaderboardScreen) {
+        if (leaderboardScreen.dataset.pollInterval) {
+            clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
         }
-
+        leaderboardScreen.dataset.pollInterval = pollInterval;
+    }
     } catch (error) {
         console.error('Detailed leaderboard error:', error);
         entriesContainer.innerHTML = `<p>Error loading leaderboard: ${error.message}</p>`;
@@ -10287,6 +10411,10 @@ function initializeStatusCheck() {
 }
 
 // ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE
+
+
+
+
 
 document.addEventListener('DOMContentLoaded', () => {
     const otpInput = document.getElementById('otpInput');
@@ -11163,6 +11291,16 @@ function exitArcade() {
 }
 
 async function handleArcadeAnswer(isCorrect) {
+    const now = Date.now();
+    const lastAnswerTime = currentGame.lastAnswerTime || 0;
+    
+    // Enforce 1-second cooldown between answers
+    if (now - lastAnswerTime < 1000) {
+        return; // Ignore rapid clicks
+    }
+    
+    currentGame.lastAnswerTime = now;
+    
     const playerUsername = currentArcadeSession.playerName || 
         (currentUser?.user_metadata?.username || getRandomSimploName());
     
@@ -12062,6 +12200,55 @@ function showJoinModal(otp = '') {
     }
 }
 
+function detectDeviceCapability() {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const isLowEnd = navigator.hardwareConcurrency <= 4;
+    return { isMobile, isLowEnd };
+}
+
+function createTransitionElement() {
+    const { isMobile, isLowEnd } = detectDeviceCapability();
+    const transitionDiv = document.createElement('div');
+    
+    if (isLowEnd || isMobile) {
+        // Use simple fade for low-end devices
+        transitionDiv.className = 'fade-transition';
+    } else if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        // Respect user's motion preference
+        transitionDiv.className = 'fade-transition';
+    } else {
+        // Use more elaborate transition for capable devices
+        transitionDiv.className = 'slide-panels';
+        transitionDiv.innerHTML = `
+            <div class="slide-panel-left"></div>
+            <div class="slide-panel-right"></div>
+        `;
+    }
+    
+    return transitionDiv;
+}
+
+function showLevelTransition(callback) {
+    const transitionElement = createTransitionElement();
+    document.body.appendChild(transitionElement);
+    
+    // Force reflow
+    transitionElement.offsetHeight;
+    
+    // Show transition
+    transitionElement.classList.add('show');
+    
+    // Execute callback and cleanup
+    setTimeout(() => {
+        callback();
+        setTimeout(() => {
+            transitionElement.classList.remove('show');
+            setTimeout(() => {
+                document.body.removeChild(transitionElement);
+            }, 300);
+        }, 300);
+    }, 300);
+}
 
 
 </script>
