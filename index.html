@@ -1797,6 +1797,52 @@ body {
     }
 }
 
+@media (max-width: 768px) {
+    .arcade-join-modal {
+        padding: 0.5rem;
+    }
+
+    .arcade-join-modal .modal-content {
+        padding: 1.5rem;
+        max-width: 350px;
+    }
+
+    #player-view h2 {
+        font-size: 1.3rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .input-group input,
+    #otpInput {
+        font-size: 0.95rem;
+        padding: 0.875rem;
+        min-width: 250px; /* New line: ensures minimum width */
+        width: 100%; /* Maintains full-width responsiveness */
+    }
+
+    #arcadeUsername {
+        font-size: 1rem; /* Slightly larger font */
+        letter-spacing: -0.5px; /* Tighter letter spacing to fit more text */
+    }
+
+    .join-button {
+        font-size: 0.95rem;
+        padding: 0.875rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .input-group input,
+    #otpInput {
+        min-width: 220px; /* Slightly narrower for very small screens */
+        font-size: 0.9rem;
+    }
+
+    #arcadeUsername {
+        font-size: 0.95rem;
+    }
+}
+
 .coins-header .coin-icon {
   color: var(--gold);
   font-size: 1.5rem;
@@ -4940,6 +4986,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     updatePerkCounts();
     updateGuestPlayButton();
     
+    // Handle QR code joining
+    window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('load', handleHashChange);
+    
+    // Check for join hash on initial load
+    if (window.location.hash.startsWith('#join=')) {
+        console.log('Initial join hash detected');
+        const otp = window.location.hash.replace('#join=', '');
+        history.pushState("", document.title, window.location.pathname);
+        showJoinModal(otp);
+    }
+
     // Ensure particles on welcome screen
     const welcomeScreen = document.getElementById('welcome-screen');
     initializeParticles(welcomeScreen);
@@ -4968,24 +5026,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Setup hash change handlers with logging
-    window.addEventListener('hashchange', () => {
-        console.log('Hash changed:', window.location.hash);
-        const hash = window.location.hash;
-        if (hash.startsWith('#join=')) {
-            const otp = hash.replace('#join=', '');
-            console.log('Join OTP detected:', otp);
-            history.pushState("", document.title, window.location.pathname);
-            showJoinModal(otp);
-        }
-    });
-
-    // Check for join hash on initial load
-    if (window.location.hash.startsWith('#join=')) {
-        console.log('Initial join hash detected');
-        const otp = window.location.hash.replace('#join=', '');
-        history.pushState("", document.title, window.location.pathname);
-        showJoinModal(otp);
+    // OTP input handling
+    const otpInput = document.getElementById('otpInput');
+    if (otpInput) {
+        otpInput.addEventListener('input', function(e) {
+            // Remove any non-numeric characters
+            this.value = this.value.replace(/[^0-9]/g, '');
+            
+            // Limit to 4 digits
+            if (this.value.length > 4) {
+                this.value = this.value.slice(0, 4);
+            }
+        });
     }
 
     // Initialize real-time channels if user is logged in
@@ -11871,18 +11923,21 @@ function requestFullscreenMode() {
 }
 
 function generateQRCode(otp) {
-    const currentUrl = window.location.href;
-    const baseUrl = currentUrl.split('#')[0]; // Remove any hash
+    // Get the base URL without any parameters or hash
+    const baseUrl = window.location.origin + window.location.pathname;
     const joinUrl = `${baseUrl}#join=${otp}`;
     
-    const qr = new QRious({
+    // Add console logging for debugging
+    console.log('Generating QR code with URL:', joinUrl);
+    
+    new QRious({
         element: document.getElementById('qrCode'),
         value: joinUrl,
         size: 200,
         backgroundAlpha: 1,
-        foreground: '#16213e', // var(--primary)
+        foreground: '#16213e',
         background: '#ffffff',
-        level: 'H' // highest error correction
+        level: 'H'
     });
 }
 
