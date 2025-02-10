@@ -1,16 +1,24 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="google" content="notranslate">
-    <html lang="en" translate="no">
     <title>Simplos</title>
+    
+    <!-- Fonts and Styles -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Scripts -->
     <script src="https://unpkg.com/@supabase/supabase-js@2.39.7"></script>
     <script src="vocabs.js"></script>
-   <style>
+    <style>
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
 
 :root {
@@ -4892,18 +4900,30 @@ function showSetScreen(stageId) {
     });
 }
 
-
 document.addEventListener('DOMContentLoaded', async () => {
-    await checkExistingSession();
-    initializeGame();
-    updatePerkCounts();
-    updateGuestPlayButton(); // Add this line
+    // Your existing initialization code here...
     
-    // Ensure particles on welcome screen
-    const welcomeScreen = document.getElementById('welcome-screen');
-    initializeParticles(welcomeScreen);
-    
-    await loadCustomLists();
+    // Add fullscreen request for mobile
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        // Request on first touch
+        document.addEventListener('touchstart', function onFirstTouch() {
+            requestFullscreenMode();
+            document.removeEventListener('touchstart', onFirstTouch);
+        }, { once: true });
+        
+        // Request when clicking any button
+        document.addEventListener('click', function(e) {
+            if (e.target.tagName === 'BUTTON') {
+                requestFullscreenMode();
+            }
+        });
+        
+        // Screen orientation handling
+        if (screen.orientation) {
+            screen.orientation.lock('portrait')
+                .catch(err => console.log('Failed to lock orientation:', err));
+        }
+    }
 });
 
 // Auth UI functions
@@ -11710,6 +11730,24 @@ function initializePowerups() {
     
     // Initial availability check
     updatePowerupAvailability();
+}
+
+function requestFullscreenMode() {
+    const root = document.documentElement;
+    
+    // Check if the device is mobile
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (!isMobile) return; // Only proceed for mobile devices
+    
+    // Try different fullscreen methods
+    if (root.requestFullscreen) {
+        root.requestFullscreen().catch(err => console.log('Fullscreen request failed:', err));
+    } else if (root.webkitRequestFullscreen) {
+        root.webkitRequestFullscreen().catch(err => console.log('Fullscreen request failed:', err));
+    } else if (root.msRequestFullscreen) {
+        root.msRequestFullscreen().catch(err => console.log('Fullscreen request failed:', err));
+    }
 }
 
 </script>
