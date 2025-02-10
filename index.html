@@ -44,6 +44,28 @@
   --gold-gradient: linear-gradient(135deg, var(--gold), #ffa500);
 }
 
+.stage-button, .set-button, .level {
+    aspect-ratio: 1;
+    width: clamp(120px, 20vw, 200px);
+    height: clamp(120px, 20vw, 200px);
+    font-size: clamp(1rem, 2vw, 1.5rem);
+    padding: 1rem;
+}
+
+@media (max-width: 768px) {
+    .stage-button, .set-button, .level {
+        width: clamp(80px, 25vw, 120px);
+        height: clamp(80px, 25vw, 120px);
+        font-size: clamp(0.8rem, 4vw, 1rem);
+        padding: 0.5rem;
+    }
+    
+    .stage-container, .set-container, .level-selection {
+        gap: 1rem;
+        padding: 1rem;
+    }
+}
+
 /* Update button styles */
 .start-button,
 .custom-lists-button,
@@ -2512,6 +2534,8 @@ body {
         filter: brightness(1.2);
     }
 }
+
+
 
 .perks-container {
   display: flex;
@@ -8234,35 +8258,36 @@ function processCustomWords() {
 
 
 function setupWordListKeyNavigation() {
-    document.getElementById('word-translation-list').addEventListener('keydown', (e) => {
-        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
-        
-        e.preventDefault();
+    const container = document.getElementById('word-translation-list');
+    if (!container) return;
+    
+    container.addEventListener('keydown', (e) => {
         const currentItem = document.activeElement.closest('.word-translation-item');
         if (!currentItem) return;
-
-        let targetItem;
+        
+        let targetElement;
+        
         switch(e.key) {
             case 'ArrowUp':
-                targetItem = currentItem.previousElementSibling;
+                e.preventDefault();
+                targetElement = currentItem.previousElementSibling?.querySelector('.source-word');
                 break;
             case 'ArrowDown':
-                targetItem = currentItem.nextElementSibling;
-                break;
-            case 'ArrowLeft':
-                targetItem = currentItem.querySelector('.source-word');
+                e.preventDefault();
+                targetElement = currentItem.nextElementSibling?.querySelector('.source-word');
                 break;
             case 'ArrowRight':
-                targetItem = currentItem.querySelector('.target-word');
+                e.preventDefault();
+                targetElement = currentItem.querySelector('.target-word');
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                targetElement = currentItem.querySelector('.source-word');
                 break;
         }
-
-        if (targetItem) {
-            if (targetItem.tagName === 'DIV') {
-                targetItem.querySelector('.source-word').focus();
-            } else {
-                targetItem.focus();
-            }
+        
+        if (targetElement) {
+            targetElement.focus();
         }
     });
 }
@@ -8346,6 +8371,7 @@ function saveCurrentList() {
     const listNameInput = document.getElementById('custom-list-name');
     const wordList = document.getElementById('word-translation-list');
     
+    // Get current list name
     const name = listNameInput.value.trim() || (existingList ? existingList.name : `List ${customPracticeLists.lists.length + 1}`);
     const words = [];
     const translations = [];
@@ -8361,12 +8387,6 @@ function saveCurrentList() {
         }
     });
 
-    const limits = getUserListLimits();
-    if (words.length > limits.maxWords) {
-        showNotification(`You can only create lists with up to ${limits.maxWords} words.`, 'error');
-        return;
-    }
-
     if (existingList) {
         // Update existing list
         const index = customPracticeLists.lists.findIndex(l => l.id === existingList.id);
@@ -8378,40 +8398,22 @@ function saveCurrentList() {
                 translations: translations
             };
         }
-        // Reset current list
         customPracticeLists.currentList = null;
     } else {
-        // Create new list
+        // Create new list with limit check
         if (!canCreateMoreLists()) {
-            showNotification(`You can only create ${getUserListLimits().maxLists} custom lists.`, 'error');
+            showNotification('Maximum lists limit reached', 'error');
             return;
         }
-        
-        const newList = {
+        customPracticeLists.lists.push({
             id: Date.now(),
             name: name,
             words: words,
-            translations: translations,
-            status: currentUser ? currentUser.status : 'unregistered'
-        };
-        
-        customPracticeLists.lists.push(newList);
+            translations: translations
+        });
     }
     
-    // Save to localStorage
-    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    
-    // Save to Supabase if logged in
-    if (currentUser) {
-        saveCustomListToSupabase(customPracticeLists.lists[customPracticeLists.lists.length - 1]);
-    }
-    
-    // Clear form and hide translation results
-    listNameInput.value = '';
-    wordList.innerHTML = '';
-    document.getElementById('translation-results').style.display = 'none';
-    
-    // Refresh list manager
+    saveCustomLists();
     showCustomListsManager();
 }
 
