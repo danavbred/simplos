@@ -44,27 +44,6 @@
   --gold-gradient: linear-gradient(135deg, var(--gold), #ffa500);
 }
 
-.stage-button, .set-button, .level {
-    aspect-ratio: 1;
-    width: clamp(120px, 20vw, 200px);
-    height: clamp(120px, 20vw, 200px);
-    font-size: clamp(1rem, 2vw, 1.5rem);
-    padding: 1rem;
-}
-
-@media (max-width: 768px) {
-    .stage-button, .set-button, .level {
-        width: clamp(80px, 25vw, 120px);
-        height: clamp(80px, 25vw, 120px);
-        font-size: clamp(0.8rem, 4vw, 1rem);
-        padding: 0.5rem;
-    }
-    
-    .stage-container, .set-container, .level-selection {
-        gap: 1rem;
-        padding: 1rem;
-    }
-}
 
 /* Update button styles */
 .start-button,
@@ -6634,94 +6613,167 @@ function showLevelScreen(setId) {
 // Level Logic
 function calculateWordsForLevel(level, vocabulary) {
     const totalWords = vocabulary.words.length;
-    const unusedPool = getUnusedWordPool(vocabulary);
-    const testLevels = [3, 6, 9, 10, 13, 16, 19, 20];
+    const wordSurplus = totalWords - 50;
 
-    // Boss Level (21)
+    // Boss Level (21) - all words from the set with special mechanics
     if (level === 21) {
         return {
-            words: vocabulary.words,
-            translations: vocabulary.translations,
+            startIndex: 0,
+            count: totalWords,
             isBossLevel: true,
             speedChallenge: true,
-            mixed: true,
+            mixed: true,                    // Mix Hebrew/English questions
+            isTestLevel: true,              // Boss is always a test level
+            isHebrewToEnglish: Math.random() < 0.5,
+            testLevels: []                  // Boss level doesn't need test levels
+        };
+    }
+
+    // Level 1-2: Choose 3 new words
+    if (level === 1 || level === 2) {
+        return {
+            startIndex: (level - 1) * 3,
+            count: 3,
+            testLevels: [3, 10, 21]
+        };
+    }
+
+    // Level 3: Test words from levels 1-2
+    if (level === 3) {
+        return {
+            startIndex: 0,
+            count: 6,
             isTestLevel: true,
+            mixed: true,
             isHebrewToEnglish: Math.random() < 0.5
         };
     }
 
-    // Test Levels
-    if (testLevels.includes(level)) {
-        const wordRange = getTestLevelRange(level);
-        const selectedWords = selectWords(unusedPool, wordRange.count, wordRange.startIndex);
+    // Level 4-5: Choose 3 new words
+    if (level === 4 || level === 5) {
         return {
-            words: selectedWords.words,
-            translations: selectedWords.translations,
-            isTestLevel: true,
-            mixed: true,
-            isHebrewToEnglish: Math.random() < 0.5,
-            speedChallenge: [10, 20].includes(level)
+            startIndex: 6 + (level - 4) * 3,
+            count: 3,
+            testLevels: [6, 10, 21]
         };
     }
 
-    // Regular Levels
-    const wordCount = getRegularLevelWordCount(level);
-    const selectedWords = selectRandomWords(unusedPool, wordCount);
-    
-    return {
-        words: selectedWords.words,
-        translations: selectedWords.translations,
-        mixed: false,
-        testLevels: getNextTestLevels(level)
-    };
-}
-
-function getTestLevelRange(level) {
-    const ranges = {
-        3: { startIndex: 0, count: 6 },
-        6: { startIndex: 6, count: 6 },
-        9: { startIndex: 12, count: 8 },
-        10: { startIndex: 0, count: 20 },
-        13: { startIndex: 20, count: 8 },
-        16: { startIndex: 28, count: 11 },
-        19: { startIndex: 39, count: 11 },
-        20: { startIndex: 20, count: 30 }
-    };
-    return ranges[level];
-}
-
-function getRegularLevelWordCount(level) {
-    if (level <= 5) return 3;
-    if (level <= 8) return 4;
-    if (level <= 13) return 4;
-    if (level <= 15) return level === 14 ? 5 : 6;
-    return level === 17 ? 5 : 6;
-}
-
-function selectRandomWords(pool, count) {
-    const indices = new Set();
-    while (indices.size < count && pool.length > indices.size) {
-        indices.add(Math.floor(Math.random() * pool.length));
+    // Level 6: Test words from levels 4-5
+    if (level === 6) {
+        return {
+            startIndex: 6,
+            count: 6,
+            isTestLevel: true,
+            mixed: true,
+            isHebrewToEnglish: Math.random() < 0.5
+        };
     }
-    return {
-        words: Array.from(indices).map(i => pool[i].word),
-        translations: Array.from(indices).map(i => pool[i].translation)
-    };
-}
 
-function getNextTestLevels(level) {
-    const testMap = {
-        '1-2': [3, 10, 21],
-        '4-5': [6, 10, 21],
-        '7-8': [9, 10, 21],
-        '11-12': [13, 20, 21],
-        '14-15': [16, 20, 21],
-        '17-18': [19, 20, 21]
-    };
-    return Object.entries(testMap).find(([range]) => {
-        const [min, max] = range.split('-').map(Number);
-        return level >= min && level <= max;
-    })?.[1] || [];
+    // Level 7-8: Choose 4 new words
+    if (level === 7 || level === 8) {
+        return {
+            startIndex: 12 + (level - 7) * 4,
+            count: 4,
+            testLevels: [9, 10, 21]
+        };
+    }
+
+    // Level 9: Test words from levels 7-8
+    if (level === 9) {
+        return {
+            startIndex: 12,
+            count: 8,
+            isTestLevel: true,
+            mixed: true,
+            isHebrewToEnglish: Math.random() < 0.5
+        };
+    }
+
+    // Level 10: Test words from levels 1,2,4,5,7,8
+    if (level === 10) {
+        return {
+            startIndex: 0,
+            count: 20,
+            isTestLevel: true,
+            speedChallenge: true,
+            mixed: true,
+            isHebrewToEnglish: Math.random() < 0.5
+        };
+    }
+
+    // Level 11-12: Choose 4 new words
+    if (level === 11 || level === 12) {
+        return {
+            startIndex: 20 + (level - 11) * 4,
+            count: 4,
+            testLevels: [13, 20, 21]
+        };
+    }
+
+    // Level 13: Test words from levels 11-12
+    if (level === 13) {
+        return {
+            startIndex: 20,
+            count: 8,
+            isTestLevel: true,
+            mixed: true,
+            isHebrewToEnglish: Math.random() < 0.5
+        };
+    }
+
+    // Level 14-15: Choose 5-6 new words
+    if (level === 14 || level === 15) {
+        return {
+            startIndex: 28 + (level === 14 ? 0 : 5),
+            count: level === 14 ? 5 : 6,
+            testLevels: [16, 20, 21]
+        };
+    }
+
+    // Level 16: Test words from levels 14-15
+    if (level === 16) {
+        return {
+            startIndex: 28,
+            count: 11,
+            isTestLevel: true,
+            mixed: true,
+            isHebrewToEnglish: Math.random() < 0.5
+        };
+    }
+
+    // Level 17-18: Flexible word count based on total vocabulary
+    if (level === 17 || level === 18) {
+        const baseCount = level === 17 ? 5 : 6;
+        const adjustedCount = baseCount + (wordSurplus > 0 ? wordSurplus : 0);
+        return {
+            startIndex: 39 + (level === 17 ? 0 : adjustedCount),
+            count: adjustedCount,
+            testLevels: [19, 20, 21]
+        };
+    }
+
+    // Level 19: Test words from levels 17-18
+    if (level === 19) {
+        return {
+            startIndex: 39,
+            count: 11,
+            isTestLevel: true,
+            mixed: true,
+            isHebrewToEnglish: Math.random() < 0.5
+        };
+    }
+
+    // Level 20: Test words from levels 11,12,14,15,17,18
+    if (level === 20) {
+        return {
+            startIndex: 20,
+            count: 30,
+            isTestLevel: true,
+            speedChallenge: true,
+            mixed: true,
+            isHebrewToEnglish: Math.random() < 0.5
+        };
+    }
 }
 
 function getUnusedWords(vocabulary) {
