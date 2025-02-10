@@ -1544,21 +1544,18 @@ body {
     margin-bottom: 5px;
 }
 
-.powerup-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
-    opacity: 0;
-    transition: opacity 0.3s ease;
+@media (max-width: 375px) {
+    .powerups-container {
+        max-height: 100px;
+    }
+    
+    .powerup-card {
+        width: calc(50% - 10px); /* Two cards per row on smaller screens */
+        height: 90px;
+        font-size: 0.7em;
+    }
 }
 
-.powerup-card:hover::before {
-    opacity: 1;
-}
 
 .powerup-card.goodie {
     border: 2px solid #3498db;
@@ -1568,14 +1565,6 @@ body {
 .powerup-card.baddie {
     border: 2px solid #e74c3c;
     box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
-}
-
-.powerup-card:hover {
-    transform: translateY(-5px) scale(1.05);
-}
-
-.powerup-card:active {
-    transform: translateY(-2px) scale(0.98);
 }
 
 .powerup-icon {
@@ -1648,16 +1637,6 @@ body {
     
     .powerup-name {
         font-size: 0.8rem;
-    }
-
-    .powerups-container {
-        max-height: 100px;
-    }
-    
-    .powerup-card {
-        width: calc(50% - 10px); /* Two cards per row on smaller screens */
-        height: 90px;
-        font-size: 0.7em;
     }
 }
 
@@ -1887,10 +1866,6 @@ body {
     box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
 }
 
-.powerup-card:hover {
-    transform: translateY(-5px);
-}
-
 .powerup-icon {
     font-size: 2rem;
     margin-bottom: 0.5rem;
@@ -1934,56 +1909,6 @@ body {
     .powerup-name {
         font-size: 0.8rem;
     }
-}
-
-@keyframes bounce {
-    0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
-    40% {transform: translateY(-20px);}
-    60% {transform: translateY(-10px);}
-}
-
-@keyframes shake {
-    0% { transform: translate(1px, 1px) rotate(0deg); }
-    10% { transform: translate(-1px, -2px) rotate(-1deg); }
-    20% { transform: translate(-3px, 0px) rotate(1deg); }
-    30% { transform: translate(3px, 2px) rotate(0deg); }
-    40% { transform: translate(1px, -1px) rotate(1deg); }
-    50% { transform: translate(-1px, 2px) rotate(-1deg); }
-    60% { transform: translate(-3px, 1px) rotate(0deg); }
-    70% { transform: translate(3px, 1px) rotate(-1deg); }
-    80% { transform: translate(-1px, -1px) rotate(1deg); }
-    90% { transform: translate(1px, 2px) rotate(0deg); }
-    100% { transform: translate(1px, -2px) rotate(-1deg); }
-}
-
-.notification {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 1000;
-    padding: 15px;
-    border-radius: 10px;
-    color: white;
-    text-align: center;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    max-width: 80%;
-}
-
-.notification-content {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.notification-icon {
-    margin-right: 10px;
-    font-size: 1.5em;
-}
-
-.fade-out {
-    opacity: 0;
-    transition: opacity 0.5s ease;
 }
 
 .coins-header .coin-icon {
@@ -4605,7 +4530,7 @@ body {
     </div>
 
     <!-- Replace the old powerups-container content with this -->
-<div class="powerups-container">
+    <div class="powerups-container">
     <!-- Goodies -->
     <div class="powerup-card goodie" id="highFiveCard">
         <i class="fas fa-hand-paper powerup-icon"></i>
@@ -11542,48 +11467,17 @@ function animateNumber(element, start, end, duration = 500) {
 }
 
 function showNotification(message, type) {
-    const notificationContainer = document.createElement('div');
-    notificationContainer.className = `notification ${type}-notification`;
+    const notification = document.createElement('div');
+    notification.className = `game-notification ${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
     
-    // Dynamic styling based on type
-    const styles = {
-        'blessing': {
-            backgroundColor: '#4CAF50',
-            icon: '🎉',
-            animation: 'bounce'
-        },
-        'curse': {
-            backgroundColor: '#FF5722',
-            icon: '⚡',
-            animation: 'shake'
-        },
-        'info': {
-            backgroundColor: '#2196F3',
-            icon: 'ℹ️',
-            animation: 'fade'
-        }
-    };
-
-    const style = styles[type] || styles['info'];
+    setTimeout(() => notification.classList.add('show'), 10);
     
-    notificationContainer.innerHTML = `
-        <div class="notification-content ${style.animation}">
-            <span class="notification-icon">${style.icon}</span>
-            ${message}
-        </div>
-    `;
-    
-    notificationContainer.style.backgroundColor = style.backgroundColor;
-    
-    document.body.appendChild(notificationContainer);
-    
-    // Remove after animation
     setTimeout(() => {
-        notificationContainer.classList.add('fade-out');
-        setTimeout(() => {
-            document.body.removeChild(notificationContainer);
-        }, 500);
-    }, 3000);
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 2000);
 }
 
 function createParticles(x, y, type) {
