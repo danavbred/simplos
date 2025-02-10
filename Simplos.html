@@ -6924,13 +6924,18 @@ function updateAllCoinDisplays() {
         const currentValue = parseInt(display.textContent) || 0;
         let targetValue;
 
+        // Determine the target value based on the context
         if (window.location.pathname.includes('arcade')) {
             targetValue = currentGame.coins || 0;
         } else {
             targetValue = gameState.coins || 0;
         }
 
-        animateNumber(display, currentValue, targetValue);
+        // Ensure we're using actual numeric values
+        const startNum = Number(currentValue);
+        const endNum = Number(targetValue);
+
+        animateNumber(display, startNum, endNum);
     });
 }
 
@@ -11327,15 +11332,31 @@ function showContactUs() {
 }
 
 function animateNumber(element, start, end, duration = 500) {
+    // Ensure start and end are numbers
+    start = Number(start);
+    end = Number(end);
+    
+    // If start and end are the same, just set the value
+    if (start === end) {
+        element.textContent = end;
+        return;
+    }
+
     const difference = end - start;
-    const frames = 20;
+    const frames = 30; // Increased for smoother animation
     const step = difference / frames;
     let current = start;
+    let frameCount = 0;
     
     function updateNumber() {
         current += step;
-        if ((step > 0 && current >= end) || (step < 0 && current <= end)) {
-            element.textContent = end;
+        frameCount++;
+        
+        // Round to handle floating point imprecision
+        if (frameCount >= frames || 
+            (step > 0 && current >= end) || 
+            (step < 0 && current <= end)) {
+            element.textContent = Math.round(end);
             return;
         }
         
