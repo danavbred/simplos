@@ -1516,18 +1516,32 @@ body {
 
 .powerups-container {
     display: flex;
-    gap: 0.5rem;
-    margin: 1rem auto;
+    flex-wrap: wrap;
     justify-content: center;
-    width: 100%;
-    max-width: 400px; /* Reduced from 800px */
+    gap: 10px;
+    max-height: 120px; /* Reduced height */
+    overflow-y: auto;
+    padding: 5px;
 }
 
 .powerup-card {
-    width: 100px; /* Smaller cards */
-    height: 130px; /* Shorter height */
-    padding: 0.75rem;
-    font-size: 0.9rem;
+    width: calc(33% - 10px); /* Three cards per row */
+    max-width: 100px;
+    height: 100px; /* Fixed height */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.8em;
+}
+
+.powerup-card img {
+    max-width: 40px;
+    max-height: 40px;
+    margin-bottom: 5px;
 }
 
 .powerup-card::before {
@@ -1635,6 +1649,17 @@ body {
     .powerup-name {
         font-size: 0.8rem;
     }
+
+    .powerups-container {
+        max-height: 100px;
+    }
+    
+    .powerup-card {
+        width: calc(50% - 10px); /* Two cards per row on smaller screens */
+        height: 90px;
+        font-size: 0.7em;
+    }
+
 }
 
 /* Adjust question screen layout */
@@ -10839,30 +10864,40 @@ async function startArcadeGame() {
            }
        })
        .on('broadcast', { event: 'coin_effect' }, ({ payload }) => {
-           if (payload.targetUser === currentArcadeSession.playerName) {
-               const oldCoins = currentGame.coins;
-               currentGame.coins += payload.amount;
-               
-               // Animate coin changes
-               document.querySelectorAll('.coin-count').forEach(display => {
-                   animateNumber(display, oldCoins, currentGame.coins);
-               });
-               
-               // Show notification
-               if (payload.type === 'blessing') {
-                   showNotification(`${payload.fromUser} high-fived you!`, 'blessing');
-               } else if (payload.type === 'curse') {
-                   showNotification(`${payload.fromUser} poisoned you!`, 'curse');
-               }
-               
-               // Update leaderboard
-               updatePlayerProgress({
-                   username: currentArcadeSession.playerName,
-                   coins: currentGame.coins,
-                   wordsCompleted: currentGame.wordsCompleted
-               });
-           }
-       });
+    if (payload.targetUser === currentArcadeSession.playerName) {
+        const oldCoins = currentGame.coins;
+        currentGame.coins += payload.amount;
+        
+        // Animate coin changes
+        document.querySelectorAll('.coin-count').forEach(display => {
+            animateNumber(display, oldCoins, currentGame.coins);
+        });
+        
+        // Immediately update moderator leaderboard
+        const participantIndex = currentArcadeSession.participants.findIndex(
+            p => p.username === currentArcadeSession.playerName
+        );
+        
+        if (participantIndex !== -1) {
+            currentArcadeSession.participants[participantIndex].coins = currentGame.coins;
+            updateModeratorLeaderboard();
+        }
+        
+        // Show notification
+        if (payload.type === 'blessing') {
+            showNotification(`${payload.fromUser} high-fived you!`, 'blessing');
+        } else if (payload.type === 'curse') {
+            showNotification(`${payload.fromUser} poisoned you!`, 'curse');
+        }
+        
+        // Update leaderboard
+        updatePlayerProgress({
+            username: currentArcadeSession.playerName,
+            coins: currentGame.coins,
+            wordsCompleted: currentGame.wordsCompleted
+        });
+    }
+});
 
    // Update UI elements
    updateAllCoinDisplays();
