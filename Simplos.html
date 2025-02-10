@@ -1494,85 +1494,148 @@ body {
 }
 
 .powerups-container {
-    display: none;
-    gap: 1rem;
-    margin: 1rem 0;
-}
-
-.powerups-container.arcade-visible {
     display: flex;
+    gap: 0.5rem;
+    margin: 1rem auto;
+    justify-content: center;
+    width: 100%;
+    max-width: 400px; /* Reduced from 800px */
 }
 
-.powerup-button {
-    position: relative;
-    padding: 1rem 2rem;
-    border: none;
-    border-radius: 15px;
-    color: white;
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 1.1rem;
-    transition: all 0.3s ease;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-width: 180px;
+.powerup-card {
+    width: 100px; /* Smaller cards */
+    height: 130px; /* Shorter height */
+    padding: 0.75rem;
+    font-size: 0.9rem;
 }
 
-.powerup-button.blessing {
-    background: linear-gradient(135deg, #3498db, #2980b9);
-    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
-}
-
-.powerup-button.curse {
-    background: linear-gradient(135deg, #e74c3c, #c0392b);
-    box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
-}
-
-.powerup-button::before {
+.powerup-card::before {
     content: '';
     position: absolute;
     top: 0;
-    left: -100%;
+    left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(
-        120deg,
-        transparent,
-        rgba(255, 255, 255, 0.3),
-        transparent
-    );
-    transition: 0.5s;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+    opacity: 0;
+    transition: opacity 0.3s ease;
 }
 
-.powerup-button:hover::before {
-    left: 100%;
+.powerup-card:hover::before {
+    opacity: 1;
 }
 
-.powerup-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+.powerup-card.goodie {
+    border: 2px solid #3498db;
+    box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
+}
+
+.powerup-card.baddie {
+    border: 2px solid #e74c3c;
+    box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
+}
+
+.powerup-card:hover {
+    transform: translateY(-5px) scale(1.05);
+}
+
+.powerup-card:active {
+    transform: translateY(-2px) scale(0.98);
+}
+
+.powerup-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    color: var(--text);
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+.powerup-name {
+    font-size: 0.9rem;
+    text-align: center;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
 }
 
 .powerup-cost {
-    font-size: 0.8rem;
-    opacity: 0.8;
-    background: rgba(0, 0, 0, 0.2);
-    padding: 0.25rem 0.5rem;
+    position: absolute;
+    bottom: 0.5rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.25rem 0.75rem;
     border-radius: 10px;
-    margin-left: auto;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.powerup-cost::before {
+    content: '\f51e';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    color: var(--gold);
+}
+
+.powerup-card:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+@keyframes screenShake {
+    0%, 100% { transform: translate(0, 0) rotate(0); }
+    25% { transform: translate(5px, 5px) rotate(1deg); }
+    50% { transform: translate(-5px, -5px) rotate(-1deg); }
+    75% { transform: translate(-5px, 5px) rotate(1deg); }
+}
+
+.screen-shake {
+    animation: screenShake 0.5s ease-in-out infinite;
+}
+
+@media (max-width: 768px) {
+    @media (max-width: 768px) {
+    .question-screen {
+        padding: 1rem;
+        gap: 0.5rem;
+        justify-content: space-between;
+    }
+    
+    .powerup-card {
+        width: 90px;
+        height: 120px;
+        padding: 0.5rem;
+    }
+    
+    .powerup-icon {
+        font-size: 1.25rem;
+    }
+    
+    .powerup-name {
+        font-size: 0.8rem;
+    }
+}
+
+/* Adjust question screen layout */
+.question-word {
+    margin-top: 1rem;
+}
+
+.progress-circle {
+    margin: 0.5rem 0;
+}
+
+.buttons {
+    margin-bottom: 1rem;
+}
+
+    .powerup-cost {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+    }
 }
 
 /* Mobile optimization */
-@media (max-width: 768px) {
-    .powerups-container {
-        flex-direction: column;
-        gap: 0.75rem;
-        width: 90%;
-        margin: 1rem auto;
-    }
-
     .powerup-button {
         width: 100%;
         padding: 0.875rem 1.5rem;
@@ -1590,7 +1653,7 @@ body {
         max-width: 300px;
         font-size: 0.9rem;
     }
-}
+
 
 .arcade-join-modal {
     position: fixed;
@@ -1742,6 +1805,90 @@ body {
 
 .coin-count.animating {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.powerups-container {
+    display: flex;
+    gap: 1rem;
+    margin: 2rem auto;
+    justify-content: center;
+    width: 90%;
+    max-width: 800px;
+}
+
+.powerup-card {
+    position: relative;
+    width: 120px;
+    height: 160px;
+    background: var(--glass);
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+}
+
+.powerup-card.goodie {
+    border: 2px solid #3498db;
+    box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
+}
+
+.powerup-card.baddie {
+    border: 2px solid #e74c3c;
+    box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
+}
+
+.powerup-card:hover {
+    transform: translateY(-5px);
+}
+
+.powerup-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.powerup-name {
+    font-size: 0.9rem;
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.powerup-cost {
+    position: absolute;
+    bottom: 0.5rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.25rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
+}
+
+.powerup-card:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+    .powerups-container {
+        gap: 0.5rem;
+    }
+
+    .powerup-card {
+        width: 100px;
+        height: 140px;
+        padding: 0.75rem;
+    }
+
+    .powerup-icon {
+        font-size: 1.5rem;
+    }
+
+    .powerup-name {
+        font-size: 0.8rem;
+    }
 }
 
 .coins-header .coin-icon {
@@ -2235,29 +2382,29 @@ body {
 }
 
 .coins-container {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
 }
 
 .coins-container .coin-icon {
-  color: var(--gold);
-  font-size: 2rem;
-  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
+    color: var(--gold);
+    font-size: 2rem;
+    filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
 }
 
 .coins-container .coin-count {
-  font-size: 1.2rem;
-  font-weight: bold;
-  color: var(--text);
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--text);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
 .coin-pulse {
-  animation: coinPulse 0.5s ease-in-out 3;
+    animation: coinPulse 0.5s ease-in-out 3;
 }
 
 .skip-button {
@@ -4362,15 +4509,41 @@ body {
         </button>
     </div>
 
-    <div class="powerups-container">
-    <button class="powerup-button blessing" id="blessingButton">
-        <i class="fas fa-hand-holding-heart"></i>
-        Blessing (30)
-    </button>
-    <button class="powerup-button curse" id="curseButton">
-        <i class="fas fa-skull"></i>
-        Curse (150)
-    </button>
+    <!-- Replace the old powerups-container content with this -->
+<div class="powerups-container">
+    <!-- Goodies -->
+    <div class="powerup-card goodie" id="highFiveCard">
+        <i class="fas fa-hand-paper powerup-icon"></i>
+        <div class="powerup-name">High Five</div>
+        <div class="powerup-cost">30</div>
+    </div>
+    <div class="powerup-card goodie" id="fistBumpCard">
+        <i class="fas fa-fist-raised powerup-icon"></i>
+        <div class="powerup-name">Fist Bump</div>
+        <div class="powerup-cost">40</div>
+    </div>
+    <div class="powerup-card goodie" id="energyBoostCard">
+        <i class="fas fa-bolt powerup-icon"></i>
+        <div class="powerup-name">Energy Boost</div>
+        <div class="powerup-cost">45</div>
+    </div>
+
+    <!-- Baddies -->
+    <div class="powerup-card baddie" id="freezeCard">
+        <i class="fas fa-snowflake powerup-icon"></i>
+        <div class="powerup-name">Freeze</div>
+        <div class="powerup-cost">150</div>
+    </div>
+    <div class="powerup-card baddie" id="coinStormCard">
+        <i class="fas fa-cloud-showers-heavy powerup-icon"></i>
+        <div class="powerup-name">Coin Storm</div>
+        <div class="powerup-cost">160</div>
+    </div>
+    <div class="powerup-card baddie" id="screenShakeCard">
+        <i class="fas fa-shake powerup-icon"></i>
+        <div class="powerup-name">Screen Shake</div>
+        <div class="powerup-cost">130</div>
+    </div>
 </div>
 
     <!-- Timer Container -->
@@ -6244,6 +6417,24 @@ async function startLevel(levelId) {
     perksContainer.style.display = 'flex';
     powerupsContainer.style.display = 'none';
 
+    // Ensure coin display is initialized
+    const coinDisplay = document.querySelector('.coin-count');
+    if (coinDisplay) {
+        coinDisplay.textContent = gameState.coins || 0;
+    }
+
+    // Initialize coins and ensure containers are visible
+    const coinsContainer = document.querySelector('.coins-container');
+    if (coinsContainer) {
+        coinsContainer.style.display = 'flex';
+    }
+
+    // Ensure progress circle is visible
+    const progressCircle = document.querySelector('.progress-circle');
+    if (progressCircle) {
+        progressCircle.style.display = 'flex';
+    }
+
     // Regular game initialization
     gameState.currentStage = gameState.currentStage || 1;
     gameState.currentSet = gameState.currentSet || 1;
@@ -6278,9 +6469,17 @@ function proceedWithLevel(levelId) {
     if (!currentGame.restartsRemaining) {
         currentGame.restartsRemaining = 2;
     }
+    
     gameState.currentLevel = levelId;
     const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
     const vocabulary = vocabularySets[setKey];
+
+    // Ensure coin display remains visible
+    const coinDisplay = document.querySelector('.coin-count');
+    if (coinDisplay) {
+        coinDisplay.textContent = gameState.coins || 0;
+        coinDisplay.style.display = 'block';
+    }
 
     // Prepare all game state first
     currentGame.startingCoins = gameState.coins;
@@ -6699,20 +6898,18 @@ function pulseCoins(times = 1) {
 }
 
 function updateAllCoinDisplays() {
-    console.log('Updating coin displays:', {
-        currentCoins: currentGame.coins,
-        playerName: currentArcadeSession.playerName,
-        displays: document.querySelectorAll('.coin-count').length
-    });
-
     const displays = document.querySelectorAll('.coin-count');
     displays.forEach(display => {
         const currentValue = parseInt(display.textContent) || 0;
-        console.log('Display update:', {
-            from: currentValue,
-            to: currentGame.coins
-        });
-        display.textContent = currentGame.coins;
+        let targetValue;
+
+        if (window.location.pathname.includes('arcade')) {
+            targetValue = currentGame.coins || 0;
+        } else {
+            targetValue = gameState.coins || 0;
+        }
+
+        animateNumber(display, currentValue, targetValue);
     });
 }
 
@@ -10400,6 +10597,16 @@ async function startArcadeGame() {
     questionScreen.classList.add('visible');
     document.getElementById('waiting-screen').classList.remove('visible');
     
+    // Initialize coins
+    document.querySelectorAll('.coin-count').forEach(display => {
+        display.textContent = currentGame.coins || 0;
+        display.style.display = 'flex';
+    });
+    
+    document.querySelectorAll('.coins-container').forEach(container => {
+        container.style.display = 'flex';
+    });
+
     // Toggle menus for arcade mode
     const perksContainer = document.querySelector('.perks-container');
     const powerupsContainer = document.querySelector('.powerups-container');
@@ -10483,6 +10690,61 @@ async function startArcadeGame() {
                     username: payload.username,
                     wordsCompleted: payload.wordsCompleted,
                     coins: payload.coins
+                });
+            }
+        })
+        .on('broadcast', { event: 'powerup_effect' }, ({ payload }) => {
+            if (payload.targetUser === currentArcadeSession.playerName) {
+        const powerup = payload.powerup;
+        
+        // Show notification
+        showNotification(
+            `${payload.fromUser} ${powerup.message} you!`,
+            powerup.type
+        );
+
+        // Apply effect based on powerup type
+        switch (powerup.name) {
+            case 'High Five':
+            case 'Fist Bump':
+                const oldCoins = currentGame.coins;
+                currentGame.coins += powerup.effect;
+                document.querySelectorAll('.coin-count').forEach(display => {
+                    animateNumber(display, oldCoins, currentGame.coins);
+                });
+                break;
+
+            case 'Energy Boost':
+                // Temporary coin multiplier
+                currentGame.coinMultiplier = 2;
+                currentGame.boostedAnswersLeft = 3;
+                break;
+
+            case 'Freeze':
+                const buttons = document.querySelectorAll('.buttons button');
+                buttons.forEach(btn => btn.disabled = true);
+                setTimeout(() => {
+                    buttons.forEach(btn => btn.disabled = false);
+                }, powerup.duration);
+                break;
+
+            case 'Coin Storm':
+                currentGame.coinBlockedAnswers = 3;
+                break;
+
+            case 'Screen Shake':
+                const questionScreen = document.getElementById('question-screen');
+                questionScreen.classList.add('screen-shake');
+                setTimeout(() => {
+                    questionScreen.classList.remove('screen-shake');
+                }, powerup.duration);
+                break;
+        }
+
+        updatePlayerProgress({
+            username: currentArcadeSession.playerName,
+            coins: currentGame.coins,
+            wordsCompleted: currentGame.wordsCompleted
                 });
             }
         })
@@ -11044,86 +11306,152 @@ function showContactUs() {
 }
 
 function initializePowerups() {
-    const blessingButton = document.getElementById('blessingButton');
-    const curseButton = document.getElementById('curseButton');
-
-    blessingButton.onclick = async () => {
-        if (currentGame.coins < 30) return;
-        
-        const otherPlayers = currentArcadeSession.participants.filter(
-            p => p.username !== currentArcadeSession.playerName
-        );
-        if (!otherPlayers.length) return;
-        
-        const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
-        
-        // Get button position for particles
-        const rect = blessingButton.getBoundingClientRect();
-        const x = rect.left + rect.width / 2;
-        const y = rect.top + rect.height / 2;
-        
-        // Create effect
-        createParticles(x, y, 'blessing');
-        
-        // Update my coins with animation
-        const oldCoins = currentGame.coins;
-        currentGame.coins -= 30;
-        
-        document.querySelectorAll('.coin-count').forEach(display => {
-            animateNumber(display, oldCoins, currentGame.coins);
-        });
-        
-        // Send update
-        await window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'coin_effect',
-            payload: {
-                targetUser: targetPlayer.username,
-                amount: 60,
-                type: 'blessing',
-                fromUser: currentArcadeSession.playerName
-            }
-        });
+    const powerupPool = {
+        highFive: {
+            id: 'highFiveCard',
+            cost: 30,
+            effect: 50,
+            type: 'goodie',
+            icon: 'fa-hand-paper',
+            name: 'High Five',
+            message: 'high-fived'
+        },
+        fistBump: {
+            id: 'fistBumpCard',
+            cost: 40,
+            effect: 75,
+            type: 'goodie',
+            icon: 'fa-fist-raised',
+            name: 'Fist Bump',
+            message: 'fist-bumped'
+        },
+        energyBoost: {
+            id: 'energyBoostCard',
+            cost: 45,
+            type: 'goodie',
+            icon: 'fa-bolt',
+            name: 'Energy Boost',
+            message: 'boosted'
+        },
+        freeze: {
+            id: 'freezeCard',
+            cost: 150,
+            duration: 10000,
+            type: 'baddie',
+            icon: 'fa-snowflake',
+            name: 'Freeze',
+            message: 'froze'
+        },
+        coinStorm: {
+            id: 'coinStormCard',
+            cost: 160,
+            type: 'baddie',
+            icon: 'fa-cloud-showers-heavy',
+            name: 'Coin Storm',
+            message: 'cast a coin storm on'
+        },
+        screenShake: {
+            id: 'screenShakeCard',
+            cost: 130,
+            duration: 5000,
+            type: 'baddie',
+            icon: 'fa-shake',
+            name: 'Screen Shake',
+            message: 'shook'
+        }
     };
 
-    curseButton.onclick = async () => {
-        if (currentGame.coins < 150) return;
+    function getRandomPowerups(count = 3) {
+        const powerupKeys = Object.keys(powerupPool);
+        const selectedKeys = [];
+        while (selectedKeys.length < count && powerupKeys.length > 0) {
+            const randomIndex = Math.floor(Math.random() * powerupKeys.length);
+            selectedKeys.push(powerupKeys.splice(randomIndex, 1)[0]);
+        }
+        return selectedKeys;
+    }
+
+    function renderPowerups() {
+        const container = document.querySelector('.powerups-container');
+        container.innerHTML = ''; // Clear existing powerups
         
-        const otherPlayers = currentArcadeSession.participants.filter(
-            p => p.username !== currentArcadeSession.playerName
-        );
-        if (!otherPlayers.length) return;
+        const selectedPowerups = getRandomPowerups(3);
         
-        const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
-        
-        // Get button position for particles
-        const rect = curseButton.getBoundingClientRect();
-        const x = rect.left + rect.width / 2;
-        const y = rect.top + rect.height / 2;
-        
-        // Create effect
-        createParticles(x, y, 'curse');
-        
-        // Update my coins with animation
-        const oldCoins = currentGame.coins;
-        currentGame.coins -= 5;
-        
-        document.querySelectorAll('.coin-count').forEach(display => {
-            animateNumber(display, oldCoins, currentGame.coins);
+        selectedPowerups.forEach(key => {
+            const powerup = powerupPool[key];
+            const card = document.createElement('div');
+            card.className = `powerup-card ${powerup.type}`;
+            card.id = powerup.id;
+            
+            card.innerHTML = `
+                <i class="fas ${powerup.icon} powerup-icon"></i>
+                <div class="powerup-name">${powerup.name}</div>
+                <div class="powerup-cost">${powerup.cost}</div>
+            `;
+            
+            card.onclick = async () => {
+    if (currentGame.coins < powerup.cost) return;
+    
+    // Get random target player
+    const otherPlayers = currentArcadeSession.participants.filter(
+        p => p.username !== currentArcadeSession.playerName
+    );
+    if (!otherPlayers.length) return;
+    
+    const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+    
+    // Update my coins with animation
+    const oldCoins = currentGame.coins;
+    currentGame.coins -= powerup.cost;
+    
+    document.querySelectorAll('.coin-count').forEach(display => {
+        animateNumber(display, oldCoins, currentGame.coins);
+    });
+    
+    // Send effect
+    await window.arcadeChannel.send({
+        type: 'broadcast',
+        event: 'powerup_effect',
+        payload: {
+            powerupKey: key,
+            targetUser: targetPlayer.username,
+            fromUser: currentArcadeSession.playerName
+        }
+    });
+    
+    // Replace used powerup
+    renderPowerups();
+};
+            
+            container.appendChild(card);
         });
+    }
+
+    // Initialize first set of powerups
+    renderPowerups();
+
+    function updatePowerupAvailability() {
+    document.querySelectorAll('.powerup-card').forEach(card => {
+        const costElement = card.querySelector('.powerup-cost');
+        if (!costElement) return;
         
-        // Send update
-        await window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'coin_effect',
-            payload: {
-                targetUser: targetPlayer.username,
-                amount: -75,
-                type: 'curse',
-                fromUser: currentArcadeSession.playerName
-            }
-        });
-    };
+        const cost = parseInt(costElement.textContent);
+        const canAfford = currentGame.coins >= cost;
+        
+        card.classList.toggle('disabled', !canAfford);
+        card.style.cursor = canAfford ? 'pointer' : 'not-allowed';
+        card.style.opacity = canAfford ? '1' : '0.5';
+    });
+}
+
+    // Watch for coin changes
+    const coinDisplay = document.querySelector('.coin-count');
+    if (coinDisplay) {
+    new MutationObserver(() => {
+        updatePowerupAvailability();
+    }).observe(coinDisplay, { childList: true, characterData: true, subtree: true });
+}
+updatePowerupAvailability(); // Initial check
 }
 
 function animateNumber(element, start, end, duration = 500) {
@@ -11295,7 +11623,106 @@ async function joinArcadeWithUsername() {
     }
 }
 
+const powerupPool = {
+    highFive: {
+        id: 'highFiveCard',
+        cost: 30,
+        effect: 50,
+        type: 'goodie',
+        icon: 'fa-hand-paper',
+        name: 'High Five',
+        message: 'high-fived'
+    },
+    fistBump: {
+        id: 'fistBumpCard',
+        cost: 40,
+        effect: 75,
+        type: 'goodie',
+        icon: 'fa-fist-raised',
+        name: 'Fist Bump',
+        message: 'fist-bumped'
+    },
+    energyBoost: {
+        id: 'energyBoostCard',
+        cost: 45,
+        type: 'goodie',
+        icon: 'fa-bolt',
+        name: 'Energy Boost',
+        message: 'boosted'
+    },
+    freeze: {
+        id: 'freezeCard',
+        cost: 150,
+        duration: 10000,
+        type: 'baddie',
+        icon: 'fa-snowflake',
+        name: 'Freeze',
+        message: 'froze'
+    },
+    coinStorm: {
+        id: 'coinStormCard',
+        cost: 160,
+        duration: 3,
+        type: 'baddie',
+        icon: 'fa-cloud-showers-heavy',
+        name: 'Coin Storm',
+        message: 'cast a coin storm on'
+    },
+    screenShake: {
+        id: 'screenShakeCard',
+        cost: 130,
+        duration: 5000,
+        type: 'baddie',
+        icon: 'fa-shake',
+        name: 'Screen Shake',
+        message: 'shook'
+    }
+};
 
+function getRandomPowerups(count = 3) {
+    const availablePowerups = Object.entries(powerupPool);
+    const selectedPowerups = [];
+    
+    while (selectedPowerups.length < count && availablePowerups.length > 0) {
+        const randomIndex = Math.floor(Math.random() * availablePowerups.length);
+        const [key, powerup] = availablePowerups.splice(randomIndex, 1)[0];
+        selectedPowerups.push({ key, powerup });
+    }
+    
+    return selectedPowerups;
+}
+
+function renderPowerups() {
+    const container = document.querySelector('.powerups-container');
+    container.innerHTML = '';
+    
+    const selectedPowerups = getRandomPowerups(3);
+    
+    selectedPowerups.forEach(({ key, powerup }) => {
+        const card = document.createElement('div');
+        card.className = `powerup-card ${powerup.type}`;
+        card.id = powerup.id;
+        
+        card.innerHTML = `
+            <i class="fas ${powerup.icon} powerup-icon"></i>
+            <div class="powerup-name">${powerup.name}</div>
+            <div class="powerup-cost">${powerup.cost}</div>
+        `;
+        
+        card.onclick = () => usePowerup(key, powerup);
+        container.appendChild(card);
+    });
+}
+
+async function usePowerup(key, powerup) {
+    if (currentGame.coins < powerup.cost) return;
+    
+    // Rest of powerup logic here...
+    
+    // After powerup is used, remove it and add a new one
+    document.getElementById(powerup.id).remove();
+    renderPowerups();
+}
 
 </script>
 </body>
