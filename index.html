@@ -1843,6 +1843,50 @@ body {
     }
 }
 
+#qr-landing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--gradient);
+    text-align: center;
+    padding: 2rem;
+}
+
+.qr-landing-content {
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    padding: 2rem;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 400px;
+}
+
+.qr-landing-content h2 {
+    color: var(--gold);
+    margin-bottom: 1.5rem;
+}
+
+.game-code-display {
+    font-size: 2.5rem;
+    color: var(--text);
+    font-weight: bold;
+    padding: 1rem;
+    margin: 1rem 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 15px;
+    letter-spacing: 0.2em;
+}
+
+#qr-landing .join-game-button {
+    width: 100%;
+    padding: 1rem;
+    margin-top: 1.5rem;
+    font-size: 1.2rem;
+    animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
 .coins-header .coin-icon {
   color: var(--gold);
   font-size: 1.5rem;
@@ -4262,6 +4306,17 @@ body {
     </style>
 </head>
 <body>
+
+<div id="qr-landing" class="screen" style="display: none;">
+    <div class="qr-landing-content">
+        <h2>Welcome to Simplos Arcade!</h2>
+        <p>Your game code is:</p>
+        <div class="game-code-display"></div>
+        <button class="join-game-button" onclick="proceedToGame()">
+            Join Game
+        </button>
+    </div>
+</div>
 
   <div class="curtain-overlay">
     <div class="curtain-title">
@@ -11942,16 +11997,45 @@ function generateQRCode(otp) {
 }
 
 function handleHashChange() {
-    console.log('Hash changed:', window.location.hash);  // Add logging
-    const hash = window.location.hash;
-    if (hash.startsWith('#join=')) {
-        const otp = hash.replace('#join=', '');
-        console.log('Found OTP in hash:', otp);  // Add logging
-        // Clear hash
-        history.pushState("", document.title, window.location.pathname);
-        // Show join modal with pre-filled OTP
-        showJoinModal(otp);
+    console.log('Hash change detected:', window.location.hash);
+    
+    if (window.location.hash.startsWith('#join=')) {
+        const otp = window.location.hash.replace('#join=', '');
+        console.log('Join OTP detected:', otp);
+        
+        // Show landing page on mobile
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            const qrLanding = document.getElementById('qr-landing');
+            const codeDisplay = qrLanding.querySelector('.game-code-display');
+            
+            // Hide all other screens
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.style.display = 'none';
+            });
+            
+            // Show and populate landing page
+            qrLanding.style.display = 'flex';
+            codeDisplay.textContent = otp;
+            
+            // Store OTP for later use
+            qrLanding.dataset.otp = otp;
+        } else {
+            // Desktop behavior
+            history.pushState("", document.title, window.location.pathname);
+            showJoinModal(otp);
+        }
     }
+}
+
+function proceedToGame() {
+    const qrLanding = document.getElementById('qr-landing');
+    const otp = qrLanding.dataset.otp;
+    
+    // Hide landing page
+    qrLanding.style.display = 'none';
+    
+    // Show join modal with OTP
+    showJoinModal(otp);
 }
 
 function showJoinModal(otp = '') {
@@ -11976,6 +12060,8 @@ function showJoinModal(otp = '') {
         }
     }
 }
+
+
 
 </script>
 </body>
