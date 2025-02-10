@@ -322,6 +322,16 @@ body {
     transform: translateY(-2px);
 }
 
+@keyframes shareGlow {
+    0% { box-shadow: 0 0 5px var(--accent); }
+    50% { box-shadow: 0 0 20px var(--accent); }
+    100% { box-shadow: 0 0 5px var(--accent); }
+}
+
+.shared-list {
+    animation: shareGlow 2s ease-in-out;
+}
+
 .shared-list {
     border: 2px solid transparent;
     background: linear-gradient(135deg, #00f2fe, #4facfe);
@@ -9596,8 +9606,9 @@ function showUnregisteredWarning(callback) {
     }
 
     prompt.querySelector('.signup-now').onclick = () => {
-        hidePrompt(() => {
-            showScreen('welcome-screen');
+    hidePrompt();
+    showAuthModal();
+    switchAuthForm('signup');
             
             // Target the auth container
             const authContainer = document.getElementById('authBox');
