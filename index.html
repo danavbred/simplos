@@ -1951,24 +1951,7 @@ body {
     animation: float 3s infinite ease-in-out;
 }
 
-.fade-transition {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: var(--primary-dark);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-    z-index: 9999;
-}
-
-.fade-transition.show {
-    opacity: 1;
-}
-
-.slide-panels {
+.slide-transition {
     position: fixed;
     top: 0;
     left: 0;
@@ -1976,35 +1959,134 @@ body {
     height: 100%;
     z-index: 9999;
     pointer-events: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: transparent;
 }
 
 .slide-panel-left, .slide-panel-right {
     position: absolute;
     width: 50%;
     height: 100%;
-    background: var(--primary-dark);
+    background: linear-gradient(135deg, var(--primary-dark), var(--secondary));
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .slide-panel-left {
     left: 0;
     transform: translateX(-100%);
+    border-right: 2px solid var(--gold);
 }
 
 .slide-panel-right {
     right: 0;
     transform: translateX(100%);
+    border-left: 2px solid var(--gold);
 }
 
-.slide-panels.show .slide-panel-left {
+.slide-transition.show .slide-panel-left {
     transform: translateX(0);
+    box-shadow: 5px 0 15px rgba(0,0,0,0.3);
 }
 
-.slide-panels.show .slide-panel-right {
+.slide-transition.show .slide-panel-right {
     transform: translateX(0);
+    box-shadow: -5px 0 15px rgba(0,0,0,0.3);
 }
 
+.level-announcement {
+    position: absolute;
+    z-index: 10000;
+    color: var(--text);
+    text-align: center;
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: scale(0.9);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2rem 3rem;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
 
+.level-announcement.show {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.level-announcement h1 {
+    font-size: 2.5rem;
+    background: linear-gradient(to right, var(--gold), #FFA500);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-bottom: 1rem;
+    position: relative;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: 700;
+}
+
+.level-announcement h1::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 2px;
+    background: var(--gold);
+    box-shadow: 0 0 10px var(--gold);
+}
+
+.level-announcement h2 {
+    font-size: 2rem;
+    color: var(--text);
+    font-weight: 500;
+    opacity: 0.9;
+    letter-spacing: 1px;
+}
+
+/* Add subtle edge glow */
+.slide-panel-left::after,
+.slide-panel-right::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(to bottom, transparent, var(--gold), transparent);
+    opacity: 0.5;
+}
+
+.slide-panel-left::after {
+    right: 0;
+}
+
+.slide-panel-right::after {
+    left: 0;
+}
+
+/* Add subtle animated line at the bottom */
+.level-announcement::before {
+    content: '';
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--gold), transparent);
+    animation: lineWidth 2s ease-in-out infinite;
+}
+
+@keyframes lineWidth {
+    0%, 100% { width: 60%; opacity: 0.3; }
+    50% { width: 80%; opacity: 0.7; }
+}
 
 .coins-header .coin-icon {
   color: var(--gold);
@@ -3695,77 +3777,6 @@ body {
     font-size: 1.5rem;
 }
 
-.curtain-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(135deg, var(--primary-dark), var(--secondary));
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    transform: translateY(-100%);
-    /* Transition is now set in JavaScript for different speeds up/down */
-    box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-}
-
-.curtain-overlay.show {
-    transform: translateY(0);  /* Move into view */
-}
-
-.curtain-overlay.hide {
-    transform: translateY(-100%);  /* Move back up */
-}
-
-.curtain-title {
-    color: var(--gold);
-    text-align: center;
-    opacity: 0;
-    transform: translateY(20px);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);  /* Faster title animation */
-    padding: 2rem;
-    background: var(--glass);
-    border-radius: 20px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.curtain-title.show {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.curtain-title h1 {
-    font-size: 3rem;
-    margin-bottom: 1rem;
-    background: linear-gradient(to right, var(--gold), var(--accent));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-}
-
-.curtain-title h2 {
-    font-size: 2rem;
-    color: var(--text);
-}
-
-@media (max-width: 768px) {
-    .curtain-title h1 {
-        font-size: 2rem;
-    }
-    
-    .curtain-title h2 {
-        font-size: 1.5rem;
-    }
-}
-
 .upgrade-prompt {
     position: fixed;
     top: 50%;
@@ -4437,12 +4448,6 @@ body {
     </div>
 </div>
 
-  <div class="curtain-overlay">
-    <div class="curtain-title">
-      <h1></h1>
-      <h2></h2>
-    </div>
-  </div>
 
   <div id="welcome-screen" class="screen visible">
     <div class="particle-container" id="particleContainer"></div>    
@@ -7818,31 +7823,40 @@ function startGame() {
 }
 
 function showLevelIntro(levelId, setupCallback) {
-    const curtain = document.querySelector('.curtain-overlay');
-    const titleContainer = document.querySelector('.curtain-title');
-    const stageTitle = titleContainer.querySelector('h1');
-    const levelTitle = titleContainer.querySelector('h2');
+    const transitionElement = document.createElement('div');
+    transitionElement.className = 'slide-transition';
+    transitionElement.innerHTML = `
+        <div class="slide-panel-left"></div>
+        <div class="slide-panel-right"></div>
+        <div class="level-announcement">
+            <h1>Stage ${gameState.currentStage || 1}</h1>
+            <h2>Level ${gameState.currentSet || 1}-${levelId}</h2>
+        </div>
+    `;
     
-    // Ensure fallback values
-    stageTitle.textContent = `Stage ${gameState.currentStage || 1}`;
-    levelTitle.textContent = `Level ${gameState.currentSet || 1}-${levelId}`;
+    document.body.appendChild(transitionElement);
     
-    // Ensure curtain is always dropped and raised
-    curtain.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0.4, 1)';
-    curtain.style.transform = 'translateY(0)';
+    const announcement = transitionElement.querySelector('.level-announcement');
     
-    setTimeout(() => {
-        titleContainer.classList.add('show');
-        
-        // Call setup callback
-        setupCallback();
+    // Force reflow
+    transitionElement.offsetHeight;
+    
+    requestAnimationFrame(() => {
+        transitionElement.classList.add('show');
+        announcement.classList.add('show');
         
         setTimeout(() => {
-            titleContainer.classList.remove('show');
-            curtain.style.transition = 'transform 0.2s cubic-bezier(0.6, 0, 0.8, 1)';
-            curtain.style.transform = 'translateY(-100%)';
-        }, 1200);
-    }, 200);
+            setupCallback();
+            
+            transitionElement.classList.remove('show');
+            announcement.classList.remove('show');
+            
+            setTimeout(() => {
+                document.body.removeChild(transitionElement);
+            }, 400);
+            
+        }, 1000);
+    });
 }
 
 const customPracticeLists = {
@@ -12200,55 +12214,6 @@ function showJoinModal(otp = '') {
     }
 }
 
-function detectDeviceCapability() {
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const isLowEnd = navigator.hardwareConcurrency <= 4;
-    return { isMobile, isLowEnd };
-}
-
-function createTransitionElement() {
-    const { isMobile, isLowEnd } = detectDeviceCapability();
-    const transitionDiv = document.createElement('div');
-    
-    if (isLowEnd || isMobile) {
-        // Use simple fade for low-end devices
-        transitionDiv.className = 'fade-transition';
-    } else if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        // Respect user's motion preference
-        transitionDiv.className = 'fade-transition';
-    } else {
-        // Use more elaborate transition for capable devices
-        transitionDiv.className = 'slide-panels';
-        transitionDiv.innerHTML = `
-            <div class="slide-panel-left"></div>
-            <div class="slide-panel-right"></div>
-        `;
-    }
-    
-    return transitionDiv;
-}
-
-function showLevelTransition(callback) {
-    const transitionElement = createTransitionElement();
-    document.body.appendChild(transitionElement);
-    
-    // Force reflow
-    transitionElement.offsetHeight;
-    
-    // Show transition
-    transitionElement.classList.add('show');
-    
-    // Execute callback and cleanup
-    setTimeout(() => {
-        callback();
-        setTimeout(() => {
-            transitionElement.classList.remove('show');
-            setTimeout(() => {
-                document.body.removeChild(transitionElement);
-            }, 300);
-        }, 300);
-    }, 300);
-}
 
 
 </script>
