@@ -6805,7 +6805,29 @@ function getUnusedWords(vocabulary) {
         .filter(i => !gameState.usedWords.has(i));
 }
 
+function selectRandomWords(availableIndices, count) {
+    const selected = new Set();
+    
+    while (selected.size < count && availableIndices.length > selected.size) {
+        const randomIndex = Math.floor(Math.random() * availableIndices.length);
+        selected.add(availableIndices[randomIndex]);
+        gameState.usedWords.add(availableIndices[randomIndex]);
+    }
+    
+    return Array.from(selected);
+}
 
+function generateAnswerChoices(correctAnswer, vocabulary) {
+    const choices = new Set([correctAnswer]);
+    const allChoices = vocabulary.translations;
+    
+    while (choices.size < 3) {
+        const randomChoice = allChoices[Math.floor(Math.random() * allChoices.length)];
+        choices.add(randomChoice);
+    }
+    
+    return Array.from(choices).sort(() => Math.random() - 0.5);
+}
 
 async function startLevel(levelId) {
     // Reset stats tracking
