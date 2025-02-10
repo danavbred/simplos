@@ -1671,95 +1671,158 @@ body {
 
 .powerups-container {
     display: flex;
-    justify-content: center;
-    gap: 0.4rem;
+    gap: 0.5rem;
+    max-height: 120px; /* Reduced height */
+    overflow-y: auto;
     padding: 5px;
-    max-width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
 }
 
 .powerup-card {
-    width: 75px;  /* Smallest size for perfect fit */
-    height: 75px;
-    background: var(--glass);
-    border-radius: 8px;
+    width: calc(33% - 10px); /* Three cards per row */
+    max-width: 100px;
+    height: 100px; /* Fixed height */
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    padding: 5px;
+    border-radius: 8px;
     text-align: center;
-    padding: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s ease;
-    cursor: pointer;
-    position: relative;
+    font-size: 0.8em;
 }
 
-.powerup-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+.powerup-card img {
+    max-width: 40px;
+    max-height: 40px;
+    margin-bottom: 5px;
 }
 
-/* Differentiate powerup types */
+.powerup-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.powerup-card:hover::before {
+    opacity: 1;
+}
+
 .powerup-card.goodie {
-    border: 2px solid var(--success);
-    box-shadow: 0 0 8px rgba(76, 175, 80, 0.3);
+    border: 2px solid #3498db;
+    box-shadow: 0 0 15px rgba(52, 152, 219, 0.3);
 }
 
 .powerup-card.baddie {
-    border: 2px solid var(--error);
-    box-shadow: 0 0 8px rgba(244, 67, 54, 0.3);
+    border: 2px solid #e74c3c;
+    box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
 }
 
-/* Icon & Text */
+.powerup-card:hover {
+    transform: translateY(-5px) scale(1.05);
+}
+
+.powerup-card:active {
+    transform: translateY(-2px) scale(0.98);
+}
+
 .powerup-icon {
-    font-size: 1.4rem;
-    margin-bottom: 2px;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
     color: var(--text);
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 
 .powerup-name {
-    font-size: 0.7rem;
+    font-size: 0.9rem;
+    text-align: center;
+    margin-bottom: 0.5rem;
     font-weight: bold;
-    margin-bottom: 2px;
 }
 
-/* Cost tag */
 .powerup-cost {
     position: absolute;
-    bottom: 3px;
+    bottom: 0.5rem;
     background: rgba(0, 0, 0, 0.3);
-    padding: 2px 6px;
-    border-radius: 6px;
-    font-size: 0.6rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.8rem;
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 0.25rem;
 }
 
 .powerup-cost::before {
-    content: '\f51e';  /* Font Awesome coin icon */
+    content: '\f51e';
     font-family: 'Font Awesome 5 Free';
     font-weight: 900;
     color: var(--gold);
 }
 
-/* Mobile Optimization */
-@media (max-width: 480px) {
+.powerup-card:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+@media (max-width: 768px) {
+    @media (max-width: 768px) {
+    .question-screen {
+        padding: 1rem;
+        gap: 0.5rem;
+        justify-content: space-between;
+    }
+    
     .powerup-card {
-        width: 65px;  /* Ultra compact for small screens */
-        height: 65px;
-        padding: 3px;
+        width: 90px;
+        height: 120px;
+        padding: 0.5rem;
     }
     
     .powerup-icon {
-        font-size: 1.2rem;
+        font-size: 1.25rem;
     }
     
     .powerup-name {
-        font-size: 0.65rem;
+        font-size: 0.8rem;
+    }
+
+    .powerups-container {
+        max-height: 100px;
+    }
+    
+    .powerup-card {
+        width: calc(50% - 10px); /* Two cards per row on smaller screens */
+        height: 90px;
+        font-size: 0.7em;
     }
 }
 
+/* Adjust question screen layout */
+.question-word {
+    margin-top: 1rem;
+}
+
+.progress-circle {
+    margin: 0.5rem 0;
+}
+
+.buttons {
+    margin-bottom: 1rem;
+}
+
+    .powerup-cost {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+    }
+}
 
 .coins-header .coin-icon {
   color: var(--gold);
