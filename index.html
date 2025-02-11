@@ -20,7 +20,6 @@
     <script src="https://unpkg.com/@supabase/supabase-js@2.39.7"></script>
     <script src="vocabs.js"></script>
     <style>
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap');
 
 :root {
   /* Update core color scheme */
@@ -45,49 +44,6 @@
 }
 
 
-/* Update button styles */
-.start-button,
-.custom-lists-button,
-.auth-tab,
-.auth-form-login-button,
-.auth-form-signup-button,
-.edit-button,
-.delete-button,
-.process-words-button,
-.save-list-button,
-.add-word-button {
-    border: 2px solid var(--accent);
-    background: transparent;
-    color: var(--text);
-}
-
-/* Update button hover effects */
-.start-button:hover,
-.custom-lists-button:hover,
-.auth-tab:hover,
-.auth-form-login-button:hover,
-.auth-form-signup-button:hover,
-.edit-button:hover,
-.delete-button:hover,
-.process-words-button:hover,
-.save-list-button:hover,
-.add-word-button:hover {
-    box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent);
-}
-
-/* Update shine effect color */
-.start-button::before,
-.custom-lists-button::before,
-.auth-tab::before,
-.auth-form-login-button::before,
-.auth-form-signup-button::before,
-.edit-button::before,
-.delete-button::before,
-.process-words-button::before,
-.save-list-button::before,
-.add-word-button::before {
-    background: linear-gradient(120deg, transparent, rgba(30, 144, 255, 0.3), transparent);
-}
 
 /* Update auth modal */
 .auth-modal-content {
@@ -95,24 +51,6 @@
     border: 1px solid var(--accent);
 }
 
-/* Update welcome title */
-.welcome-title {
-    background: var(--royal-gradient);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-}
-
-/* Update levels */
-.level.blue {
-    background: var(--blue-gradient);
-    box-shadow: 0 10px 20px rgba(30, 144, 255, 0.3);
-}
-
-.level.green {
-    background: var(--gold-gradient);
-    border: 2px solid var(--gold);
-}
 
 /* Update side panel */
 .side-panel {
@@ -472,31 +410,9 @@ body {
     max-width: 320px; /* Added to ensure consistent width */
 }
 
-.auth-input {
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-    color: var(--text);
-    padding: 0.5rem;
-    font-size: 0.9rem;
-    outline: none;
-    transition: border-color 0.3s ease;
-    width: 160px;
-}
 
 .auth-input:focus {
     border-color: var(--accent);
-}
-
-.auth-button {
-    color: var(--accent);
-    border: 1px solid rgba(233, 69, 96, 0.5);
-    padding: 0.5rem 1.5rem;
-    border-radius: 999px;
-    font-size: 0.9rem;
-    background: transparent;
-    transition: background 0.3s ease;
-    cursor: pointer;
 }
 
 .auth-button:hover {
@@ -517,13 +433,6 @@ body {
 .auth-container.highlight {
     animation: pulse-glow 1.5s ease-in-out infinite;
     background: rgba(233, 69, 96, 0.1);
-}
-
-/* Continues with next CSS block */
-@media (max-width: 768px) {
-    .auth-container {
-        /* existing responsive styles */
-    }
 }
 
 .auth-toggle {
@@ -7627,25 +7536,6 @@ function handleLevelCompletion() {
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     const isLevelCompleted = gameState.perfectLevels.has(levelKey);
     
-    // Calculate and update stats
-    const levelTime = Date.now() - currentGame.levelStartTime;
-    const mistakes = currentGame.wrongStreak || 0; // Ensure we don't send undefined
-    const streak = currentGame.correctAnswers || 0; // Ensure we don't send undefined
-    
-    if (currentUser) {
-        updatePlayerStats(levelTime, mistakes, streak)
-            .catch(error => {
-                console.error('Stats update failed:', error);
-                // Continue game flow despite stats error
-            });
-    }
-    
-    // Handle custom practice mode first
-    if (currentGame.isCustomPractice) {
-        handleCustomPracticeCompletion();
-        return;
-    }
-
     // STRICT CHECK: Perfect completion requires:
     // 1. Level not previously completed
     // 2. Maintained streak (no wrong answers)
@@ -7670,60 +7560,65 @@ function handleLevelCompletion() {
     const rect = questionScreen.getBoundingClientRect();
     createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
 
-    // Update level display
-    const questionWordElement = document.getElementById('question-word');
-    const nextLevel = gameState.currentLevel + 1;
-    questionWordElement.textContent = `Level ${gameState.currentStage}-${nextLevel}`;
-    questionWordElement.style.animation = 'dramaticPulse 0.5s cubic-bezier(0.25, 0.75, 0.5, 1.25)';
-
     // Get current stage config and user status
     const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
     const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
     const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
     const userStatus = currentUser ? currentUser.status : 'unregistered';
 
-    // Handle progression based on user status and completion
-    if (gameState.currentLevel === 21) {
-        if (userStatus === 'premium') {
-            // Premium users progress to next set/stage
-            if (!isLastSetInStage) {
-                gameState.currentSet++;
-                setTimeout(() => startLevel(1), 1500);
-            } else if (gameState.currentStage < 5) {
+    // Update unlocks
+    const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+    if (!gameState.unlockedLevels[setKey]) {
+        gameState.unlockedLevels[setKey] = new Set();
+    }
+    gameState.unlockedLevels[setKey].add(gameState.currentLevel);
+
+    // Handle progression based on completion
+    if (isLastLevelInSet) {
+        if (!isLastSetInStage && userStatus === 'premium') {
+            // Premium users: Unlock next set
+            const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
+            if (!gameState.unlockedSets[gameState.currentStage]) {
+                gameState.unlockedSets[gameState.currentStage] = new Set();
+            }
+            gameState.unlockedSets[gameState.currentStage].add(gameState.currentSet + 1);
+            if (!gameState.unlockedLevels[nextSetKey]) {
+                gameState.unlockedLevels[nextSetKey] = new Set([1]);
+            }
+            
+            // Progress to next set
+            gameState.currentSet++;
+            setTimeout(() => startLevel(1), 1500);
+        } else if (isLastSetInStage && userStatus === 'premium') {
+            // Premium users: Progress to next stage
+            if (gameState.currentStage < 5) {
                 gameState.currentStage++;
                 gameState.currentSet = 1;
+                const newSetKey = `${gameState.currentStage}_1`;
+                if (!gameState.unlockedSets[gameState.currentStage]) {
+                    gameState.unlockedSets[gameState.currentStage] = new Set([1]);
+                }
+                if (!gameState.unlockedLevels[newSetKey]) {
+                    gameState.unlockedLevels[newSetKey] = new Set([1]);
+                }
                 setTimeout(() => startLevel(1), 1500);
             } else {
                 setTimeout(() => showScreen('stage-screen'), 1500);
             }
         } else {
-            // Non-premium users return to welcome screen and see upgrade prompt
-            setTimeout(() => {
-                showScreen('welcome-screen');
-                showUpgradePrompt();
-            }, 1500);
+            // Non-premium users: Show upgrade prompt
+            showUpgradePrompt();
         }
     } else {
-        // Normal level progression
-        // Update unlocks
-        const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-        if (!gameState.unlockedLevels[setKey]) {
-            gameState.unlockedLevels[setKey] = new Set();
-        }
-        gameState.unlockedLevels[setKey].add(gameState.currentLevel);
-
-        // Unlock next level if not at level 21
-        if (gameState.currentLevel < 21) {
-            gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
-        }
-
-        // Save and update UI
+        // Unlock and proceed to next level
+        gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
         saveProgress();
-        updateAllCoinDisplays();
-
-        // Progress to next level
         setTimeout(() => startLevel(gameState.currentLevel + 1), 1500);
     }
+
+    // Save progress
+    saveProgress();
+    updateAllCoinDisplays();
 }
 
 function handleProgression(levelKey) {
