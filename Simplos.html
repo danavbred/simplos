@@ -44,6 +44,7 @@
   --gold-gradient: linear-gradient(135deg, var(--gold), #ffa500);
 }
 
+
 /* Update button styles */
 .start-button,
 .custom-lists-button,
@@ -319,6 +320,16 @@ body {
 .user-item:hover {
     background: rgba(255,255,255,0.2);
     transform: translateY(-2px);
+}
+
+@keyframes shareGlow {
+    0% { box-shadow: 0 0 5px var(--accent); }
+    50% { box-shadow: 0 0 20px var(--accent); }
+    100% { box-shadow: 0 0 5px var(--accent); }
+}
+
+.shared-list {
+    animation: shareGlow 2s ease-in-out;
 }
 
 .shared-list {
@@ -2513,6 +2524,55 @@ body {
     }
 }
 
+.failure-overlay .failure-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+}
+
+.failure-overlay .restart-button {
+    margin: 0 auto;
+}
+
+.failure-overlay .home-button {
+    display: none;
+}
+
+.game-notification {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    padding: 1rem 2rem;
+    border-radius: 10px;
+    color: var(--text);
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    z-index: 1100;
+    transform: translateX(-100%);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.game-notification.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.game-notification.success {
+    border-left: 4px solid var(--success);
+}
+
+.game-notification.error {
+    border-left: 4px solid var(--error);
+}
+
+.level.mixed {
+    background: linear-gradient(135deg, var(--accent), var(--gold));
+    border: 2px solid var(--gold);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+}
+
 .perks-container {
   display: flex;
   gap: 1rem;
@@ -4678,31 +4738,32 @@ body {
 
 <div id="set-screen" class="screen">
     <div class="particle-container"></div>
-    <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">
+    <div class="navigation-container">
         <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-          <i class="fas fa-home navigation-icon"></i>
-      </button>
-      <button class="navigation-button reset-button" onclick="handleResetProgress()">
-          <i class="fas fa-trash-alt navigation-icon"></i>
-      </button>
-  </div>
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+    </div>
     <div class="set-container" id="set-container"></div>
 </div>
 
 <div id="level-screen" class="screen">
     <div class="particle-container"></div>
-    <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">      <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-          <i class="fas fa-home navigation-icon"></i>
-      </button>
-      <button class="navigation-button reset-button" onclick="handleResetProgress()">
-          <i class="fas fa-trash-alt navigation-icon"></i>
-      </button>
-  </div>
+    <div class="navigation-container">
+        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+    </div>
     <div class="level-selection" id="level-container"></div>
 </div>
 
 <div id="question-screen" class="screen">
     <div class="particle-container"></div>
+    <div class="navigation-container">
+        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+    </div>
+
     
 
     <!-- Question Word -->
@@ -6533,17 +6594,21 @@ function showLevelScreen(setId) {
     gameState.currentSet = setId;
     const container = document.getElementById('level-container');
     container.innerHTML = '';
-    
     const stage = gameStructure.stages[gameState.currentStage - 1];
+    const testLevels = [3, 6, 9, 10, 13, 16, 19, 20];
+
     for (let i = 1; i <= stage.levelsPerSet; i++) {
         const levelDiv = document.createElement('div');
         const levelKey = `${gameState.currentStage}_${setId}_${i}`;
         const isUnlocked = gameState.unlockedLevels[`${gameState.currentStage}_${setId}`]?.has(i);
         const isPerfect = gameState.perfectLevels.has(levelKey);
-        
-        // Special class for boss level
         const isBossLevel = i === stage.bossLevel;
-        levelDiv.className = `level ${isUnlocked ? 'blue' : ''} ${isPerfect ? 'green' : ''} ${isBossLevel ? 'boss' : ''}`;
+        const isTestLevel = testLevels.includes(i);
+
+        levelDiv.className = `level ${isUnlocked ? 'blue' : ''} 
+                            ${isPerfect ? 'green' : ''} 
+                            ${isBossLevel ? 'boss' : ''} 
+                            ${isTestLevel ? 'mixed' : ''}`;
         levelDiv.textContent = i;
         
         if (isUnlocked) {
@@ -6720,6 +6785,38 @@ function calculateWordsForLevel(level, vocabulary) {
             isHebrewToEnglish: Math.random() < 0.5
         };
     }
+}
+
+function getUnusedWords(vocabulary) {
+    // Track used words in gameState
+    if (!gameState.usedWords) gameState.usedWords = new Set();
+    
+    return vocabulary.words.map((_, index) => index)
+        .filter(i => !gameState.usedWords.has(i));
+}
+
+function selectRandomWords(availableIndices, count) {
+    const selected = new Set();
+    
+    while (selected.size < count && availableIndices.length > selected.size) {
+        const randomIndex = Math.floor(Math.random() * availableIndices.length);
+        selected.add(availableIndices[randomIndex]);
+        gameState.usedWords.add(availableIndices[randomIndex]);
+    }
+    
+    return Array.from(selected);
+}
+
+function generateAnswerChoices(correctAnswer, vocabulary) {
+    const choices = new Set([correctAnswer]);
+    const allChoices = vocabulary.translations;
+    
+    while (choices.size < 3) {
+        const randomChoice = allChoices[Math.floor(Math.random() * allChoices.length)];
+        choices.add(randomChoice);
+    }
+    
+    return Array.from(choices).sort(() => Math.random() - 0.5);
 }
 
 async function startLevel(levelId) {
@@ -7624,15 +7721,6 @@ function stopLevelAndGoBack() {
     clearTimer();
     isFrozen = false;
     
-    // Reset restart button state
-    const restartButton = document.querySelector('.navigation-button.restart-level');
-    if (restartButton) {
-        restartButton.classList.remove('disabled');
-        restartButton.style.opacity = '1';
-        restartButton.disabled = false;  // Re-enable the button
-        restartButton.onclick = handleRestartLevel;  // Restore click handler
-    }
-    
     // Reset game state
     currentGame = {
         words: [],
@@ -7649,7 +7737,8 @@ function stopLevelAndGoBack() {
         restartsRemaining: null
     };
     
-    showSetScreen(gameState.currentStage);
+    // Immediately show welcome screen
+    showScreen('welcome-screen');
 }
 
 
@@ -8100,6 +8189,23 @@ function makeWordListDraggable(listId) {
     items.forEach(item => initializeDragAndDrop(item));
 }
 
+function createWordItem(word, translation) {
+    const item = document.createElement('div');
+    item.className = 'word-translation-item';
+    item.draggable = true;
+    
+    item.innerHTML = `
+        <div class="drag-handle">
+            <i class="fas fa-grip-vertical"></i>
+        </div>
+        <span class="source-word" contenteditable="true">${word}</span>
+        <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
+        <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+    `;
+    
+    return item;
+}
+
 function createWordTranslationItem(word = '', translation = '', isEditable = false) {
     const wordList = document.getElementById('word-translation-list');
     const wordItem = document.createElement('div');
@@ -8161,108 +8267,84 @@ function processCustomWords() {
     const wordInput = document.getElementById('custom-word-input');
     const translationResults = document.getElementById('translation-results');
     const wordList = document.getElementById('word-translation-list');
-    
     const limits = getUserListLimits();
-    
-    // Split input, handling different formats
     const rawInput = wordInput.value.trim();
-    let words;
     
-    // Check if input contains commas and looks like a phrase
-    if (rawInput.includes(',') && rawInput.split(',').some(item => item.trim().split(' ').length > 1)) {
-        // Treat as single entries if comma-separated with multi-word items
-        words = rawInput.split(',').map(word => word.trim());
-    } else {
-        // Split by various separators, handling multi-word and single entries
-        words = rawInput.split(/[,\s\n]+/)
-            .map(word => word.trim())
-            .filter(word => word.length > 0);
-    }
-
-    // Apply word limit based on user status
-    words = words.slice(0, limits.maxWords);
-
-    if (words.length === 0) {
-        alert('Please enter at least one word.');
+    if (!rawInput) {
+        showNotification('Please enter at least one word.', 'error');
         return;
     }
 
-    // Word limit check with toast
-    if (!currentUser && words.length > 10) {
-        showNotification('Unregistered users can only create lists with up to 10 words.', 'error');
-        words = words.slice(0, 10);
+    // Parse input based on format
+    let words = rawInput.includes(',') ?
+        rawInput.split(',').map(word => word.trim()) :
+        rawInput.split(/\s+/).filter(word => word.length > 0);
+
+    // Handle phrase entries properly
+    words = words.map(word => word.includes(' ') ? [word] : word.split(/\s+/)).flat();
+
+    // Apply limits
+    const maxWords = currentUser ? limits.maxWords : 10;
+    if (words.length > maxWords) {
+        showNotification(`Maximum ${maxWords} words allowed.`, 'error');
+        words = words.slice(0, maxWords);
     }
 
-    // Clear previous results
+    // Clear and prepare container
     wordList.innerHTML = '';
-    translationResults.style.display = 'none';
+    translationResults.style.display = 'block';
 
-    // Process each word
+    // Process and create word items
     words.forEach(word => {
-        // Search through vocabulary sets for translation
-        let foundTranslation = null;
-        for (const set in vocabularySets) {
-            const wordIndex = vocabularySets[set].words.indexOf(word.toLowerCase());
-            if (wordIndex !== -1) {
-                foundTranslation = vocabularySets[set].translations[wordIndex];
-                break;
-            }
-        }
-
-        const wordItem = document.createElement('div');
-        wordItem.className = 'word-translation-item';
-        wordItem.draggable = true;
-        
-        wordItem.innerHTML = `
-            <div class="drag-handle">
-                <i class="fas fa-grip-vertical"></i>
-            </div>
-            <span class="source-word" contenteditable="true">${word}</span>
-            <input type="text" class="target-word" value="${foundTranslation || ''}" placeholder="Hebrew translation">
-            <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-        `;
-        
+        const foundTranslation = findTranslation(word);
+        const wordItem = createWordItem(word, foundTranslation);
         wordList.appendChild(wordItem);
         initializeDragAndDrop(wordItem);
     });
-    
-    translationResults.style.display = 'block';
-    
-    // Enable drag and drop
+
     makeWordListDraggable();
+}
+
+function findTranslation(word) {
+    for (const set in vocabularySets) {
+        const index = vocabularySets[set].words.indexOf(word.toLowerCase());
+        if (index !== -1) return vocabularySets[set].translations[index];
+    }
+    return '';
 }
 
 
 function setupWordListKeyNavigation() {
-    document.getElementById('word-translation-list').addEventListener('keydown', (e) => {
-        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
-        
-        e.preventDefault();
+    const container = document.getElementById('word-translation-list');
+    if (!container) return;
+    
+    container.addEventListener('keydown', (e) => {
         const currentItem = document.activeElement.closest('.word-translation-item');
         if (!currentItem) return;
-
-        let targetItem;
+        
+        let targetElement;
+        
         switch(e.key) {
             case 'ArrowUp':
-                targetItem = currentItem.previousElementSibling;
+                e.preventDefault();
+                targetElement = currentItem.previousElementSibling?.querySelector('.source-word');
                 break;
             case 'ArrowDown':
-                targetItem = currentItem.nextElementSibling;
-                break;
-            case 'ArrowLeft':
-                targetItem = currentItem.querySelector('.source-word');
+                e.preventDefault();
+                targetElement = currentItem.nextElementSibling?.querySelector('.source-word');
                 break;
             case 'ArrowRight':
-                targetItem = currentItem.querySelector('.target-word');
+                e.preventDefault();
+                targetElement = currentItem.querySelector('.target-word');
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                targetElement = currentItem.querySelector('.source-word');
                 break;
         }
-
-        if (targetItem) {
-            if (targetItem.tagName === 'DIV') {
-                targetItem.querySelector('.source-word').focus();
-            } else {
-                targetItem.focus();
-            }
+        
+        if (targetElement) {
+            targetElement.focus();
         }
     });
 }
@@ -8346,6 +8428,7 @@ function saveCurrentList() {
     const listNameInput = document.getElementById('custom-list-name');
     const wordList = document.getElementById('word-translation-list');
     
+    // Get current list name
     const name = listNameInput.value.trim() || (existingList ? existingList.name : `List ${customPracticeLists.lists.length + 1}`);
     const words = [];
     const translations = [];
@@ -8361,12 +8444,6 @@ function saveCurrentList() {
         }
     });
 
-    const limits = getUserListLimits();
-    if (words.length > limits.maxWords) {
-        showNotification(`You can only create lists with up to ${limits.maxWords} words.`, 'error');
-        return;
-    }
-
     if (existingList) {
         // Update existing list
         const index = customPracticeLists.lists.findIndex(l => l.id === existingList.id);
@@ -8378,40 +8455,22 @@ function saveCurrentList() {
                 translations: translations
             };
         }
-        // Reset current list
         customPracticeLists.currentList = null;
     } else {
-        // Create new list
+        // Create new list with limit check
         if (!canCreateMoreLists()) {
-            showNotification(`You can only create ${getUserListLimits().maxLists} custom lists.`, 'error');
+            showNotification('Maximum lists limit reached', 'error');
             return;
         }
-        
-        const newList = {
+        customPracticeLists.lists.push({
             id: Date.now(),
             name: name,
             words: words,
-            translations: translations,
-            status: currentUser ? currentUser.status : 'unregistered'
-        };
-        
-        customPracticeLists.lists.push(newList);
+            translations: translations
+        });
     }
     
-    // Save to localStorage
-    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    
-    // Save to Supabase if logged in
-    if (currentUser) {
-        saveCustomListToSupabase(customPracticeLists.lists[customPracticeLists.lists.length - 1]);
-    }
-    
-    // Clear form and hide translation results
-    listNameInput.value = '';
-    wordList.innerHTML = '';
-    document.getElementById('translation-results').style.display = 'none';
-    
-    // Refresh list manager
+    saveCustomLists();
     showCustomListsManager();
 }
 
@@ -8576,6 +8635,10 @@ function calculateCustomLevelWords(level, practiceState) {
 }
 
 function startCustomLevel(levelId, practiceState) {
+    const powerupsContainer = document.querySelector('.powerups-container');
+if (powerupsContainer) {
+    powerupsContainer.style.display = 'none';
+}
     const levelData = calculateCustomLevelWords(levelId, practiceState);
     if (!levelData) return;
 
@@ -9545,7 +9608,7 @@ function showUnregisteredWarning(callback) {
 
     prompt.querySelector('.signup-now').onclick = () => {
         hidePrompt(() => {
-            showScreen('welcome-screen');
+            showScreen('signupForm');
             
             // Target the auth container
             const authContainer = document.getElementById('authBox');
@@ -11291,36 +11354,32 @@ function loadNextArcadeQuestion() {
 
 
 
-async function handleArcadeCompletion() {
-    if (currentUser && currentUser.status === 'premium') {
-        // Save final coin count for premium users
-        try {
-            const { error } = await supabaseClient
-                .from('game_progress')
-                .update({ coins: currentGame.coins })
-                .eq('user_id', currentUser.id);
-
-            if (error) {
-                console.error('Error updating coins:', error);
+function handleArcadeCompletion() {
+    clearTimer();
+    
+    if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'player_complete',
+            payload: {
+                username: currentArcadeSession.playerName,
+                wordsCompleted: currentGame.wordsCompleted,
+                coins: currentGame.coins,
+                completionTime: Date.now()
             }
-        } catch (error) {
-            console.error('Failed to sync coins:', error);
-        }
-    }
-    
-    // Broadcast completion
-    await window.arcadeChannel.send({
-        type: 'broadcast',
-        event: 'player_complete',
-        payload: {
-            username: currentUser?.user_metadata?.username || getRandomSimploName(),
+        });
+
+        // Show completion screen
+        const completionData = {
             wordsCompleted: currentGame.wordsCompleted,
-            coins: currentGame.coins
-        }
-    });
-    
-    showArcadeCompletionScreen();
+            coins: currentGame.coins,
+            rank: getRank()
+        };
+        
+        showArcadeCompletionScreen(completionData);
+    }
 }
+
 
 function updateArcadeProgress() {
     const circle = document.querySelector('.progress-circle .progress');
@@ -11337,46 +11396,31 @@ function updateArcadeProgress() {
 }
 
 function showArcadeCompletionScreen(playerData) {
-    console.log('Showing Arcade Completion Screen with data:', playerData);
-
-    // Remove any existing completion modals first
-    const existingModal = document.querySelector('.arcade-completion-modal');
-    if (existingModal) {
-        document.body.removeChild(existingModal);
-    }
-
     const overlay = document.createElement('div');
     overlay.className = 'arcade-completion-modal';
     overlay.innerHTML = `
         <div class="completion-modal-content">
-            <h2>Arcade Session Complete!</h2>
+            <h2>Arcade Complete!</h2>
             <div class="completion-stats">
                 <div class="stat-item">
-                    <i class="fas fa-language"></i>
-                    <span>Words Learned</span>
-                    <strong>${playerData.wordsCompleted || 0}</strong>
+                    <i class="fas fa-book"></i>
+                    <span>Words: ${playerData.wordsCompleted}</span>
                 </div>
                 <div class="stat-item">
                     <i class="fas fa-coins"></i>
-                    <span>Coins Earned</span>
-                    <strong>${playerData.coins || 0}</strong>
+                    <span>Coins: ${playerData.coins}</span>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-trophy"></i>
+                    <span>Rank: ${playerData.rank}</span>
                 </div>
             </div>
-            <div class="completion-rank">
-                <p>Your Rank: ${playerData.rank || 'N/A'}</p>
-            </div>
-            <button onclick="exitArcadeCompletion()" class="start-button">
-                Return to Welcome
-            </button>
+            <button onclick="exitArcade()" class="start-button">Exit</button>
         </div>
     `;
     
     document.body.appendChild(overlay);
-    
-    // Ensure the modal is visible
-    requestAnimationFrame(() => {
-        overlay.classList.add('show');
-    });
+    requestAnimationFrame(() => overlay.classList.add('show'));
 }
 
 function exitArcadeCompletion() {
@@ -12319,7 +12363,19 @@ function showJoinModal(otp = '') {
     }
 }
 
-
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `game-notification ${type}`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    requestAnimationFrame(() => notification.classList.add('show'));
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
 
 </script>
 </body>

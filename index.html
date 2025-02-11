@@ -2231,6 +2231,20 @@ body {
     flex-direction: column;
 }
 
+@media (max-width: 768px) {
+    .level-selection {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.75rem;
+        padding: 1rem;
+    }
+
+    .level {
+        aspect-ratio: 1;
+        min-height: 60px;
+        font-size: 1.2rem;
+    }
+}
+
 .stage-name {
   font-size: 1.2rem;
     margin-bottom: 0.5rem;
@@ -2275,9 +2289,99 @@ body {
     box-shadow: 0 10px 20px rgba(255, 215, 0, 0.3);
 }
 
-.level {
-    position: relative; /* Ensure proper positioning of the lock */
+/* Test Level Visual Distinction */
+.level.test-level {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    position: relative;
+    border: 2px solid #00f2fe;
 }
+
+.level.test-level::before {
+    content: '↻';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5em;
+    color: rgba(255, 255, 255, 0.2);
+    animation: rotate 3s linear infinite;
+}
+
+.test-badge {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.5rem 1rem;
+    border-radius: 15px;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    animation: pulse 2s infinite;
+}
+
+@keyframes rotate {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+/* Level announcement styles */
+.level-announcement.test-level h1 {
+    color: #4facfe;
+    text-shadow: 0 0 10px rgba(79, 172, 254, 0.5);
+}
+
+.level-announcement.boss-level {
+    background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+}
+
+@keyframes switchDirection {
+    0%, 100% { transform: scaleX(1); }
+    50% { transform: scaleX(-1); }
+}
+
+/* Boss Level Styles */
+.boss-mode {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    animation: pulseBg 4s infinite;
+}
+
+.boss-word {
+    color: #ffd700;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    animation: pulseWord 2s infinite;
+}
+
+.boss-word.fading {
+    animation: fadeWord 5s forwards;
+}
+
+@keyframes pulseBg {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.2); }
+}
+
+@keyframes pulseWord {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@keyframes fadeWord {
+    0% { opacity: 1; }
+    100% { opacity: 0.3; }
+}
+
+.perk-disabled {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5em;
+    color: red;
+    pointer-events: none;
+}
+
 
 /* Lock icon styling */
 .level:not(.blue):not(.green)::before {
@@ -2569,8 +2673,57 @@ body {
 
 .level.mixed {
     background: linear-gradient(135deg, var(--accent), var(--gold));
-    border: 2px solid var(--gold);
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.level.mixed::before {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.2) 50%, transparent 70%);
+    animation: shimmerEffect 3s infinite linear;
+}
+
+@keyframes shimmerEffect {
+    0% { transform: translate(-100%, -100%) rotate(45deg); }
+    100% { transform: translate(100%, 100%) rotate(45deg); }
+}
+
+.custom-list-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 1rem;
+    margin-top: 0.5rem;
+    z-index: 1000;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.selected-lists {
+    margin: 1rem 0;
+}
+
+.list-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.list-item:hover {
+    background: rgba(255,255,255,0.2);
+    transform: translateY(-2px);
 }
 
 .perks-container {
@@ -5131,6 +5284,8 @@ body {
 
 <script>
 
+
+    
     document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.querySelector('.logout-button');
     if (logoutButton) {
@@ -7114,42 +7269,47 @@ function loadNextQuestion() {
         return;
     }
 
-    currentGame.questionStartTime = Date.now();
-    currentGame.firstAttempt = true;
-
-    let questionWord, options, correctAnswer;
-    const currentDirection = currentGame.mixed ? 
-        Math.random() < 0.5 : currentGame.isHebrewToEnglish;
-
-    if (currentDirection) {
-        questionWord = currentGame.translations[currentGame.currentIndex];
-        options = new Set([currentGame.words[currentGame.currentIndex]]);
-        while (options.size < 3) {
-            const randomIndex = Math.floor(Math.random() * currentGame.words.length);
-            options.add(currentGame.words[randomIndex]);
-        }
-        correctAnswer = currentGame.words[currentGame.currentIndex];
-    } else {
-        questionWord = currentGame.words[currentGame.currentIndex];
-        options = new Set([currentGame.translations[currentGame.currentIndex]]);
-        while (options.size < 3) {
-            const randomIndex = Math.floor(Math.random() * currentGame.translations.length);
-            options.add(currentGame.translations[randomIndex]);
-        }
-        correctAnswer = currentGame.translations[currentGame.currentIndex];
-    }
+    const isTestLevel = [3,6,9,10,13,16,19,20,21].includes(gameState.currentLevel);
+    const isHebrewToEnglish = isTestLevel ? Math.random() < 0.5 : false;
     
+    // Get current word pair
+    const wordIndex = currentGame.currentIndex;
+    const questionWord = isHebrewToEnglish ? 
+        currentGame.translations[wordIndex] : 
+        currentGame.words[wordIndex];
+    
+    // Set question word
     document.getElementById('question-word').textContent = questionWord;
+
+    // Generate answer choices including correct answer
+    const correctAnswer = isHebrewToEnglish ? 
+        currentGame.words[wordIndex] : 
+        currentGame.translations[wordIndex];
     
+    // Get all possible answers from vocabulary
+    const allAnswers = isHebrewToEnglish ? 
+        currentGame.words : 
+        currentGame.translations;
+    
+    // Create answer choices with random wrong answers
+    const choices = new Set([correctAnswer]);
+    while(choices.size < 3) {
+        const randomIndex = Math.floor(Math.random() * allAnswers.length);
+        const randomAnswer = allAnswers[randomIndex];
+        if (randomAnswer !== correctAnswer) {
+            choices.add(randomAnswer);
+        }
+    }
+
+    // Create and shuffle buttons
     const buttonsDiv = document.getElementById('buttons');
     buttonsDiv.innerHTML = '';
-
-    Array.from(options)
+    Array.from(choices)
         .sort(() => Math.random() - 0.5)
-        .forEach(option => {
+        .forEach(choice => {
             const button = document.createElement('button');
-            button.textContent = option;
-            button.onclick = () => handleAnswer(option === correctAnswer);
+            button.textContent = choice;
+            button.onclick = () => handleAnswer(choice === correctAnswer);
             buttonsDiv.appendChild(button);
         });
 }
@@ -8017,40 +8177,54 @@ function startGame() {
 }
 
 function showLevelIntro(levelId, setupCallback) {
+    // Skip intro for custom practice
+    if (currentGame.isCustomPractice) {
+        setupCallback();
+        return;
+    }
+
     const transitionElement = document.createElement('div');
     transitionElement.className = 'slide-transition';
+    
+    // Determine level type for styling
+    const isTestLevel = [3,6,9,10,13,16,19,20].includes(levelId);
+    const isBossLevel = levelId === 21;
+    
+    let introClass = 'normal-level';
+    if (isTestLevel) introClass = 'test-level';
+    if (isBossLevel) introClass = 'boss-level';
+
     transitionElement.innerHTML = `
         <div class="slide-panel-left"></div>
         <div class="slide-panel-right"></div>
-        <div class="level-announcement">
-            <h1>Stage ${gameState.currentStage || 1}</h1>
-            <h2>Level ${gameState.currentSet || 1}-${levelId}</h2>
+        <div class="level-announcement ${introClass}">
+            <h1>Stage ${gameState.currentStage}</h1>
+            <h2>Level ${gameState.currentSet}-${levelId}</h2>
+            ${isTestLevel ? '<div class="test-badge">Review Challenge</div>' : ''}
+            ${isBossLevel ? '<div class="boss-badge">Boss Level</div>' : ''}
         </div>
     `;
     
     document.body.appendChild(transitionElement);
-    
     const announcement = transitionElement.querySelector('.level-announcement');
     
     // Force reflow
     transitionElement.offsetHeight;
     
-    requestAnimationFrame(() => {
-        transitionElement.classList.add('show');
-        announcement.classList.add('show');
+    // Show transition
+    transitionElement.classList.add('show');
+    announcement.classList.add('show');
+    
+    // Wait and execute callback
+    setTimeout(() => {
+        setupCallback();
+        transitionElement.classList.remove('show');
+        announcement.classList.remove('show');
         
         setTimeout(() => {
-            setupCallback();
-            
-            transitionElement.classList.remove('show');
-            announcement.classList.remove('show');
-            
-            setTimeout(() => {
-                document.body.removeChild(transitionElement);
-            }, 400);
-            
-        }, 1000);
-    });
+            document.body.removeChild(transitionElement);
+        }, 400);
+    }, 1500);
 }
 
 const customPracticeLists = {
@@ -9607,28 +9781,34 @@ function showUnregisteredWarning(callback) {
     }
 
     prompt.querySelector('.signup-now').onclick = () => {
-        hidePrompt(() => {
-            showScreen('signupForm');
+    hidePrompt(() => {
+        // First make sure we're on welcome screen
+        showScreen('welcome-screen');
+        
+        // Then show auth modal
+        const authModal = document.getElementById('authModal');
+        if (authModal) {
+            authModal.classList.add('show');
             
-            // Target the auth container
-            const authContainer = document.getElementById('authBox');
-            
-            // Add highlight class
-            authContainer.classList.add('highlight');
-            
-            // Switch to signup tab
+            // Switch to signup form
             const signupForm = document.getElementById('signupForm');
             const loginForm = document.getElementById('loginForm');
+            if (signupForm && loginForm) {
+                signupForm.classList.remove('hidden');
+                loginForm.classList.add('hidden');
+            }
             
-            signupForm.classList.remove('hidden');
-            loginForm.classList.add('hidden');
-            
-            // Remove highlight after 5 seconds
-            setTimeout(() => {
-                authContainer.classList.remove('highlight');
-            }, 5000);
-        });
-    };
+            // Add highlight animation
+            const authContainer = document.querySelector('.auth-container');
+            if (authContainer) {
+                authContainer.classList.add('highlight');
+                setTimeout(() => {
+                    authContainer.classList.remove('highlight');
+                }, 5000);
+            }
+        }
+    });
+};
 
     prompt.querySelector('.secondary').onclick = () => {
         hidePrompt(callback);
@@ -10628,7 +10808,7 @@ async function showArcadeModal() {
     const modal = document.getElementById('arcade-modal');
     const teacherView = document.getElementById('teacher-view');
     const playerView = document.getElementById('player-view');
-    
+
     try {
         if (currentUser) {
             const { data: profile } = await supabaseClient
@@ -10640,13 +10820,13 @@ async function showArcadeModal() {
             if (profile?.role === 'teacher') {
                 // Generate OTP
                 const otp = Math.floor(1000 + Math.random() * 9000).toString();
-                
+
                 // Store in session
                 currentArcadeSession.otp = otp;
                 currentArcadeSession.teacherId = currentUser.id;
                 currentArcadeSession.participants = [];
                 currentArcadeSession.isInitialized = false;
-                
+
                 // Create channel
                 window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`, {
                     config: { broadcast: { self: true } }
@@ -10662,11 +10842,11 @@ async function showArcadeModal() {
                                 wordsCompleted: 0,
                                 coins: 0
                             });
-                            
+
                             // Update both player count and leaderboard
                             document.getElementById('player-count').textContent = 
                                 currentArcadeSession.participants.length;
-                                
+
                             // Update leaderboard if visible
                             const leaderboard = document.getElementById('arcade-leaderboard');
                             if (leaderboard && leaderboard.offsetParent !== null) {
@@ -10676,10 +10856,36 @@ async function showArcadeModal() {
                     })
                     .subscribe();
 
+                // Add custom lists section before displaying teacher view
+                const customListsSection = document.createElement('div');
+                customListsSection.className = 'custom-lists-selector';
+                customListsSection.innerHTML = `
+                    <div class="section-header">
+                        <h3>Add Custom Lists (Optional)</h3>
+                        <button class="add-list-button">+ Add List</button>
+                    </div>
+                    <div class="selected-lists"></div>
+                    <div class="stage-requirement">
+                        <div class="requirement-note">* Selecting a stage is required</div>
+                    </div>
+                `;
+
+                // Insert before stage selector
+                const stageSelector = teacherView.querySelector('.stage-selector');
+                if (stageSelector) {
+                    teacherView.insertBefore(customListsSection, stageSelector);
+                    
+                    // Handle add list button
+                    const addListButton = customListsSection.querySelector('.add-list-button');
+                    if (addListButton) {
+                        addListButton.onclick = showCustomListDropdown;
+                    }
+                }
+
                 document.getElementById('otp').textContent = otp;
                 teacherView.style.display = 'block';
                 playerView.style.display = 'none';
-                
+
             } else {
                 teacherView.style.display = 'none';
                 playerView.style.display = 'block';
@@ -10688,13 +10894,102 @@ async function showArcadeModal() {
             teacherView.style.display = 'none';
             playerView.style.display = 'block';
         }
-        
+
         modal.style.display = 'block';
-        
+
     } catch (error) {
         console.error('Arcade setup error:', error);
         alert('Failed to initialize arcade');
     }
+}
+
+function showCustomListDropdown() {
+    // Debug logs
+    console.log('Current user:', currentUser);
+    console.log('All custom lists:', customPracticeLists.lists);
+    
+    // Get teacher's lists, including both owned and shared
+    const lists = customPracticeLists.lists.filter(list => 
+        list.user_id === currentUser.id || 
+        (list.shared_with && list.shared_with.includes(currentUser.id))
+    );
+    
+    console.log('Filtered lists for teacher:', lists);
+    
+    // First load lists from Supabase
+    supabaseClient
+        .from('custom_lists')
+        .select('*')
+        .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`)
+        .then(({ data, error }) => {
+            if (error) {
+                console.error('Error fetching lists:', error);
+                return;
+            }
+            
+            console.log('Lists from database:', data);
+            
+            const availableLists = data || [];
+            showListsDropdown(availableLists);
+        });
+}
+
+function showListsDropdown(lists) {
+    // Remove any existing dropdowns
+    const existingDropdown = document.querySelector('.custom-list-dropdown');
+    if (existingDropdown) {
+        existingDropdown.remove();
+    }
+    
+    const dropdown = document.createElement('div');
+    dropdown.className = 'custom-list-dropdown';
+    
+    if (!lists || lists.length === 0) {
+        dropdown.innerHTML = `
+            <div class="list-item">
+                <span>No custom lists available</span>
+            </div>
+        `;
+    } else {
+        dropdown.innerHTML = `
+            <div class="dropdown-content">
+                ${lists.map(list => `
+                    <div class="list-item" data-id="${list.id}">
+                        <span>${list.name}</span>
+                        <span class="word-count">(${Array.isArray(list.words) ? list.words.length : 0} words)</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    const customListsSelector = document.querySelector('.custom-lists-selector');
+    customListsSelector.appendChild(dropdown);
+
+    // Add click handlers
+    dropdown.querySelectorAll('.list-item[data-id]').forEach(item => {
+        item.onclick = (e) => {
+            e.stopPropagation();
+            const listId = item.dataset.id;
+            const list = lists.find(l => l.id == listId);
+            if (list) {
+                addSelectedList(list);
+                dropdown.remove();
+            }
+        };
+    });
+}
+
+function addSelectedList(list) {
+    const selectedLists = document.querySelector('.selected-lists');
+    const listElement = document.createElement('div');
+    listElement.className = 'selected-list';
+    listElement.dataset.id = list.id;
+    listElement.innerHTML = `
+        <span>${list.name} (${list.words.length} words)</span>
+        <button class="remove-list" onclick="this.parentElement.remove()">×</button>
+    `;
+    selectedLists.appendChild(listElement);
 }
 
 function startPlayerCounting(teacherId) {
@@ -12375,6 +12670,212 @@ function showNotification(message, type = 'info') {
         notification.classList.remove('show');
         setTimeout(() => notification.remove(), 300);
     }, 3000);
+}
+
+function switchAuthForm(type) {
+    const loginForm = document.getElementById('loginForm');
+    const signupForm = document.getElementById('signupForm');
+    
+    if (type === 'signup') {
+        loginForm.classList.add('hidden');
+        signupForm.classList.remove('hidden');
+    } else {
+        loginForm.classList.remove('hidden');
+        signupForm.classList.add('hidden');
+    }
+}
+
+async function combineCustomLists(listIds) {
+    if (!currentUser?.role === 'teacher') return;
+    
+    const combinedList = {
+        id: Date.now(),
+        name: 'Combined List',
+        words: [],
+        translations: [],
+        isTeacherList: true
+    };
+    
+    // Merge selected lists
+    for (const listId of listIds) {
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        if (list) {
+            combinedList.words.push(...list.words);
+            combinedList.translations.push(...list.translations);
+        }
+    }
+    
+    return combinedList;
+}
+
+async function convertListToArcade(listId) {
+    if (!currentUser?.role === 'teacher') return;
+    
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
+    
+    // Create arcade configuration
+    const arcadeConfig = {
+        wordPool: list.words.map((word, index) => ({
+            word: word,
+            translation: list.translations[index]
+        })),
+        isCustomArcade: true,
+        teacherId: currentUser.id,
+        listId: listId
+    };
+    
+    return arcadeConfig;
+}
+
+function initializeBossLevel() {
+    const bossContainer = document.querySelector('.question-screen');
+    bossContainer.classList.add('boss-mode');
+    
+    // Disable perks for boss level
+    document.querySelectorAll('.perk-button').forEach(button => {
+        button.disabled = true;
+        button.style.opacity = '0.3';
+        const xMark = document.createElement('div');
+        xMark.className = 'perk-disabled';
+        xMark.innerHTML = '❌';
+        button.appendChild(xMark);
+    });
+}
+
+function startBossLevel() {
+    showLevelIntro(21, () => {
+        initializeBossLevel();
+        startTimer(currentGame.words.length * 8); // Less time per word
+        loadNextBossQuestion();
+    });
+}
+
+function loadNextBossQuestion() {
+    // Similar to regular loadNextQuestion but with special effects
+    const questionWord = document.getElementById('question-word');
+    questionWord.classList.add('boss-word');
+    
+    // Words fade out over time
+    setTimeout(() => {
+        questionWord.classList.add('fading');
+    }, 3000);
+    
+    // Answers shuffle periodically
+    const buttonsDiv = document.getElementById('buttons');
+    setInterval(() => {
+        const buttons = Array.from(buttonsDiv.children);
+        buttons.sort(() => Math.random() - 0.5).forEach(button => {
+            buttonsDiv.appendChild(button);
+        });
+    }, 5000);
+}
+
+// Arcade Participation Management
+function initializeArcadeParticipation() {
+    // Set up activity tracking
+    let lastActive = Date.now();
+    const INACTIVE_THRESHOLD = 60000; // 1 minute
+
+    // Heartbeat interval
+    setInterval(() => {
+        if (Date.now() - lastActive > INACTIVE_THRESHOLD) {
+            removeInactivePlayer();
+        }
+    }, 10000); // Check every 10 seconds
+
+    // Track user activity
+    ['mousemove', 'keypress', 'click'].forEach(event => {
+        document.addEventListener(event, () => {
+            lastActive = Date.now();
+        });
+    });
+
+    // Handle page refresh/close
+    window.addEventListener('beforeunload', () => {
+        if (window.arcadeChannel) {
+            window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'player_left',
+                payload: {
+                    username: currentArcadeSession.playerName
+                }
+            });
+        }
+    });
+}
+
+function removeInactivePlayer() {
+    window.arcadeChannel.send({
+        type: 'broadcast',
+        event: 'player_inactive',
+        payload: {
+            username: currentArcadeSession.playerName
+        }
+    });
+}
+
+// Arcade Completion Handling
+function handleArcadeCompletion(playerData) {
+    const completionRank = currentArcadeSession.participants
+        .sort((a, b) => b.wordsCompleted - a.wordsCompleted)
+        .findIndex(p => p.username === playerData.username) + 1;
+
+    if (completionRank <= 3) {
+        showPersonalizedCompletion(completionRank);
+        
+        if (completionRank === 3) {
+            // End game for all players
+            window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'game_complete',
+                payload: {
+                    topThree: currentArcadeSession.participants
+                        .sort((a, b) => b.wordsCompleted - a.wordsCompleted)
+                        .slice(0, 3)
+                }
+            });
+        }
+    }
+}
+
+// Add this function for testing
+function setTemporaryTeacherRole() {
+    currentUser = {
+        ...currentUser,
+        role: 'teacher'
+    };
+    
+    // Create test lists
+    const testLists = [
+        {
+            id: 1,
+            name: 'Test List 1',
+            words: ['cat', 'dog', 'bird'],
+            translations: ['חתול', 'כלב', 'ציפור']
+        },
+        {
+            id: 2,
+            name: 'Test List 2',
+            words: ['red', 'blue', 'green'],
+            translations: ['אדום', 'כחול', 'ירוק']
+        }
+    ];
+    
+    customPracticeLists.lists = testLists;
+    
+    // Test combination
+    combineCustomLists([1, 2]).then(combinedList => {
+        console.log('Combined List:', combinedList);
+    });
+}
+
+// Add button to interface for testing
+function addTestingControls() {
+    const testButton = document.createElement('button');
+    testButton.textContent = 'Test Teacher Features';
+    testButton.onclick = setTemporaryTeacherRole;
+    document.body.appendChild(testButton);
 }
 
 </script>
