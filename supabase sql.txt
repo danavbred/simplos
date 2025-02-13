@@ -1,3 +1,199 @@
+CREATE OR REPLACE FUNCTION init_player_stats()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO player_stats (user_id, total_levels_completed, unique_words_practiced)
+    VALUES (NEW.id, 0, 0)
+    ON CONFLICT (user_id) DO NOTHING;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created_stats
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION init_player_stats();
+
+
+CREATE TABLE IF NOT EXISTS game_progress (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    stage integer NOT NULL DEFAULT 1,
+    set_number integer NOT NULL DEFAULT 1,
+    level integer NOT NULL DEFAULT 1,
+    coins integer NOT NULL DEFAULT 0,
+    perks jsonb NOT NULL DEFAULT '{}',
+    unlocked_sets jsonb NOT NULL DEFAULT '{}',
+    unlocked_levels jsonb NOT NULL DEFAULT '{}',
+    perfect_levels jsonb NOT NULL DEFAULT '[]',
+    completed_levels jsonb NOT NULL DEFAULT '[]',
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+-- Enable Row Level Security
+ALTER TABLE game_progress ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own game progress" 
+ON game_progress FOR ALL 
+USING (auth.uid() = user_id);
+
+CREATE UNIQUE INDEX unique_user_game_progress ON game_progress (user_id);
+
+ALTER TABLE game_progress 
+ADD COLUMN total_coins integer DEFAULT 0,
+ADD COLUMN mode_coins jsonb DEFAULT '{"story": 0, "custom": 0, "arcade": 0}';
+
+-- Drop existing table if needed (be careful in production)
+-- DROP TABLE IF EXISTS custom_lists CASCADE;
+
+CREATE TABLE IF NOT EXISTS custom_lists (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES auth.users NOT NULL,
+    name TEXT NOT NULL,
+    words TEXT[] NOT NULL,
+    translations TEXT[] NOT NULL,
+    is_shared BOOLEAN DEFAULT FALSE,
+    shared_by UUID REFERENCES auth.users,
+    shared_with UUID[],
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_practiced_at TIMESTAMP,
+    practice_count INTEGER DEFAULT 0,
+    status TEXT CHECK (status IN ('active', 'archived')) DEFAULT 'active'
+);
+
+-- Enable Row Level Security
+ALTER TABLE custom_lists ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies
+DROP POLICY IF EXISTS "Users can view own and shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can insert shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can update own and shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can delete own lists" ON custom_lists;
+
+-- Policy for viewing lists
+CREATE POLICY "Users can view own and shared lists" ON custom_lists
+FOR SELECT 
+USING (
+    auth.uid() = user_id OR             -- Own lists
+    auth.uid() = ANY(shared_with) OR    -- Lists shared directly with user
+    (is_shared = true AND shared_by != auth.uid())  -- Explicitly shared lists
+);
+
+-- Policy for inserting lists
+CREATE POLICY "Users can insert shared lists" ON custom_lists
+FOR INSERT 
+WITH CHECK (
+    auth.uid() = user_id OR             -- User can insert their own lists
+    (
+        is_shared = true AND 
+        shared_by = auth.uid() AND       -- Sharer must be current user
+        array_length(shared_with, 1) > 0 -- At least one recipient
+    )
+);
+
+-- Policy for updating lists
+CREATE POLICY "Users can update own and shared lists" ON custom_lists
+FOR UPDATE 
+USING (
+    auth.uid() = user_id OR             -- Own lists
+    auth.uid() = ANY(shared_with)       -- Lists shared with current user
+);
+
+-- Policy for deleting lists
+CREATE POLICY "Users can delete own lists" ON custom_lists
+FOR DELETE 
+USING (
+    auth.uid() = user_id                -- Only list owner can delete
+);
+
+-- Grant permissions to authenticated users
+GRANT ALL ON custom_lists TO authenticated;
+
+-- Add at the end of CUSTOM LISTS section
+CREATE OR REPLACE FUNCTION insert_shared_list(
+    p_user_id uuid,
+    p_name text,
+    p_words text[],
+    p_translations text[],
+    p_is_shared boolean,
+    p_local_id bigint,
+    p_shared_with uuid[],
+    p_shared_by uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_list_id uuid;
+BEGIN
+    INSERT INTO custom_lists (
+        user_id,
+        name,
+        words,
+        translations,
+        is_shared,
+        local_id,
+        shared_with,
+        shared_by
+    ) VALUES (
+        p_user_id,
+        p_name,
+        p_words,
+        p_translations,
+        p_is_shared,
+        p_local_id,
+        p_shared_with,
+        p_shared_by
+    )
+    RETURNING id INTO v_list_id;
+    
+    RETURN v_list_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION insert_shared_list TO authenticated;
+
+ALTER TABLE custom_lists 
+ADD COLUMN min_words integer DEFAULT 6,
+ADD COLUMN max_levels integer GENERATED ALWAYS AS (
+    CASE 
+        WHEN array_length(words, 1) >= 6 THEN 
+            CASE 
+                WHEN array_length(words, 1) >= 12 THEN 5
+                WHEN array_length(words, 1) >= 9 THEN 4
+                ELSE 3
+            END
+        ELSE 0
+    END
+) STORED;
+
+-- ADD TO SUPABASE SQL:
+CREATE TABLE IF NOT EXISTS word_practice_history (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    word text NOT NULL,
+    practice_count integer DEFAULT 1,
+    game_mode text CHECK (game_mode IN ('story', 'custom', 'arcade')),
+    last_practiced_at timestamp with time zone DEFAULT NOW(),
+    coins_earned integer DEFAULT 0,
+    created_at timestamp with time zone DEFAULT NOW()
+);
+
+-- Add unique constraint for user-word pairs
+CREATE UNIQUE INDEX word_practice_user_word 
+ON word_practice_history(user_id, word);
+
+-- Enable RLS
+ALTER TABLE word_practice_history ENABLE ROW LEVEL SECURITY;
+
+-- Create policies
+CREATE POLICY "Users can manage their word history"
+ON word_practice_history
+FOR ALL
+USING (auth.uid() = user_id);
+
+GRANT ALL ON word_practice_history TO authenticated;
+
 ----------------------------------------------------------------------------------------
 -- 🎮 ARCADE EVENTS - MINIMAL VERSION
 ----------------------------------------------------------------------------------------
@@ -27,6 +223,12 @@ CREATE POLICY "Allow all" ON arcade_participants FOR ALL TO authenticated USING 
 GRANT ALL ON arcade_events TO authenticated;
 GRANT ALL ON arcade_participants TO authenticated;
 
+-- Add to ARCADE EVENTS section
+ALTER TABLE arcade_events ADD COLUMN IF NOT EXISTS game_state jsonb DEFAULT '{}';
+ALTER TABLE arcade_events ADD COLUMN IF NOT EXISTS status text DEFAULT 'waiting';
+
+-- Add index for faster OTP lookups
+CREATE INDEX IF NOT EXISTS idx_arcade_events_otp ON arcade_events(otp);
 
 ----------------------------------------------------------------------------------------
 -- 🏫 BASE TABLES - RUN THIS FIRST
@@ -208,34 +410,7 @@ WITH CHECK (auth.uid() = id);
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 
 -- Grant explicit permissions
-GRANT SELECT, UPDATE, INSERT ON public.user_profiles TO authenticated;----------------------------------------------------------------------------------------
--- 🎮 GAME PROGRESS
-----------------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS game_progress (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES auth.users NOT NULL,
-    stage integer NOT NULL DEFAULT 1,
-    set_number integer NOT NULL DEFAULT 1,
-    level integer NOT NULL DEFAULT 1,
-    coins integer NOT NULL DEFAULT 0,
-    perks jsonb NOT NULL DEFAULT '{}',
-    unlocked_sets jsonb NOT NULL DEFAULT '{}',
-    unlocked_levels jsonb NOT NULL DEFAULT '{}',
-    perfect_levels jsonb NOT NULL DEFAULT '[]',
-    completed_levels jsonb NOT NULL DEFAULT '[]',
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
-);
-
--- Enable Row Level Security
-ALTER TABLE game_progress ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can manage own game progress" 
-ON game_progress FOR ALL 
-USING (auth.uid() = user_id);
-
-CREATE UNIQUE INDEX unique_user_game_progress ON game_progress (user_id);
-
-
+GRANT SELECT, UPDATE, INSERT ON public.user_profiles TO authenticated;
 
 ----------------------------------------------------------------------------------------
 -- 📊 STATS
@@ -293,114 +468,4 @@ ORDER BY player_rank ASC;
 GRANT SELECT ON player_leaderboard TO authenticated;
 GRANT ALL ON player_stats TO authenticated;
 
---------------------------------------------------------------------------------------------------------------------------------------------------
--- 📝 CUSTOM LISTS
-----------------------------------------------------------------------------------------
--- Drop existing table if needed (be careful in production)
--- DROP TABLE IF EXISTS custom_lists CASCADE;
 
-CREATE TABLE IF NOT EXISTS custom_lists (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES auth.users NOT NULL,
-    name text NOT NULL,
-    words text[] DEFAULT '{}',
-    translations text[] DEFAULT '{}',
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    local_id BIGINT,
-    is_shared boolean DEFAULT false,
-    shared_with uuid[] DEFAULT '{}'::uuid[],
-    shared_by uuid REFERENCES auth.users(id)
-);
-
--- Enable Row Level Security
-ALTER TABLE custom_lists ENABLE ROW LEVEL SECURITY;
-
--- Drop existing policies
-DROP POLICY IF EXISTS "Users can view own and shared lists" ON custom_lists;
-DROP POLICY IF EXISTS "Users can insert shared lists" ON custom_lists;
-DROP POLICY IF EXISTS "Users can update own and shared lists" ON custom_lists;
-DROP POLICY IF EXISTS "Users can delete own lists" ON custom_lists;
-
--- Policy for viewing lists
-CREATE POLICY "Users can view own and shared lists" ON custom_lists
-FOR SELECT 
-USING (
-    auth.uid() = user_id OR             -- Own lists
-    auth.uid() = ANY(shared_with) OR    -- Lists shared directly with user
-    (is_shared = true AND shared_by != auth.uid())  -- Explicitly shared lists
-);
-
--- Policy for inserting lists
-CREATE POLICY "Users can insert shared lists" ON custom_lists
-FOR INSERT 
-WITH CHECK (
-    auth.uid() = user_id OR             -- User can insert their own lists
-    (
-        is_shared = true AND 
-        shared_by = auth.uid() AND       -- Sharer must be current user
-        array_length(shared_with, 1) > 0 -- At least one recipient
-    )
-);
-
--- Policy for updating lists
-CREATE POLICY "Users can update own and shared lists" ON custom_lists
-FOR UPDATE 
-USING (
-    auth.uid() = user_id OR             -- Own lists
-    auth.uid() = ANY(shared_with)       -- Lists shared with current user
-);
-
--- Policy for deleting lists
-CREATE POLICY "Users can delete own lists" ON custom_lists
-FOR DELETE 
-USING (
-    auth.uid() = user_id                -- Only list owner can delete
-);
-
--- Grant permissions to authenticated users
-GRANT ALL ON custom_lists TO authenticated;
-
--- Add at the end of CUSTOM LISTS section
-CREATE OR REPLACE FUNCTION insert_shared_list(
-    p_user_id uuid,
-    p_name text,
-    p_words text[],
-    p_translations text[],
-    p_is_shared boolean,
-    p_local_id bigint,
-    p_shared_with uuid[],
-    p_shared_by uuid
-)
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_list_id uuid;
-BEGIN
-    INSERT INTO custom_lists (
-        user_id,
-        name,
-        words,
-        translations,
-        is_shared,
-        local_id,
-        shared_with,
-        shared_by
-    ) VALUES (
-        p_user_id,
-        p_name,
-        p_words,
-        p_translations,
-        p_is_shared,
-        p_local_id,
-        p_shared_with,
-        p_shared_by
-    )
-    RETURNING id INTO v_list_id;
-    
-    RETURN v_list_id;
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION insert_shared_list TO authenticated;
