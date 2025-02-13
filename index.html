@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="google" content="notranslate">
+    <html lang="en" translate="no">
+    <title>Simplos</title>
+    
+    <!-- Fonts and Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="vocabs.js"></script>
+
+    <!-- Supabase -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2.39.7"></script>
+    <script>
+        const { createClient } = supabase;
+        const supabaseClient = createClient(
+            'https://mczfgzffyyyacisrccqb.supabase.co',
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzgzODYyMDQsImV4cCI6MjA1Mzk2MjIwNH0.rLga_B29Coz1LMeJzFTGLIhckdcojGXnD1ae1bw-QAI'
+        );
+    </script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/assets/css/main.css">
+
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Welcome Screen -->
+<div id="welcome-screen" class="screen visible">
+    <div class="particle-container"></div>
+    <h1 class="welcome-title">Simplos</h1>
+    
+    <div class="main-buttons">
+        <button class="main-button primary" onclick="showAuthModal()">Login / Sign Up</button>
+        <button class="main-button guest-play-button" onclick="startGame()">Play as Guest</button>
+        <button class="main-button" disabled>Download the App</button>
+    </div>
+
+    <!-- Auth Modal -->
+    <div id="authModal" class="auth-modal">
+        <div class="auth-modal-content">
+            <div id="loginForm" class="auth-form">
+                <h2>Login</h2>
+                <input type="text" class="auth-input" placeholder="Username" id="loginUsername">
+                <input type="password" class="auth-input" placeholder="Password" id="loginPassword">
+                <button class="auth-button" onclick="handleLogin()">Login</button>
+                <button class="auth-toggle" onclick="toggleAuthMode()">New? Register here</button>
+            </div>
+            <div id="signupForm" class="auth-form hidden">
+                <h2>Sign Up</h2>
+                <input type="email" class="auth-input" placeholder="Email" id="signupEmail">
+                <input type="text" class="auth-input" placeholder="Username" id="signupUsername">
+                <input type="password" class="auth-input" placeholder="Password" id="signupPassword">
+                <button class="auth-button" onclick="handleSignup()">Sign Up</button>
+                <button class="auth-toggle" onclick="toggleAuthMode()">Already have an account?</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Side Panel -->
+    <button class="hamburger-button" onclick="toggleSidePanel()">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <div class="side-panel">
+        <div class="side-panel-content">
+            <button class="logout-button logout-top-button">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+            <div class="welcome-buttons">
+                <a href="#" class="nav-link" onclick="showScreen('stage-screen'); return false;">
+                    <i class="fas fa-map-marked-alt"></i> Level Map
+                </a>
+                <a href="#" class="nav-link" onclick="showPricesScreen(); return false;">
+                    <i class="fas fa-dollar-sign"></i> Prices
+                </a>
+                <a href="#" class="nav-link" onclick="showRightsAndPolicies(); return false;">
+                    <i class="fas fa-balance-scale"></i> Rights & Policies
+                </a>
+                <a href="#" class="nav-link" onclick="showAboutPage(); return false;">
+                    <i class="fas fa-info-circle"></i> About
+                </a>
+                <a href="#" class="nav-link" onclick="showContactUs(); return false;">
+                    <i class="fas fa-envelope"></i> Contact Us
+                </a>
+            </div>
+            
+            <div class="user-profile-section user-profile-bottom">
+                <div class="username-display" id="userEmail"></div>
+                <div class="status-badge" id="userTierText"></div>
+                
+                <div class="user-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">Words</div>
+                        <div class="stat-value" id="totalWords">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Coins</div>
+                        <div class="stat-value">
+                            <i class="fas fa-coins coin-icon"></i>
+                            <span id="totalCoins">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Story Mode Screens -->
+<div id="stage-screen" class="screen">
+    <div class="particle-container"></div>
+    <div class="navigation-container">
+        <button class="navigation-button home-button" onclick="navigateHome()">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+        <button class="navigation-button reset-button" onclick="handleResetProgress()">
+            <i class="fas fa-trash-alt navigation-icon"></i>
+        </button>
+        <button class="navigation-button fullscreen-button" onclick="toggleFullScreen()">
+            <i class="fas fa-expand navigation-icon"></i>
+        </button>
+    </div>
+
+    <!-- New Hierarchical Stage/Set View -->
+    <div class="stage-container">
+        <!-- Stage 1 -->
+        <div class="stage-section">
+            <div class="stage-header" onclick="toggleStage(1)">
+                <div class="stage-name">מתחילים</div>
+                <div class="stage-title">Stage 1</div>
+                <i class="fas fa-chevron-down stage-toggle"></i>
+            </div>
+            <div class="sets-container" id="stage-1-sets">
+                <!-- Sets will be dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Stage 2 -->
+        <div class="stage-section">
+            <div class="stage-header" onclick="toggleStage(2)">
+                <div class="stage-name">יסודי</div>
+                <div class="stage-title">Stage 2</div>
+                <i class="fas fa-chevron-down stage-toggle"></i>
+            </div>
+            <div class="sets-container" id="stage-2-sets">
+                <!-- Sets will be dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Stage 3 -->
+        <div class="stage-section">
+            <div class="stage-header" onclick="toggleStage(3)">
+                <div class="stage-name">חטיבת ביניים</div>
+                <div class="stage-title">Stage 3</div>
+                <i class="fas fa-chevron-down stage-toggle"></i>
+            </div>
+            <div class="sets-container" id="stage-3-sets">
+                <!-- Sets will be dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Stage 4 -->
+        <div class="stage-section">
+            <div class="stage-header" onclick="toggleStage(4)">
+                <div class="stage-name">תיכון</div>
+                <div class="stage-title">Stage 4</div>
+                <i class="fas fa-chevron-down stage-toggle"></i>
+            </div>
+            <div class="sets-container" id="stage-4-sets">
+                <!-- Sets will be dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Stage 5 -->
+        <div class="stage-section">
+            <div class="stage-header" onclick="toggleStage(5)">
+                <div class="stage-name">אוניברסיטה</div>
+                <div class="stage-title">Stage 5</div>
+                <i class="fas fa-chevron-down stage-toggle"></i>
+            </div>
+            <div class="sets-container" id="stage-5-sets">
+                <!-- Sets will be dynamically populated -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Question Screen -->
+<div id="question-screen" class="screen">
+    <div class="particle-container"></div>
+    <div class="navigation-container">
+        <button class="navigation-button home-button" onclick="navigateHome()">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+        <button class="navigation-button restart-level" onclick="handleRestartLevel()">
+            <i class="fas fa-redo navigation-icon"></i>
+        </button>
+    </div>
+
+    <!-- Question Word -->
+    <div class="question-word" id="question-word"></div>
+
+    <!-- Progress Circle with Timer and Coins -->
+    <div class="progress-circle">
+        <svg width="100%" height="100%" viewBox="0 0 120 120">
+            <circle class="bg" cx="60" cy="60" r="54" stroke-width="8"/>
+            <circle class="progress" cx="60" cy="60" r="54" stroke-width="8"/>
+            <circle class="timer-bg" cx="60" cy="60" r="40" stroke-width="4"/>
+            <circle class="timer-progress" cx="60" cy="60" r="40" stroke-width="4"/>
+        </svg>
+        <div class="coins-container">
+            <i class="fas fa-coins coin-icon"></i>
+            <span class="coin-count">0</span>
+        </div>
+    </div>
+
+    <!-- Perks Container -->
+    <div class="perks-container">
+        <button class="perk-button" id="timeFreezePerk">
+            <i class="fas fa-clock perk-icon"></i>
+            <span class="perk-count">0</span>
+        </button>
+        <button class="perk-button" id="skipPerk">
+            <i class="fas fa-forward perk-icon"></i>
+            <span class="perk-count">0</span>
+        </button>
+        <button class="perk-button" id="cluePerk">
+            <i class="fas fa-lightbulb perk-icon"></i>
+            <span class="perk-count">0</span>
+        </button>
+        <button class="perk-button" id="revealPerk">
+            <i class="fas fa-eye perk-icon"></i>
+            <span class="perk-count">0</span>
+        </button>
+    </div>
+
+    <!-- Answer Buttons -->
+    <div class="buttons" id="buttons"></div>
+</div>
+
+<!-- Failure Overlay -->
+<div class="failure-overlay" style="display: none;">
+    <div class="failure-content">
+        <h2 class="failure-title">Time's Up!</h2>
+        <div class="failure-buttons">
+            <button class="restart-button">
+                <i class="fas fa-redo"></i>
+            </button>
+            <button class="home-button">
+                <i class="fas fa-home"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Level Completion Modal -->
+<div class="completion-overlay" style="display: none;">
+    <div class="completion-content">
+        <h2>Level Complete!</h2>
+        <div class="completion-stats">
+            <div class="stat-item">
+                <i class="fas fa-star"></i>
+                <span>Score</span>
+                <strong id="completionScore">0</strong>
+            </div>
+            <div class="stat-item">
+                <i class="fas fa-coins"></i>
+                <span>Coins Earned</span>
+                <strong id="completionCoins">0</strong>
+            </div>
+        </div>
+        <button class="main-button" onclick="nextLevel()">Continue</button>
+    </div>
+</div>
+
+<!-- Premium Celebration Modal -->
+<div class="premium-celebration">
+    <div class="celebration-content">
+        <h1 class="celebration-title">Congratulations!</h1>
+        <p class="celebration-message">You've unlocked Premium Access!</p>
+        <button class="main-button" onclick="handlePremiumCelebrationComplete()">
+            Continue
+        </button>
+    </div>
+</div>
+
+<!-- Upgrade Prompt Modal -->
+<div class="upgrade-prompt">
+    <div class="upgrade-prompt-content">
+        <h2>Unlock Full Access!</h2>
+        <p>Upgrade to Premium to access all levels and features!</p>
+        <div class="upgrade-prompt-buttons">
+            <button class="main-button" onclick="showUpgradeScreen()">Upgrade Now</button>
+            <button class="main-button secondary" onclick="hideUpgradePrompt()">Continue Playing</button>
+        </div>
+    </div>
+</div>
+
+<!-- Curtain Transition -->
+<div class="curtain-overlay">
+    <div class="curtain-title">
+        <h1></h1>
+        <h2></h2>
+    </div>
+</div>
+
+<!-- Notifications Container -->
+<div id="notification-container" class="notification-container"></div>
+
+
+<!-- Core Scripts -->
+<script type="module">
+    import { stateManager } from './js/state/state-manager.js';
+    import { supabaseManager } from './js/services/supabase-client.js';
+    import { gameManager } from './js/core/game-manager.js';
+    import { uiManager } from './js/utils/ui-manager.js';
+    import { gameInitialization } from './js/core/initialization.js';
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        gameInitialization.init();
+    });
+
+    window.addEventListener('DOMContentLoaded', async () => {
+        try {
+            await stateManager.initialize();
+            await supabaseManager.initialize();
+            await gameManager.initialize();
+            uiManager.initialize();
+            
+            // Hide loading overlay
+            document.getElementById('loading-overlay').style.display = 'none';
+        } catch (error) {
+            console.error('Initialization error:', error);
+        }
+    });
+
+    // Add after module imports
+document.addEventListener('DOMContentLoaded', () => {
+    const welcomeScreen = document.getElementById('welcome-screen');
+    particleSystem.initializeContainer(welcomeScreen);
+});
+</script>
+
+<!-- Add this right after the loading overlay div -->
+<script>
+    setTimeout(() => {
+        document.getElementById('loading-overlay').style.display = 'none';
+    }, 2000);
+</script>
+
+
+<!-- Initialize Game -->
+<script>
+
+    // Global Game State
+    let currentUser = null;
+    let gameState = {
+        currentStage: null,
+        currentSet: null,
+        currentLevel: null,
+        unlockedSets: {},
+        unlockedLevels: {},
+        perfectLevels: new Set(),
+        completedLevels: new Set(),
+        coins: 0,
+        perks: {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        }
+    };
+
+    let currentGame = {
+        words: [],
+        translations: [],
+        currentIndex: 0,
+        correctAnswers: 0,
+        firstAttempt: true,
+        isHebrewToEnglish: false,
+        mixed: false,
+        startTime: 0,
+        levelStartTime: 0,
+        timeBonus: 0,
+        streakBonus: true,
+        questionStartTime: 0,
+        wrongStreak: 0,
+        progressLost: 0
+    };
+
+    // Initialize on Document Load
+    document.addEventListener('DOMContentLoaded', async () => {
+        await checkExistingSession();
+        initializeGame();
+        updatePerkCounts();
+        updateGuestPlayButton();
+        
+        // Initialize particles on welcome screen
+        const welcomeScreen = document.getElementById('welcome-screen');
+        initializeParticles(welcomeScreen);
+    });
+
+    // Handle auth modal clicks outside
+    document.addEventListener('click', (e) => {
+        const authModal = document.getElementById('authModal');
+        const authContent = authModal?.querySelector('.auth-modal-content');
+        
+        if (authModal?.classList.contains('show') && 
+            !authContent.contains(e.target) && 
+            !e.target.matches('.main-button')) {
+            hideAuthModal();
+        }
+    });
+
+    // Handle logout button
+    document.addEventListener('DOMContentLoaded', () => {
+        const logoutButton = document.querySelector('.logout-button');
+        if (logoutButton) {
+            logoutButton.addEventListener('click', handleLogout);
+        }
+    });
+
+    // Handle side panel clicks outside
+    document.addEventListener('click', (e) => {
+        const sidePanel = document.querySelector('.side-panel');
+        const hamburgerButton = document.querySelector('.hamburger-button');
+        
+        if (sidePanel.classList.contains('open') && 
+            !sidePanel.contains(e.target) && 
+            !hamburgerButton.contains(e.target)) {
+            toggleSidePanel();
+        }
+    });
+
+// Initialize core systems and event handling
+const gameInitialization = {
+    async init() {
+        try {
+            // Initialize managers in the correct order
+            await stateManager.initialize();
+            await supabaseManager.initialize();
+            await gameManager.initialize();
+            uiManager.initialize();
+            
+            // Initialize particle system
+            this.initializeParticles();
+            
+            // Set up global event listeners
+            this.setupEventListeners();
+            
+            // Hide loading overlay when everything is ready
+            document.getElementById('loading-overlay').style.display = 'none';
+            
+        } catch (error) {
+            console.error('Initialization error:', error);
+        }
+    },
+
+    setupEventListeners() {
+        // Auth-related events
+        document.addEventListener('userLoggedIn', this.handleUserLogin.bind(this));
+        document.addEventListener('userLoggedOut', this.handleUserLogout.bind(this));
+        
+        // Screen transitions
+        document.addEventListener('screenChange', this.handleScreenChange.bind(this));
+        
+        // Modal handling
+        document.addEventListener('modalOpen', this.handleModalOpen.bind(this));
+        document.addEventListener('modalClose', this.handleModalClose.bind(this));
+        
+        // Click outside handlers for modals
+        document.addEventListener('click', (e) => {
+            // Handle auth modal clicks outside
+            const authModal = document.getElementById('authModal');
+            const authContent = authModal?.querySelector('.auth-modal-content');
+            if (authModal?.classList.contains('show') && 
+                !authContent.contains(e.target) && 
+                !e.target.matches('.main-button')) {
+                this.closeModal('authModal');
+            }
+            
+            // Handle side panel clicks outside
+            const sidePanel = document.querySelector('.side-panel');
+            const hamburgerButton = document.querySelector('.hamburger-button');
+            if (sidePanel.classList.contains('open') && 
+                !sidePanel.contains(e.target) && 
+                !hamburgerButton.contains(e.target)) {
+                this.closeSidePanel();
+            }
+        });
+        
+        // Performance optimization: Use throttled resize handler
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            if (!resizeTimeout) {
+                resizeTimeout = setTimeout(() => {
+                    this.handleResize();
+                    resizeTimeout = null;
+                }, 66); // ~15fps
+            }
+        });
+    },
+
+    handleUserLogin(event) {
+        const { user } = event.detail;
+        // Update UI for logged-in state
+        uiManager.updateAuthUI(user);
+        // Load user's saved state
+        stateManager.loadUserState(user.id);
+    },
+
+    handleUserLogout() {
+        // Clear state and return to default
+        stateManager.setupDefaultState();
+        // Update UI for logged-out state
+        uiManager.updateAuthUI(null);
+        // Show welcome screen
+        this.showScreen('welcome-screen');
+    },
+
+    handleScreenChange(event) {
+        const { screenId, forceRefresh } = event.detail;
+        const currentScreen = document.querySelector('.screen.visible');
+        
+        // Clean up current screen
+        if (currentScreen) {
+            // Remove event listeners specific to the current screen
+            this.cleanupScreenEvents(currentScreen.id);
+            // Remove any running animations
+            this.cleanupAnimations(currentScreen);
+        }
+        
+        // Initialize new screen
+        this.initializeScreen(screenId);
+    },
+
+    initializeScreen(screenId) {
+        const screen = document.getElementById(screenId);
+        if (!screen) return;
+        
+        // Initialize particles for the new screen
+        this.initializeParticles(screen);
+        
+        // Set up screen-specific event listeners
+        this.setupScreenEvents(screenId);
+        
+        // Show screen with transition
+        requestAnimationFrame(() => {
+            screen.classList.add('visible');
+        });
+    },
+
+    initializeParticles(container = document.body) {
+        // (We'll implement this in the particle system next)
+    },
+
+    handleModalOpen(event) {
+        const { modalId, data } = event.detail;
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        
+        // Pre-populate modal data if provided
+        if (data) {
+            this.populateModal(modal, data);
+        }
+        
+        // Show modal with animation
+        requestAnimationFrame(() => {
+            modal.classList.add('show');
+        });
+    },
+
+    handleModalClose(event) {
+        const { modalId } = event.detail;
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        
+        // Hide modal with animation
+        modal.classList.remove('show');
+        
+        // Clean up after animation
+        modal.addEventListener('transitionend', () => {
+            // Clear any form data
+            const forms = modal.querySelectorAll('form');
+            forms.forEach(form => form.reset());
+        }, { once: true });
+    },
+
+    cleanupScreenEvents(screenId) {
+        // Remove screen-specific event listeners
+        // This will be populated based on each screen's needs
+    },
+
+    cleanupAnimations(screen) {
+        // Remove any ongoing animations
+        const animations = screen.getAnimations();
+        animations.forEach(animation => animation.cancel());
+    },
+
+    handleResize() {
+        // Update particle system
+        this.updateParticles();
+        // Update UI elements that depend on screen size
+        uiManager.handleResize();
+    }
+};
+
+// Start initialization when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    gameInitialization.init();
+});
+
+// Add before the module imports
+function showAuthModal() {
+    const modal = document.getElementById('authModal');
+    modal.classList.add('show');
+}
+
+function startGame() {
+    if (!currentUser) {
+        setupDefaultUnlocks();
+    }
+    showScreen('stage-screen');
+}
+
+function setupDefaultUnlocks() {
+    if (!gameState.unlockedSets[1]) {
+        gameState.unlockedSets[1] = new Set();
+    }
+    for (let i = 1; i <= 9; i++) {
+        gameState.unlockedSets[1].add(i);
+        const setKey = `1_${i}`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set([1]);
+        }
+    }
+}
+
+
+
+</script>
+</body>
+</html>
