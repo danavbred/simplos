@@ -5366,17 +5366,18 @@ function showSetScreen(stageId) {
     
     for (let i = 1; i <= stage.numSets; i++) {
         const setButton = document.createElement('div');
-        setButton.className = 'set-button';
+        setButton.className = 'set-button active';
         setButton.textContent = `Set ${i}`;
         
         if (gameState.unlockedSets[stageId]?.has(i)) {
-            setButton.classList.add('active');
             setButton.onclick = () => showLevelScreen(i);
         }
         
         container.appendChild(setButton);
     }
     
+    showScreen('set-screen');
+
     // Check user access and apply lock overlay if needed
     checkUserAccess().then(access => {
         if (!access) return;
@@ -5394,6 +5395,9 @@ function showSetScreen(stageId) {
             }
         });
     });
+
+    // Additional enhancements for stage-specific theming
+    document.body.className = `stage-${stageId}`;
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -6171,37 +6175,75 @@ function cleanupSubscriptions() {
 
 // MODIFY loadCustomLists to use single query:
 async function loadCustomLists() {
-    console.log('Loading custom lists');
+    console.log('Loading custom lists with verbose logging');
     
     if (!currentUser) {
+        console.log('No user logged in, loading from localStorage');
         const savedLists = localStorage.getItem('simploxCustomLists');
         customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
-        console.log('Loaded guest lists:', customPracticeLists.lists);
         updateListsDisplay();
         return;
     }
 
     try {
-        console.log('Fetching lists for user:', currentUser.id);
-        const { data, error } = await supabaseClient
+        // First verify user is properly authenticated
+        const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+        if (userError) {
+            console.error('Auth verification failed:', userError);
+            return;
+        }
+        console.log('Auth verified for user:', userData.user.id);
+
+        // Attempt a direct query first
+        const { data: ownedLists, error: ownedError } = await supabaseClient
             .from('custom_lists')
             .select('*')
             .eq('user_id', currentUser.id);
 
-        if (error) {
-            console.error('Error fetching lists:', error);
+        if (ownedError) {
+            console.error('Error fetching owned lists:', ownedError);
             return;
         }
+        console.log('Owned lists fetched:', ownedLists);
 
-        console.log('Fetched lists from database:', data);
-        customPracticeLists.lists = data || [];
-        
-        // Ensure lists are processed before updating display
-        console.log('Updated lists state:', customPracticeLists.lists);
+        // Attempt to fetch shared lists
+        const { data: sharedLists, error: sharedError } = await supabaseClient
+            .from('custom_lists')
+            .select('*')
+            .contains('shared_with', [currentUser.id]);
+
+        if (sharedError) {
+            console.error('Error fetching shared lists:', sharedError);
+            return;
+        }
+        console.log('Shared lists fetched:', sharedLists);
+
+        // Combine and process lists
+        const allLists = [...(ownedLists || []), ...(sharedLists || [])];
+        console.log('Combined lists:', allLists);
+
+        if (allLists.length > 0) {
+            customPracticeLists.lists = allLists.map(list => ({
+                id: list.id,
+                name: list.name,
+                words: list.words || [],
+                translations: list.translations || [],
+                isShared: list.user_id !== currentUser.id,
+                sharedBy: list.user_id,
+                practiceCount: list.practice_count || 0
+            }));
+        } else {
+            customPracticeLists.lists = [];
+        }
+
+        console.log('Final processed lists:', customPracticeLists.lists);
+
+        // Update UI
         updateListsDisplay();
-        
+
     } catch (error) {
-        console.error('Error loading lists:', error);
+        console.error('Unexpected error in loadCustomLists:', error);
+        showNotification('Failed to load lists', 'error');
     }
 }
 
@@ -6846,45 +6888,7 @@ document.addEventListener('fullscreenchange', function() {
     }
 });
 
-function showSetScreen(stageId) {
-    gameState.currentStage = stageId;
-    const container = document.getElementById('set-container');
-    container.innerHTML = '';
-    
-    const stage = gameStructure.stages[stageId - 1];
-    
-    for (let i = 1; i <= stage.numSets; i++) {
-        const setButton = document.createElement('div');
-        setButton.className = 'set-button active';
-        setButton.textContent = `Set ${i}`;
-        
-        if (gameState.unlockedSets[stageId]?.has(i)) {
-            setButton.onclick = () => showLevelScreen(i);
-        }
-        
-        container.appendChild(setButton);
-    }
-    
-    showScreen('set-screen');
 
-    // Run access check after showing screen
-    checkUserAccess().then(access => {
-        if (!access) return;
-        
-        container.querySelectorAll('.set-button').forEach((btn, index) => {
-            const i = index + 1;
-            const hasAccess = access.unlockedStages[stageId] === 'full' || 
-                             (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
-            
-            if (!hasAccess) {
-                btn.classList.remove('active');
-                btn.classList.add('locked');
-                btn.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
-                btn.onclick = () => showUpgradePrompt();
-            }
-        });
-    });
-}
 
 function showLevelScreen(setId) {
     gameState.currentSet = setId;
@@ -9738,44 +9742,7 @@ function handleProgressionAfterCompletion(isLevelCompleted) {
     }
 }
 
-function showSetScreen(stageId) {
-    gameState.currentStage = stageId;
-    const container = document.getElementById('set-container');
-    container.innerHTML = '';
-    
-    const stage = gameStructure.stages[stageId - 1];
-    
-    for (let i = 1; i <= stage.numSets; i++) {
-        const setButton = document.createElement('div');
-        setButton.className = 'set-button active';
-        setButton.textContent = `Set ${i}`;
-        
-        if (gameState.unlockedSets[stageId]?.has(i)) {
-            setButton.onclick = () => showLevelScreen(i);
-        }
-        
-        container.appendChild(setButton);
-    }
-    
-    showScreen('set-screen');
 
-    checkUserAccess().then(access => {
-        if (!access) return;
-        
-        container.querySelectorAll('.set-button').forEach((btn, index) => {
-            const i = index + 1;
-            const hasAccess = access.unlockedStages[stageId] === 'full' || 
-                             (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
-            
-            if (!hasAccess) {
-                btn.classList.remove('active');
-                btn.classList.add('locked');
-                btn.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
-                btn.onclick = () => showUpgradePrompt();
-            }
-        });
-    });
-}
 
 
 
@@ -9900,52 +9867,7 @@ async function checkUserAccess() {
     }
 }
 
-async function showSetScreen(stageId) {
-    gameState.currentStage = stageId;
-    const container = document.getElementById('set-container');
-    container.innerHTML = '';
-    
-    const stage = gameStructure.stages[stageId - 1];
-    
-    const access = await checkUserAccess();
-    if (!access) return;
 
-    for (let i = 1; i <= stage.numSets; i++) {
-        const setButton = document.createElement('div');
-        
-        // Determine if set is accessible
-        const isSetAccessible = (
-            (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i)) ||
-            (i === 1)  // First set always accessible
-        );
-        
-        // Determine if user is premium
-        const isPremium = currentUser && currentUser.status === 'premium';
-        
-        // Set button classes
-        setButton.className = `set-button ${isSetAccessible ? 'active' : 'locked'}`;
-        setButton.textContent = `Set ${i}`;
-        
-        if (isSetAccessible) {
-            // Always allow clicking on first set
-            if (i === 1 || gameState.unlockedSets[stageId]?.has(i)) {
-                setButton.onclick = () => showLevelScreen(i);
-            }
-        } else {
-            // Add lock overlay for non-accessible sets
-            setButton.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
-            
-            // For non-premium users, show upgrade prompt
-            if (!isPremium && i !== 1) {
-                setButton.onclick = () => showUpgradePrompt();
-            }
-        }
-        
-        container.appendChild(setButton);
-    }
-    
-    showScreen('set-screen');
-}
 
 
 function toggleAuthMode() {

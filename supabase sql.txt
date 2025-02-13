@@ -1,3 +1,56 @@
+-- ADD this SQL query to verify table structure:
+SELECT 
+    table_name, 
+    column_name, 
+    data_type, 
+    is_nullable
+FROM 
+    information_schema.columns
+WHERE 
+    table_name = 'custom_lists'
+ORDER BY 
+    ordinal_position;
+
+-- Check existing policies:
+SELECT * FROM pg_policies WHERE tablename = 'custom_lists';
+
+-- Check permissions:
+SELECT 
+    grantee, privilege_type 
+FROM 
+    information_schema.role_table_grants 
+WHERE 
+    table_name = 'custom_lists';
+
+-- REPLACE custom_lists policies:
+DROP POLICY IF EXISTS "Users can view own and shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can insert own lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can update own lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can delete own lists" ON custom_lists;
+
+-- Create new policies
+CREATE POLICY "Users can view own and shared lists"
+ON custom_lists FOR SELECT
+USING (
+    auth.uid() = user_id OR
+    auth.uid() = ANY(COALESCE(shared_with, ARRAY[]::uuid[]))
+);
+
+CREATE POLICY "Users can insert own lists"
+ON custom_lists FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own lists"
+ON custom_lists FOR UPDATE
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own lists"
+ON custom_lists FOR DELETE
+USING (auth.uid() = user_id);
+
+-- Grant necessary permissions
+GRANT ALL ON custom_lists TO authenticated;
+
 CREATE OR REPLACE FUNCTION init_player_stats()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -12,7 +65,6 @@ CREATE TRIGGER on_auth_user_created_stats
     AFTER INSERT ON auth.users
     FOR EACH ROW
     EXECUTE FUNCTION init_player_stats();
-
 
 CREATE TABLE IF NOT EXISTS game_progress (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -41,6 +93,7 @@ CREATE UNIQUE INDEX unique_user_game_progress ON game_progress (user_id);
 ALTER TABLE game_progress 
 ADD COLUMN total_coins integer DEFAULT 0,
 ADD COLUMN mode_coins jsonb DEFAULT '{"story": 0, "custom": 0, "arcade": 0}';
+
 
 -- Drop existing table if needed (be careful in production)
 -- DROP TABLE IF EXISTS custom_lists CASCADE;
@@ -167,6 +220,7 @@ ADD COLUMN max_levels integer GENERATED ALWAYS AS (
     END
 ) STORED;
 
+
 -- ADD TO SUPABASE SQL:
 CREATE TABLE IF NOT EXISTS word_practice_history (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -193,6 +247,7 @@ FOR ALL
 USING (auth.uid() = user_id);
 
 GRANT ALL ON word_practice_history TO authenticated;
+
 
 ----------------------------------------------------------------------------------------
 -- 🎮 ARCADE EVENTS - MINIMAL VERSION
@@ -229,6 +284,7 @@ ALTER TABLE arcade_events ADD COLUMN IF NOT EXISTS status text DEFAULT 'waiting'
 
 -- Add index for faster OTP lookups
 CREATE INDEX IF NOT EXISTS idx_arcade_events_otp ON arcade_events(otp);
+
 
 ----------------------------------------------------------------------------------------
 -- 🏫 BASE TABLES - RUN THIS FIRST
@@ -467,5 +523,6 @@ ORDER BY player_rank ASC;
 -- Grant permissions for leaderboard
 GRANT SELECT ON player_leaderboard TO authenticated;
 GRANT ALL ON player_stats TO authenticated;
+
 
 

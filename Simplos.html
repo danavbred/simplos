@@ -5195,6 +5195,9 @@ background-clip: text;
 <script>
 
 
+
+
+
     
     document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.querySelector('.logout-button');
@@ -5398,11 +5401,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeGame();
     updatePerkCounts();
     updateGuestPlayButton();
+    addDebugButton(); // Add this line
+
     
     // Handle QR code joining
     window.addEventListener('hashchange', handleHashChange);
     window.addEventListener('load', handleHashChange);
     
+    customPracticeLists.lists = [];
+    if (currentUser) {
+        await loadCustomLists();
+        setupCustomListsSubscription();
+    }
+
     // Check for join hash on initial load
     if (window.location.hash.startsWith('#join=')) {
         console.log('Initial join hash detected');
@@ -5437,26 +5448,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             screen.orientation.lock('portrait')
                 .catch(err => console.log('Failed to lock orientation:', err));
         }
-    }
-
-    // OTP input handling
-    const otpInput = document.getElementById('otpInput');
-    if (otpInput) {
-        otpInput.addEventListener('input', function(e) {
-            // Remove any non-numeric characters
-            this.value = this.value.replace(/[^0-9]/g, '');
-            
-            // Limit to 4 digits
-            if (this.value.length > 4) {
-                this.value = this.value.slice(0, 4);
-            }
-        });
-    }
-
-    // Initialize real-time channels if user is logged in
-    if (currentUser) {
-        setupUserStatusSubscription();
-        initializeStatusCheck();
     }
 });
 
@@ -5937,85 +5928,359 @@ function saveProgress() {
 }
 
 async function saveCustomList() {
-    const listNameInput = document.getElementById('custom-list-name');
-    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+    console.log('Starting saveCustomList with persistence check');
     
-    const wordItems = document.querySelectorAll('.word-translation-item');
+    if (!currentUser) {
+        showNotification('Please log in to save lists', 'error');
+        return;
+    }
+
+    const listNameInput = document.getElementById('custom-list-name');
+    const wordList = document.getElementById('word-translation-list');
+    
+    // Collect words and translations
     const words = [];
     const translations = [];
     
-    wordItems.forEach(item => {
-        const englishWord = item.querySelector('.source-word').textContent.trim();
-        const hebrewTranslation = item.querySelector('.target-word').value.trim();
+    const items = wordList.querySelectorAll('.word-translation-item');
+    items.forEach(item => {
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
         
-        if (englishWord && hebrewTranslation) {
-            words.push(englishWord);
-            translations.push(hebrewTranslation);
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
         }
     });
 
-    const newList = {
-        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
-        name: name,
-        words: words,
-        translations: translations
-    };
+    console.log('Collected items:', { words, translations });
 
-    // If we're editing an existing list, replace it
-    if (customPracticeLists.currentList) {
-        const index = customPracticeLists.lists.findIndex(l => l.id === customPracticeLists.currentList.id);
-        if (index !== -1) {
-            customPracticeLists.lists[index] = newList;
-        } else {
-            customPracticeLists.lists.push(newList);
-        }
-    } else {
-        customPracticeLists.lists.push(newList);
-    }
-    
-    // Reset current list
-    customPracticeLists.currentList = null;
-    
-    // Save to Supabase if logged in
-    if (currentUser) {
-        await saveCustomListToSupabase(newList);
-    } else {
-        // Save to localStorage for guest users
-        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+    if (words.length < 6) {
+        showNotification('List must contain at least 6 words', 'error');
+        return;
     }
 
-    // Update UI after saving
-    showCustomListsManager();
-}
+    const name = listNameInput.value.trim() || `List ${Date.now()}`;
 
-async function loadCustomLists() {
-    if (currentUser) {
+    try {
+        // First, create the list object
+        const listData = {
+            user_id: currentUser.id,
+            name: name,
+            words: words,
+            translations: translations,
+            practice_count: 0,
+            status: 'active',
+            created_at: new Date().toISOString()
+        };
+
+        console.log('Attempting to save list:', listData);
+
+        // Save to Supabase
         const { data, error } = await supabaseClient
             .from('custom_lists')
-            .select('*')
-            .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
+            .insert([listData])
+            .select()
+            .single();
 
         if (error) {
-            console.error('Error loading custom lists:', error);
-            customPracticeLists.lists = [];
-        } else {
-            customPracticeLists.lists = data.map(item => ({
-                id: item.local_id || Date.now(),
-                supabaseId: item.id,
-                name: item.name,
-                words: item.words,
-                translations: item.translations,
-                is_shared: item.is_shared,
-                shared_by: item.shared_by
-            }));
+            console.error('Save error:', error);
+            showNotification('Failed to save list', 'error');
+            return;
         }
-    } else {
+
+        console.log('List saved successfully:', data);
+
+        // Verify the save by immediately fetching it back
+        const { data: verifyData, error: verifyError } = await supabaseClient
+            .from('custom_lists')
+            .select('*')
+            .eq('id', data.id)
+            .single();
+
+        if (verifyError || !verifyData) {
+            console.error('Verification failed:', verifyError);
+            showNotification('List save could not be verified', 'error');
+            return;
+        }
+
+        console.log('Save verified:', verifyData);
+
+        // Update local state
+        await loadCustomLists();  // Reload all lists
+
+        // Clear form
+        listNameInput.value = '';
+        wordList.innerHTML = '';
+        document.getElementById('custom-word-input').value = '';
+        document.getElementById('translation-results').style.display = 'none';
+
+        showNotification('List saved successfully!', 'success');
+
+    } catch (error) {
+        console.error('Save operation failed:', error);
+        showNotification('Failed to save list', 'error');
+    }
+}
+
+// ADD this subscription setup:
+function setupCustomListsSubscription() {
+    if (!currentUser || window.customListsSubscription) return;
+
+    console.log('Setting up custom lists subscription for user:', currentUser.id);
+
+    window.customListsSubscription = supabaseClient
+        .channel(`custom-lists-${currentUser.id}`)
+        .on('postgres_changes', 
+            {
+                event: '*',
+                schema: 'public',
+                table: 'custom_lists',
+                filter: `user_id=eq.${currentUser.id}`
+            },
+            async (payload) => {
+                console.log('Custom lists change detected:', payload);
+                await loadCustomLists();  // Reload lists on any change
+            }
+        )
+        .subscribe(status => {
+            console.log('Subscription status:', status);
+        });
+
+    return window.customListsSubscription;
+}
+
+async function showCustomListsManager() {
+    console.log('Showing custom lists manager');
+    showScreen('custom-practice-screen');
+    
+    // Ensure lists are loaded before updating display
+    await loadCustomLists();
+    console.log('Lists loaded, current state:', customPracticeLists.lists);
+    
+    // Update display and set up subscription
+    updateListsDisplay();
+    if (currentUser) {
+        setupCustomListsSubscription();
+    }
+}
+
+// ADD cleanup function:
+function cleanupCustomListsSubscription() {
+    if (window.customListsSubscription) {
+        window.customListsSubscription.unsubscribe();
+        delete window.customListsSubscription;
+    }
+}
+
+// ADD these debug functions:
+async function debugSupabaseConnection() {
+    try {
+        // Test 1: Verify authentication
+        const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+        console.log('Auth Test:', user ? 'Authenticated' : 'Not authenticated', 
+            user?.id, authError || '');
+
+        // Test 2: Verify table existence and structure
+        const { data: tableData, error: tableError } = await supabaseClient
+            .from('custom_lists')
+            .select('*')
+            .limit(1);
+        console.log('Table Test:', tableError ? 'Failed' : 'Passed', tableError || '');
+
+        // Test 3: Attempt minimal insert
+        const testList = {
+            user_id: user.id,
+            name: 'Test List ' + Date.now(),
+            words: ['test'],
+            translations: ['тест'],
+            status: 'active'
+        };
+
+        const { data: insertData, error: insertError } = await supabaseClient
+            .from('custom_lists')
+            .insert([testList])
+            .select();
+        console.log('Insert Test:', insertError ? 'Failed' : 'Passed', insertError || '');
+
+        return {
+            auth: !authError,
+            table: !tableError,
+            insert: !insertError,
+            errors: {
+                auth: authError,
+                table: tableError,
+                insert: insertError
+            }
+        };
+    } catch (error) {
+        console.error('Debug test failed:', error);
+        return {
+            auth: false,
+            table: false,
+            insert: false,
+            errors: { general: error }
+        };
+    }
+}
+
+// ADD this button to the UI temporarily:
+function addDebugButton() {
+    const button = document.createElement('button');
+    button.textContent = 'Debug Database';
+    button.style.position = 'fixed';
+    button.style.bottom = '20px';
+    button.style.right = '20px';
+    button.style.zIndex = '9999';
+    button.onclick = async () => {
+        const results = await debugSupabaseConnection();
+        console.log('Debug Results:', results);
+    };
+    document.body.appendChild(button);
+}
+
+
+
+// MODIFY setupCustomListsSubscription:
+function setupCustomListsSubscription() {
+    if (!currentUser || window.listSubscription) return;
+
+    window.listSubscription = supabaseClient
+        .channel('custom-lists-' + currentUser.id)  // Unique per user
+        .on('postgres_changes', 
+            {
+                event: '*',
+                schema: 'public',
+                table: 'custom_lists',
+                filter: `user_id=eq.${currentUser.id}`
+            }, 
+            () => loadCustomLists()
+        )
+        .subscribe();
+
+    return window.listSubscription;
+}
+
+// ADD cleanup function:
+function cleanupSubscriptions() {
+    if (window.listSubscription) {
+        window.listSubscription.unsubscribe();
+        delete window.listSubscription;
+    }
+}
+
+// MODIFY loadCustomLists to use single query:
+async function loadCustomLists() {
+    console.log('Loading custom lists with verbose logging');
+    
+    if (!currentUser) {
+        console.log('No user logged in, loading from localStorage');
         const savedLists = localStorage.getItem('simploxCustomLists');
         customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
+        updateListsDisplay();
+        return;
     }
-    
-    updateListsDisplay();
+
+    try {
+        // First verify user is properly authenticated
+        const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+        if (userError) {
+            console.error('Auth verification failed:', userError);
+            return;
+        }
+        console.log('Auth verified for user:', userData.user.id);
+
+        // Attempt a direct query first
+        const { data: ownedLists, error: ownedError } = await supabaseClient
+            .from('custom_lists')
+            .select('*')
+            .eq('user_id', currentUser.id);
+
+        if (ownedError) {
+            console.error('Error fetching owned lists:', ownedError);
+            return;
+        }
+        console.log('Owned lists fetched:', ownedLists);
+
+        // Attempt to fetch shared lists
+        const { data: sharedLists, error: sharedError } = await supabaseClient
+            .from('custom_lists')
+            .select('*')
+            .contains('shared_with', [currentUser.id]);
+
+        if (sharedError) {
+            console.error('Error fetching shared lists:', sharedError);
+            return;
+        }
+        console.log('Shared lists fetched:', sharedLists);
+
+        // Combine and process lists
+        const allLists = [...(ownedLists || []), ...(sharedLists || [])];
+        console.log('Combined lists:', allLists);
+
+        if (allLists.length > 0) {
+            customPracticeLists.lists = allLists.map(list => ({
+                id: list.id,
+                name: list.name,
+                words: list.words || [],
+                translations: list.translations || [],
+                isShared: list.user_id !== currentUser.id,
+                sharedBy: list.user_id,
+                practiceCount: list.practice_count || 0
+            }));
+        } else {
+            customPracticeLists.lists = [];
+        }
+
+        console.log('Final processed lists:', customPracticeLists.lists);
+
+        // Update UI
+        updateListsDisplay();
+
+    } catch (error) {
+        console.error('Unexpected error in loadCustomLists:', error);
+        showNotification('Failed to load lists', 'error');
+    }
 }
+
+async function verifyDatabaseAccess() {
+    try {
+        // Try to create a test list
+        const testList = {
+            user_id: currentUser.id,
+            name: 'Test List',
+            words: ['test'],
+            translations: ['test'],
+            status: 'active'
+        };
+
+        const { data, error } = await supabaseClient
+            .from('custom_lists')
+            .insert([testList])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Database access test failed:', error);
+            return false;
+        }
+
+        // If successful, delete the test list
+        if (data?.id) {
+            await supabaseClient
+                .from('custom_lists')
+                .delete()
+                .eq('id', data.id);
+        }
+
+        console.log('Database access test passed');
+        return true;
+    } catch (error) {
+        console.error('Database access verification failed:', error);
+        return false;
+    }
+}
+
 
 function switchAuthTab(tab) {
     const loginTab = document.querySelector('.auth-tab[onclick="switchAuthTab(\'login\')"]');
@@ -6110,6 +6375,8 @@ const gameState = {
     }
 };
 
+
+
 let currentGame = {
     words: [],
     translations: [],
@@ -6203,6 +6470,8 @@ function loadProgress() {
 }
 
 async function handleLogout() {
+    cleanupCustomListsSubscription();
+
     try {
         const { error } = await supabaseClient.auth.signOut();
         
@@ -8129,6 +8398,33 @@ const customPracticeLists = {
     maxLists: 5
 };
 
+const rateLimiter = new RateLimiter(100, 60000); // Create instance
+
+const DataCache = {
+    cache: new Map(),
+    maxAge: 5 * 60 * 1000, // 5 minutes
+    set(key, data) {
+        this.cache.set(key, {
+            data,
+            timestamp: Date.now()
+        });
+    },
+    get(key) {
+        const entry = this.cache.get(key);
+        if (!entry) return null;
+        
+        if (Date.now() - entry.timestamp > this.maxAge) {
+            this.cache.delete(key);
+            return null;
+        }
+        
+        return entry.data;
+    },
+    clear() {
+        this.cache.clear();
+    }
+};
+
 // Function to add a new word list
 function addCustomWordList(name = null) {
     // Check if we've reached the maximum number of lists
@@ -8604,31 +8900,72 @@ function saveCurrentList() {
 }
 
 function updateListsDisplay() {
+    console.log('Updating lists display');
     const container = document.getElementById('custom-lists-container');
-    if (!container) return;
+    if (!container) {
+        console.error('Lists container not found');
+        return;
+    }
 
+    // Show current lists state before updating
+    console.log('Current lists before display:', customPracticeLists.lists);
+    
     container.innerHTML = '';
 
-    if (customPracticeLists.lists.length === 0) {
-        container.innerHTML = '<p>No custom lists created yet. Create your first list!</p>';
+    if (!customPracticeLists.lists || customPracticeLists.lists.length === 0) {
+        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
         return;
     }
 
     customPracticeLists.lists.forEach(list => {
+        console.log('Creating display for list:', list);
+        
         const listItem = document.createElement('div');
-        listItem.className = 'custom-list-item';
+        listItem.className = 'custom-list-item collapsed';
+        listItem.dataset.listId = list.id;
+        
         listItem.innerHTML = `
-            <h3>${list.name}</h3>
-            <p>${list.words.length} words</p>
             <div class="list-actions">
-                <button onclick="startCustomListPractice(${list.id})">Practice</button>
-                <button onclick="editCustomList(${list.id})">Edit</button>
-                <button onclick="deleteCustomList(${list.id})">Delete</button>
+                <button class="start-button practice-button">Practice</button>
+                <button class="edit-button" data-list-id="${list.id}">Edit</button>
+                <button class="start-button delete-button">Delete</button>
+            </div>
+            <div class="list-header">
+                <h3>${list.name}</h3>
+                <div class="list-summary">
+                    <span>${list.words.length} words</span>
+                    <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
+                </div>
             </div>
         `;
+
+        // Add event listeners with explicit function calls
+        const practiceButton = listItem.querySelector('.practice-button');
+        practiceButton.addEventListener('click', () => {
+            console.log('Practice clicked for list:', list.id);
+            startCustomListPractice(list.id);
+        });
+
+        const editButton = listItem.querySelector('.edit-button');
+        editButton.addEventListener('click', () => {
+            console.log('Edit clicked for list:', list.id);
+            editCustomList(list.id);
+        });
+
+        const deleteButton = listItem.querySelector('.delete-button');
+        deleteButton.addEventListener('click', () => {
+            console.log('Delete clicked for list:', list.id);
+            deleteCustomList(list.id);
+        });
+
+        const header = listItem.querySelector('.list-header');
+        header.addEventListener('click', () => toggleListCollapse(list.id));
+
         container.appendChild(listItem);
+        console.log('List item added to container:', listItem);
     });
 }
+
 
 function startCustomListPractice(listId) {
     const list = customPracticeLists.lists.find(l => l.id === listId);
@@ -8745,6 +9082,8 @@ if (powerupsContainer) {
 
 function showCustomListsManager() {
     showScreen('custom-practice-screen');
+    loadCustomLists();
+    setupCustomListsSubscription();
     
     const container = document.getElementById('custom-lists-container');
     if (!container) return;
@@ -9010,20 +9349,37 @@ function loadCustomList(listId) {
     showScreen('custom-practice-screen');
 }
 
-function deleteCustomList(listId) {
-    // Ensure listId is a number
-    listId = typeof listId === 'string' ? parseInt(listId) : listId;
+async function deleteCustomList(listId) {
+    console.log('Attempting to delete list:', listId);
+    
+    if (currentUser) {
+        try {
+            const { error } = await supabaseClient
+                .from('custom_lists')
+                .delete()
+                .eq('id', listId);
 
-    // Remove from lists array
+            if (error) {
+                console.error('Delete error:', error);
+                showNotification('Failed to delete list', 'error');
+                return;
+            }
+        } catch (error) {
+            console.error('Delete operation failed:', error);
+            showNotification('Failed to delete list', 'error');
+            return;
+        }
+    }
+    
+    // Update local state after successful deletion
     customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
     
-    // Remove play count from localStorage
-    localStorage.removeItem(`listPlays_${listId}`);
+    // Only update localStorage for guest users
+    if (!currentUser) {
+        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+    }
     
-    // Update localStorage with remaining lists
-    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    
-    // Refresh the lists display
+    showNotification('List deleted successfully', 'success');
     showCustomListsManager();
 }
 
@@ -10270,31 +10626,82 @@ function updateUserStatusDisplay(status) {
     }
 }
 
+// REPLACE updateUserStats function:
 async function updateUserStats() {
+    if (!currentUser) return;
+    
     try {
+        // First check if stats exist, if not create them
+        const { data: existingStats, error: checkError } = await supabaseClient
+            .from('player_stats')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .single();
+            
+        if (!existingStats && !checkError) {
+            // Initialize stats if they don't exist
+            const { error: insertError } = await supabaseClient
+                .from('player_stats')
+                .insert([{
+                    user_id: currentUser.id,
+                    total_levels_completed: 0,
+                    unique_words_practiced: 0
+                }]);
+                
+            if (insertError) {
+                console.error('Error initializing player stats:', insertError);
+                return;
+            }
+        }
+
+        // Get coins from game progress
         const { data: progress } = await supabaseClient
             .from('game_progress')
             .select('coins')
             .eq('user_id', currentUser.id)
             .single();
-            
+
+        // Get stats with single query
         const { data: stats } = await supabaseClient
             .from('player_stats')
-            .select('unique_words_practiced')
+            .select('total_levels_completed, unique_words_practiced')
             .eq('user_id', currentUser.id)
             .single();
-            
-        if (progress) {
-            document.getElementById('totalCoins').textContent = progress.coins || 0;
+
+        // Update UI elements safely
+        const coinsElement = document.getElementById('totalCoins');
+        const wordsElement = document.getElementById('totalWords');
+        
+        if (coinsElement && progress) {
+            coinsElement.textContent = progress.coins || 0;
         }
         
-        if (stats) {
-            document.getElementById('totalWords').textContent = stats.unique_words_practiced || 0;
+        if (wordsElement && stats) {
+            wordsElement.textContent = stats.unique_words_practiced || 0;
         }
+
     } catch (error) {
         console.error('Error updating user stats:', error);
     }
 }
+
+// ADD debounce utility function:
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// MODIFY where updateUserStats is called to use debounced version:
+const debouncedUpdateUserStats = debounce(updateUserStats, 1000);
+
+
 
 
 function setupUserStatusSubscription() {
@@ -10524,6 +10931,7 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     }
 }
 
+// REPLACE checkExistingSession function to initialize stats:
 async function checkExistingSession() {
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
@@ -10531,40 +10939,58 @@ async function checkExistingSession() {
         if (session) {
             currentUser = session.user;
             
-            // Get initial status
-            const { data: profile } = await supabaseClient
-                .from('user_profiles')
-                .select('status')
-                .eq('id', currentUser.id)
-                .single();
+            // Get initial status and initialize stats
+            const [profileResponse, statsResponse] = await Promise.all([
+                supabaseClient
+                    .from('user_profiles')
+                    .select('status')
+                    .eq('id', currentUser.id)
+                    .single(),
+                supabaseClient
+                    .from('player_stats')
+                    .select('*')
+                    .eq('user_id', currentUser.id)
+                    .single()
+            ]);
+            
+            // Initialize player stats if they don't exist
+            if (!statsResponse.data) {
+                await supabaseClient
+                    .from('player_stats')
+                    .insert([{
+                        user_id: currentUser.id,
+                        total_levels_completed: 0,
+                        unique_words_practiced: 0
+                    }]);
+            }
                 
-            if (profile) {
-                currentUser.status = profile.status; // Store status in user object
-                updateUserStatusDisplay(profile.status);
+            if (profileResponse.data) {
+                currentUser.status = profileResponse.data.status;
+                updateUserStatusDisplay(profileResponse.data.status);
             }
             
-            // Initialize real-time updates and periodic check
             initializeStatusCheck();
             
             await Promise.all([
                 loadUserGameProgress(currentUser.id),
                 loadCustomLists()
             ]);
+
             updateAuthUI();
-            updateGuestPlayButton(); // Add this line
+            updateGuestPlayButton();
+            
         } else {
-            // Explicitly reset user and UI
             currentUser = null;
             updateAuthUI();
             updateUserStatusDisplay(null);
-            updateGuestPlayButton(); // Add this line
+            updateGuestPlayButton();
         }
     } catch (error) {
         console.error('Session check error:', error);
         currentUser = null;
         updateAuthUI();
         updateUserStatusDisplay(null);
-        updateGuestPlayButton(); // Add this line
+        updateGuestPlayButton();
     }
 }
 
@@ -12733,45 +13159,6 @@ function handleArcadeCompletion(playerData) {
             });
         }
     }
-}
-
-// Add this function for testing
-function setTemporaryTeacherRole() {
-    currentUser = {
-        ...currentUser,
-        role: 'teacher'
-    };
-    
-    // Create test lists
-    const testLists = [
-        {
-            id: 1,
-            name: 'Test List 1',
-            words: ['cat', 'dog', 'bird'],
-            translations: ['חתול', 'כלב', 'ציפור']
-        },
-        {
-            id: 2,
-            name: 'Test List 2',
-            words: ['red', 'blue', 'green'],
-            translations: ['אדום', 'כחול', 'ירוק']
-        }
-    ];
-    
-    customPracticeLists.lists = testLists;
-    
-    // Test combination
-    combineCustomLists([1, 2]).then(combinedList => {
-        console.log('Combined List:', combinedList);
-    });
-}
-
-// Add button to interface for testing
-function addTestingControls() {
-    const testButton = document.createElement('button');
-    testButton.textContent = 'Test Teacher Features';
-    testButton.onclick = setTemporaryTeacherRole;
-    document.body.appendChild(testButton);
 }
 
 </script>
