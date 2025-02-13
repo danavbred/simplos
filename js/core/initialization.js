@@ -107,43 +107,49 @@ export const gameInitialization = {
         this.initializeScreen(screenId);
     },
 
-    initializeParticles() {
+// Add to existing imports at the top
+import { particleSystem } from '../utils/particle-system.js';
+
+// Add this method to gameInitialization object
+initializeParticles() {
     // Initialize particles for welcome screen by default
     const welcomeScreen = document.getElementById('welcome-screen');
     if (welcomeScreen) {
         particleSystem.initializeContainer(welcomeScreen);
     }
 
+    // Update particles on screen resize
     window.addEventListener('resize', () => {
         const currentScreen = document.querySelector('.screen.visible');
         if (currentScreen) {
             particleSystem.cleanup(currentScreen);
             particleSystem.initializeContainer(currentScreen);
-            }
-        });
-    }
-
-    initializeScreen(screenId) {
-        const screen = document.getElementById(screenId);
-        if (!screen) return;
-        
-        // Clean up particles from previous screen
-        const previousScreen = document.querySelector('.screen.visible');
-        if (previousScreen) {
-            particleSystem.cleanup(previousScreen);
         }
-        
-        // Initialize particles for new screen
-        particleSystem.initializeContainer(screen);
-        
-        // Set up screen-specific event listeners
-        this.setupScreenEvents(screenId);
-        
-        // Show screen with transition
-        requestAnimationFrame(() => {
-            screen.classList.add('visible');
-        });
-    },
+    });
+}
+
+// Modify the initializeScreen method to handle particles
+initializeScreen(screenId) {
+    const screen = document.getElementById(screenId);
+    if (!screen) return;
+    
+    // Clean up particles from previous screen
+    const previousScreen = document.querySelector('.screen.visible');
+    if (previousScreen) {
+        particleSystem.cleanup(previousScreen);
+    }
+    
+    // Initialize particles for new screen
+    particleSystem.initializeContainer(screen);
+    
+    // Set up screen-specific event listeners
+    this.setupScreenEvents(screenId);
+    
+    // Show screen with transition
+    requestAnimationFrame(() => {
+        screen.classList.add('visible');
+    });
+},
 
     handleModalOpen(event) {
         const { modalId, data } = event.detail;

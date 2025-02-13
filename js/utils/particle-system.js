@@ -1,3 +1,5 @@
+// /js/utils/particle-system.js
+
 export class ParticleSystem {
     constructor() {
         this.particles = new Set();
@@ -20,7 +22,11 @@ export class ParticleSystem {
     }
 
     initializeContainer(container) {
-        if (!container) return;
+        console.log('Initializing particle container', container);
+        if (!container) {
+            console.error('No container provided for particles');
+            return;
+        }
 
         // Clear existing particle container
         const existingContainer = container.querySelector('.particle-container');
@@ -33,10 +39,12 @@ export class ParticleSystem {
         particleContainer.className = 'particle-container';
         container.appendChild(particleContainer);
 
-        // Start particle generation
-        this.generateParticles(particleContainer);
+        console.log('Particle container created', particleContainer);
+
+        // Start initial particle generation
+        this.generateInitialParticles(particleContainer);
         
-        // Store interval ID for cleanup
+        // Continue generating particles periodically
         const intervalId = setInterval(() => {
             this.generateParticles(particleContainer);
         }, 1000);
@@ -44,11 +52,26 @@ export class ParticleSystem {
         particleContainer.dataset.intervalId = intervalId.toString();
     }
 
+    generateInitialParticles(container) {
+        // Generate more particles on initial load
+        for (let i = 0; i < 20; i++) {
+            this.generateParticles(container);
+        }
+    }
+
     generateParticles(container) {
-        if (!container || this.particles.size >= this.maxParticles) return;
+        console.log('Generating particles in container', container);
+        if (!container || this.particles.size >= this.maxParticles) {
+            console.log('Cannot generate particles:', 
+                !container ? 'No container' : 'Max particles reached');
+            return;
+        }
 
         const particle = this.pool.pop();
-        if (!particle) return;
+        if (!particle) {
+            console.log('No particles in pool');
+            return;
+        }
 
         // Reset particle properties
         particle.style.opacity = '0';
@@ -70,6 +93,10 @@ export class ParticleSystem {
             left: ${startX}px;
             top: ${startY}px;
             font-size: ${size}px;
+            font-family: 'Montserrat', sans-serif;
+            color: rgba(255,255,255,0.2);
+            user-select: none;
+            pointer-events: none;
             --moveX: ${moveX}px;
             --moveY: ${moveY}px;
             --opacity: ${opacity};
@@ -100,6 +127,16 @@ export class ParticleSystem {
             particleContainer.remove();
         }
     }
+
+    updateParticles() {
+        // Optional method for responsive updates if needed
+        const currentScreen = document.querySelector('.screen.visible');
+        if (currentScreen) {
+            this.cleanup(currentScreen);
+            this.initializeContainer(currentScreen);
+        }
+    }
 }
 
+// Export singleton instance
 export const particleSystem = new ParticleSystem();
