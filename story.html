@@ -456,7 +456,7 @@ background-clip: text;
     }
 }
 
-/* Neon style for custom practice screen buttons */
+/* Neon style for Wordcraft practice screen buttons */
 .start-button, .edit-mode-button {
     position: relative;
     padding: 0.5rem 1rem;
@@ -4009,7 +4009,7 @@ background-clip: text;
 }
 
 
-/* Main Custom Practice Container */
+/* Main Wordcraft Practice Container */
 
 
 /* Split button styles */
@@ -4666,7 +4666,7 @@ const gameInit = {
         updatePerkCounts();
         const welcomeScreen = document.getElementById('welcome-screen');
         initializeParticles(welcomeScreen);
-        await loadCustomLists();
+        await loadWordcraftLists();
     }
 };
 
@@ -4747,7 +4747,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const welcomeScreen = document.getElementById('welcome-screen');
     initializeParticles(welcomeScreen);
     
-    await loadCustomLists();
+    await loadWordcraftLists();
 
     // Mobile fullscreen handling
     if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
@@ -4972,7 +4972,7 @@ async function handleLogin() {
             }
 
             await Promise.all([
-                loadCustomLists(),
+                loadWordcraftLists(),
                 loadUserGameProgress(currentUser.id)
             ]);
 
@@ -5175,7 +5175,7 @@ async function handleLogout() {
         };
 
         // Clear all input fields and UI state
-        clearCustomPracticeUI();
+        clearWordcraftPracticeUI();
 
         // Reset current user and update UI
         currentUser = null;
@@ -5422,9 +5422,9 @@ function loadProgress() {
         gameState.coins = data.coins;
         gameState.perks = data.perks || {timeFreeze: 0, skip: 0, clue: 0, reveal: 0};
     }
-    const savedCustomCoins = localStorage.getItem('simploxCustomCoins');
-    if (savedCustomCoins) {
-        gameState.coins = parseInt(savedCustomCoins);
+    const savedWordcraftCoins = localStorage.getItem('simploxWordcraftCoins');
+    if (savedWordcraftCoins) {
+        gameState.coins = parseInt(savedWordcraftCoins);
     }
 }
 
@@ -6478,14 +6478,14 @@ function handleAnswer(isCorrect, fromPerk = false) {
 
         // Check for game over condition
         if (currentGame.wrongStreak >= 3) {
-    if (currentGame.isCustomPractice) {
+    if (currentGame.isWordcraftPractice) {
         showGameOverOverlay();
         document.querySelector('.restart-button').onclick = () => {
             document.querySelector('.failure-overlay').style.display = 'none';
-            // Use the stored currentCustomLevel instead of resetting to 1
-            startCustomLevel(currentGame.currentCustomLevel, {
+            // Use the stored currentWordcraftLevel instead of resetting to 1
+            startWordcraftLevel(currentGame.currentWordcraftLevel, {
                 ...currentGame.practiceState,
-                currentLevel: currentGame.currentCustomLevel
+                currentLevel: currentGame.currentWordcraftLevel
             });
         };
         return;
@@ -6494,7 +6494,7 @@ function handleAnswer(isCorrect, fromPerk = false) {
         return;
     }
 }
-        if (currentGame.isCustomPractice) {
+        if (currentGame.isWordcraftPractice) {
     if (!isCorrect) {
         currentGame.firstAttempt = false;
         currentGame.streakBonus = false;
@@ -6971,7 +6971,7 @@ window.onload = async () => {
     const welcomeScreen = document.getElementById('welcome-screen');
     initializeParticles(welcomeScreen);
     
-    await loadCustomLists();
+    await loadWordcraftLists();
 };
 
 function stopLevelAndGoBack() {
@@ -7015,8 +7015,8 @@ function showGameOverOverlay() {
         overlay.classList.remove('show');
         setTimeout(() => {
             overlay.style.display = 'none';
-            if (currentGame.isCustomPractice) {
-                startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
+            if (currentGame.isWordcraftPractice) {
+                startWordcraftLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
             } else {
                 startLevel(gameState.currentLevel);
             }
@@ -7074,7 +7074,7 @@ function handleResetProgress() {
 
         // Clear localStorage
         localStorage.removeItem('simploxProgress');
-        localStorage.removeItem('simploxCustomCoins');
+        localStorage.removeItem('simploxWordcraftCoins');
         
         // Update UI
         updatePerkCounts();
@@ -7274,8 +7274,8 @@ function startGame() {
 }
 
 function showLevelIntro(levelId, setupCallback) {
-    // Skip intro for custom practice
-    if (currentGame.isCustomPractice) {
+    // Skip intro for Wordcraft practice
+    if (currentGame.isWordcraftPractice) {
         setupCallback();
         return;
     }
@@ -7324,7 +7324,7 @@ function showLevelIntro(levelId, setupCallback) {
     }, 1500);
 }
 
-const customPracticeLists = {
+const wordcraftPracticeLists = {
     lists: [],
     currentList: null,
     maxLists: 5
@@ -7353,7 +7353,7 @@ function trackListPlay(listId) {
 
     if (plays >= limits.maxPlays) {
         // Remove list if max plays reached
-        deleteCustomList(listId);
+        deleteWordcraftList(listId);
         return false;
     }
     
@@ -7382,8 +7382,8 @@ function trackListPlay(listId) {
 
 
 
-function startCustomListPractice(listId) {
-    const list = customPracticeLists.lists.find(l => l.id === listId);
+function startWordcraftListPractice(listId) {
+    const list = wordcraftPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
     // Get play count for this list
@@ -7393,8 +7393,8 @@ function startCustomListPractice(listId) {
     // Check play limits
     const limits = getUserListLimits();
     if (playsUsed >= limits.maxPlays) {
-        deleteCustomList(listId);
-        showCustomListsManager();
+        deleteWordcraftList(listId);
+        showWordcraftListsManager();
         return;
     }
 
@@ -7408,7 +7408,7 @@ function startCustomListPractice(listId) {
         currentIndex: 0,
         correctAnswers: 0,
         firstAttempt: true,
-        isCustomPractice: true,
+        isWordcraftPractice: true,
         startingCoins: gameState.coins,
         startingPerks: { ...gameState.perks },
         practiceState: {
@@ -7423,7 +7423,7 @@ function startCustomListPractice(listId) {
         }
     };
 
-    startCustomLevel(1, currentGame.practiceState);
+    startWordcraftLevel(1, currentGame.practiceState);
 }
 
 function getUserListLimits() {
@@ -7496,7 +7496,7 @@ async function shareListWithUser(listId, recipientId) {
         console.log('List ID:', listId);
 
         // Find the original list with more robust checking
-        const list = customPracticeLists.lists.find(l => l.id === listId);
+        const list = wordcraftPracticeLists.lists.find(l => l.id === listId);
         if (!list) {
             console.error('List not found');
             throw new Error('List not found');
@@ -7571,7 +7571,7 @@ async function shareListWithUser(listId, recipientId) {
 function updateLocalSharedLists(sharedList) {
     // Add the shared list to the recipient's local lists
     if (currentUser) {
-        customPracticeLists.lists.push({
+        wordcraftPracticeLists.lists.push({
             id: sharedList.local_id,
             supabaseId: sharedList.id,
             name: sharedList.name,
@@ -7582,7 +7582,7 @@ function updateLocalSharedLists(sharedList) {
         });
         
         // Save to local storage or sync
-        saveCustomLists();
+        saveWordcraftLists();
     }
 }
 
@@ -7622,7 +7622,7 @@ async function loadSharedLists() {
     if (!currentUser) return [];
 
     const { data, error } = await supabaseClient
-        .from('custom_lists')
+        .from('wordcraft_lists')
         .select('*')
         .or(`shared_with.cs.{${currentUser.id}},is_shared.eq.true`);
 
@@ -8202,7 +8202,7 @@ const DataValidator = {
         };
     },
     
-    validateCustomList(list) {
+    validateWordcraftList(list) {
         return {
             ...list,
             words: list.words.slice(0, 1000).map(sanitizeInput),
@@ -8707,7 +8707,7 @@ async function checkExistingSession() {
             
             await Promise.all([
                 loadUserGameProgress(currentUser.id),
-                loadCustomLists()
+                loadWordcraftLists()
             ]);
             updateAuthUI();
             updateGuestPlayButton(); // Add this line
@@ -8914,12 +8914,12 @@ async function showArcadeModal() {
                 // Insert before stage selector
                 const stageSelector = teacherView.querySelector('.stage-selector');
                 if (stageSelector) {
-                    teacherView.insertBefore(customListsSection, stageSelector);
+                    teacherView.insertBefore(WordcraftListsSection, stageSelector);
                     
                     // Handle add list button
-                    const addListButton = customListsSection.querySelector('.add-list-button');
+                    const addListButton = wordcraftListsSection.querySelector('.add-list-button');
                     if (addListButton) {
-                        addListButton.onclick = showCustomListDropdown;
+                        addListButton.onclick = showWordcraftListDropdown;
                     }
                 }
 
@@ -8950,7 +8950,7 @@ async function showArcadeModal() {
 
 function handleNavigation(screen) {
     switch(screen) {
-        case 'custom-lists':
+        case 'wordcraft-lists':
             window.location.href = 'wordcraft.html';
             break;
         case 'arcade':
@@ -9567,7 +9567,7 @@ async function startArcadeGame() {
 async function getCurrentCoinsForArcade() {
     if (!currentUser) {
         // For guest users, use localStorage or default
-        return parseInt(localStorage.getItem('simploxCustomCoins') || '0');
+        return parseInt(localStorage.getItem('simploxWordcraftCoins') || '0');
     }
 
     // For logged-in users, especially premium
@@ -10672,7 +10672,7 @@ function switchAuthForm(type) {
 async function convertListToArcade(listId) {
     if (!currentUser?.role === 'teacher') return;
     
-    const list = customPracticeLists.lists.find(l => l.id === listId);
+    const list = wordcraftPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
     
     // Create arcade configuration
@@ -10681,7 +10681,7 @@ async function convertListToArcade(listId) {
             word: word,
             translation: list.translations[index]
         })),
-        isCustomArcade: true,
+        isWordcraftArcade: true,
         teacherId: currentUser.id,
         listId: listId
     };
