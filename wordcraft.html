@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="google" content="notranslate">
+    <title>Simplos Wordcraft</title>
+    
+    <!-- Fonts and Styles -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Core Styles -->
+    <link rel="stylesheet" href="styles/shared.css">
+    <link rel="stylesheet" href="styles/wordcraft.css">
+    
+    <!-- Scripts -->
+    <script src="vocabs.js"></script>
+    <script src="services/nhost.js"></script>
+    <script src="services/state.js"></script>
+    <script src="services/utils.js"></script>
+</head>
+<style>
+
+.custom-practice-container {
+    display: flex;
+    gap: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.practice-section {
+    flex: 1;
+    background: transparent;
+    border-radius: 20px;
+    padding: 2rem;
+    backdrop-filter: none;
+    box-shadow: none;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.lists-section {
+    flex: 1;
+    background: transparent;
+    border-radius: 20px;
+    padding: 2rem;
+    backdrop-filter: none;
+    box-shadow: none;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.list-name-section {
+    margin-bottom: 1.5rem;
+}
+
+.list-name-input {
+    width: 100%;
+    padding: 0.875rem;
+    border-radius: 50px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.1);
+    color: var(--text);
+    text-align: center;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.list-name-input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 10px rgba(255,215,0,0.3);
+}
+
+#custom-word-input {
+    width: 100%;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border-radius: 15px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.1);
+    color: var(--text);
+    min-height: 120px;
+    resize: vertical;
+    transition: all 0.3s ease;
+}
+
+#custom-word-input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 10px rgba(255,215,0,0.3);
+}
+
+.translation-results {
+    background: rgba(255,255,255,0.05);
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.word-translation-list {
+    display: table;
+    width: 100%;
+    border-spacing: 0 0.75rem;
+}
+
+.word-translation-item {
+    display: table-row;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    cursor: grab;
+}
+
+.word-translation-item.dragging {
+    opacity: 0.5;
+    background: rgba(255,255,255,0.2);
+    cursor: grabbing;
+}
+
+.word-translation-item > * {
+    display: table-cell;
+    padding: 0.75rem;
+    vertical-align: middle;
+    text-align: center;
+}
+
+.drag-handle {
+    width: 20px;
+    color: var(--text);
+    opacity: 0.7;
+    cursor: grab;
+}
+
+.drag-handle:hover {
+    opacity: 1;
+}
+
+/* Split word input field styles */
+.word-translation-item .source-word {
+    padding: 0.5rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    margin: 0.5rem;
+    width: 200px;
+    min-height: 36px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: all 0.3s ease;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.word-translation-item .target-word {
+    padding: 0.5rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    margin: 0.5rem;
+    width: 200px;
+    min-height: 36px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: all 0.3s ease;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.word-translation-item .source-word[contenteditable="true"] {
+    font-family: inherit;
+    font-size: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.word-translation-item .target-word[contenteditable="true"] {
+    font-family: inherit;
+    font-size: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.word-translation-item .target-word:not([readonly]) {
+    font-family: inherit;
+    font-size: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.word-input-actions {
+    display: flex;
+    gap: 1rem;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+
+.list-actions {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    background: inherit;
+    border-radius: 15px 15px 0 0;
+}
+
+.list-actions button {
+    position: relative;
+    padding: 0.5rem 1rem;
+    border: 2px solid var(--accent);
+    background: transparent;
+    color: var(--text);
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    flex: 0 1 auto;
+    min-width: 100px;
+    max-width: 150px;
+    box-shadow: none;
+}
+
+.list-actions button:hover {
+    box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent);
+}
+
+.list-actions button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(233, 69, 96, 0.3), transparent);
+    transition: all 0.6s ease;
+}
+
+.list-actions button:hover::before {
+    left: 100%;
+}
+
+.delete-word-btn {
+    background: none;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    padding: 0.25rem;
+}
+
+.delete-word-btn:hover {
+    opacity: 1;
+}
+
+.custom-list-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    background: transparent;
+    border-radius: 15px;
+    backdrop-filter: none;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.custom-list-item h3 {
+    margin-bottom: 0.5rem;
+    color: var(--gold);
+}
+
+.custom-list-item .list-info {
+    margin: 1rem 0;
+    color: var(--text);
+    opacity: 0.8;
+}
+
+.list-header {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    order: 1; /* Places header after buttons */
+}
+
+.list-summary {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.list-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.custom-list-item:not(.collapsed) .list-content {
+    max-height: 1000px;
+    margin-top: 1rem;
+}
+
+.word-preview {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    margin-top: 0.25rem;
+}
+
+.main-button {
+    position: relative;
+    padding: 0.875rem 2rem;
+    background: transparent;
+    color: var(--text);
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 100%;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+    backdrop-filter: blur(5px);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+</style>
+
+<div id="custom-practice-screen" class="screen">
+    <div class="navigation-container">
+        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+    </div>
+
+    <div class="custom-practice-container">
+        <div class="lists-section">
+            <h2 class="welcome-title">My Word Lists</h2>
+            <div id="custom-lists-container" class="custom-lists-container">
+                <!-- Lists will be dynamically populated here -->
+            </div>
+        </div>
+        
+        <div class="practice-section">
+            <h2 class="welcome-title">Create Custom Word List</h2>
+            <div class="list-name-section">
+                <input 
+                    type="text" 
+                    id="custom-list-name" 
+                    class="list-name-input" 
+                    placeholder="List Name"
+                >
+            </div>
+            <textarea 
+                id="custom-word-input" 
+                placeholder="Enter words, separated by commas or newlines"
+            ></textarea>
+            <div class="word-input-actions">
+    <button 
+        onclick="processCustomWords()" 
+        class="start-button"
+    >
+        Make
+    </button>
+    <button 
+        onclick="saveCurrentList()" 
+        class="start-button"
+    >
+        Save
+    </button>
+    <button 
+    onclick="addNewWord()" 
+    class="start-button add-word-button"
+>
+    Add Word
+</button>
+</div>
+<div class="translation-results" id="translation-results">
+    <div class="word-translation-list" id="word-translation-list">
+        <!-- Processed words will appear here -->
+    </div>
+</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<body>
+    <!-- Navigation -->
+    <div class="navigation-container">
+        <button class="navigation-button home-button" onclick="returnToMain()">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+    </div>
+
+    <!-- Coins Display -->
+    <div class="coins-header">
+        <i class="fas fa-coins coin-icon"></i>
+        <span class="coin-count">0</span>
+    </div>
+
+    <!-- Main Container -->
+    <div class="wordcraft-container">
+        <!-- Content will be migrated here -->
+    </div>
+
+    <!-- Modals Container -->
+    <div id="modalsContainer"></div>
+
+    <script>
+        // Initialize Nhost
+        const nhostClient = new NhostClient({
+            subdomain: process.env.NHOST_SUBDOMAIN,
+            region: process.env.NHOST_REGION
+        });
+
+        // Initialize State
+        const sharedState = new SharedState();
+
+        // Initialize Wordcraft
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initializeWordcraft();
+        });
+    </script>
+</body>
+</html>

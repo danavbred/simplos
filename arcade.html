@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="google" content="notranslate">
+    <title>Simplos Arcade</title>
+    
+    <!-- Fonts and Styles -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Core Styles -->
+    <link rel="stylesheet" href="styles/shared.css">
+    <link rel="stylesheet" href="styles/arcade.css">
+    
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+    <script src="vocabs.js"></script>
+    <script src="services/nhost.js"></script>
+    <script src="services/state.js"></script>
+    <script src="services/utils.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <div class="navigation-container">
+        <button class="navigation-button home-button" onclick="returnToMain()">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+    </div>
+
+    <!-- Coins Display -->
+    <div class="coins-header">
+        <i class="fas fa-coins coin-icon"></i>
+        <span class="coin-count">0</span>
+    </div>
+
+    <!-- Main Container -->
+    <div class="arcade-container">
+        <!-- Content will be migrated here -->
+    </div>
+
+    <!-- Floating Notifications -->
+    <div id="notificationsContainer"></div>
+
+    <!-- Modals Container -->
+    <div id="modalsContainer"></div>
+
+    <script>
+        // Initialize Nhost
+        const nhostClient = new NhostClient({
+            subdomain: process.env.NHOST_SUBDOMAIN,
+            region: process.env.NHOST_REGION
+        });
+
+        // Initialize State
+        const sharedState = new SharedState();
+
+        // Initialize Arcade
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initializeArcade();
+            setupRealTimeSubscriptions();
+        });
+    </script>
+</body>
+</html>

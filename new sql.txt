@@ -1,0 +1,350 @@
+----------------------------------------------------------------------------------------
+-- 🔄 NHOST SPECIFIC SETUP - DIFFERENT FROM SUPABASE
+----------------------------------------------------------------------------------------
+-- Enable UUID extension (Nhost specific)
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
+CREATE EXTENSION IF NOT EXISTS "pgcrypto" SCHEMA public;
+
+-- Set up auth schema (Nhost uses different auth schema)
+CREATE SCHEMA IF NOT EXISTS auth;
+
+----------------------------------------------------------------------------------------
+-- 👤 USER MANAGEMENT (UPDATED FOR NHOST)
+----------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_profiles (
+    id uuid PRIMARY KEY REFERENCES auth.users(id),
+    username text UNIQUE,
+    email text,
+    role text CHECK (role IN ('student', 'teacher', 'admin')) DEFAULT 'student',
+    status text DEFAULT 'free' CHECK (status IN ('free', 'pending', 'premium')),
+    payment_pending boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    last_active timestamp with time zone, -- Added for activity tracking
+    preferences jsonb DEFAULT '{}', -- Added for user settings
+    CONSTRAINT valid_email CHECK (email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$')
+);
+
+----------------------------------------------------------------------------------------
+-- 🎮 GAME PROGRESSION & WORD TRACKING (ENHANCED)
+----------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.game_progress (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users(id) NOT NULL,
+    total_coins integer DEFAULT 0,
+    current_coins integer DEFAULT 0,
+    perks jsonb DEFAULT '{"timeFreeze": 0, "skip": 0, "clue": 0, "reveal": 0}'::jsonb,
+    mode_progress jsonb DEFAULT '{
+        "story": {"stage": 1, "set": 1, "level": 1},
+        "wordcraft": {"lists_created": 0, "lists_practiced": 0},
+        "arcade": {"games_played": 0, "best_rank": null}
+    }'::jsonb,
+    unlocked_content jsonb DEFAULT '{
+        "stages": {"1": ["1"]},
+        "sets": {"1_1": ["1"]},
+        "perfect_levels": [],
+        "completed_levels": []
+    }'::jsonb,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    last_sync timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    CONSTRAINT valid_coins CHECK (current_coins >= 0 AND total_coins >= 0)
+);
+
+-- Enhanced word practice history with mistake tracking
+CREATE TABLE IF NOT EXISTS public.word_practice_history (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users(id) NOT NULL,
+    word text NOT NULL,
+    practice_count integer DEFAULT 1,
+    mistake_count integer DEFAULT 0, -- Added for mistake tracking
+    consecutive_correct integer DEFAULT 0, -- Added for difficulty tracking
+    difficulty_rating float DEFAULT 1.0, -- Added for adaptive learning
+    game_mode text CHECK (game_mode IN ('story', 'wordcraft', 'arcade')),
+    word_source jsonb DEFAULT '{"type": "vocab", "stage": null, "set": null, "custom_list_id": null}'::jsonb,
+    practice_context jsonb DEFAULT '{"mode": null, "session_id": null}'::jsonb,
+    last_practiced_at timestamp with time zone DEFAULT NOW(),
+    coins_earned integer DEFAULT 0,
+    created_at timestamp with time zone DEFAULT NOW(),
+    performance_metrics jsonb DEFAULT '{
+        "average_response_time": null,
+        "mistake_pattern": [],
+        "practice_intervals": []
+    }'::jsonb,
+    CONSTRAINT max_practice_count CHECK (practice_count <= 5)
+);
+
+-- Added difficulty tracking table
+CREATE TABLE IF NOT EXISTS public.word_difficulty_metrics (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    word text NOT NULL,
+    user_id uuid REFERENCES auth.users(id) NOT NULL,
+    total_attempts integer DEFAULT 0,
+    successful_attempts integer DEFAULT 0,
+    average_response_time float,
+    last_practice_timestamp timestamp with time zone,
+    difficulty_score float DEFAULT 1.0,
+    mistake_patterns jsonb DEFAULT '[]',
+    created_at timestamp with time zone DEFAULT NOW(),
+    updated_at timestamp with time zone DEFAULT NOW(),
+    UNIQUE(word, user_id)
+);
+
+----------------------------------------------------------------------------------------
+-- 📚 WORD POOL AND CUSTOM LISTS (ENHANCED)
+----------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.word_pool_configs (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    creator_id uuid REFERENCES auth.users(id) NOT NULL,
+    name text,
+    custom_words jsonb[], -- Array of {word: string, translation: string}
+    vocab_sources jsonb, -- {stages: number[], sets: number[]}
+    total_words integer,
+    difficulty_range jsonb DEFAULT '{"min": 1, "max": 5}',
+    tags text[] DEFAULT '{}',
+    is_public boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    metadata jsonb DEFAULT '{}',
+    CONSTRAINT word_pool_configs_min_words CHECK (
+        (COALESCE(jsonb_array_length(custom_words), 0) + 
+        COALESCE((SELECT COUNT(*) FROM jsonb_array_elements_text(vocab_sources->'stages')), 0)) >= 1
+    )
+);
+
+CREATE TABLE IF NOT EXISTS public.custom_lists (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users(id) NOT NULL,
+    name text NOT NULL,
+    description text,
+    words text[] NOT NULL,
+    translations text[] NOT NULL,
+    word_pool_config_id uuid REFERENCES word_pool_configs(id),
+    is_mixed_source boolean DEFAULT false,
+    source_breakdown jsonb,
+    is_shared boolean DEFAULT false,
+    shared_by uuid REFERENCES auth.users(id),
+    shared_with uuid[],
+    access_level text DEFAULT 'private' 
+        CHECK (access_level IN ('private', 'shared', 'public', 'class')),
+    class_id uuid REFERENCES school_classes(id),
+    practice_count integer DEFAULT 0,
+    difficulty_rating float DEFAULT 1.0,
+    tags text[] DEFAULT '{}',
+    last_practiced_at timestamp with time zone,
+    status text CHECK (status IN ('active', 'archived')) DEFAULT 'active',
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    metadata jsonb DEFAULT '{}',
+    CONSTRAINT min_words_check CHECK (array_length(words, 1) >= 6)
+);
+
+-- Added list practice history
+CREATE TABLE IF NOT EXISTS public.list_practice_history (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    list_id uuid REFERENCES custom_lists(id),
+    user_id uuid REFERENCES auth.users(id),
+    practice_date timestamp with time zone DEFAULT NOW(),
+    words_practiced integer,
+    correct_count integer,
+    mistake_count integer,
+    time_spent integer, -- in seconds
+    coins_earned integer,
+    completion_percentage float,
+    performance_data jsonb,
+    created_at timestamp with time zone DEFAULT NOW()
+);
+
+----------------------------------------------------------------------------------------
+-- 🎮 ARCADE SYSTEM (ENHANCED)
+----------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.arcade_events (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    teacher_id uuid REFERENCES auth.users(id) NOT NULL,
+    otp text UNIQUE NOT NULL,
+    word_pool_config_id uuid REFERENCES word_pool_configs(id),
+    game_settings jsonb DEFAULT '{
+        "word_goal": 50,
+        "time_limit": null,
+        "powerups_enabled": true,
+        "difficulty_scaling": true,
+        "team_mode": false
+    }'::jsonb,
+    game_state jsonb DEFAULT '{
+        "status": "waiting",
+        "started_at": null,
+        "ended_at": null,
+        "current_phase": "pre-game",
+        "active_powerups": []
+    }'::jsonb,
+    class_id uuid REFERENCES school_classes(id),
+    participants_count integer DEFAULT 0,
+    min_players integer DEFAULT 1,
+    max_players integer DEFAULT 30,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    completed_at timestamp with time zone,
+    metadata jsonb DEFAULT '{}',
+    CONSTRAINT valid_participants CHECK (participants_count >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS public.arcade_participants (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES auth.users(id),
+    username text NOT NULL,
+    team_id uuid,
+    words_completed integer DEFAULT 0,
+    coins_earned integer DEFAULT 0,
+    current_streak integer DEFAULT 0,
+    powerups_used jsonb DEFAULT '[]'::jsonb,
+    performance_metrics jsonb DEFAULT '{
+        "response_times": [],
+        "mistake_counts": {},
+        "powerup_effectiveness": {}
+    }'::jsonb,
+    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    last_active_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    completed_at timestamp with time zone,
+    status text DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'completed')),
+    CONSTRAINT valid_progress CHECK (words_completed >= 0 AND coins_earned >= 0)
+);
+
+----------------------------------------------------------------------------------------
+-- 🏫 SCHOOL SYSTEM (ENHANCED)
+----------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.schools (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    name text NOT NULL,
+    subscription_status text DEFAULT 'trial' 
+        CHECK (subscription_status IN ('trial', 'active', 'expired')),
+    max_teachers integer DEFAULT 5,
+    max_students integer DEFAULT 100,
+    settings jsonb DEFAULT '{
+        "allow_custom_lists": true,
+        "allow_arcade": true,
+        "max_lists_per_teacher": 50,
+        "max_words_per_list": 200
+    }'::jsonb,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    metadata jsonb DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS public.school_classes (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    school_id uuid REFERENCES schools(id),
+    teacher_id uuid REFERENCES auth.users(id),
+    name text NOT NULL,
+    grade_level integer CHECK (grade_level BETWEEN 1 AND 12),
+    max_students integer DEFAULT 30,
+    status text DEFAULT 'active' CHECK (status IN ('active', 'archived', 'pending')),
+    invite_code text UNIQUE,
+    class_settings jsonb DEFAULT '{
+        "allow_peer_sharing": true,
+        "difficulty_adjustment": true,
+        "homework_enabled": true
+    }'::jsonb,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    metadata jsonb DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS public.class_enrollments (
+    class_id uuid REFERENCES school_classes(id) ON DELETE CASCADE,
+    student_id uuid REFERENCES auth.users(id),
+    enrollment_status text DEFAULT 'active' CHECK (enrollment_status IN ('active', 'inactive', 'suspended')),
+    performance_data jsonb DEFAULT '{
+        "words_learned": 0,
+        "lists_completed": 0,
+        "arcade_participations": 0
+    }'::jsonb,
+    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    last_active_at timestamp with time zone,
+    PRIMARY KEY (class_id, student_id)
+);
+
+----------------------------------------------------------------------------------------
+-- 📊 VIEWS AND COMPUTED COLUMNS
+----------------------------------------------------------------------------------------
+-- Player Leaderboard with Enhanced Stats
+CREATE OR REPLACE VIEW public.player_leaderboard AS
+WITH user_rankings AS (
+    SELECT 
+        up.username,
+        up.status,
+        COALESCE(ps.total_levels_completed, 0) as total_levels_completed,
+        COALESCE(ps.unique_words_practiced, 0) as total_words_learned,
+        wp.average_accuracy,
+        wp.practice_streak,
+        ROW_NUMBER() OVER (
+            ORDER BY COALESCE(ps.total_levels_completed, 0) DESC, 
+            COALESCE(ps.unique_words_practiced, 0) DESC
+        ) as player_rank
+    FROM user_profiles up
+    LEFT JOIN player_stats ps ON up.id = ps.user_id
+    LEFT JOIN (
+        SELECT 
+            user_id,
+            AVG(CASE WHEN practice_count > 0 
+                THEN (practice_count - mistake_count)::float / practice_count 
+                ELSE 0 END) as average_accuracy,
+            MAX(consecutive_correct) as practice_streak
+        FROM word_practice_history
+        GROUP BY user_id
+    ) wp ON up.id = wp.user_id
+    WHERE up.username IS NOT NULL
+)
+SELECT 
+    username,
+    status,
+    total_levels_completed,
+    total_words_learned,
+    average_accuracy,
+    practice_streak,
+    player_rank
+FROM user_rankings
+ORDER BY player_rank ASC;
+
+-- Word Practice Stats with Difficulty Metrics
+CREATE OR REPLACE VIEW public.word_practice_stats AS
+SELECT 
+    word,
+    game_mode,
+    COUNT(DISTINCT user_id) as unique_users,
+    AVG(practice_count) as avg_practices,
+    AVG(mistake_count::float / NULLIF(practice_count, 0)) as error_rate,
+    AVG(difficulty_rating) as avg_difficulty,
+    SUM(coins_earned) as total_coins_earned,
+    jsonb_agg(DISTINCT performance_metrics) as performance_data
+FROM word_practice_history
+GROUP BY word, game_mode;
+
+-- Class Performance Overview
+CREATE OR REPLACE VIEW public.class_performance AS
+SELECT 
+    sc.id as class_id,
+    sc.name as class_name,
+    sc.teacher_id,
+    COUNT(ce.student_id) as total_students,
+    AVG(wp.words_completed) as avg_words_per_student,
+    AVG(wp.success_rate) as avg_success_rate,
+    jsonb_agg(DISTINCT wp.difficulty_areas) as class_difficulty_areas
+FROM school_classes sc
+LEFT JOIN class_enrollments ce ON sc.id = ce.class_id
+LEFT JOIN (
+    SELECT 
+        user_id,
+        COUNT(DISTINCT word) as words_completed,
+        AVG(CASE WHEN practice_count > 0 
+            THEN (practice_count - mistake_count)::float / practice_count 
+            ELSE 0 END) as success_rate,
+        jsonb_agg(DISTINCT CASE 
+            WHEN difficulty_rating > 2 THEN word
+            ELSE NULL 
+        END) as difficulty_areas
+    FROM word_practice_history
+    GROUP BY user_id
+) wp ON ce.student_id = wp.user_id
+GROUP BY sc.id, sc.name, sc.teacher_id;
