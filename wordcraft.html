@@ -18,75 +18,63 @@
     <!-- Core Styles -->
     <link rel="stylesheet" href="styles/shared.css">
     <link rel="stylesheet" href="styles/wordcraft.css">
-    
-    <!-- Scripts -->
-    <script src="vocabs.js"></script>
-    <script src="services/nhost.js"></script>
-    <script src="services/state.js"></script>
-    <script src="services/utils.js"></script>
-    <script src="services/wordcraft.js"></script>
-    
+
+<!-- REPLACE script loading section in all HTML files -->
+
+<!-- External Dependencies -->
+<script src="https://cdn.jsdelivr.net/npm/@nhost/nhost-js@2.2.13/dist/nhost.browser.js"></script>
+<script src="vocabs.js"></script>
+
+<!-- Module Scripts -->
+<script type="module">
+    // Import services
+    import { gameService } from './services/nhost.js';
+    import { SharedState } from './services/state.js';
+    import { 
+        showNotification, 
+        sanitizeInput, 
+        getRandomSimploName,
+        showScreen 
+    } from './services/utils.js';
+
+    // Initialize game state first
+    window.gameState = {
+        currentStage: 1,
+        currentSet: 1,
+        currentLevel: 1,
+        coins: 0,
+        unlockedSets: {},
+        unlockedLevels: {},
+        perfectLevels: new Set(),
+        completedLevels: new Set(),
+        perks: {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        }
+    };
+
+    // Make services available globally
+    window.gameService = gameService;
+    window.sharedState = new SharedState();
+
+    // Initialize async
+    async function initializeApp() {
+        try {
+            await gameService.initialize();
+            if (typeof initializeGame === 'function') {
+                await initializeGame();
+            }
+        } catch (error) {
+            console.error('Initialization error:', error);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initializeApp);
+</script>
+
 </head>
-
-<div id="wordcraft-practice-screen" class="screen">
-    <div class="navigation-container">
-        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-            <i class="fas fa-home navigation-icon"></i>
-        </button>
-    </div>
-
-    <div class="wordcraft-practice-container">
-        <div class="lists-section">
-            <h2 class="welcome-title">My Word Lists</h2>
-            <div id="wordcraft-lists-container" class="wordcraft-lists-container">
-                <!-- Lists will be dynamically populated here -->
-            </div>
-        </div>
-        
-        <div class="practice-section">
-            <h2 class="welcome-title">Create wordcraft Word List</h2>
-            <div class="list-name-section">
-                <input 
-                    type="text" 
-                    id="wordcraft-list-name" 
-                    class="list-name-input" 
-                    placeholder="List Name"
-                >
-            </div>
-            <textarea 
-                id="wordcraft-word-input" 
-                placeholder="Enter words, separated by commas or newlines"
-            ></textarea>
-            <div class="word-input-actions">
-    <button 
-        onclick="processwordcraftWords()" 
-        class="start-button"
-    >
-        Make
-    </button>
-    <button 
-        onclick="saveCurrentList()" 
-        class="start-button"
-    >
-        Save
-    </button>
-    <button 
-    onclick="addNewWord()" 
-    class="start-button add-word-button"
->
-    Add Word
-</button>
-</div>
-<div class="translation-results" id="translation-results">
-    <div class="word-translation-list" id="word-translation-list">
-        <!-- Processed words will appear here -->
-    </div>
-</div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <body>
     <!-- Navigation -->
     <div class="navigation-container">
@@ -101,15 +89,51 @@
         <span class="coin-count">0</span>
     </div>
 
-    <!-- Main Container -->
-    <div class="wordcraft-container">
-        <!-- Content will be migrated here -->
+    <!-- Main Content -->
+    <div id="wordcraft-screen" class="screen">
+        <div class="wordcraft-practice-container">
+            <div class="lists-section">
+                <h2 class="welcome-title">My Word Lists</h2>
+                <div id="wordcraft-lists-container"></div>
+            </div>
+            
+            <div class="practice-section">
+                <h2 class="welcome-title">Create Word List</h2>
+                <div class="list-name-section">
+                    <input type="text" id="wordcraft-list-name" class="list-name-input" placeholder="List Name">
+                </div>
+                <textarea id="wordcraft-word-input" placeholder="Enter words, separated by commas or newlines"></textarea>
+                <div class="word-input-actions">
+                    <button onclick="processWords()" class="main-button">Make</button>
+                    <button onclick="saveCurrentList()" class="main-button">Save</button>
+                    <button onclick="addNewWord()" class="main-button">Add Word</button>
+                </div>
+                <div class="translation-results" id="translation-results">
+                    <div class="word-translation-list" id="word-translation-list"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Modals Container -->
+    <!-- System Containers -->
     <div id="modalsContainer"></div>
+    <div id="errorContainer" class="error-container"></div>
+    <div id="loadingOverlay" class="loading-overlay hidden"></div>
 
-    <script>
-    </script>
+    <div id="notificationContainer" class="notification-container"></div>
+    <div id="errorOverlay" class="error-overlay">
+        <div class="error-content">
+            <h3 class="error-title"></h3>
+            <p class="error-message"></p>
+            <button class="main-button" onclick="dismissError()">Dismiss</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="vocabs.js"></script>
+    <script src="services/nhost.js"></script>
+    <script src="services/state.js"></script>
+    <script src="services/utils.js"></script>
+    <script src="services/wordcraft.js"></script>
 </body>
 </html>

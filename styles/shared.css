@@ -1,0 +1,163 @@
+/* ADD TO styles/shared.css */
+
+:root {
+    /* Core Colors */
+    --primary-dark: #1a1a2e;
+    --primary: #16213e;
+    --secondary: #0f3460;
+    --accent: #1E90FF;
+    --text: #ffffff;
+    --gold: #ffd700;
+    --silver: #c0c0c0;
+    --bronze: #cd7f32;
+    --success: #4CAF50;
+    --error: #f44336;
+    --glass: rgba(255, 255, 255, 0.1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Montserrat', sans-serif;
+}
+
+/* Base Styles */
+body {
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    background: var(--gradient);
+    color: var(--text);
+    overflow-x: hidden;
+}
+
+/* Screen Management */
+.screen {
+    display: none;
+    min-height: 100vh;
+    padding: 2rem;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%);
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.screen.visible {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+.modal-content {
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 400px;
+}
+
+/* Navigation */
+.navigation-container {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 100;
+}
+
+.navigation-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--glass);
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.navigation-icon {
+    color: var(--text);
+    font-size: 1.5rem;
+}
+
+/* Notifications */
+.game-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 1rem 2rem;
+    border-radius: 10px;
+    color: var(--text);
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    z-index: 1000;
+    transform: translateX(100%);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.game-notification.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.coins-header {
+    position: fixed;
+    top: 2rem;
+    right: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--glass);
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    backdrop-filter: blur(10px);
+    z-index: 100;
+}
+
+.coin-icon {
+    color: var(--gold);
+    font-size: 1.5rem;
+}
+
+/* Common Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+/* Utility Classes */
+.hidden {
+    display: none !important;
+}
+
+.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}

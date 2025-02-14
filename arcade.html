@@ -16,17 +16,85 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <!-- Core Styles -->
-    <link rel="stylesheet" href="styles/shared.css">
-    <link rel="stylesheet" href="styles/arcade.css">
+<link rel="stylesheet" href="styles/shared.css">
+<link rel="stylesheet" href="styles/arcade.css">
     
-    <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-    <script src="vocabs.js"></script>
-    <script src="services/nhost.js"></script>
-    <script src="services/state.js"></script>
-    <script src="services/utils.js"></script>
+<!-- REPLACE script loading section in all HTML files -->
+
+<!-- External Dependencies -->
+<script src="https://cdn.jsdelivr.net/npm/@nhost/nhost-js@2.2.13/dist/nhost.browser.js"></script>
+<script src="vocabs.js"></script>
+
+<!-- Module Scripts -->
+<script type="module">
+    // Import services
+    import { gameService } from './services/nhost.js';
+    import { SharedState } from './services/state.js';
+    import { 
+        showNotification, 
+        sanitizeInput, 
+        getRandomSimploName,
+        showScreen 
+    } from './services/utils.js';
+
+    // Initialize game state first
+    window.gameState = {
+        currentStage: 1,
+        currentSet: 1,
+        currentLevel: 1,
+        coins: 0,
+        unlockedSets: {},
+        unlockedLevels: {},
+        perfectLevels: new Set(),
+        completedLevels: new Set(),
+        perks: {
+            timeFreeze: 0,
+            skip: 0,
+            clue: 0,
+            reveal: 0
+        }
+    };
+
+    // Make services available globally
+    window.gameService = gameService;
+    window.sharedState = new SharedState();
+
+    // Initialize async
+    async function initializeApp() {
+        try {
+            await gameService.initialize();
+            if (typeof initializeGame === 'function') {
+                await initializeGame();
+            }
+        } catch (error) {
+            console.error('Initialization error:', error);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initializeApp);
+</script>
+
 </head>
 <body>
+
+    <script type="module">
+        import { NhostClient } from 'https://cdn.jsdelivr.net/npm/@nhost/nhost-js/dist/index.js';
+        import { SharedState } from './services/state.js';
+        
+        const nhostClient = new NhostClient({
+            subdomain: import.meta.env.VITE_NHOST_SUBDOMAIN,
+            region: import.meta.env.VITE_NHOST_REGION
+        });
+    
+        const sharedState = new SharedState();
+    
+        // Remove inline script, use module imports
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initializeArcade();
+            setupRealTimeSubscriptions();
+        });
+    </script>
+
     <!-- Navigation -->
     <div class="navigation-container">
         <button class="navigation-button home-button" onclick="returnToMain()">
@@ -42,14 +110,205 @@
 
     <!-- Main Container -->
     <div class="arcade-container">
-        <!-- Content will be migrated here -->
+        <!-- Teacher/Moderator View -->
+        <div id="moderator-screen" class="screen">
+            <div class="session-info-panel">
+                <div class="session-details">
+                    <h2>Arcade Session</h2>
+                    <div class="otp-display" id="moderatorOtp"></div>
+                    <div class="qr-section">
+                        <canvas id="qrCode"></canvas>
+                        <p class="qr-hint">Scan to join game</p>
+                    </div>
+                    <div class="session-metadata">
+                        <p>Date: <span id="sessionDate"></span></p>
+                        <p>Start Time: <span id="sessionStartTime"></span></p>
+                        <p>Word Goal: <span id="sessionWordGoal"></span></p>
+                        <p>Active Players: <span id="activeParticipantCount">0</span></p>
+                    </div>
+                    <div class="game-controls">
+                        <button class="start-button initialize-button">Initialize Arcade</button>
+                        <button class="end-arcade-button">End Arcade</button>
+                    </div>
+                </div>
+            </div>
+            <div class="leaderboard-panel">
+                <div id="arcade-leaderboard"></div>
+            </div>
+        </div>
+
+        <!-- Player View -->
+        <div id="player-screen" class="screen">
+            <div class="join-game-section">
+                <h2>Join Arcade</h2>
+                <div class="input-group">
+                    <input type="text" id="arcadeUsername" placeholder="Choose your username" maxlength="15">
+                    <input type="text" id="otpInput" placeholder="Enter 4-digit Game Code" maxlength="4" pattern="[0-9]{4}" inputmode="numeric">
+                </div>
+                <button class="join-button">Join Game</button>
+            </div>
+        </div>
+
+        <!-- Game View -->
+        <div id="game-screen" class="screen">
+            <div class="question-word"></div>
+            <div class="powerups-container"></div>
+            <div class="buttons-container"></div>
+        </div>
+
+        <!-- Waiting Screen -->
+        <div id="waiting-screen" class="screen">
+            <div class="waiting-container">
+                <div class="spinner-container">
+                    <div class="spinner"></div>
+                </div>
+                <h2 class="waiting-title">Waiting for Game to Start...</h2>
+                <div class="player-count">
+                    <span id="waiting-player-count">0</span> Players Ready
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Floating Notifications -->
+    <!-- System Containers -->
     <div id="notificationsContainer"></div>
-
-    <!-- Modals Container -->
     <div id="modalsContainer"></div>
+
+    <!-- Scripts -->
+    <script src="vocabs.js"></script>
+    <script src="services/nhost.js"></script>
+    <script src="services/state.js"></script>
+    <script src="services/utils.js"></script>
+    <script src="services/arcade.js"></script>
+
+    <div id="arcade-modal" class="modal">
+        <div class="modal-content">
+            <div id="teacher-view" style="display: none;">
+                <h2>Your OTP: <span id="otp"></span></h2>
+                <p>Players: <span id="player-count">0</span></p>
+                
+                <div class="stage-selector">
+                    <h3>Select Word Pools:</h3>
+                    <div class="stage-checkboxes">
+                        <label>
+                            <input type="checkbox" value="1"> Stage 1
+                        </label>
+                        <label>
+                            <input type="checkbox" value="2"> Stage 2
+                        </label>
+                        <label>
+                            <input type="checkbox" value="3"> Stage 3
+                        </label>
+                        <label>
+                            <input type="checkbox" value="4"> Stage 4
+                        </label>
+                        <label>
+                            <input type="checkbox" value="5"> Stage 5
+                        </label>
+                    </div>
+                    <p class="stage-warning" style="display: none; color: var(--error);">Please select at least one stage</p>
+                </div>
+     
+                <div class="word-goal">
+                    <h3>Word Goal:</h3>
+                    <select id="wordGoal">
+                        <option value="50">50 words</option>
+                        <option value="100">100 words</option>
+                        <option value="200">200 words</option>
+                    </select>
+                </div>
+     
+                <button class="start-button" onclick="startArcade()">Start</button>
+            </div>
+     
+            <div id="player-view" style="display: none;">
+             <h2>Join Arcade</h2>
+         <div class="input-group">
+             <input 
+                 type="text" 
+                 id="arcadeUsername" 
+                 placeholder="Choose your username"
+                 maxlength="15"
+             >
+             <input 
+                 type="text" 
+                 id="otpInput" 
+                 placeholder="Enter 4-digit Game Code"
+                 maxlength="4" 
+                 pattern="[0-9]{4}"
+                 inputmode="numeric"
+             >
+         </div>
+         <button class="join-button" onclick="joinArcadeWithUsername()">Join Game</button>
+     </div>
+        </div>
+     </div>
+     
+     <div id="waiting-screen" class="screen">
+         <div class="waiting-container">
+             <div class="spinner-container">
+                 <div class="spinner"></div>
+             </div>
+             <h2 class="waiting-title">Waiting for Game to Start...</h2>
+             <div class="player-count">
+                 <span id="waiting-player-count">0</span> Players Ready
+             </div>
+             <div class="floating-particles"></div>
+         </div>
+     </div>
+     
+     <div id="moderator-screen" class="screen">
+         <div class="moderator-container">
+             <div class="session-info-panel">
+                 <div class="session-details">
+         <h2>Arcade Session</h2>
+         <div class="otp-display" id="moderatorOtp"></div>
+         <div class="qr-section">
+             <canvas id="qrCode"></canvas>
+             <p class="qr-hint">Scan to join game</p>
+                     </div>
+                         <div class="session-metadata">
+                         <p>Date: <span id="sessionDate"></span></p>
+                         <p>Start Time: <span id="sessionStartTime"></span></p>
+                         <p>Word Goal: <span id="sessionWordGoal"></span></p>
+                         <p>Active Participants: <span id="activeParticipantCount">0</span></p>
+                     </div>
+                     <div class="game-controls">
+                         <button class="start-button initialize-button" onclick="initializeArcade()">
+                             Initialize Arcade
+                         </button>
+                         <button class="end-arcade-button" onclick="endArcade()">
+                             End Arcade
+                         </button>
+                     </div>
+                 </div>
+             </div>
+             <div class="leaderboard-panel">
+                 <div id="arcade-leaderboard" class="moderator-leaderboard">
+                     <div class="leaderboard-header">
+                         <div>Rank</div>
+                         <div>Player</div>
+                         <div>Words</div>
+                         <div>Coins</div>
+                         <div>Actions</div>
+                     </div>
+                     <!-- Participants will be dynamically populated here -->
+                 </div>
+             </div>
+         </div>
+     </div>
+     
+     <div id="remove-player-modal" class="modal">
+        <div class="modal-content">
+            <h3>Remove Player</h3>
+            <p>Remove <span id="player-to-remove"></span> from the game?</p>
+            <div class="modal-buttons">
+                <button class="start-button" onclick="confirmRemovePlayer()">Remove</button>
+                <button class="start-button secondary" onclick="closeRemoveModal()">Cancel</button>
+            </div>
+        </div>
+     </div>
+
 
     <script>
         // Initialize Nhost
@@ -66,6 +325,26 @@
             await initializeArcade();
             setupRealTimeSubscriptions();
         });
+
+        import { NhostClient } from '@nhost/nhost-js'
+import { SharedState } from './services/state.js'
+import { 
+    updateCoins,
+    trackWordPractice,
+    handlePentacap
+} from './services/nhost.js'
+
+// Real-time subscriptions
+setupArcadeSubscriptions() {
+    const nhostClient = new NhostClient({
+        subdomain: 'YOUR-SUBDOMAIN',
+        region: 'YOUR-REGION'
+    })
+    
+    // Set up real-time subscriptions
+    // Handle multiplayer sync
+    // Track score updates
+}
     </script>
 </body>
 </html>

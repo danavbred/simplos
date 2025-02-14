@@ -129,7 +129,15 @@ body {
 
 /* Neon Outline Button Style */
 .start-button,
-.auth-tab {
+.custom-lists-button,
+.auth-tab,
+.auth-form-login-button,
+.auth-form-signup-button,
+.edit-button,
+.delete-button,
+.process-words-button,
+.save-list-button,
+.add-word-button {
     position: relative;
     padding: 0.5rem 1rem;
     border: 2px solid var(--accent);
@@ -152,13 +160,29 @@ body {
 
 /* Neon glow effect on hover */
 .start-button:hover,
-.auth-tab:hover {
+.custom-lists-button:hover,
+.auth-tab:hover,
+.auth-form-login-button:hover,
+.auth-form-signup-button:hover,
+.edit-button:hover,
+.delete-button:hover,
+.process-words-button:hover,
+.save-list-button:hover,
+.add-word-button:hover {
     box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent);
 }
 
 /* Hover shine effect */
 .start-button::before,
-.auth-tab::before {
+.custom-lists-button::before,
+.auth-tab::before,
+.auth-form-login-button::before,
+.auth-form-signup-button::before,
+.edit-button::before,
+.delete-button::before,
+.process-words-button::before,
+.save-list-button::before,
+.add-word-button::before {
     content: '';
     position: absolute;
     top: 0;
@@ -170,7 +194,15 @@ body {
 }
 
 .start-button:hover::before,
-.auth-tab:hover::before {
+.custom-lists-button:hover::before,
+.auth-tab:hover::before,
+.auth-form-login-button:hover::before,
+.auth-form-signup-button:hover::before,
+.edit-button:hover::before,
+.delete-button:hover::before,
+.process-words-button:hover::before,
+.save-list-button:hover::before,
+.add-word-button:hover::before {
     left: 100%;
 }
 
@@ -456,7 +488,7 @@ background-clip: text;
     }
 }
 
-/* Neon style for Wordcraft practice screen buttons */
+/* Neon style for custom practice screen buttons */
 .start-button, .edit-mode-button {
     position: relative;
     padding: 0.5rem 1rem;
@@ -2568,6 +2600,41 @@ background-clip: text;
     100% { transform: translate(100%, 100%) rotate(45deg); }
 }
 
+.custom-list-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    padding: 1rem;
+    margin-top: 0.5rem;
+    z-index: 1000;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.selected-lists {
+    margin: 1rem 0;
+}
+
+.list-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.list-item:hover {
+    background: rgba(255,255,255,0.2);
+    transform: translateY(-2px);
+}
 
 .perks-container {
   display: flex;
@@ -4009,8 +4076,180 @@ background-clip: text;
 }
 
 
-/* Main Wordcraft Practice Container */
+/* Main Custom Practice Container */
+.custom-practice-container {
+    display: flex;
+    gap: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
 
+.practice-section {
+    flex: 1;
+    background: transparent;
+    border-radius: 20px;
+    padding: 2rem;
+    backdrop-filter: none;
+    box-shadow: none;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.lists-section {
+    flex: 1;
+    background: transparent;
+    border-radius: 20px;
+    padding: 2rem;
+    backdrop-filter: none;
+    box-shadow: none;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.list-name-section {
+    margin-bottom: 1.5rem;
+}
+
+.list-name-input {
+    width: 100%;
+    padding: 0.875rem;
+    border-radius: 50px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.1);
+    color: var(--text);
+    text-align: center;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.list-name-input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 10px rgba(255,215,0,0.3);
+}
+
+#custom-word-input {
+    width: 100%;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border-radius: 15px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.1);
+    color: var(--text);
+    min-height: 120px;
+    resize: vertical;
+    transition: all 0.3s ease;
+}
+
+#custom-word-input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 10px rgba(255,215,0,0.3);
+}
+
+.translation-results {
+    background: rgba(255,255,255,0.05);
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.word-translation-list {
+    display: table;
+    width: 100%;
+    border-spacing: 0 0.75rem;
+}
+
+.word-translation-item {
+    display: table-row;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    cursor: grab;
+}
+
+.word-translation-item.dragging {
+    opacity: 0.5;
+    background: rgba(255,255,255,0.2);
+    cursor: grabbing;
+}
+
+.word-translation-item > * {
+    display: table-cell;
+    padding: 0.75rem;
+    vertical-align: middle;
+    text-align: center;
+}
+
+.drag-handle {
+    width: 20px;
+    color: var(--text);
+    opacity: 0.7;
+    cursor: grab;
+}
+
+.drag-handle:hover {
+    opacity: 1;
+}
+
+/* Split word input field styles */
+.word-translation-item .source-word {
+    padding: 0.5rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    margin: 0.5rem;
+    width: 200px;
+    min-height: 36px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: all 0.3s ease;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.word-translation-item .target-word {
+    padding: 0.5rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    margin: 0.5rem;
+    width: 200px;
+    min-height: 36px;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.2);
+    transition: all 0.3s ease;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.word-translation-item .source-word[contenteditable="true"] {
+    font-family: inherit;
+    font-size: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.word-translation-item .target-word[contenteditable="true"] {
+    font-family: inherit;
+    font-size: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.word-translation-item .target-word:not([readonly]) {
+    font-family: inherit;
+    font-size: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.word-input-actions {
+    display: flex;
+    gap: 1rem;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
 
 /* Split button styles */
 
@@ -4046,6 +4285,377 @@ background-clip: text;
 
 .edit-mode-button:hover::before {
     opacity: 1;
+}
+
+.list-actions {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    background: inherit;
+    border-radius: 15px 15px 0 0;
+}
+
+.list-actions button {
+    position: relative;
+    padding: 0.5rem 1rem;
+    border: 2px solid var(--accent);
+    background: transparent;
+    color: var(--text);
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    flex: 0 1 auto;
+    min-width: 100px;
+    max-width: 150px;
+    box-shadow: none;
+}
+
+.list-actions button:hover {
+    box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent);
+}
+
+.list-actions button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(120deg, transparent, rgba(233, 69, 96, 0.3), transparent);
+    transition: all 0.6s ease;
+}
+
+.list-actions button:hover::before {
+    left: 100%;
+}
+
+.delete-word-btn {
+    background: none;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    padding: 0.25rem;
+}
+
+.delete-word-btn:hover {
+    opacity: 1;
+}
+
+.custom-list-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    background: transparent;
+    border-radius: 15px;
+    backdrop-filter: none;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.custom-list-item h3 {
+    margin-bottom: 0.5rem;
+    color: var(--gold);
+}
+
+.custom-list-item .list-info {
+    margin: 1rem 0;
+    color: var(--text);
+    opacity: 0.8;
+}
+
+.list-header {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    order: 1; /* Places header after buttons */
+}
+
+.list-summary {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.list-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.custom-list-item:not(.collapsed) .list-content {
+    max-height: 1000px;
+    margin-top: 1rem;
+}
+
+.list-header {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.word-preview {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    margin-top: 0.25rem;
+}
+
+.add-word-button {
+    display: none;
+    margin-top: 1rem;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    background: var(--accent);
+}
+
+/* Media Queries */
+
+@media (max-width: 768px) {
+    .list-actions {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        width: 100%;
+    }
+    
+    .add-word-button {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .custom-practice-container {
+        flex-direction: column;
+        gap: 1.5rem;
+        padding: 1rem;
+    }
+
+    .practice-section {
+        padding: 1rem;
+        width: 100%;
+    }
+
+    .lists-section {
+        padding: 1rem;
+        width: 100%;
+    }
+
+    #custom-word-input {
+        min-height: 150px;
+        font-size: 16px;
+        padding: 1rem;
+    }
+
+    .word-translation-list {
+        display: block;
+    }
+
+    .word-translation-item {
+    display: table-row;
+    background: transparent;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    cursor: grab;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+    .word-translation-item .source-word {
+        width: 100%;
+        min-height: 44px;
+        font-size: 16px;
+        padding: 0.75rem;
+        margin: 0;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+    }
+
+    .word-translation-item .target-word {
+        width: 100%;
+        min-height: 44px;
+        font-size: 16px;
+        padding: 0.75rem;
+        margin: 0;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+    }
+
+    .word-input-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        width: 100%;
+        margin: 1rem 0;
+    }
+
+    .word-input-actions button {
+        width: 100%;
+        min-height: 44px;
+        font-size: 1rem;
+        padding: 0.75rem;
+        margin: 0;
+    }
+
+    .list-actions {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+        margin-top: 1rem;
+        width: 100%;
+    }
+
+    .list-actions button {
+        width: 100%;
+        min-height: 44px;
+        font-size: 1rem;
+        padding: 0.75rem;
+        margin: 0;
+    }
+
+    .custom-list-item {
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+    }
+
+    .custom-list-item h3 {
+        font-size: 1.25rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .list-info {
+        font-size: 0.9rem;
+        margin: 0.75rem 0;
+    }
+
+    .list-stats {
+        grid-column: 1 / -1;
+        text-align: center;
+        margin-top: 0.75rem;
+        font-size: 0.875rem;
+        opacity: 0.8;
+    }
+
+    .drag-handle {
+        display: none;
+    }
+
+    .delete-word-btn {
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+    }
+
+    .word-preview {
+        font-size: 0.85rem;
+    }
+    
+    .custom-list-item:not(.collapsed) {
+        padding-bottom: 0.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .custom-practice-container {
+        padding: 0.5rem;
+    }
+
+    .start-button {
+        width: 100%;
+        max-width: 250px;
+        font-size: 0.9rem;
+        padding: 0.6rem;
+    }
+
+    .edit-mode-button {
+        width: 100%;
+        max-width: none;
+        font-size: 0.9rem;
+        padding: 0.6rem;
+    }
+
+    .list-actions button {
+        width: 100%;
+        max-width: none;
+        font-size: 0.9rem;
+        padding: 0.6rem;
+    }
+
+    .list-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .custom-list-item h3 {
+        font-size: 1.1rem;
+    }
+
+    .list-info {
+        font-size: 0.85rem;
+    }
+
+    .word-translation-item {
+        padding: 0.75rem;
+    }
+
+    .word-translation-item .source-word {
+        font-size: 0.95rem;
+        padding: 0.6rem;
+    }
+
+    .word-translation-item .target-word {
+        font-size: 0.95rem;
+        padding: 0.6rem;
+    }
+}
+
+@media (max-width: 360px) {
+    .custom-practice-container {
+        padding: 0.25rem;
+    }
+
+    .practice-section {
+        padding: 0.75rem;
+    }
+
+    .lists-section {
+        padding: 0.75rem;
+    }
+
+    .word-input-actions button {
+        font-size: 0.85rem;
+        padding: 0.5rem;
+    }
+
+    @media (max-width: 360px) {
+    /* Previous styles remain... */
+
+    .list-actions button {
+        font-size: 0.85rem;
+        padding: 0.5rem;
+    }
+
+    .custom-list-item {
+        padding: 1rem;
+    }
+
+    .custom-list-item h3 {
+        font-size: 1rem;
+    }
 }
 
     </style>
@@ -4107,12 +4717,11 @@ background-clip: text;
     <i class="fas fa-sign-out-alt"></i> Logout
 </button>        
         <div class="welcome-buttons">
-            
-            <a href="wordcraft.html" class="nav-link">
-                <i class="fas fa-list"></i> My Lists
-            </a>
             <a href="#" class="nav-link" onclick="showScreen('stage-screen'); return false;">
-                <i class="fas fa-map-marked-alt"></i> Level Map
+    <i class="fas fa-map-marked-alt"></i> Level Map
+</a>
+            <a href="#" class="nav-link" onclick="showCustomListsManager(); return false;">
+                <i class="fas fa-list"></i> My Lists
             </a>
             <a href="#" class="nav-link" onclick="showLeaderboard(); return false;">
                 <i class="fas fa-trophy"></i> Speedboard
@@ -4317,7 +4926,64 @@ background-clip: text;
         </div>
     </div>
 </div>
+<div id="custom-practice-screen" class="screen">
+    <div class="navigation-container">
+        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+    </div>
 
+    <div class="custom-practice-container">
+        <div class="lists-section">
+            <h2 class="welcome-title">My Word Lists</h2>
+            <div id="custom-lists-container" class="custom-lists-container">
+                <!-- Lists will be dynamically populated here -->
+            </div>
+        </div>
+        
+        <div class="practice-section">
+            <h2 class="welcome-title">Create Custom Word List</h2>
+            <div class="list-name-section">
+                <input 
+                    type="text" 
+                    id="custom-list-name" 
+                    class="list-name-input" 
+                    placeholder="List Name"
+                >
+            </div>
+            <textarea 
+                id="custom-word-input" 
+                placeholder="Enter words, separated by commas or newlines"
+            ></textarea>
+            <div class="word-input-actions">
+    <button 
+        onclick="processCustomWords()" 
+        class="start-button"
+    >
+        Make
+    </button>
+    <button 
+        onclick="saveCurrentList()" 
+        class="start-button"
+    >
+        Save
+    </button>
+    <button 
+    onclick="addNewWord()" 
+    class="start-button add-word-button"
+>
+    Add Word
+</button>
+</div>
+<div class="translation-results" id="translation-results">
+    <div class="word-translation-list" id="word-translation-list">
+        <!-- Processed words will appear here -->
+    </div>
+</div>
+            </div>
+        </div>
+    </div>
+</div>
 
 
 <div id="upgrade-screen" class="screen">
@@ -4528,6 +5194,8 @@ background-clip: text;
 
 <script>
 
+
+    
     document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.querySelector('.logout-button');
     if (logoutButton) {
@@ -4666,7 +5334,7 @@ const gameInit = {
         updatePerkCounts();
         const welcomeScreen = document.getElementById('welcome-screen');
         initializeParticles(welcomeScreen);
-        await loadWordcraftLists();
+        await loadCustomLists();
     }
 };
 
@@ -4747,7 +5415,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const welcomeScreen = document.getElementById('welcome-screen');
     initializeParticles(welcomeScreen);
     
-    await loadWordcraftLists();
+    await loadCustomLists();
 
     // Mobile fullscreen handling
     if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
@@ -4972,7 +5640,7 @@ async function handleLogin() {
             }
 
             await Promise.all([
-                loadWordcraftLists(),
+                loadCustomLists(),
                 loadUserGameProgress(currentUser.id)
             ]);
 
@@ -5175,7 +5843,7 @@ async function handleLogout() {
         };
 
         // Clear all input fields and UI state
-        clearWordcraftPracticeUI();
+        clearCustomPracticeUI();
 
         // Reset current user and update UI
         currentUser = null;
@@ -5197,6 +5865,35 @@ async function handleLogout() {
     }
 }
 
+function clearCustomPracticeUI() {
+    // Clear list name input
+    const listNameInput = document.getElementById('custom-list-name');
+    if (listNameInput) {
+        listNameInput.value = '';
+    }
+
+    // Clear word input
+    const wordInput = document.getElementById('custom-word-input');
+    if (wordInput) {
+        wordInput.value = '';
+    }
+
+    // Clear translation results
+    const translationResults = document.getElementById('translation-results');
+    if (translationResults) {
+        translationResults.style.display = 'none';
+    }
+
+    // Clear word translation list
+    const wordList = document.getElementById('word-translation-list');
+    if (wordList) {
+        wordList.innerHTML = '';
+    }
+
+    // Reset current list
+    customPracticeLists.currentList = null;
+    customPracticeLists.lists = [];
+}
 
 function saveProgress() {
     // Ensure currentUser is always defined, even for unregistered users
@@ -5239,9 +5936,86 @@ function saveProgress() {
     }
 }
 
+async function saveCustomList() {
+    const listNameInput = document.getElementById('custom-list-name');
+    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+    
+    const wordItems = document.querySelectorAll('.word-translation-item');
+    const words = [];
+    const translations = [];
+    
+    wordItems.forEach(item => {
+        const englishWord = item.querySelector('.source-word').textContent.trim();
+        const hebrewTranslation = item.querySelector('.target-word').value.trim();
+        
+        if (englishWord && hebrewTranslation) {
+            words.push(englishWord);
+            translations.push(hebrewTranslation);
+        }
+    });
 
+    const newList = {
+        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
+        name: name,
+        words: words,
+        translations: translations
+    };
 
+    // If we're editing an existing list, replace it
+    if (customPracticeLists.currentList) {
+        const index = customPracticeLists.lists.findIndex(l => l.id === customPracticeLists.currentList.id);
+        if (index !== -1) {
+            customPracticeLists.lists[index] = newList;
+        } else {
+            customPracticeLists.lists.push(newList);
+        }
+    } else {
+        customPracticeLists.lists.push(newList);
+    }
+    
+    // Reset current list
+    customPracticeLists.currentList = null;
+    
+    // Save to Supabase if logged in
+    if (currentUser) {
+        await saveCustomListToSupabase(newList);
+    } else {
+        // Save to localStorage for guest users
+        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+    }
 
+    // Update UI after saving
+    showCustomListsManager();
+}
+
+async function loadCustomLists() {
+    if (currentUser) {
+        const { data, error } = await supabaseClient
+            .from('custom_lists')
+            .select('*')
+            .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
+
+        if (error) {
+            console.error('Error loading custom lists:', error);
+            customPracticeLists.lists = [];
+        } else {
+            customPracticeLists.lists = data.map(item => ({
+                id: item.local_id || Date.now(),
+                supabaseId: item.id,
+                name: item.name,
+                words: item.words,
+                translations: item.translations,
+                is_shared: item.is_shared,
+                shared_by: item.shared_by
+            }));
+        }
+    } else {
+        const savedLists = localStorage.getItem('simploxCustomLists');
+        customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
+    }
+    
+    updateListsDisplay();
+}
 
 function switchAuthTab(tab) {
     const loginTab = document.querySelector('.auth-tab[onclick="switchAuthTab(\'login\')"]');
@@ -5422,9 +6196,9 @@ function loadProgress() {
         gameState.coins = data.coins;
         gameState.perks = data.perks || {timeFreeze: 0, skip: 0, clue: 0, reveal: 0};
     }
-    const savedWordcraftCoins = localStorage.getItem('simploxWordcraftCoins');
-    if (savedWordcraftCoins) {
-        gameState.coins = parseInt(savedWordcraftCoins);
+    const savedCustomCoins = localStorage.getItem('simploxCustomCoins');
+    if (savedCustomCoins) {
+        gameState.coins = parseInt(savedCustomCoins);
     }
 }
 
@@ -6478,14 +7252,14 @@ function handleAnswer(isCorrect, fromPerk = false) {
 
         // Check for game over condition
         if (currentGame.wrongStreak >= 3) {
-    if (currentGame.isWordcraftPractice) {
+    if (currentGame.isCustomPractice) {
         showGameOverOverlay();
         document.querySelector('.restart-button').onclick = () => {
             document.querySelector('.failure-overlay').style.display = 'none';
-            // Use the stored currentWordcraftLevel instead of resetting to 1
-            startWordcraftLevel(currentGame.currentWordcraftLevel, {
+            // Use the stored currentCustomLevel instead of resetting to 1
+            startCustomLevel(currentGame.currentCustomLevel, {
                 ...currentGame.practiceState,
-                currentLevel: currentGame.currentWordcraftLevel
+                currentLevel: currentGame.currentCustomLevel
             });
         };
         return;
@@ -6494,7 +7268,7 @@ function handleAnswer(isCorrect, fromPerk = false) {
         return;
     }
 }
-        if (currentGame.isWordcraftPractice) {
+        if (currentGame.isCustomPractice) {
     if (!isCorrect) {
         currentGame.firstAttempt = false;
         currentGame.streakBonus = false;
@@ -6731,7 +7505,32 @@ function updatePerkCounts() {
     }
 }
 
+function startCustomListPractice(listId) {
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
 
+    currentGame = {
+        words: Array.isArray(list.words) ? list.words : [],
+        translations: Array.isArray(list.translations) ? list.translations : [],
+        currentIndex: 0,
+        correctAnswers: 0,
+        firstAttempt: true,
+        isCustomPractice: true,
+        startingCoins: gameState.coins,
+        startingPerks: { ...gameState.perks },
+        practiceState: {
+            currentLevel: 1,
+            words: Array.isArray(list.words) ? list.words : [],
+            translations: Array.isArray(list.translations) ? list.translations : [],
+            unlockedLevels: new Set([1]),
+            progress: {},
+            maxLevel: 10,
+            listId: listId
+        }
+    };
+
+    startCustomLevel(1, currentGame.practiceState);
+}
 
 function handleLevelCompletion() {
     clearTimer();
@@ -6971,7 +7770,7 @@ window.onload = async () => {
     const welcomeScreen = document.getElementById('welcome-screen');
     initializeParticles(welcomeScreen);
     
-    await loadWordcraftLists();
+    await loadCustomLists();
 };
 
 function stopLevelAndGoBack() {
@@ -7015,8 +7814,8 @@ function showGameOverOverlay() {
         overlay.classList.remove('show');
         setTimeout(() => {
             overlay.style.display = 'none';
-            if (currentGame.isWordcraftPractice) {
-                startWordcraftLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
+            if (currentGame.isCustomPractice) {
+                startCustomLevel(currentGame.practiceState.currentLevel, currentGame.practiceState);
             } else {
                 startLevel(gameState.currentLevel);
             }
@@ -7074,7 +7873,7 @@ function handleResetProgress() {
 
         // Clear localStorage
         localStorage.removeItem('simploxProgress');
-        localStorage.removeItem('simploxWordcraftCoins');
+        localStorage.removeItem('simploxCustomCoins');
         
         // Update UI
         updatePerkCounts();
@@ -7274,8 +8073,8 @@ function startGame() {
 }
 
 function showLevelIntro(levelId, setupCallback) {
-    // Skip intro for Wordcraft practice
-    if (currentGame.isWordcraftPractice) {
+    // Skip intro for custom practice
+    if (currentGame.isCustomPractice) {
         setupCallback();
         return;
     }
@@ -7324,11 +8123,37 @@ function showLevelIntro(levelId, setupCallback) {
     }, 1500);
 }
 
-const wordcraftPracticeLists = {
+const customPracticeLists = {
     lists: [],
     currentList: null,
     maxLists: 5
 };
+
+// Function to add a new word list
+function addCustomWordList(name = null) {
+    // Check if we've reached the maximum number of lists
+    if (customPracticeLists.lists.length >= customPracticeLists.maxLists) {
+        alert(`You can only create up to ${customPracticeLists.maxLists} custom lists.`);
+        return null;
+    }
+
+    // Generate a default name if not provided
+    if (!name) {
+        name = `List ${customPracticeLists.lists.length + 1}`;
+    }
+
+    const newList = {
+        id: Date.now(),
+        name: name,
+        words: [],
+        translations: []
+    };
+
+    customPracticeLists.lists.push(newList);
+    saveCustomLists();
+    return newList;
+}
+
 
 // Function to translate a single word using MyMemory Translation API
 function translateWord(word) {
@@ -7353,7 +8178,7 @@ function trackListPlay(listId) {
 
     if (plays >= limits.maxPlays) {
         // Remove list if max plays reached
-        deleteWordcraftList(listId);
+        deleteCustomList(listId);
         return false;
     }
     
@@ -7362,28 +8187,451 @@ function trackListPlay(listId) {
 
 
 
+// Function to delete a word from the translation list
+function deleteWord(button) {
+    button.closest('.word-translation-item').remove();
+}
 
 
 
+function addNewWord() {
+    const wordList = document.getElementById('word-translation-list');
+    if (!wordList) return;
+    
+    const wordItem = document.createElement('div');
+    wordItem.className = 'word-translation-item';
+    wordItem.draggable = true;
+    
+    wordItem.innerHTML = `
+        <div class="drag-handle">
+            <i class="fas fa-grip-vertical"></i>
+        </div>
+        <span class="source-word" contenteditable="true"></span>
+        <input type="text" class="target-word" placeholder="Hebrew translation">
+        <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+    `;
+    
+    wordList.appendChild(wordItem);
+    
+    // Focus on the new source word field
+    const sourceWord = wordItem.querySelector('.source-word');
+    sourceWord.focus();
+    
+    // Initialize drag functionality for the new item
+    initializeDragAndDrop(wordItem);
+}
+
+function initializeDragAndDrop(item) {
+    if (!item) return;
+    
+    item.setAttribute('draggable', 'true');
+    
+    item.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        item.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', ''); // Firefox compatibility
+    });
+    
+    item.addEventListener('dragend', (e) => {
+        e.stopPropagation();
+        item.classList.remove('dragging');
+    });
+}
+
+function makeWordListDraggable(listId) {
+    const wordList = document.getElementById('word-translation-list');
+    if (!wordList) return;
+    
+    wordList.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const draggingItem = wordList.querySelector('.dragging');
+        if (!draggingItem) return;
+        
+        const afterElement = getDragAfterElement(wordList, e.clientY);
+        if (afterElement) {
+            wordList.insertBefore(draggingItem, afterElement);
+        } else {
+            wordList.appendChild(draggingItem);
+        }
+    });
+
+    const items = wordList.querySelectorAll('.word-translation-item');
+    items.forEach(item => initializeDragAndDrop(item));
+}
+
+function createWordItem(word, translation) {
+    const item = document.createElement('div');
+    item.className = 'word-translation-item';
+    item.draggable = true;
+    
+    item.innerHTML = `
+        <div class="drag-handle">
+            <i class="fas fa-grip-vertical"></i>
+        </div>
+        <span class="source-word" contenteditable="true">${word}</span>
+        <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
+        <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+    `;
+    
+    return item;
+}
+
+function createWordTranslationItem(word = '', translation = '', isEditable = false) {
+    const wordList = document.getElementById('word-translation-list');
+    const wordItem = document.createElement('div');
+    wordItem.className = 'word-translation-item';
+    wordItem.draggable = true;
+    wordItem.innerHTML = `
+        <div class="drag-handle">
+            <i class="fas fa-grip-vertical"></i>
+        </div>
+        <span class="source-word ${isEditable ? 'editable' : ''}" 
+              contenteditable="${isEditable}">${word}</span>
+        <input 
+            type="text" 
+            class="target-word ${isEditable ? 'editable' : ''}"
+            value="${translation}" 
+            data-original="${translation}"
+            ${isEditable ? '' : 'readonly'}
+            placeholder="Hebrew translation"
+        >
+        <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+    `;
+    wordList.appendChild(wordItem);
+}
+
+async function saveCustomListToSupabase(list) {
+    if (!currentUser || !list) return;
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('custom_lists')
+            .upsert({
+                user_id: currentUser.id,
+                name: list.name,
+                words: list.words,
+                translations: list.translations,
+                status: list.status || currentUser.status
+            }, { onConflict: 'id' });
+
+        if (error) throw error;
+    } catch (error) {
+        console.error('Error saving list to Supabase:', error);
+        showNotification('Failed to save list', 'error');
+    }
+}
 
 
+function saveCustomLists() {
+    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+    
+    if (currentUser) {
+        // Also save to Supabase for logged-in users
+        customPracticeLists.lists.forEach(list => {
+            saveCustomListToSupabase(list);
+        });
+    }
+}
+
+function processCustomWords() {
+    const wordInput = document.getElementById('custom-word-input');
+    const translationResults = document.getElementById('translation-results');
+    const wordList = document.getElementById('word-translation-list');
+    const limits = getUserListLimits();
+    const rawInput = wordInput.value.trim();
+    
+    if (!rawInput) {
+        showNotification('Please enter at least one word.', 'error');
+        return;
+    }
+
+    // Parse input based on format
+    let words = rawInput.includes(',') ?
+        rawInput.split(',').map(word => word.trim()) :
+        rawInput.split(/\s+/).filter(word => word.length > 0);
+
+    // Handle phrase entries properly
+    words = words.map(word => word.includes(' ') ? [word] : word.split(/\s+/)).flat();
+
+    // Apply limits
+    const maxWords = currentUser ? limits.maxWords : 10;
+    if (words.length > maxWords) {
+        showNotification(`Maximum ${maxWords} words allowed.`, 'error');
+        words = words.slice(0, maxWords);
+    }
+
+    // Clear and prepare container
+    wordList.innerHTML = '';
+    translationResults.style.display = 'block';
+
+    // Process and create word items
+    words.forEach(word => {
+        const foundTranslation = findTranslation(word);
+        const wordItem = createWordItem(word, foundTranslation);
+        wordList.appendChild(wordItem);
+        initializeDragAndDrop(wordItem);
+    });
+
+    makeWordListDraggable();
+}
+
+function findTranslation(word) {
+    for (const set in vocabularySets) {
+        const index = vocabularySets[set].words.indexOf(word.toLowerCase());
+        if (index !== -1) return vocabularySets[set].translations[index];
+    }
+    return '';
+}
 
 
+function setupWordListKeyNavigation() {
+    const container = document.getElementById('word-translation-list');
+    if (!container) return;
+    
+    container.addEventListener('keydown', (e) => {
+        const currentItem = document.activeElement.closest('.word-translation-item');
+        if (!currentItem) return;
+        
+        let targetElement;
+        
+        switch(e.key) {
+            case 'ArrowUp':
+                e.preventDefault();
+                targetElement = currentItem.previousElementSibling?.querySelector('.source-word');
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                targetElement = currentItem.nextElementSibling?.querySelector('.source-word');
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                targetElement = currentItem.querySelector('.target-word');
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                targetElement = currentItem.querySelector('.source-word');
+                break;
+        }
+        
+        if (targetElement) {
+            targetElement.focus();
+        }
+    });
+}
+
+// Call this when word list is populated
+setupWordListKeyNavigation();
+
+function editCustomList(listId) {
+    // Ensure listId is a number
+    listId = typeof listId === 'string' ? parseInt(listId) : listId;
+    
+    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+    const editButton = listItem.querySelector('.edit-button');
+    const wordList = document.getElementById(`list-${listId}`);
+    
+    // If currently in edit mode, save the list
+    if (editButton.textContent === 'Save') {
+        saveCurrentList();
+        editButton.textContent = 'Edit';
+        listItem.removeAttribute('data-in-edit-mode');
+        wordList.innerHTML = '';
+        showCustomListsManager();
+        return;
+    }
+    
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
+    
+    // Switch to custom practice screen
+    showScreen('custom-practice-screen');
+    
+    // Set the list name
+    const listNameInput = document.getElementById('custom-list-name');
+    listNameInput.value = list.name;
+    
+    // Show translations section
+    const translationResults = document.getElementById('translation-results');
+    const editWordList = document.getElementById('word-translation-list');
+    
+    // Clear previous translations
+    editWordList.innerHTML = '';
+    
+    // Create translation items for each word
+    list.words.forEach((word, index) => {
+        const wordItem = document.createElement('div');
+        wordItem.className = 'word-translation-item';
+        wordItem.draggable = true;
+        
+        wordItem.innerHTML = `
+            <div class="drag-handle">
+                <i class="fas fa-grip-vertical"></i>
+            </div>
+            <span class="source-word" contenteditable="true">${word}</span>
+            <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
+            <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+        `;
+        
+        editWordList.appendChild(wordItem);
+    });
+    
+    translationResults.style.display = 'block';
+    
+    // Mark list as in edit mode
+    listItem.setAttribute('data-in-edit-mode', 'true');
+    
+    // Change edit button text
+    editButton.textContent = 'Save';
+    
+    // Store the current list for later saving
+    customPracticeLists.currentList = list;
+    
+    // Initialize drag functionality
+    makeWordListDraggable();
+}
 
 
+function saveCurrentList() {
+    // Check if editing an existing list
+    const existingList = customPracticeLists.currentList;
+    
+    const listNameInput = document.getElementById('custom-list-name');
+    const wordList = document.getElementById('word-translation-list');
+    
+    // Get current list name
+    const name = listNameInput.value.trim() || (existingList ? existingList.name : `List ${customPracticeLists.lists.length + 1}`);
+    const words = [];
+    const translations = [];
+    
+    const items = wordList.querySelectorAll('.word-translation-item');
+    items.forEach(item => {
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
+        
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
+        }
+    });
+
+    if (existingList) {
+        // Update existing list
+        const index = customPracticeLists.lists.findIndex(l => l.id === existingList.id);
+        if (index !== -1) {
+            customPracticeLists.lists[index] = {
+                ...existingList,
+                name: name,
+                words: words,
+                translations: translations
+            };
+        }
+        customPracticeLists.currentList = null;
+    } else {
+        // Create new list with limit check
+        if (!canCreateMoreLists()) {
+            showNotification('Maximum lists limit reached', 'error');
+            return;
+        }
+        customPracticeLists.lists.push({
+            id: Date.now(),
+            name: name,
+            words: words,
+            translations: translations
+        });
+    }
+    
+    saveCustomLists();
+    showCustomListsManager();
+}
 
 
+function canCreateMoreLists() {
+    const limits = getUserListLimits();
+    return customPracticeLists.lists.length < limits.maxLists;
+}
 
+function saveCurrentList() {
+    if (!canCreateMoreLists()) {
+        alert(`You can only create ${getUserListLimits().maxLists} custom lists.`);
+        return;
+    }
 
+    const listNameInput = document.getElementById('custom-list-name');
+    const wordInput = document.getElementById('custom-word-input');
+    const wordList = document.getElementById('word-translation-list');
+    const translationResults = document.getElementById('translation-results');
+    
+    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
+    const words = [];
+    const translations = [];
+    
+    const items = wordList.querySelectorAll('.word-translation-item');
+    items.forEach(item => {
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
+        
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
+        }
+    });
 
+    const limits = getUserListLimits();
+    if (words.length > limits.maxWords) {
+        alert(`You can only create lists with up to ${limits.maxWords} words.`);
+        return;
+    }
 
+    const newList = {
+        id: Date.now(),
+        name: name,
+        words: words,
+        translations: translations
+    };
 
+    customPracticeLists.lists.push(newList);
+    
+    // Save to localStorage for guest users
+    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+    
+    // Clear form
+    listNameInput.value = '';
+    wordInput.value = '';
+    wordList.innerHTML = '';
+    translationResults.style.display = 'none';
+    
+    showCustomListsManager();
+}
 
+function updateListsDisplay() {
+    const container = document.getElementById('custom-lists-container');
+    if (!container) return;
 
+    container.innerHTML = '';
 
+    if (customPracticeLists.lists.length === 0) {
+        container.innerHTML = '<p>No custom lists created yet. Create your first list!</p>';
+        return;
+    }
 
-function startWordcraftListPractice(listId) {
-    const list = wordcraftPracticeLists.lists.find(l => l.id === listId);
+    customPracticeLists.lists.forEach(list => {
+        const listItem = document.createElement('div');
+        listItem.className = 'custom-list-item';
+        listItem.innerHTML = `
+            <h3>${list.name}</h3>
+            <p>${list.words.length} words</p>
+            <div class="list-actions">
+                <button onclick="startCustomListPractice(${list.id})">Practice</button>
+                <button onclick="editCustomList(${list.id})">Edit</button>
+                <button onclick="deleteCustomList(${list.id})">Delete</button>
+            </div>
+        `;
+        container.appendChild(listItem);
+    });
+}
+
+function startCustomListPractice(listId) {
+    const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
     // Get play count for this list
@@ -7393,8 +8641,8 @@ function startWordcraftListPractice(listId) {
     // Check play limits
     const limits = getUserListLimits();
     if (playsUsed >= limits.maxPlays) {
-        deleteWordcraftList(listId);
-        showWordcraftListsManager();
+        deleteCustomList(listId);
+        showCustomListsManager();
         return;
     }
 
@@ -7408,7 +8656,7 @@ function startWordcraftListPractice(listId) {
         currentIndex: 0,
         correctAnswers: 0,
         firstAttempt: true,
-        isWordcraftPractice: true,
+        isCustomPractice: true,
         startingCoins: gameState.coins,
         startingPerks: { ...gameState.perks },
         practiceState: {
@@ -7423,7 +8671,150 @@ function startWordcraftListPractice(listId) {
         }
     };
 
-    startWordcraftLevel(1, currentGame.practiceState);
+    startCustomLevel(1, currentGame.practiceState);
+}
+
+
+
+
+function calculateCustomLevelWords(level, practiceState) {
+    const { words, translations } = practiceState;
+    
+    const levelConfigs = {
+        1: { start: 0, count: 3, isTest: false },
+        2: { start: 3, count: 3, isTest: false },
+        3: { start: 0, count: 6, isTest: true },
+        4: { start: 6, count: 3, isTest: false },
+        5: { start: 9, count: 3, isTest: false },
+        6: { start: 6, count: 6, isTest: true },
+        7: { start: 12, count: 4, isTest: false },
+        8: { start: 16, count: 4, isTest: false },
+        9: { start: 12, count: 8, isTest: true },
+        10: { start: 0, count: 20, isTest: true, isFinal: true }
+    };
+
+    const config = levelConfigs[level];
+    if (!config) return null;
+
+    return {
+        words: words.slice(config.start, config.start + config.count),
+        translations: translations.slice(config.start, config.start + config.count),
+        isTest: config.isTest,
+        isFinal: config.isFinal
+    };
+}
+
+function startCustomLevel(levelId, practiceState) {
+    const powerupsContainer = document.querySelector('.powerups-container');
+if (powerupsContainer) {
+    powerupsContainer.style.display = 'none';
+}
+    const levelData = calculateCustomLevelWords(levelId, practiceState);
+    if (!levelData) return;
+
+    currentGame = {
+        words: levelData.words,
+        translations: levelData.translations,
+        currentIndex: 0,
+        correctAnswers: 0,
+        firstAttempt: true,
+        isHebrewToEnglish: levelData.isTest ? Math.random() < 0.5 : false,
+        mixed: levelData.isTest,
+        speedChallenge: false,
+        practiceState: practiceState,
+        currentCustomLevel: levelId,
+        isCustomPractice: true,
+        startingCoins: gameState.coins,
+        startingPerks: { ...gameState.perks },
+        timeBonus: 0,
+        initialTimeRemaining: null,
+        streakBonus: true,
+        levelStartTime: Date.now(),
+        questionStartTime: 0,
+        wrongStreak: 0,
+        progressLost: 0
+    };
+
+    showLevelIntro(levelId, () => {
+        showScreen('question-screen');
+        updateProgressCircle();
+        loadNextQuestion();
+        startTimer(currentGame.words.length * 10); // 10 seconds per word
+    });
+}
+
+function showCustomListsManager() {
+    showScreen('custom-practice-screen');
+    
+    const container = document.getElementById('custom-lists-container');
+    if (!container) return;
+    
+    const limits = getUserListLimits();
+    const userStatus = currentUser?.status || 'unregistered';
+    
+    container.innerHTML = '';
+    
+    if (customPracticeLists.lists.length === 0) {
+        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
+        return;
+    }
+
+    customPracticeLists.lists.forEach(list => {
+        // Get play count
+        const playCountKey = `listPlays_${list.id}`;
+        const playsUsed = parseInt(localStorage.getItem(playCountKey) || '0');
+        const playsLeft = limits.maxPlays - playsUsed;
+
+        if (playsLeft <= 0) return;
+        
+        const listItem = document.createElement('div');
+        listItem.className = `custom-list-item collapsed ${list.is_shared ? 'shared-list' : ''}`;
+        listItem.dataset.listId = list.id;
+        
+        listItem.innerHTML = `
+            <div class="list-actions">
+                <button class="start-button practice-button">Practice</button>
+                <button class="edit-button" data-list-id="${list.id}">Edit</button>
+                <button class="start-button delete-button">Delete</button>
+                ${userStatus === 'premium' ? `
+                    <button class="share-button" onclick="showShareModal(${list.id})">
+                        <i class="fas fa-share-alt"></i> Share
+                    </button>
+                ` : ''}
+            </div>
+            <div class="list-header">
+                <h3>${list.name}</h3>
+                <div class="list-summary">
+                    <span>${list.words.length} words</span>
+                    <span style="color: ${playsLeft <= 2 ? '#ff4444' : '#ffffff'}; margin-left: 1rem;">
+                        ${limits.playDisplay}
+                    </span>
+                    <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
+                </div>
+            </div>
+        `;
+
+        // Add event listeners with explicit function calls
+        const practiceButton = listItem.querySelector('.practice-button');
+        practiceButton.addEventListener('click', () => startCustomListPractice(list.id));
+
+        const editButton = listItem.querySelector('.edit-button');
+        editButton.addEventListener('click', () => {
+            console.log('Edit button clicked for list:', list.id);
+            editCustomList(list.id);
+        });
+
+        const deleteButton = listItem.querySelector('.delete-button');
+        deleteButton.addEventListener('click', () => {
+            console.log('Delete button clicked for list:', list.id);
+            deleteCustomList(list.id);
+        });
+
+        const header = listItem.querySelector('.list-header');
+        header.addEventListener('click', () => toggleListCollapse(list.id));
+
+        container.appendChild(listItem);
+    });
 }
 
 function getUserListLimits() {
@@ -7472,11 +8863,325 @@ function getUserListLimits() {
     }
 }
 
+function toggleListCollapse(listId) {
+    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+    const editButton = listItem.querySelector('.edit-button');
+    
+    if (editButton.textContent === 'Save') {
+        // Don't toggle if in edit mode
+        return;
+    }
+    
+    listItem.classList.toggle('collapsed');
+}
+
+function toggleEditMode(listId) {
+    // Convert listId to number if it's a string
+    listId = typeof listId === 'string' ? parseInt(listId) : listId;
+
+    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+    if (!listItem) return;
+
+    const editButton = listItem.querySelector('.edit-button');
+    if (!editButton) return;
+
+    const wordList = document.getElementById(`list-${listId}`);
+    
+    if (editButton.textContent === 'Edit') {
+        editButton.textContent = 'Save';
+        listItem.classList.remove('collapsed');
+        listItem.setAttribute('data-in-edit-mode', 'true');
+        
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        if (!list) return;
+
+        wordList.innerHTML = '';
+        
+        list.words.forEach((word, index) => {
+            const wordItem = document.createElement('div');
+            wordItem.className = 'word-translation-item';
+            wordItem.draggable = true;
+            
+            wordItem.innerHTML = `
+                <div class="drag-handle">
+                    <i class="fas fa-grip-vertical"></i>
+                </div>
+                <span class="source-word" contenteditable="true">${word}</span>
+                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
+                <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+            `;
+            
+            wordList.appendChild(wordItem);
+            initializeDragAndDrop(wordItem);
+        });
+        
+        makeWordListDraggable(listId);
+    } else {
+        saveListChanges(listId, wordList, listItem);
+    }
+}
+
+function editCustomList(listId) {
+    // Ensure listId is a number
+    listId = typeof listId === 'string' ? parseInt(listId) : listId;
+    
+    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+    const editButton = listItem.querySelector('.edit-button');
+    const wordList = document.getElementById(`list-${listId}`);
+    
+    // If currently in edit mode, save the list
+    if (editButton.textContent === 'Save') {
+        saveCurrentList();
+        editButton.textContent = 'Edit';
+        listItem.removeAttribute('data-in-edit-mode');
+        wordList.innerHTML = '';
+        showCustomListsManager();
+        return;
+    }
+    
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
+    
+    // Switch to custom practice screen
+    showScreen('custom-practice-screen');
+    
+    // Set the list name
+    const listNameInput = document.getElementById('custom-list-name');
+    listNameInput.value = list.name;
+    
+    // Show translations section
+    const translationResults = document.getElementById('translation-results');
+    const editWordList = document.getElementById('word-translation-list');
+    
+    // Clear previous translations
+    editWordList.innerHTML = '';
+    
+    // Create translation items for each word
+    list.words.forEach((word, index) => {
+        const wordItem = document.createElement('div');
+        wordItem.className = 'word-translation-item';
+        wordItem.draggable = true;
+        
+        wordItem.innerHTML = `
+            <div class="drag-handle">
+                <i class="fas fa-grip-vertical"></i>
+            </div>
+            <span class="source-word" contenteditable="true">${word}</span>
+            <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
+            <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+        `;
+        
+        editWordList.appendChild(wordItem);
+    });
+    
+    translationResults.style.display = 'block';
+    
+    // Mark list as in edit mode
+    listItem.setAttribute('data-in-edit-mode', 'true');
+    
+    // Change edit button text
+    editButton.textContent = 'Save';
+    
+    // Store the current list for later saving
+    customPracticeLists.currentList = list;
+    
+    // Initialize drag functionality
+    makeWordListDraggable();
+}
+
+function loadCustomList(listId) {
+    const list = customPracticeLists.lists.find(l => l.id === listId);
+    if (!list) return;
+
+    customPracticeLists.currentList = list;
+
+    // Populate word input area
+    const wordInput = document.getElementById('custom-word-input');
+    wordInput.value = list.words.join(', ');
+
+    // Populate list name
+    const listNameInput = document.getElementById('custom-list-name');
+    listNameInput.value = list.name;
+
+    // Trigger translation process to show the words
+    processCustomWords();
+
+    // Show the practice screen
+    showScreen('custom-practice-screen');
+}
+
+function deleteCustomList(listId) {
+    // Ensure listId is a number
+    listId = typeof listId === 'string' ? parseInt(listId) : listId;
+
+    // Remove from lists array
+    customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
+    
+    // Remove play count from localStorage
+    localStorage.removeItem(`listPlays_${listId}`);
+    
+    // Update localStorage with remaining lists
+    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
+    
+    // Refresh the lists display
+    showCustomListsManager();
+}
 
 
+function addWordToList(listId) {
+    const listElement = document.getElementById(`list-${listId}`);
+    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+    const editButton = listItem.querySelector('.edit-button');
+    
+    // Only add word if in edit mode
+    if (editButton.textContent !== 'Save') return;
+
+    const wordItem = document.createElement('div');
+    wordItem.className = 'word-translation-item';
+    wordItem.draggable = true;
+    
+    wordItem.innerHTML = `
+        <div class="drag-handle">
+            <i class="fas fa-grip-vertical"></i>
+        </div>
+        <span class="source-word" contenteditable="true"></span>
+        <input type="text" class="target-word" placeholder="Hebrew translation">
+        <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+    `;
+    
+    // Add at the top of the list
+    if (listElement.firstChild) {
+        listElement.insertBefore(wordItem, listElement.firstChild);
+    } else {
+        listElement.appendChild(wordItem);
+    }
+    
+    // Make the new item draggable
+    initializeDragAndDrop(wordItem);
+    
+    // Focus on the new word input
+    const sourceWord = wordItem.querySelector('.source-word');
+    sourceWord.focus();
+}
+
+function makeWordListDraggable(listId) {
+    const wordList = document.getElementById(`list-${listId}`);
+    if (!wordList) return;
+    
+    // Add dragover event listener to the container
+    wordList.addEventListener('dragover', e => {
+        e.preventDefault();
+        const draggable = wordList.querySelector('.dragging');
+        if (!draggable) return;
+        
+        const afterElement = getDragAfterElement(wordList, e.clientY);
+        if (afterElement) {
+            wordList.insertBefore(draggable, afterElement);
+        } else {
+            wordList.appendChild(draggable);
+        }
+    });
+
+    wordList.addEventListener('drop', e => {
+        e.preventDefault();
+        const draggingElement = document.querySelector('.dragging');
+        if (draggingElement) {
+            draggingElement.style.opacity = '1';
+            draggingElement.classList.remove('dragging');
+        }
+    });
+
+    // Initialize drag events for all items
+    const items = wordList.querySelectorAll('.word-translation-item');
+    items.forEach(item => initializeDragAndDrop(item));
+}
+
+function getDragAfterElement(container, y) {
+    const draggableItems = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
+    
+    return draggableItems.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
 
 
+function toggleEditMode(listId) {
+    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
+    const editButton = listItem.querySelector('.edit-button');
+    const wordList = document.getElementById(`list-${listId}`);
+    
+    if (editButton.textContent === 'Edit') {
+        // Enter edit mode
+        editButton.textContent = 'Save';
+        listItem.classList.remove('collapsed');
+        
+        // Load editable word list
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        wordList.innerHTML = '';
+        
+        list.words.forEach((word, index) => {
+            const wordItem = document.createElement('div');
+            wordItem.className = 'word-translation-item';
+            wordItem.draggable = true;
+            
+            wordItem.innerHTML = `
+                <div class="drag-handle">
+                    <i class="fas fa-grip-vertical"></i>
+                </div>
+                <span class="source-word" contenteditable="true">${word}</span>
+                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
+                <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+            `;
+            
+            wordList.appendChild(wordItem);
+        });
+        
+        // Initialize drag functionality
+        makeWordListDraggable(listId);
+    } else {
+        // Save changes
+        saveListChanges(listId, wordList, listItem);
+    }
+}
 
+function saveListChanges(listId, wordList, listItem) {
+    const list = customPracticeLists.lists.find(l => l.id === parseInt(listId));
+    const editButton = listItem.querySelector('.edit-button');
+    const items = wordList.querySelectorAll('.word-translation-item');
+    
+    const words = [];
+    const translations = [];
+    
+    items.forEach(item => {
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
+        }
+    });
+    
+    list.words = words;
+    list.translations = translations;
+    saveCustomLists();
+    
+    editButton.textContent = 'Edit';
+    listItem.removeAttribute('data-in-edit-mode');
+    listItem.classList.add('collapsed');
+    
+    const summary = listItem.querySelector('.list-summary');
+    summary.innerHTML = `
+        <span>${words.length} words</span>
+        <p class="word-preview">${words.slice(0,5).join(', ')}${words.length > 5 ? '...' : ''}</p>
+    `;
+}
 
 
 function toggleAuthMode() {
@@ -7496,7 +9201,7 @@ async function shareListWithUser(listId, recipientId) {
         console.log('List ID:', listId);
 
         // Find the original list with more robust checking
-        const list = wordcraftPracticeLists.lists.find(l => l.id === listId);
+        const list = customPracticeLists.lists.find(l => l.id === listId);
         if (!list) {
             console.error('List not found');
             throw new Error('List not found');
@@ -7571,7 +9276,7 @@ async function shareListWithUser(listId, recipientId) {
 function updateLocalSharedLists(sharedList) {
     // Add the shared list to the recipient's local lists
     if (currentUser) {
-        wordcraftPracticeLists.lists.push({
+        customPracticeLists.lists.push({
             id: sharedList.local_id,
             supabaseId: sharedList.id,
             name: sharedList.name,
@@ -7582,7 +9287,7 @@ function updateLocalSharedLists(sharedList) {
         });
         
         // Save to local storage or sync
-        saveWordcraftLists();
+        saveCustomLists();
     }
 }
 
@@ -7622,7 +9327,7 @@ async function loadSharedLists() {
     if (!currentUser) return [];
 
     const { data, error } = await supabaseClient
-        .from('wordcraft_lists')
+        .from('custom_lists')
         .select('*')
         .or(`shared_with.cs.{${currentUser.id}},is_shared.eq.true`);
 
@@ -8006,6 +9711,142 @@ function showUnregisteredWarning(callback) {
     };
 }
 
+function handleCustomPracticeCompletion() {
+    const completedPerfectly = currentGame.streakBonus && 
+        currentGame.correctAnswers === currentGame.words.length;
+
+    if (completedPerfectly) {
+        // Award coins
+        if (currentGame.firstAttempt) {
+            gameState.coins += 3;
+            pulseCoins(3);
+        } else {
+            gameState.coins += 1;
+            pulseCoins(1);
+        }
+
+        // Add completion bonus
+        gameState.coins += 5;
+        pulseCoins(5);
+        
+        updateAllCoinDisplays();
+        saveProgress();
+        
+        const nextLevel = currentGame.currentCustomLevel + 1;
+        if (nextLevel <= 10) {
+            currentGame.practiceState.unlockedLevels.add(nextLevel);
+            currentGame.practiceState.progress[currentGame.currentCustomLevel] = true;
+            
+            // Show completion curtain before next level
+            showLevelIntro(nextLevel, () => {
+                startCustomLevel(nextLevel, currentGame.practiceState);
+            });
+        } else {
+            showScreen('custom-practice-screen');
+            alert('Congratulations! Practice set completed!');
+        }
+    } else {
+        startCustomLevel(currentGame.currentCustomLevel, currentGame.practiceState);
+    }
+}
+
+async function processPayment(plan) {
+    const plans = {
+        monthly: { amount: 9.99, interval: 'month' },
+        yearly: { amount: 99.99, interval: 'year' },
+        lifetime: { amount: 299.99, interval: 'once' }
+    };
+
+    const { data, error } = await supabaseClient
+        .from('payment_requests')
+        .insert({
+            user_id: currentUser.id,
+            plan_type: plan,
+            amount: plans[plan].amount,
+            status: 'pending'
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('Payment error:', error);
+        return;
+    }
+
+    showPaymentMethods(plans[plan].amount, data.id);
+}
+
+
+async function processPayment(method) {
+    const prices = {bit: 299.99, paybox: 299.99, kashkash: 299.99, bank: 299.99};
+    const referenceCode = generateReferenceCode();
+    
+    try {
+        const { data, error } = await supabaseClient
+            .from('payment_requests')
+            .insert({
+                user_id: currentUser.id,
+                payment_method: method,
+                amount: prices[method],
+                reference_code: referenceCode,
+                status: 'pending',
+                submission_time: new Date()
+            })
+            .select();
+
+        if (error) throw error;
+        showPaymentDetails(method, referenceCode);
+    } catch (error) {
+        console.error('Payment error:', error);
+    }
+}
+
+
+function showPaymentDetails(method, referenceCode) {
+   const paymentDetails = {
+       bit: { recipient: "050-1234567", label: "Phone Number" },
+       paybox: { recipient: "050-7654321", label: "Payment Link" },
+       kashkash: { recipient: "KASHKASH-123", label: "ID" },
+       bank: {
+           bank: "Leumi",
+           branch: "123",
+           account: "45678",
+           label: "Bank Details"
+       }
+   };
+
+   const details = paymentDetails[method];
+   
+   document.querySelector('.payment-container').innerHTML = `
+       <h2 class="welcome-title">Payment Details</h2>
+       <div class="payment-info">
+           <p class="reference">Reference Code: <strong>${referenceCode}</strong></p>
+           <p>Amount: ₪299.99</p>
+           ${method === 'bank' ? `
+               <p>Bank: ${details.bank}</p>
+               <p>Branch: ${details.branch}</p>
+               <p>Account: ${details.account}</p>
+           ` : `
+               <p>${details.label}: ${details.recipient}</p>
+           `}
+           <p>Please save your reference code and send payment confirmation via WhatsApp</p>
+           <button class="start-button" onclick="openWhatsApp('${referenceCode}')">
+               <i class="fab fa-whatsapp"></i> Send Via WhatsApp
+           </button>
+           <button class="back-button" onclick="showPaymentScreen()">
+               <i class="fas fa-arrow-left"></i> Back
+           </button>
+       </div>
+   `;
+}
+
+function openWhatsApp(referenceCode) {
+   const message = encodeURIComponent(
+       `Payment confirmation for reference: ${referenceCode}\n` +
+       `Email: ${currentUser.email}`
+   );
+   window.open(`https://wa.me/972545996417?text=${message}`);
+}
 
 // Admin verification interface
 function createAdminVerificationInterface() {
@@ -8202,7 +10043,7 @@ const DataValidator = {
         };
     },
     
-    validateWordcraftList(list) {
+    validateCustomList(list) {
         return {
             ...list,
             words: list.words.slice(0, 1000).map(sanitizeInput),
@@ -8707,7 +10548,7 @@ async function checkExistingSession() {
             
             await Promise.all([
                 loadUserGameProgress(currentUser.id),
-                loadWordcraftLists()
+                loadCustomLists()
             ]);
             updateAuthUI();
             updateGuestPlayButton(); // Add this line
@@ -8911,15 +10752,29 @@ async function showArcadeModal() {
                     })
                     .subscribe();
 
+                // Add custom lists section before displaying teacher view
+                const customListsSection = document.createElement('div');
+                customListsSection.className = 'custom-lists-selector';
+                customListsSection.innerHTML = `
+                    <div class="section-header">
+                        <h3>Add Custom Lists (Optional)</h3>
+                        <button class="add-list-button">+ Add List</button>
+                    </div>
+                    <div class="selected-lists"></div>
+                    <div class="stage-requirement">
+                        <div class="requirement-note">* Selecting a stage is required</div>
+                    </div>
+                `;
+
                 // Insert before stage selector
                 const stageSelector = teacherView.querySelector('.stage-selector');
                 if (stageSelector) {
-                    teacherView.insertBefore(WordcraftListsSection, stageSelector);
+                    teacherView.insertBefore(customListsSection, stageSelector);
                     
                     // Handle add list button
-                    const addListButton = wordcraftListsSection.querySelector('.add-list-button');
+                    const addListButton = customListsSection.querySelector('.add-list-button');
                     if (addListButton) {
-                        addListButton.onclick = showWordcraftListDropdown;
+                        addListButton.onclick = showCustomListDropdown;
                     }
                 }
 
@@ -8944,23 +10799,81 @@ async function showArcadeModal() {
     }
 }
 
+function showCustomListDropdown() {
+    // Debug logs
+    console.log('Current user:', currentUser);
+    console.log('All custom lists:', customPracticeLists.lists);
+    
+    // Get teacher's lists, including both owned and shared
+    const lists = customPracticeLists.lists.filter(list => 
+        list.user_id === currentUser.id || 
+        (list.shared_with && list.shared_with.includes(currentUser.id))
+    );
+    
+    console.log('Filtered lists for teacher:', lists);
+    
+    // First load lists from Supabase
+    supabaseClient
+        .from('custom_lists')
+        .select('*')
+        .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`)
+        .then(({ data, error }) => {
+            if (error) {
+                console.error('Error fetching lists:', error);
+                return;
+            }
+            
+            console.log('Lists from database:', data);
+            
+            const availableLists = data || [];
+            showListsDropdown(availableLists);
+        });
+}
 
-
-
-
-function handleNavigation(screen) {
-    switch(screen) {
-        case 'wordcraft-lists':
-            window.location.href = 'wordcraft.html';
-            break;
-        case 'arcade':
-            window.location.href = 'arcade.html';
-            break;
-        // Other navigation cases
-        default:
-            // Default navigation logic
-            break;
+function showListsDropdown(lists) {
+    // Remove any existing dropdowns
+    const existingDropdown = document.querySelector('.custom-list-dropdown');
+    if (existingDropdown) {
+        existingDropdown.remove();
     }
+    
+    const dropdown = document.createElement('div');
+    dropdown.className = 'custom-list-dropdown';
+    
+    if (!lists || lists.length === 0) {
+        dropdown.innerHTML = `
+            <div class="list-item">
+                <span>No custom lists available</span>
+            </div>
+        `;
+    } else {
+        dropdown.innerHTML = `
+            <div class="dropdown-content">
+                ${lists.map(list => `
+                    <div class="list-item" data-id="${list.id}">
+                        <span>${list.name}</span>
+                        <span class="word-count">(${Array.isArray(list.words) ? list.words.length : 0} words)</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    const customListsSelector = document.querySelector('.custom-lists-selector');
+    customListsSelector.appendChild(dropdown);
+
+    // Add click handlers
+    dropdown.querySelectorAll('.list-item[data-id]').forEach(item => {
+        item.onclick = (e) => {
+            e.stopPropagation();
+            const listId = item.dataset.id;
+            const list = lists.find(l => l.id == listId);
+            if (list) {
+                addSelectedList(list);
+                dropdown.remove();
+            }
+        };
+    });
 }
 
 function addSelectedList(list) {
@@ -9567,7 +11480,7 @@ async function startArcadeGame() {
 async function getCurrentCoinsForArcade() {
     if (!currentUser) {
         // For guest users, use localStorage or default
-        return parseInt(localStorage.getItem('simploxWordcraftCoins') || '0');
+        return parseInt(localStorage.getItem('simploxCustomCoins') || '0');
     }
 
     // For logged-in users, especially premium
@@ -10668,11 +12581,33 @@ function switchAuthForm(type) {
     }
 }
 
+async function combineCustomLists(listIds) {
+    if (!currentUser?.role === 'teacher') return;
+    
+    const combinedList = {
+        id: Date.now(),
+        name: 'Combined List',
+        words: [],
+        translations: [],
+        isTeacherList: true
+    };
+    
+    // Merge selected lists
+    for (const listId of listIds) {
+        const list = customPracticeLists.lists.find(l => l.id === listId);
+        if (list) {
+            combinedList.words.push(...list.words);
+            combinedList.translations.push(...list.translations);
+        }
+    }
+    
+    return combinedList;
+}
 
 async function convertListToArcade(listId) {
     if (!currentUser?.role === 'teacher') return;
     
-    const list = wordcraftPracticeLists.lists.find(l => l.id === listId);
+    const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
     
     // Create arcade configuration
@@ -10681,7 +12616,7 @@ async function convertListToArcade(listId) {
             word: word,
             translation: list.translations[index]
         })),
-        isWordcraftArcade: true,
+        isCustomArcade: true,
         teacherId: currentUser.id,
         listId: listId
     };
@@ -10800,6 +12735,44 @@ function handleArcadeCompletion(playerData) {
     }
 }
 
+// Add this function for testing
+function setTemporaryTeacherRole() {
+    currentUser = {
+        ...currentUser,
+        role: 'teacher'
+    };
+    
+    // Create test lists
+    const testLists = [
+        {
+            id: 1,
+            name: 'Test List 1',
+            words: ['cat', 'dog', 'bird'],
+            translations: ['חתול', 'כלב', 'ציפור']
+        },
+        {
+            id: 2,
+            name: 'Test List 2',
+            words: ['red', 'blue', 'green'],
+            translations: ['אדום', 'כחול', 'ירוק']
+        }
+    ];
+    
+    customPracticeLists.lists = testLists;
+    
+    // Test combination
+    combineCustomLists([1, 2]).then(combinedList => {
+        console.log('Combined List:', combinedList);
+    });
+}
+
+// Add button to interface for testing
+function addTestingControls() {
+    const testButton = document.createElement('button');
+    testButton.textContent = 'Test Teacher Features';
+    testButton.onclick = setTemporaryTeacherRole;
+    document.body.appendChild(testButton);
+}
 
 </script>
 </body>

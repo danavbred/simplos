@@ -1,3 +1,75 @@
+// Wordcraft State Management
+const WordcraftCore = {
+    // State Management
+    state: {
+        lists: [],
+        currentList: null,
+        editMode: false,
+        lastSync: null,
+        errors: []
+    },
+
+    // Constants
+    constants: {
+        MIN_WORDS: 6,
+        MAX_WORDS_FREE: 20,
+        MAX_WORDS_PREMIUM: 200,
+        MAX_LISTS_FREE: 5,
+        MAX_LISTS_PREMIUM: 30
+    },
+
+    getLimits() {
+        const isPremium = currentUser?.status === 'premium';
+        return {
+            maxWords: isPremium ? this.constants.MAX_WORDS_PREMIUM : this.constants.MAX_WORDS_FREE,
+            maxLists: isPremium ? this.constants.MAX_LISTS_PREMIUM : this.constants.MAX_LISTS_FREE,
+            canShare: isPremium,
+            allowMixedSource: isPremium
+        };
+    },
+
+    // Error Management
+    handleError(error, context) {
+        console.error(`Wordcraft Error (${context}):`, error);
+        this.state.errors.push({
+            context,
+            message: error.message,
+            timestamp: Date.now()
+        });
+        showNotification(error.message || 'An error occurred', 'error');
+    }
+};
+
+
+// Initialize Wordcraft
+async function initializeWordcraft() {
+    try {
+        await loadWordcraftLists();
+        setupEventListeners();
+        updateUI();
+    } catch (error) {
+        WordcraftErrors.handleError(error, 'initialization');
+    }
+}
+
+function setupEventListeners() {
+    // Word input handling
+    const wordInput = document.getElementById('wordcraft-word-input');
+    if (wordInput) {
+        wordInput.addEventListener('input', debounce(validateWordInput, 300));
+        wordInput.addEventListener('paste', handlePaste);
+    }
+
+    // List name handling
+    const listName = document.getElementById('wordcraft-list-name');
+    if (listName) {
+        listName.addEventListener('input', debounce(validateListName, 300));
+    }
+
+    // Drag and drop setup
+    setupDragAndDrop();
+}
+
 // Wordcraft List Management Module
 
 const wordcraftLists = {
