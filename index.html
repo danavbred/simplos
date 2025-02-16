@@ -7444,12 +7444,28 @@ function handleAnswer(isCorrect, fromPerk = false) {
         if (timeBonus > 0) {
             totalCoinsEarned += timeBonus;
             pulseCoins(timeBonus);
+
+            // Add perk chance when earning time bonus
+            if (Math.random() < 0.15) { // 15% chance
+                const perkTypes = ['timeFreeze', 'skip', 'clue', 'reveal'];
+                const randomPerk = perkTypes[Math.floor(Math.random() * perkTypes.length)];
+                gameState.perks[randomPerk]++;
+                updatePerkCounts();
+            }
         }
 
         // Award coins based on first attempt
         if (currentGame.firstAttempt) {
             totalCoinsEarned += 3;
             pulseCoins(3);
+            
+            // Additional chance for perk on first attempt
+            if (Math.random() < 0.1) { // 10% chance
+                const perkTypes = ['timeFreeze', 'skip', 'clue', 'reveal'];
+                const randomPerk = perkTypes[Math.floor(Math.random() * perkTypes.length)];
+                gameState.perks[randomPerk]++;
+                updatePerkCounts();
+            }
         } else {
             totalCoinsEarned += 1;
             pulseCoins(1);
