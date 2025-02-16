@@ -7566,40 +7566,85 @@ function updateAllCoinDisplays() {
 }
 
 
-function usePerk(perkType) {
-    // Ensure we have perks available
-    if (gameState.perks[perkType] <= 0) return;
+const PERK_PRICES = {
+    timeFreeze: {
+        name: 'Time Freeze',
+        description: 'Pause the timer for 5 seconds',
+        baseCost: 15,
+        icon: 'fa-clock',
+        duration: 5000  // 5 seconds
+    },
+    skip: {
+        name: 'Skip Question',
+        description: 'Skip the current word without penalty',
+        baseCost: 20,
+        icon: 'fa-forward'
+    },
+    clue: {
+        name: 'Eliminate Wrong Answer',
+        description: 'Remove one incorrect answer',
+        baseCost: 10,
+        icon: 'fa-lightbulb'
+    },
+    reveal: {
+        name: 'Reveal Correct Answer',
+        description: 'Show the correct translation',
+        baseCost: 25,
+        icon: 'fa-eye'
+    }
+};
 
-    switch (perkType) {
+// Update the usePerk function to use centralized pricing
+function usePerk(perkType) {
+    const perkConfig = PERK_PRICES[perkType];
+    
+    // Check if perk is available
+    if (!perkConfig || gameState.perks[perkType] <= 0) {
+        showNotification('No perks available', 'error');
+        return false;
+    }
+
+    // Check coin availability
+    if (gameState.coins < perkConfig.baseCost) {
+        showNotification(`Not enough coins! Perk costs ${perkConfig.baseCost} coins.`, 'error');
+        return false;
+    }
+
+    // Deduct coins
+    gameState.coins -= perkConfig.baseCost;
+
+    // Decrement perk count
+    gameState.perks[perkType]--;
+
+    // Apply perk effects
+    switch(perkType) {
         case 'timeFreeze':
             isFrozen = true;
-            gameState.perks.timeFreeze--;
             setTimeout(() => {
                 isFrozen = false;
-            }, 5000);
+            }, perkConfig.duration);
             break;
 
         case 'skip':
-            gameState.perks.skip--;
             handleAnswer(true, true);
             break;
 
         case 'clue':
-            gameState.perks.clue--;
             eliminateWrongAnswer();
             break;
 
         case 'reveal':
-            gameState.perks.reveal--;
             revealCorrectAnswer();
             break;
     }
 
-    // After using perk, update UI and save progress
+    // Update UI
     updatePerkCounts();
+    updateAllCoinDisplays();
     saveProgress();
-}
 
+    return true;
+}
 
 function eliminateWrongAnswer() {
    const buttons = document.querySelectorAll('.buttons button');
