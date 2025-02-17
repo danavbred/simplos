@@ -6438,24 +6438,25 @@ case 'reveal':
 }
 
 
-// REPLACE updatePerkButtons function
 function updatePerkButtons() {
     Object.entries(PERK_CONFIG).forEach(([perkType, config]) => {
         const button = document.getElementById(`${perkType}Perk`);
         if (button) {
-            const canAfford = gameState.coins >= config.cost;
+            // Calculate number of times perk can be purchased
+            const availablePurchases = Math.floor(gameState.coins / config.cost);
+            const canAfford = availablePurchases > 0;
+            
             button.disabled = !canAfford;
             button.classList.toggle('disabled', !canAfford);
             
-            // Update counter
+            // Update counter to show number of purchasable perks
             const countElement = button.querySelector('.perk-count');
             if (countElement) {
-                countElement.textContent = canAfford ? '1' : '0';
+                countElement.textContent = canAfford ? availablePurchases.toString() : '0';
             }
         }
     });
 }
-
 
 updatePerkButtons();
 
@@ -11968,34 +11969,6 @@ function loadNextArcadeQuestion() {
 }
 
 
-
-function handleArcadeCompletion() {
-    clearTimer();
-    
-    if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
-        window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'player_complete',
-            payload: {
-                username: currentArcadeSession.playerName,
-                wordsCompleted: currentGame.wordsCompleted,
-                coins: currentGame.coins,
-                completionTime: Date.now()
-            }
-        });
-
-        // Show completion screen
-        const completionData = {
-            wordsCompleted: currentGame.wordsCompleted,
-            coins: currentGame.coins,
-            rank: getRank()
-        };
-        
-        showArcadeCompletionScreen(completionData);
-    }
-}
-
-
 function updateArcadeProgress() {
     const circle = document.querySelector('.progress-circle .progress');
     const radius = 54;
@@ -12538,7 +12511,7 @@ async function joinArcadeWithUsername() {
         return;
     }
 
-    // Allow Hebrew, English, numbers, and some special characters
+    // Validate username characters
     const validUsernameRegex = /^[a-zA-Z0-9\u0590-\u05FF\s._-]+$/;
     if (!validUsernameRegex.test(username)) {
         showErrorToast('Username can contain letters, numbers, spaces, periods, underscores, and hyphens');
@@ -12554,14 +12527,31 @@ async function joinArcadeWithUsername() {
     }
 
     try {
+        // Get initial coins for registered users
+        let initialCoins = 0;
+        if (currentUser) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('game_progress')
+                    .select('coins')
+                    .eq('user_id', currentUser.id)
+                    .single();
+                    
+                if (!error && data) {
+                    initialCoins = data.coins;
+                    console.log('Retrieved initial coins:', initialCoins);
+                }
+            } catch (error) {
+                console.error('Failed to load initial coins:', error);
+            }
+        }
+
         // Create Supabase channel for the specific arcade session
         window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`);
         
-        // Set the player name for the current session
+        // Set player name and initial state
         currentArcadeSession.playerName = username;
-        
-        // Start state polling for late joiners
-        let stateCheckInterval;
+        currentArcadeSession.initialCoins = initialCoins;
         
         // Set up channel listeners
         window.arcadeChannel
@@ -12573,7 +12563,6 @@ async function joinArcadeWithUsername() {
                     currentArcadeSession.wordPool = payload.wordPool;
                     currentArcadeSession.wordGoal = payload.wordGoal;
                     startArcadeGame();
-                    if (stateCheckInterval) clearInterval(stateCheckInterval);
                 }
             })
             .on('broadcast', { event: 'game_playing' }, ({ payload }) => {
@@ -12581,41 +12570,25 @@ async function joinArcadeWithUsername() {
                     currentArcadeSession.wordPool = payload.wordPool;
                     currentArcadeSession.wordGoal = payload.wordGoal;
                     startArcadeGame();
-                    if (stateCheckInterval) clearInterval(stateCheckInterval);
                 }
             })
             .subscribe();
 
-        // Broadcast player join event
+        // Broadcast initial join with type and coins
         await window.arcadeChannel.send({
             type: 'broadcast',
             event: 'player_join',
             payload: {
                 username: username,
+                type: 'initialJoin',
+                coins: initialCoins,
                 joinedAt: new Date().toISOString()
             }
         });
 
-        // Hide arcade modal 
+        // Hide arcade modal and show waiting screen
         document.getElementById('arcade-modal').style.display = 'none';
-
-        // Start state polling for late joiners
-        stateCheckInterval = setInterval(async () => {
-            await window.arcadeChannel.send({
-                type: 'broadcast',
-                event: 'check_game_status'
-            });
-        }, 2000);
-
-        // Clear interval after 5 minutes to prevent indefinite polling
-        setTimeout(() => {
-            if (stateCheckInterval) clearInterval(stateCheckInterval);
-        }, 300000);
-
-        // Only show waiting screen if game hasn't started
-        if (currentArcadeSession.state !== 'active') {
-            showWaitingScreen();
-        }
+        showWaitingScreen();
 
     } catch (error) {
         console.error('Join arcade error:', error);

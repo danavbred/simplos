@@ -2089,6 +2089,29 @@ background-clip: text;
     50% { width: 80%; opacity: 0.7; }
 }
 
+.leaderboard-entry {
+    display: grid;
+    grid-template-columns: 0.5fr 2fr 1fr;
+    align-items: right;
+}
+
+.player-status-waiting {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.player-status-waiting .status-text {
+    background: rgba(30, 144, 255, 0.1);
+    color: var(--accent);
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: right;
+}
+
 .coins-header .coin-icon {
   color: var(--gold);
   font-size: 1.5rem;
@@ -11524,24 +11547,63 @@ function initializeLeaderboard() {
     }
 }
 
+
+const readyPhrases = [
+    "Born Ready!",
+    "Ready to Roll!",
+    "All Set!",
+    "Locked & Loaded!",
+    "Ready Player!",
+    "Game Face On!",
+    "In Position!",
+    "Ready to Rock!",
+    "Standing By!",
+    "Powered Up!",
+    "Challenge Ready!",
+    "Mission Ready!",
+    "Ready to Shine!",
+    "Bring it On!",
+    "Ready to Rumble!",
+    "Set for Success!",
+    "Level Ready!",
+    "Shields Up!",
+    "Word Warrior Ready!",
+    "Let's Do This!"
+];
+
+const shineColors = [
+    '#1E90FF',  // Blue
+    '#FF1493',  // Deep Pink
+    '#00CED1',  // Dark Turquoise
+    '#9370DB',  // Medium Purple
+    '#FFD700',  // Gold
+    '#FF4500',  // Orange Red
+    '#32CD32',  // Lime Green
+    '#FF69B4',  // Hot Pink
+    '#4169E1',  // Royal Blue
+    '#8A2BE2'   // Blue Violet
+];
+
+
 function updateAllPlayersProgress() {
     // Sort by words completed
     const sortedPlayers = [...currentArcadeSession.participants]
         .sort((a, b) => b.wordsCompleted - a.wordsCompleted);
     
-    // Update leaderboard display
-    const entries = sortedPlayers.map((player, index) => `
-        <div class="leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}"
-             data-rank="${index + 1}">
-            <div>${index + 1}</div>
-            <div data-username="${player.username}">${player.username}</div>
-            <div>${player.wordsCompleted || 0}</div>
-            <div>${player.coins || 0}</div>
-            <div class="player-actions">
-                <button onclick="removePlayer('${player.username}')">Remove</button>
-            </div>
+        const getRandomColor = () => shineColors[Math.floor(Math.random() * shineColors.length)];
+        const getReadyPhrase = () => readyPhrases[Math.floor(Math.random() * readyPhrases.length)];
+
+        const entries = sortedPlayers.map((player, index) => `
+    <div class="leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}"
+         data-rank="${index + 1}"
+         style="--player-color: ${getRandomColor()}">
+        <div>${index + 1}</div>
+        <div data-username="${player.username}" class="player-name">${player.username}</div>
+        <div class="player-status-waiting">
+            <span class="status-text">Waiting</span>
         </div>
-    `).join('');
+    </div>
+`).join('');
     
     const leaderboard = document.getElementById('arcade-leaderboard');
     const header = leaderboard.querySelector('.leaderboard-header').outerHTML;
@@ -12511,7 +12573,7 @@ async function joinArcadeWithUsername() {
         return;
     }
 
-    // Allow Hebrew, English, numbers, and some special characters
+    // Validate username characters
     const validUsernameRegex = /^[a-zA-Z0-9\u0590-\u05FF\s._-]+$/;
     if (!validUsernameRegex.test(username)) {
         showErrorToast('Username can contain letters, numbers, spaces, periods, underscores, and hyphens');
@@ -12527,14 +12589,31 @@ async function joinArcadeWithUsername() {
     }
 
     try {
+        // Get initial coins for registered users
+        let initialCoins = 0;
+        if (currentUser) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('game_progress')
+                    .select('coins')
+                    .eq('user_id', currentUser.id)
+                    .single();
+                    
+                if (!error && data) {
+                    initialCoins = data.coins;
+                    console.log('Retrieved initial coins:', initialCoins);
+                }
+            } catch (error) {
+                console.error('Failed to load initial coins:', error);
+            }
+        }
+
         // Create Supabase channel for the specific arcade session
         window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`);
         
-        // Set the player name for the current session
+        // Set player name and initial state
         currentArcadeSession.playerName = username;
-        
-        // Start state polling for late joiners
-        let stateCheckInterval;
+        currentArcadeSession.initialCoins = initialCoins;
         
         // Set up channel listeners
         window.arcadeChannel
@@ -12546,7 +12625,6 @@ async function joinArcadeWithUsername() {
                     currentArcadeSession.wordPool = payload.wordPool;
                     currentArcadeSession.wordGoal = payload.wordGoal;
                     startArcadeGame();
-                    if (stateCheckInterval) clearInterval(stateCheckInterval);
                 }
             })
             .on('broadcast', { event: 'game_playing' }, ({ payload }) => {
@@ -12554,41 +12632,25 @@ async function joinArcadeWithUsername() {
                     currentArcadeSession.wordPool = payload.wordPool;
                     currentArcadeSession.wordGoal = payload.wordGoal;
                     startArcadeGame();
-                    if (stateCheckInterval) clearInterval(stateCheckInterval);
                 }
             })
             .subscribe();
 
-        // Broadcast player join event
+        // Broadcast initial join with type and coins
         await window.arcadeChannel.send({
             type: 'broadcast',
             event: 'player_join',
             payload: {
                 username: username,
+                type: 'initialJoin',
+                coins: initialCoins,
                 joinedAt: new Date().toISOString()
             }
         });
 
-        // Hide arcade modal 
+        // Hide arcade modal and show waiting screen
         document.getElementById('arcade-modal').style.display = 'none';
-
-        // Start state polling for late joiners
-        stateCheckInterval = setInterval(async () => {
-            await window.arcadeChannel.send({
-                type: 'broadcast',
-                event: 'check_game_status'
-            });
-        }, 2000);
-
-        // Clear interval after 5 minutes to prevent indefinite polling
-        setTimeout(() => {
-            if (stateCheckInterval) clearInterval(stateCheckInterval);
-        }, 300000);
-
-        // Only show waiting screen if game hasn't started
-        if (currentArcadeSession.state !== 'active') {
-            showWaitingScreen();
-        }
+        showWaitingScreen();
 
     } catch (error) {
         console.error('Join arcade error:', error);
