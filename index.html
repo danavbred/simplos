@@ -5195,12 +5195,10 @@ background-clip: text;
 <script>
 
 
-    const CoinsManager = {
-    // Keep track of all coin display elements
+const CoinsManager = {
     displayElements: new Set(),
     
     initialize() {
-        // Register all coin displays including side panel
         this.displayElements.clear();
         document.querySelectorAll('.coin-count').forEach(display => {
             this.displayElements.add(display);
@@ -5228,61 +5226,74 @@ background-clip: text;
     },
 
     async updateCoins(amount) {
-    try {
-        const oldTotal = gameState.coins;
-        const newTotal = oldTotal + amount;
-        gameState.coins = newTotal;
+        try {
+            const oldTotal = gameState.coins;
+            const newTotal = oldTotal + amount;
+            gameState.coins = newTotal;
 
-        // Animate all displays
-        this.displayElements.forEach(display => {
-            let currentValue = oldTotal;
-            const duration = 1000; // 1 second animation
-            const startTime = performance.now();
-            
-            function animate(currentTime) {
-                const elapsed = currentTime - startTime;
-                const progress = Math.min(elapsed / duration, 1);
+            // Animate all displays
+            this.displayElements.forEach(display => {
+                let currentValue = oldTotal;
+                const duration = 1000;
+                const startTime = performance.now();
                 
-                currentValue = oldTotal + (newTotal - oldTotal) * progress;
-                display.textContent = Math.round(currentValue);
-                
-                if (progress < 1) {
-                    requestAnimationFrame(animate);
-                } else {
-                    display.textContent = newTotal;
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    currentValue = oldTotal + (newTotal - oldTotal) * progress;
+                    display.textContent = Math.round(currentValue);
+                    
+                    if (amount > 0) {
+                        display.style.color = 'var(--success)';
+                    } else if (amount < 0) {
+                        display.style.color = 'var(--error)';
+                    }
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        display.textContent = newTotal;
+                        setTimeout(() => {
+                            display.style.color = 'var(--text)';
+                        }, 300);
+                    }
                 }
+                
+                requestAnimationFrame(animate);
+            });
+
+            // Save to database/localStorage
+            if (currentUser) {
+                const { error } = await supabaseClient
+                    .from('game_progress')
+                    .update({ coins: newTotal })
+                    .eq('user_id', currentUser.id);
+
+                if (error) throw error;
+            } else {
+                localStorage.setItem('simploxCustomCoins', newTotal.toString());
             }
-            
-            requestAnimationFrame(animate);
-        });
 
-        // Then save to database/localStorage
-        if (currentUser) {
-            const { error } = await supabaseClient
-                .from('game_progress')
-                .update({ coins: newTotal })
-                .eq('user_id', currentUser.id);
+            // Update perk buttons based on new coin total
+            updatePerkButtons();
+            return true;
 
-            if (error) throw error;
-        } else {
-            localStorage.setItem('simploxCustomCoins', newTotal.toString());
+        } catch (error) {
+            console.error('Failed to update coins:', error);
+            this.displayElements.forEach(display => {
+                display.textContent = gameState.coins - amount;
+            });
+            updatePerkButtons();  // Also update buttons on error
+            return false;
         }
-
-        return true;
-    } catch (error) {
-        console.error('Failed to update coins:', error);
-        // Revert the display if save failed
-        this.displayElements.forEach(display => {
-            display.textContent = gameState.coins - amount;
-        });
-        return false;
-    }
-},
+    },
 
     updateDisplays() {
         this.displayElements.forEach(display => {
             display.textContent = gameState.coins;
         });
+        updatePerkButtons();  // Update buttons whenever displays are updated
     }
 };
 
@@ -5360,24 +5371,18 @@ function updateUI() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const perkButtons = {
-        timeFreeze: document.getElementById('timeFreezePerk'),
-        skip: document.getElementById('skipPerk'),
-        clue: document.getElementById('cluePerk'),
-        reveal: document.getElementById('revealPerk')
-    };
+const perkButtons = {
+    timeFreeze: document.getElementById('timeFreezePerk'),
+    skip: document.getElementById('skipPerk'),
+    clue: document.getElementById('cluePerk'),
+    reveal: document.getElementById('revealPerk')
+};
 
-    Object.entries(perkButtons).forEach(([perkType, button]) => {
-        if (button) {
-            button.onclick = () => {
-                if (gameState.perks[perkType] > 0) {
-                    usePerk(perkType);
-                    updatePerkCounts();
-                }
-            };
-        }
-    });
+// REPLACE the perk button initialization
+Object.entries(perkButtons).forEach(([perkType, button]) => {
+    if (button) {
+        button.onclick = () => buyPerk(perkType);
+    }
 });
 
 const GameTimer = {
@@ -5409,29 +5414,6 @@ function cleanupLevel() {
     clearTimeout(levelTimeout);
 }
 
-function updatePerkCounts() {
-    console.log('Updating perk counts:', gameState.perks); // Debug log
-    
-    if (!gameState || !gameState.perks) {
-        console.log('No valid gameState or perks'); // Debug log
-        return;
-    }
-
-    Object.entries(gameState.perks).forEach(([perkType, count]) => {
-        const button = document.getElementById(`${perkType}Perk`);
-        if (button) {
-            const countElement = button.querySelector('.perk-count');
-            if (countElement) {
-                countElement.textContent = count;
-                console.log(`Updated ${perkType} count to ${count}`); // Debug log
-            }
-            
-            // Update button state
-            button.disabled = count <= 0;
-            button.classList.toggle('disabled', count <= 0);
-        }
-    });
-}
 
 async function transitionScreen(screenType) {
     const currentScreen = document.querySelector('.screen.visible');
@@ -5466,7 +5448,7 @@ const gameInit = {
     async init() {
         await checkExistingSession();
         initializeGame();
-        updatePerkCounts();
+        updatePerkButtons();
         const welcomeScreen = document.getElementById('welcome-screen');
         initializeParticles(welcomeScreen);
         await loadCustomLists();
@@ -5531,7 +5513,7 @@ function showSetScreen(stageId) {
 document.addEventListener('DOMContentLoaded', async () => {
     await checkExistingSession();
     initializeGame();
-    updatePerkCounts();
+    updatePerkButtons();
     updateGuestPlayButton();
     CoinsManager.initialize();
     
@@ -5806,32 +5788,25 @@ function initializeGame() {
         gameState.currentSet = parsedSaved.currentSet || 1;
         gameState.currentLevel = parsedSaved.currentLevel || 1;
         gameState.coins = parsedSaved.coins || 0;
-        gameState.perks = parsedSaved.perks || {
-            timeFreeze: 0,
-            skip: 0,
-            clue: 0,
-            reveal: 0
-        };
-        gameState.unlockedSets = Object.fromEntries(
-            Object.entries(parsedSaved.unlockedSets || {}).map(([k, v]) => [k, new Set(v)])
-        );
-        gameState.unlockedLevels = Object.fromEntries(
-            Object.entries(parsedSaved.unlockedLevels || {}).map(([k, v]) => [k, new Set(v)])
-        );
+                
+        if (parsedSaved.unlockedSets) {
+            gameState.unlockedSets = Object.fromEntries(
+                Object.entries(parsedSaved.unlockedSets).map(([k, v]) => [k, new Set(v)])
+            );
+        }
+        if (parsedSaved.unlockedLevels) {
+            gameState.unlockedLevels = Object.fromEntries(
+                Object.entries(parsedSaved.unlockedLevels).map(([k, v]) => [k, new Set(v)])
+            );
+        }
         gameState.perfectLevels = new Set(parsedSaved.perfectLevels || []);
         gameState.completedLevels = new Set(parsedSaved.completedLevels || []);
     } else {
-        setupDefaultUnlocks();  // Set up default unlocks for new games
-    }
-
-    if (currentUser) {
-        loadUserGameProgress(currentUser.id);
-    } else {
-        setupDefaultUnlocks();  // Ensure defaults for unregistered users
+        setupDefaultUnlocks();
     }
 
     updateAllCoinDisplays();
-    updatePerkCounts();
+    updatePerkButtons();
 }
 
 function setupDefaultUnlocks() {
@@ -5865,7 +5840,7 @@ document.addEventListener('DOMContentLoaded', function() {
     currentUser = null;
     checkExistingSession().then(() => {
         initializeGame();
-        updatePerkCounts();
+        updatePerkButtons();
     });
 });
 
@@ -5881,7 +5856,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Then handle session checks and game initialization
     checkExistingSession().then(() => {
         initializeGame();
-        updatePerkCounts();
+        updatePerkButtons();
     });
     
     // Initialize particles for welcome screen
@@ -5977,12 +5952,7 @@ async function handleLogout() {
         gameState.unlockedLevels = {};
         gameState.perfectLevels = new Set();
         gameState.completedLevels = new Set();
-        gameState.perks = {
-            timeFreeze: 0,
-            skip: 0,
-            clue: 0,
-            reveal: 0
-        };
+
 
         // Clear all input fields and UI state
         clearCustomPracticeUI();
@@ -6047,21 +6017,15 @@ function saveProgress() {
         currentSet: gameState.currentSet || 1,
         currentLevel: gameState.currentLevel || 1,
         unlockedSets: Object.fromEntries(
-            Object.entries(gameState.unlockedSets || {}).map(([k, v]) => [k, Array.from(v || [])])
+            Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
         ),
         unlockedLevels: Object.fromEntries(
-            Object.entries(gameState.unlockedLevels || {}).map(([k, v]) => [k, Array.from(v || [])])
+            Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
         ),
-        perfectLevels: Array.from(gameState.perfectLevels || []),
-        completedLevels: Array.from(gameState.completedLevels || []),
-        coins: gameState.coins || 0,
-        perks: gameState.perks || {
-            timeFreeze: 0,
-            skip: 0,
-            clue: 0,
-            reveal: 0
-        }
-    };
+        perfectLevels: Array.from(gameState.perfectLevels),
+        completedLevels: Array.from(gameState.completedLevels),
+        coins: gameState.coins || 0
+        };
 
     if (currentUser) {
         // Save to Supabase for logged-in users
@@ -6244,13 +6208,125 @@ const gameState = {
     completedLevels: new Set(),
     perfectLevels: new Set(),
     coins: 0,
-    perks: {
-        timeFreeze: 0,
-        skip: 0,
-        clue: 0,
-        reveal: 0
+    
+};
+
+// ADD this clean perk configuration
+const PERK_CONFIG = {
+    timeFreeze: {
+        name: 'Time Freeze',
+        description: 'Pause the timer for 5 seconds',
+        cost: 15,
+        icon: 'fa-clock',
+        duration: 5000
+    },
+    skip: {
+        name: 'Skip Question',
+        description: 'Skip the current word without penalty',
+        cost: 25,
+        icon: 'fa-forward'
+    },
+    clue: {
+        name: 'Eliminate Wrong Answer',
+        description: 'Remove one incorrect answer',
+        cost: 35,
+        icon: 'fa-lightbulb'
+    },
+    reveal: {
+        name: 'Reveal Correct Answer',
+        description: 'Show the correct translation',
+        cost: 50,
+        icon: 'fa-eye'
     }
 };
+
+function buyPerk(perkType) {
+    const perkConfig = PERK_CONFIG[perkType];
+    if (!perkConfig) return;
+
+    if (gameState.coins < perkConfig.cost) {
+        showNotification(`Need ${perkConfig.cost} coins!`, 'error');
+        return;
+    }
+
+    gameState.coins -= perkConfig.cost;
+    updateAllCoinDisplays();
+
+    switch(perkType) {
+        case 'timeFreeze':
+            isFrozen = true;
+            setTimeout(() => {
+                isFrozen = false;
+            }, perkConfig.duration);
+            break;
+
+        case 'skip':
+            handleAnswer(true, true);
+            break;
+
+        case 'clue':
+            const buttons = document.querySelectorAll('.buttons button');
+            const correctAnswer = currentGame.isHebrewToEnglish ? 
+                currentGame.words[currentGame.currentIndex] : 
+                currentGame.translations[currentGame.currentIndex];
+            
+            const wrongButtons = Array.from(buttons).filter(btn => 
+                btn.textContent !== correctAnswer);
+            
+            if (wrongButtons.length > 0) {
+                const buttonToDisable = wrongButtons[Math.floor(Math.random() * wrongButtons.length)];
+                buttonToDisable.disabled = true;
+                buttonToDisable.style.opacity = '0.5';
+            }
+            break;
+
+        // REPLACE the reveal case in buyPerk function
+case 'reveal':
+    const correctAns = currentGame.isHebrewToEnglish ? 
+        currentGame.words[currentGame.currentIndex] : 
+        currentGame.translations[currentGame.currentIndex];
+    
+    document.querySelectorAll('.buttons button').forEach(btn => {
+        if (btn.textContent === correctAns) {
+            btn.classList.add('correct');
+            // Store original background
+            const originalBackground = btn.style.background;
+            btn.style.background = 'var(--success)';
+            
+            // Reset after 5 seconds
+            setTimeout(() => {
+                btn.classList.remove('correct');
+                btn.style.background = originalBackground;
+            }, 5000);
+        }
+    });
+    break;
+    }
+
+    saveProgress();
+}
+
+
+// REPLACE updatePerkButtons function
+function updatePerkButtons() {
+    Object.entries(PERK_CONFIG).forEach(([perkType, config]) => {
+        const button = document.getElementById(`${perkType}Perk`);
+        if (button) {
+            const canAfford = gameState.coins >= config.cost;
+            button.disabled = !canAfford;
+            button.classList.toggle('disabled', !canAfford);
+            
+            // Update counter
+            const countElement = button.querySelector('.perk-count');
+            if (countElement) {
+                countElement.textContent = canAfford ? '1' : '0';
+            }
+        }
+    });
+}
+
+
+updatePerkButtons();
 
 let currentGame = {
     words: [],
@@ -6724,7 +6800,7 @@ function showScreen(screenId, forceRefresh = false) {
     // Screen-specific initialization
     switch(screenId) {
         case 'question-screen':
-            updatePerkCounts();
+            updatePerkButtons();
             break;
         case 'welcome-screen':
             // Check for restored game context
@@ -7035,7 +7111,7 @@ async function startLevel(levelId) {
     currentGame.firstAttempt = true;
     currentGame.streakBonus = true;
 
-    updatePerkCounts();
+    updatePerkButtons();
 
     const perksContainer = document.querySelector('.perks-container');
     const powerupsContainer = document.querySelector('.powerups-container');    
@@ -7089,6 +7165,15 @@ async function startLevel(levelId) {
 
     proceedWithLevel(levelId);
 }
+
+document.querySelector('.perks-container').innerHTML = `
+    ${Object.entries(PERK_CONFIG).map(([type, config]) => `
+        <button class="perk-button" id="${type}Perk" onclick="buyPerk('${type}')">
+            <i class="fas ${config.icon} perk-icon"></i>
+            <span class="perk-count">0</span>
+        </button>
+    `).join('')}
+`;
 
 function proceedWithLevel(levelId) {
     if (!currentGame.restartsRemaining) {
@@ -7392,10 +7477,9 @@ function handleAnswer(isCorrect, fromPerk = false) {
         currentGame.streakBonus = false;
         currentGame.wrongStreak++;
         
-        // Deduct coins using CoinsManager
         CoinsManager.updateCoins(-3).then(() => {
-            updatePerkCounts();
-        });
+    updatePerkButtons();  
+});
 
         // Move progress bar backwards
         if (currentGame.currentIndex > 0) {
@@ -7425,7 +7509,7 @@ function handleAnswer(isCorrect, fromPerk = false) {
             currentGame.firstAttempt = false;
             currentGame.streakBonus = false;
             CoinsManager.updateCoins(-3).then(() => {
-                updatePerkCounts();
+                updatePerkButtons();
             });
         }
     } else {
@@ -7450,7 +7534,7 @@ function handleAnswer(isCorrect, fromPerk = false) {
                 const perkTypes = ['timeFreeze', 'skip', 'clue', 'reveal'];
                 const randomPerk = perkTypes[Math.floor(Math.random() * perkTypes.length)];
                 gameState.perks[randomPerk]++;
-                updatePerkCounts();
+                updatePerkButtons();
             }
         }
 
@@ -7464,7 +7548,7 @@ function handleAnswer(isCorrect, fromPerk = false) {
                 const perkTypes = ['timeFreeze', 'skip', 'clue', 'reveal'];
                 const randomPerk = perkTypes[Math.floor(Math.random() * perkTypes.length)];
                 gameState.perks[randomPerk]++;
-                updatePerkCounts();
+                updatePerkButtons();
             }
         } else {
             totalCoinsEarned += 1;
@@ -7473,7 +7557,7 @@ function handleAnswer(isCorrect, fromPerk = false) {
 
         // Update coins once with total amount
         CoinsManager.updateCoins(totalCoinsEarned).then(() => {
-            updatePerkCounts();
+            updatePerkButtons();
         });
        
         currentGame.correctAnswers++;
@@ -7504,7 +7588,7 @@ function handleAnswer(isCorrect, fromPerk = false) {
             console.log('Restarting timer:', currentGame.initialTimeRemaining);
             startTimer(currentGame.words.length - currentGame.currentIndex);
             loadNextQuestion();
-            updatePerkCounts(); // Ensure perks are up to date after state changes
+            updatePerkButtons(); // Ensure perks are up to date after state changes
         } else {
             handleLevelCompletion();
         }
@@ -7566,85 +7650,7 @@ function updateAllCoinDisplays() {
 }
 
 
-const PERK_PRICES = {
-    timeFreeze: {
-        name: 'Time Freeze',
-        description: 'Pause the timer for 5 seconds',
-        baseCost: 15,
-        icon: 'fa-clock',
-        duration: 5000  // 5 seconds
-    },
-    skip: {
-        name: 'Skip Question',
-        description: 'Skip the current word without penalty',
-        baseCost: 20,
-        icon: 'fa-forward'
-    },
-    clue: {
-        name: 'Eliminate Wrong Answer',
-        description: 'Remove one incorrect answer',
-        baseCost: 10,
-        icon: 'fa-lightbulb'
-    },
-    reveal: {
-        name: 'Reveal Correct Answer',
-        description: 'Show the correct translation',
-        baseCost: 25,
-        icon: 'fa-eye'
-    }
-};
 
-// Update the usePerk function to use centralized pricing
-function usePerk(perkType) {
-    const perkConfig = PERK_PRICES[perkType];
-    
-    // Check if perk is available
-    if (!perkConfig || gameState.perks[perkType] <= 0) {
-        showNotification('No perks available', 'error');
-        return false;
-    }
-
-    // Check coin availability
-    if (gameState.coins < perkConfig.baseCost) {
-        showNotification(`Not enough coins! Perk costs ${perkConfig.baseCost} coins.`, 'error');
-        return false;
-    }
-
-    // Deduct coins
-    gameState.coins -= perkConfig.baseCost;
-
-    // Decrement perk count
-    gameState.perks[perkType]--;
-
-    // Apply perk effects
-    switch(perkType) {
-        case 'timeFreeze':
-            isFrozen = true;
-            setTimeout(() => {
-                isFrozen = false;
-            }, perkConfig.duration);
-            break;
-
-        case 'skip':
-            handleAnswer(true, true);
-            break;
-
-        case 'clue':
-            eliminateWrongAnswer();
-            break;
-
-        case 'reveal':
-            revealCorrectAnswer();
-            break;
-    }
-
-    // Update UI
-    updatePerkCounts();
-    updateAllCoinDisplays();
-    saveProgress();
-
-    return true;
-}
 
 function eliminateWrongAnswer() {
    const buttons = document.querySelectorAll('.buttons button');
@@ -7683,35 +7689,86 @@ function revealCorrectAnswer() {
    });
 }
 
-function updatePerkCounts() {
-    // Only update if we're in a valid game state
-    if (!gameState || !gameState.perks) return;
 
-    Object.entries(gameState.perks).forEach(([perkType, count]) => {
-        const button = document.getElementById(`${perkType}Perk`);
-        if (button) {
-            const countElement = button.querySelector('.perk-count');
-            if (countElement) {
-                countElement.textContent = count;
+// REPLACE buyPerk function
+function buyPerk(perkType) {
+    const perkConfig = PERK_CONFIG[perkType];
+    const button = document.getElementById(`${perkType}Perk`);
+    
+    if (!perkConfig) {
+        console.error('Invalid perk type:', perkType);
+        return;
+    }
+
+    // Simple coin check
+    if (gameState.coins < perkConfig.cost) {
+        showNotification(`Need ${perkConfig.cost} coins for ${perkConfig.name}!`, 'error');
+        return;
+    }
+
+    // Deduct coins first
+    gameState.coins -= perkConfig.cost;
+    updateAllCoinDisplays();
+
+    // Apply effect immediately
+    switch(perkType) {
+        case 'timeFreeze':
+            isFrozen = true;
+            button.disabled = true;
+            if (button) {
+                const countElement = button.querySelector('.perk-count');
+                if (countElement) countElement.textContent = '0';
             }
-            
-            // Update button state
-            if (count > 0) {
+            setTimeout(() => {
+                isFrozen = false;
                 button.disabled = false;
-                button.classList.remove('disabled');
-            } else {
-                button.disabled = true;
-                button.classList.add('disabled');
+                // Re-enable button only if player has enough coins
+                if (gameState.coins >= perkConfig.cost) {
+                    button.disabled = false;
+                }
+            }, perkConfig.duration);
+            break;
+
+        case 'skip':
+            if (button) {
+                const countElement = button.querySelector('.perk-count');
+                if (countElement) countElement.textContent = '0';
             }
-        }
-    });
+            handleAnswer(true, true);
+            break;
+
+        case 'clue':
+            if (button) {
+                const countElement = button.querySelector('.perk-count');
+                if (countElement) countElement.textContent = '0';
+            }
+            eliminateWrongAnswer();
+            break;
+
+        case 'reveal':
+            if (button) {
+                const countElement = button.querySelector('.perk-count');
+                if (countElement) countElement.textContent = '0';
+            }
+            revealCorrectAnswer();
+            break;
+    }
+
+    // Update button state based on remaining coins
+    if (button) {
+        button.disabled = gameState.coins < perkConfig.cost;
+        button.classList.toggle('disabled', gameState.coins < perkConfig.cost);
+    }
+
+    // Save progress after perk use
+    saveProgress();
 }
 
 function startCustomListPractice(listId) {
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
-    updatePerkCounts();
+    updatePerkButtons();
 
     currentGame = {
         words: Array.isArray(list.words) ? list.words : [],
@@ -7740,38 +7797,40 @@ function handleLevelCompletion() {
     clearTimer();
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     const isLevelCompleted = gameState.perfectLevels.has(levelKey);
-    
-    // STRICT CHECK: Perfect completion requires:
-    // 1. Level not previously completed
-    // 2. Maintained streak (no wrong answers)
-    // 3. All words answered correctly
+
     const isPerfectRun = !isLevelCompleted && 
                         currentGame.streakBonus && 
                         currentGame.correctAnswers === currentGame.words.length;
 
-    if (!isPerfectRun) {
-        // If not perfect, restart level after delay
-        setTimeout(() => startLevel(gameState.currentLevel), 1500);
-        return;
-    }
+    if (isPerfectRun) {
+    const finalCoins = gameState.coins;
+    
+    const bonusAmount = 5;
+    
+    CoinsManager.updateCoins(bonusAmount).then(() => {
+        gameState.perfectLevels.add(levelKey);
+        
+        const questionScreen = document.getElementById('question-screen');
+        const rect = questionScreen.getBoundingClientRect();
+        createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
+        gameState.perfectLevels.add(levelKey);
+    
+    });
+}
 
-    // Award completion bonus
-    gameState.coins += 5;
     pulseCoins(5);
+    updatePerkButtons();  
     gameState.perfectLevels.add(levelKey);
 
-    // Create completion particles
     const questionScreen = document.getElementById('question-screen');
     const rect = questionScreen.getBoundingClientRect();
     createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
 
-    // Get current stage config and user status
     const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
     const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
     const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
     const userStatus = currentUser ? currentUser.status : 'unregistered';
 
-    // Update unlocks
     const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
     if (!gameState.unlockedLevels[setKey]) {
         gameState.unlockedLevels[setKey] = new Set();
@@ -7824,6 +7883,7 @@ function handleLevelCompletion() {
     // Save progress
     saveProgress();
     updateAllCoinDisplays();
+    updatePerkButtons();
 }
 
 function handleProgression(levelKey) {
@@ -7893,7 +7953,7 @@ function activatePerk(perkType, cost) {
         if (success) {
             gameState.perks[perkType]++;
             saveProgress();
-            updatePerkCounts();
+            updatePerkButtons();
             
             // Use perk immediately
             usePerk(perkType);
@@ -7987,7 +8047,7 @@ function initializeParticles(container = document.body) {
 window.onload = async () => {
     await checkExistingSession();
     initializeGame();
-    updatePerkCounts();
+    updatePerkButtons();
     
     // Ensure particles on welcome screen
     const welcomeScreen = document.getElementById('welcome-screen');
@@ -8087,19 +8147,13 @@ function handleResetProgress() {
         gameState.unlockedLevels = { "1_1": new Set([1]) };
         gameState.perfectLevels = new Set();
         gameState.completedLevels = new Set();
-        gameState.perks = {
-            timeFreeze: 0,
-            skip: 0,
-            clue: 0,
-            reveal: 0
-        };
 
         // Clear localStorage
         localStorage.removeItem('simploxProgress');
         localStorage.removeItem('simploxCustomCoins');
         
         // Update UI
-        updatePerkCounts();
+        updatePerkButtons();
         updateAllCoinDisplays();
         showScreen('welcome-screen');
         
@@ -8203,7 +8257,7 @@ function handleRestartLevel() {
     gameState.perks = { ...currentGame.startingPerks };
     
     // Update UI
-    updatePerkCounts();
+    updatePerkButtons();
     updateAllCoinDisplays();
     
     // Save current state
