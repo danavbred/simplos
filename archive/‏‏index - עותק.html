@@ -5193,99 +5193,48 @@ background-clip: text;
 </div>
 
 <script>
-
-
-    const CoinsManager = {
-    // Keep track of all coin display elements
-    displayElements: new Set(),
     
-    initialize() {
-        // Register all coin displays including side panel
-        this.displayElements.clear();
-        document.querySelectorAll('.coin-count').forEach(display => {
-            this.displayElements.add(display);
+
+    const SessionManager = {
+    maxInactiveTime: 30 * 60 * 1000, // 30 minutes
+    lastActivity: Date.now(),
+    
+    init() {
+        ['click', 'keypress', 'mousemove'].forEach(event => {
+            document.addEventListener(event, () => this.updateActivity());
         });
+        
+        this.sessionCheckInterval = setInterval(() => this.checkSession(), 60000);
     },
     
-    async loadUserCoins() {
-        if (!currentUser) {
-            return parseInt(localStorage.getItem('simploxCustomCoins') || '0');
-        }
-
-        try {
-            const { data, error } = await supabaseClient
-                .from('game_progress')
-                .select('coins')
-                .eq('user_id', currentUser.id)
-                .single();
-
-            if (error) throw error;
-            return data.coins || 0;
-        } catch (error) {
-            console.error('Error loading coins:', error);
-            return 0;
-        }
+    updateActivity() {
+        this.lastActivity = Date.now();
     },
-
-    async updateCoins(amount) {
-    try {
-        const oldTotal = gameState.coins;
-        const newTotal = oldTotal + amount;
-        gameState.coins = newTotal;
-
-        // Animate all displays
-        this.displayElements.forEach(display => {
-            let currentValue = oldTotal;
-            const duration = 1000; // 1 second animation
-            const startTime = performance.now();
+    
+    async checkSession() {
+        if (Date.now() - this.lastActivity > this.maxInactiveTime) {
+            // Stop interval to prevent multiple triggers
+            clearInterval(this.sessionCheckInterval);
             
-            function animate(currentTime) {
-                const elapsed = currentTime - startTime;
-                const progress = Math.min(elapsed / duration, 1);
-                
-                currentValue = oldTotal + (newTotal - oldTotal) * progress;
-                display.textContent = Math.round(currentValue);
-                
-                if (progress < 1) {
-                    requestAnimationFrame(animate);
-                } else {
-                    display.textContent = newTotal;
-                }
+            try {
+                await handleLogout();
+                showNotification("Session expired. Please log in again.", "error");
+                showScreen('welcome-screen');
+            } catch (error) {
+                console.error('Logout during session expiry failed:', error);
             }
-            
-            requestAnimationFrame(animate);
-        });
-
-        // Then save to database/localStorage
-        if (currentUser) {
-            const { error } = await supabaseClient
-                .from('game_progress')
-                .update({ coins: newTotal })
-                .eq('user_id', currentUser.id);
-
-            if (error) throw error;
-        } else {
-            localStorage.setItem('simploxCustomCoins', newTotal.toString());
         }
-
-        return true;
-    } catch (error) {
-        console.error('Failed to update coins:', error);
-        // Revert the display if save failed
-        this.displayElements.forEach(display => {
-            display.textContent = gameState.coins - amount;
-        });
-        return false;
-    }
-},
-
-    updateDisplays() {
-        this.displayElements.forEach(display => {
-            display.textContent = gameState.coins;
-        });
+    },
+    
+    cleanup() {
+        clearInterval(this.sessionCheckInterval);
     }
 };
 
+// Initialize on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+    SessionManager.init();
+});
     
     document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.querySelector('.logout-button');
@@ -5360,6 +5309,190 @@ function updateUI() {
     });
 }
 
+const CoinsManager = {
+    displayElements: new Set(),
+    
+    initialize() {
+        this.displayElements.clear();
+        document.querySelectorAll('.coin-count').forEach(display => {
+            this.displayElements.add(display);
+        });
+    },
+    
+    async loadUserCoins() {
+        if (!currentUser) {
+            return parseInt(localStorage.getItem('simploxCustomCoins') || '0');
+        }
+
+        try {
+            const { data, error } = await supabaseClient
+                .from('game_progress')
+                .select('coins')
+                .eq('user_id', currentUser.id)
+                .single();
+
+            if (error) throw error;
+            return data.coins || 0;
+        } catch (error) {
+            console.error('Error loading coins:', error);
+            return 0;
+        }
+    },
+
+    async updateCoins(amount) {
+        try {
+            const oldTotal = gameState.coins;
+            const newTotal = oldTotal + amount;
+            gameState.coins = newTotal;
+
+            // Animate all displays
+            this.displayElements.forEach(display => {
+                let currentValue = oldTotal;
+                const duration = 1000;
+                const startTime = performance.now();
+                
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    currentValue = oldTotal + (newTotal - oldTotal) * progress;
+                    display.textContent = Math.round(currentValue);
+                    
+                    if (amount > 0) {
+                        display.style.color = 'var(--success)';
+                    } else if (amount < 0) {
+                        display.style.color = 'var(--error)';
+                    }
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        display.textContent = newTotal;
+                        setTimeout(() => {
+                            display.style.color = 'var(--text)';
+                        }, 300);
+                    }
+                }
+                
+                requestAnimationFrame(animate);
+            });
+
+            // Save to database/localStorage
+            if (currentUser) {
+                const { error } = await supabaseClient
+                    .from('game_progress')
+                    .update({ coins: newTotal })
+                    .eq('user_id', currentUser.id);
+
+                if (error) throw error;
+            } else {
+                localStorage.setItem('simploxCustomCoins', newTotal.toString());
+            }
+
+            // Update perk buttons based on new coin total
+            updatePerkButtons();
+            return true;
+
+        } catch (error) {
+            console.error('Failed to update coins:', error);
+            this.displayElements.forEach(display => {
+                display.textContent = gameState.coins - amount;
+            });
+            updatePerkButtons();  // Also update buttons on error
+            return false;
+        }
+    },
+
+    updateDisplays() {
+        this.displayElements.forEach(display => {
+            display.textContent = gameState.coins;
+        });
+        updatePerkButtons();  // Update buttons whenever displays are updated
+    }
+};
+
+const WordsManager = {
+    displayElements: new Set(),
+    
+    initialize() {
+        this.displayElements.clear();
+        document.querySelectorAll('#totalWords').forEach(display => {
+            this.displayElements.add(display);
+        });
+    },
+    
+    async loadUserWords() {
+        if (!currentUser) return 0;
+
+        try {
+            const { data, error } = await supabaseClient
+                .from('player_stats')
+                .select('unique_words_practiced')
+                .eq('user_id', currentUser.id)
+                .single();
+
+            if (error) throw error;
+            return data?.unique_words_practiced || 0;
+        } catch (error) {
+            console.error('Error loading words:', error);
+            return 0;
+        }
+    },
+
+    async updateWords(amount) {
+        try {
+            // Get current total
+            const oldTotal = parseInt(document.getElementById('totalWords').textContent) || 0;
+            const newTotal = oldTotal + amount;
+
+            // Animate all displays
+            this.displayElements.forEach(display => {
+                let currentValue = oldTotal;
+                const duration = 1000;
+                const startTime = performance.now();
+                
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    currentValue = oldTotal + (newTotal - oldTotal) * progress;
+                    display.textContent = Math.round(currentValue);
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        display.textContent = newTotal;
+                    }
+                }
+                
+                requestAnimationFrame(animate);
+            });
+
+            // Save to database if user is logged in
+            if (currentUser) {
+                const { error } = await supabaseClient
+                    .from('player_stats')
+                    .update({ unique_words_practiced: newTotal })
+                    .eq('user_id', currentUser.id);
+
+                if (error) throw error;
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Failed to update words:', error);
+            return false;
+        }
+    },
+
+    updateDisplays(value) {
+        this.displayElements.forEach(display => {
+            display.textContent = value;
+        });
+    }
+};
+
+
 const perkButtons = {
     timeFreeze: document.getElementById('timeFreezePerk'),
     skip: document.getElementById('skipPerk'),
@@ -5403,29 +5536,6 @@ function cleanupLevel() {
     clearTimeout(levelTimeout);
 }
 
-function updatePerkCounts() {
-    console.log('Updating perk counts:', gameState.perks); // Debug log
-    
-    if (!gameState || !gameState.perks) {
-        console.log('No valid gameState or perks'); // Debug log
-        return;
-    }
-
-    Object.entries(gameState.perks).forEach(([perkType, count]) => {
-        const button = document.getElementById(`${perkType}Perk`);
-        if (button) {
-            const countElement = button.querySelector('.perk-count');
-            if (countElement) {
-                countElement.textContent = count;
-                console.log(`Updated ${perkType} count to ${count}`); // Debug log
-            }
-            
-            // Update button state
-            button.disabled = count <= 0;
-            button.classList.toggle('disabled', count <= 0);
-        }
-    });
-}
 
 async function transitionScreen(screenType) {
     const currentScreen = document.querySelector('.screen.visible');
@@ -5460,7 +5570,7 @@ const gameInit = {
     async init() {
         await checkExistingSession();
         initializeGame();
-        updatePerkCounts();
+        updatePerkButtons();
         const welcomeScreen = document.getElementById('welcome-screen');
         initializeParticles(welcomeScreen);
         await loadCustomLists();
@@ -5525,14 +5635,18 @@ function showSetScreen(stageId) {
 document.addEventListener('DOMContentLoaded', async () => {
     await checkExistingSession();
     initializeGame();
-    updatePerkCounts();
+    updatePerkButtons();
     updateGuestPlayButton();
     CoinsManager.initialize();
+    WordsManager.initialize();
     
     // Load initial coins
     if (currentUser) {
         gameState.coins = await CoinsManager.loadUserCoins();
         CoinsManager.updateDisplays();
+     
+        const words = await WordsManager.loadUserWords();
+        WordsManager.updateDisplays(words);
     }
     
     // Handle QR code joining
@@ -5800,9 +5914,7 @@ function initializeGame() {
         gameState.currentSet = parsedSaved.currentSet || 1;
         gameState.currentLevel = parsedSaved.currentLevel || 1;
         gameState.coins = parsedSaved.coins || 0;
-        
-        // Remove perk initialization
-        
+                
         if (parsedSaved.unlockedSets) {
             gameState.unlockedSets = Object.fromEntries(
                 Object.entries(parsedSaved.unlockedSets).map(([k, v]) => [k, new Set(v)])
@@ -5820,6 +5932,7 @@ function initializeGame() {
     }
 
     updateAllCoinDisplays();
+    updatePerkButtons();
 }
 
 function setupDefaultUnlocks() {
@@ -5853,30 +5966,77 @@ document.addEventListener('DOMContentLoaded', function() {
     currentUser = null;
     checkExistingSession().then(() => {
         initializeGame();
-        updatePerkCounts();
+        updatePerkButtons();
     });
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize particles immediately for all screens
-    document.querySelectorAll('.screen').forEach(screen => {
-        initializeParticles(screen);
-    });
-    
-    // Explicitly set currentUser to null if not logged in
-    currentUser = null;
-    
-    // Then handle session checks and game initialization
-    checkExistingSession().then(() => {
+    // Immediately invoke an async function
+    (async () => {
+        await checkExistingSession();
         initializeGame();
-        updatePerkCounts();
-    });
-    
-    // Initialize particles for welcome screen
-    const welcomeScreen = document.getElementById('welcome-screen');
-    if (welcomeScreen) {
+        updatePerkButtons();
+        updateGuestPlayButton();
+        
+        CoinsManager.initialize();
+        WordsManager.initialize();
+        
+        // Load initial values if user is logged in
+        if (currentUser) {
+            const [coins, words] = await Promise.all([
+                CoinsManager.loadUserCoins(),
+                WordsManager.loadUserWords()
+            ]);
+            
+            gameState.coins = coins;
+            CoinsManager.updateDisplays();
+            WordsManager.updateDisplays(words);
+        }
+        
+        // Check for join hash on initial load
+        if (window.location.hash.startsWith('#join=')) {
+            console.log('Initial join hash detected');
+            const otp = window.location.hash.replace('#join=', '');
+            history.pushState("", document.title, window.location.pathname);
+            showJoinModal(otp);
+        }
+
+        // Ensure particles on welcome screen
+        const welcomeScreen = document.getElementById('welcome-screen');
         initializeParticles(welcomeScreen);
-    }
+        
+        await loadCustomLists();
+
+        // Mobile fullscreen handling
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            // Request on first touch
+            document.addEventListener('touchstart', function onFirstTouch() {
+                requestFullscreenMode();
+                document.removeEventListener('touchstart', onFirstTouch);
+            }, { once: true });
+            
+            // Request when clicking any button
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName === 'BUTTON') {
+                    requestFullscreenMode();
+                }
+            });
+            
+            // Screen orientation handling
+            if (screen.orientation) {
+                screen.orientation.lock('portrait')
+                    .catch(err => console.log('Failed to lock orientation:', err));
+            }
+        }
+
+        // Initialize real-time channels if user is logged in
+        if (currentUser) {
+            setupUserStatusSubscription();
+            initializeStatusCheck();
+        }
+    })().catch(error => {
+        console.error('Initialization error:', error);
+    });
 });
 
 async function loadUserGameProgress(userId) {
@@ -6037,9 +6197,8 @@ function saveProgress() {
         ),
         perfectLevels: Array.from(gameState.perfectLevels),
         completedLevels: Array.from(gameState.completedLevels),
-        coins: gameState.coins || 0,
-        perks: gameState.perks  // DELETE THIS LINE
-    };
+        coins: gameState.coins || 0
+        };
 
     if (currentUser) {
         // Save to Supabase for logged-in users
@@ -6225,6 +6384,7 @@ const gameState = {
     
 };
 
+// ADD this clean perk configuration
 const PERK_CONFIG = {
     timeFreeze: {
         name: 'Time Freeze',
@@ -6236,7 +6396,7 @@ const PERK_CONFIG = {
     skip: {
         name: 'Skip Question',
         description: 'Skip the current word without penalty',
-        cost: 25,
+        cost: 0,
         icon: 'fa-forward'
     },
     clue: {
@@ -6252,6 +6412,96 @@ const PERK_CONFIG = {
         icon: 'fa-eye'
     }
 };
+
+function buyPerk(perkType) {
+    const perkConfig = PERK_CONFIG[perkType];
+    if (!perkConfig) return;
+
+    if (gameState.coins < perkConfig.cost) {
+        showNotification(`Need ${perkConfig.cost} coins!`, 'error');
+        return;
+    }
+
+    gameState.coins -= perkConfig.cost;
+    updateAllCoinDisplays();
+
+    switch(perkType) {
+        case 'timeFreeze':
+            isFrozen = true;
+            setTimeout(() => {
+                isFrozen = false;
+            }, perkConfig.duration);
+            break;
+
+        case 'skip':
+            handleAnswer(true, true);
+            break;
+
+        case 'clue':
+            const buttons = document.querySelectorAll('.buttons button');
+            const correctAnswer = currentGame.isHebrewToEnglish ? 
+                currentGame.words[currentGame.currentIndex] : 
+                currentGame.translations[currentGame.currentIndex];
+            
+            const wrongButtons = Array.from(buttons).filter(btn => 
+                btn.textContent !== correctAnswer);
+            
+            if (wrongButtons.length > 0) {
+                const buttonToDisable = wrongButtons[Math.floor(Math.random() * wrongButtons.length)];
+                buttonToDisable.disabled = true;
+                buttonToDisable.style.opacity = '0.5';
+            }
+            break;
+
+        // REPLACE the reveal case in buyPerk function
+case 'reveal':
+    const correctAns = currentGame.isHebrewToEnglish ? 
+        currentGame.words[currentGame.currentIndex] : 
+        currentGame.translations[currentGame.currentIndex];
+    
+    document.querySelectorAll('.buttons button').forEach(btn => {
+        if (btn.textContent === correctAns) {
+            btn.classList.add('correct');
+            // Store original background
+            const originalBackground = btn.style.background;
+            btn.style.background = 'var(--success)';
+            
+            // Reset after 5 seconds
+            setTimeout(() => {
+                btn.classList.remove('correct');
+                btn.style.background = originalBackground;
+            }, 5000);
+        }
+    });
+    break;
+    }
+
+    saveProgress();
+}
+
+
+function updatePerkButtons() {
+    Object.entries(PERK_CONFIG).forEach(([perkType, config]) => {
+        const button = document.getElementById(`${perkType}Perk`);
+        if (button) {
+            // Calculate number of times perk can be purchased
+            const availablePurchases = Math.floor(gameState.coins / config.cost);
+            const canAfford = availablePurchases > 0;
+            
+            button.disabled = !canAfford;
+            button.classList.toggle('disabled', !canAfford);
+            
+            // Update counter to show number of purchasable perks
+            const countElement = button.querySelector('.perk-count');
+            if (countElement) {
+                countElement.textContent = canAfford ? availablePurchases.toString() : '0';
+            }
+        }
+    });
+}
+
+
+updatePerkButtons();
 
 let currentGame = {
     words: [],
@@ -6537,10 +6787,27 @@ function animateCoinsChange(element, startValue, endValue) {
 
 
 function updatePlayerProgress(payload) {
+    // If this is the current player, handle coins properly
+    if (payload.username === currentGame?.playerUsername) {
+        // If game hasn't started (no words completed) and we have starting coins, use those
+        if (!payload.wordsCompleted && currentGame.startingCoins !== undefined) {
+            payload.coins = currentGame.startingCoins;
+        } else {
+            // Otherwise use current game state coins
+            payload.coins = currentGame.coins;
+        }
+        console.log('Current player coins update:', {
+            username: payload.username,
+            startingCoins: currentGame.startingCoins,
+            currentCoins: currentGame.coins,
+            finalCoins: payload.coins
+        });
+    }
+
     const existingPlayerIndex = currentArcadeSession.participants.findIndex(
         p => p.username === payload.username
     );
-    
+
     // Store old positions and values for animation
     const oldPositions = {};
     const oldValues = {};
@@ -6558,15 +6825,24 @@ function updatePlayerProgress(payload) {
     });
     
     if (existingPlayerIndex !== -1) {
+        const existingPlayer = currentArcadeSession.participants[existingPlayerIndex];
+        // Don't reset coins to 0 if we already have a value and no new coins provided
+        const updatedCoins = payload.coins !== undefined ? payload.coins : existingPlayer.coins;
+        
         currentArcadeSession.participants[existingPlayerIndex] = {
-            ...currentArcadeSession.participants[existingPlayerIndex],
-            ...payload
+            ...existingPlayer,
+            ...payload,
+            coins: payload.username === currentGame?.playerUsername ? 
+                (currentGame.startingCoins && !payload.wordsCompleted ? 
+                    currentGame.startingCoins : currentGame.coins) 
+                : updatedCoins
         };
     } else {
         currentArcadeSession.participants.push({
             username: payload.username,
             wordsCompleted: payload.wordsCompleted || 0,
-            coins: payload.coins || 0
+            coins: payload.username === currentGame?.playerUsername ? 
+                currentGame.startingCoins || 0 : payload.coins || 0
         });
     }
     
@@ -6584,56 +6860,16 @@ function updatePlayerProgress(payload) {
              data-rank="${index + 1}">
             <div>${index + 1}</div>
             <div data-username="${player.username}">${player.username}</div>
-            <div data-words="${player.wordsCompleted}">${player.wordsCompleted || 0}</div>
-            <div data-coins="${player.coins}">${player.coins || 0}</div>
+            <div data-words="${player.wordsCompleted || 0}">${player.wordsCompleted || 0}</div>
+            <div data-coins="${player.coins || 0}">${player.coins || 0}</div>
         </div>
     `).join('');
     
     const leaderboard = document.getElementById('arcade-leaderboard');
-    leaderboard.innerHTML = leaderboard.querySelector('.leaderboard-header').outerHTML + entries;
-
-    // Apply animations
-    const newEntries = leaderboard.querySelectorAll('.leaderboard-entry');
-    newEntries.forEach(entry => {
-        const username = entry.querySelector('[data-username]').dataset.username;
-        if (oldPositions[username]) {
-            const oldPos = oldPositions[username];
-            const newPos = entry.getBoundingClientRect();
-            const diff = oldPos.top - newPos.top;
-            
-            if (diff > 0) {
-                entry.classList.add('moving-up');
-            } else if (diff < 0) {
-                entry.classList.add('moving-down');
-            }
-            
-            // Animate words and coins if values changed
-            if (oldValues[username]) {
-                const wordsElement = entry.querySelector('[data-words]');
-                const coinsElement = entry.querySelector('[data-coins]');
-                
-                animateCoinsChange(
-                    wordsElement, 
-                    oldValues[username].words, 
-                    parseInt(wordsElement.textContent)
-                );
-                
-                animateCoinsChange(
-                    coinsElement, 
-                    oldValues[username].coins, 
-                    parseInt(coinsElement.textContent)
-                );
-            }
-            
-            entry.addEventListener('animationend', () => {
-                entry.classList.remove('moving-up', 'moving-down');
-            }, { once: true });
-        }
-    });
+    if (leaderboard) {
+        leaderboard.innerHTML = leaderboard.querySelector('.leaderboard-header')?.outerHTML + entries;
+    }
 }
-
-// Update the handleArcadeAnswer function to use the new animation
-
 
 function handleTimeUp() {
     if (currentGame.currentIndex >= currentGame.words.length) return; // Don't show if level is complete
@@ -6725,7 +6961,7 @@ function showScreen(screenId, forceRefresh = false) {
     // Screen-specific initialization
     switch(screenId) {
         case 'question-screen':
-            updatePerkCounts();
+            updatePerkButtons();
             break;
         case 'welcome-screen':
             // Check for restored game context
@@ -7036,7 +7272,7 @@ async function startLevel(levelId) {
     currentGame.firstAttempt = true;
     currentGame.streakBonus = true;
 
-    updatePerkCounts();
+    updatePerkButtons();
 
     const perksContainer = document.querySelector('.perks-container');
     const powerupsContainer = document.querySelector('.powerups-container');    
@@ -7377,19 +7613,12 @@ function loadNextQuestion() {
         });
 }
 
-function handleAnswer(isCorrect, fromPerk = false) {
-    console.log('Before handleAnswer:', {
-        timeRemaining, 
-        initialTimeRemaining: currentGame.initialTimeRemaining,
-        currentIndex: currentGame.currentIndex
-    });
-
+async function handleAnswer(isCorrect, fromPerk = false) {
     const now = Date.now();
     const lastAnswerTime = currentGame.lastAnswerTime || 0;
     
-    // Enforce 1-second cooldown between answers
-    if (now - lastAnswerTime < 1000) {
-        return; // Ignore rapid clicks
+    if (now - lastAnswerTime < 1000 && !fromPerk) {
+        return; 
     }
     
     currentGame.lastAnswerTime = now;
@@ -7402,10 +7631,12 @@ function handleAnswer(isCorrect, fromPerk = false) {
         currentGame.streakBonus = false;
         currentGame.wrongStreak++;
         
-        // Deduct coins using CoinsManager
-        CoinsManager.updateCoins(-3).then(() => {
-            updatePerkCounts();
-        });
+        try {
+            await CoinsManager.updateCoins(-3);
+            updatePerkButtons();
+        } catch (error) {
+            console.error('Error updating coins:', error);
+        }
 
         // Move progress bar backwards
         if (currentGame.currentIndex > 0) {
@@ -7431,22 +7662,7 @@ function handleAnswer(isCorrect, fromPerk = false) {
             }
         }
 
-        if (currentGame.isCustomPractice) {
-            currentGame.firstAttempt = false;
-            currentGame.streakBonus = false;
-            CoinsManager.updateCoins(-3).then(() => {
-                updatePerkCounts();
-            });
-        }
-    } else {
-        currentGame.wrongStreak = 0; // Reset wrong streak on correct answer
-    }
-
-    const correctAnswer = currentGame.isHebrewToEnglish ? 
-        currentGame.words[currentGame.currentIndex] : 
-        currentGame.translations[currentGame.currentIndex];
-
-    if (isCorrect && !isLevelCompleted && !fromPerk) {
+    } else if (isCorrect && !isLevelCompleted && !fromPerk) {
         let totalCoinsEarned = 0;
 
         // Award time bonus and update perks
@@ -7460,7 +7676,7 @@ function handleAnswer(isCorrect, fromPerk = false) {
                 const perkTypes = ['timeFreeze', 'skip', 'clue', 'reveal'];
                 const randomPerk = perkTypes[Math.floor(Math.random() * perkTypes.length)];
                 gameState.perks[randomPerk]++;
-                updatePerkCounts();
+                updatePerkButtons();
             }
         }
 
@@ -7469,27 +7685,39 @@ function handleAnswer(isCorrect, fromPerk = false) {
             totalCoinsEarned += 3;
             pulseCoins(3);
             
+            try {
+                // Update words count for first-time correct answers
+                await WordsManager.updateWords(1);
+            } catch (error) {
+                console.error('Error updating words:', error);
+            }
+            
             // Additional chance for perk on first attempt
             if (Math.random() < 0.1) { // 10% chance
                 const perkTypes = ['timeFreeze', 'skip', 'clue', 'reveal'];
                 const randomPerk = perkTypes[Math.floor(Math.random() * perkTypes.length)];
                 gameState.perks[randomPerk]++;
-                updatePerkCounts();
+                updatePerkButtons();
             }
         } else {
             totalCoinsEarned += 1;
             pulseCoins(1);
         }
 
-        // Update coins once with total amount
-        CoinsManager.updateCoins(totalCoinsEarned).then(() => {
-            updatePerkCounts();
-        });
-       
-        currentGame.correctAnswers++;
-    } else if (isCorrect) {
+        try {
+            // Update coins once with total amount
+            await CoinsManager.updateCoins(totalCoinsEarned);
+            updatePerkButtons();
+        } catch (error) {
+            console.error('Error updating total coins:', error);
+        }
+        
         currentGame.correctAnswers++;
     }
+
+    const correctAnswer = currentGame.isHebrewToEnglish ? 
+        currentGame.words[currentGame.currentIndex] : 
+        currentGame.translations[currentGame.currentIndex];
 
     document.querySelectorAll('.buttons button').forEach(btn => {
         if (btn.textContent === correctAnswer) {
@@ -7506,19 +7734,16 @@ function handleAnswer(isCorrect, fromPerk = false) {
     updateProgressCircle();
     saveProgress();
    
-    // Use a promise-based delay for better timing control
-    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-    
-    delay(333).then(() => {
+    // Use setTimeout for consistent timing
+    setTimeout(() => {
         if (currentGame.currentIndex < currentGame.words.length) {
-            console.log('Restarting timer:', currentGame.initialTimeRemaining);
             startTimer(currentGame.words.length - currentGame.currentIndex);
             loadNextQuestion();
-            updatePerkCounts(); // Ensure perks are up to date after state changes
+            updatePerkButtons();
         } else {
             handleLevelCompletion();
         }
-    });
+    }, 333);
 }
 
 function awardTimeBonus() {
@@ -7694,7 +7919,7 @@ function startCustomListPractice(listId) {
     const list = customPracticeLists.lists.find(l => l.id === listId);
     if (!list) return;
 
-    updatePerkCounts();
+    updatePerkButtons();
 
     currentGame = {
         words: Array.isArray(list.words) ? list.words : [],
@@ -7723,38 +7948,40 @@ function handleLevelCompletion() {
     clearTimer();
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     const isLevelCompleted = gameState.perfectLevels.has(levelKey);
-    
-    // STRICT CHECK: Perfect completion requires:
-    // 1. Level not previously completed
-    // 2. Maintained streak (no wrong answers)
-    // 3. All words answered correctly
+
     const isPerfectRun = !isLevelCompleted && 
                         currentGame.streakBonus && 
                         currentGame.correctAnswers === currentGame.words.length;
 
-    if (!isPerfectRun) {
-        // If not perfect, restart level after delay
-        setTimeout(() => startLevel(gameState.currentLevel), 1500);
-        return;
-    }
+    if (isPerfectRun) {
+    const finalCoins = gameState.coins;
+    
+    const bonusAmount = 5;
+    
+    CoinsManager.updateCoins(bonusAmount).then(() => {
+        gameState.perfectLevels.add(levelKey);
+        
+        const questionScreen = document.getElementById('question-screen');
+        const rect = questionScreen.getBoundingClientRect();
+        createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
+        gameState.perfectLevels.add(levelKey);
+    
+    });
+}
 
-    // Award completion bonus
-    gameState.coins += 5;
     pulseCoins(5);
+    updatePerkButtons();  
     gameState.perfectLevels.add(levelKey);
 
-    // Create completion particles
     const questionScreen = document.getElementById('question-screen');
     const rect = questionScreen.getBoundingClientRect();
     createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
 
-    // Get current stage config and user status
     const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
     const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
     const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
     const userStatus = currentUser ? currentUser.status : 'unregistered';
 
-    // Update unlocks
     const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
     if (!gameState.unlockedLevels[setKey]) {
         gameState.unlockedLevels[setKey] = new Set();
@@ -7807,6 +8034,7 @@ function handleLevelCompletion() {
     // Save progress
     saveProgress();
     updateAllCoinDisplays();
+    updatePerkButtons();
 }
 
 function handleProgression(levelKey) {
@@ -7876,7 +8104,7 @@ function activatePerk(perkType, cost) {
         if (success) {
             gameState.perks[perkType]++;
             saveProgress();
-            updatePerkCounts();
+            updatePerkButtons();
             
             // Use perk immediately
             usePerk(perkType);
@@ -7970,7 +8198,7 @@ function initializeParticles(container = document.body) {
 window.onload = async () => {
     await checkExistingSession();
     initializeGame();
-    updatePerkCounts();
+    updatePerkButtons();
     
     // Ensure particles on welcome screen
     const welcomeScreen = document.getElementById('welcome-screen');
@@ -8076,7 +8304,7 @@ function handleResetProgress() {
         localStorage.removeItem('simploxCustomCoins');
         
         // Update UI
-        updatePerkCounts();
+        updatePerkButtons();
         updateAllCoinDisplays();
         showScreen('welcome-screen');
         
@@ -8180,7 +8408,7 @@ function handleRestartLevel() {
     gameState.perks = { ...currentGame.startingPerks };
     
     // Update UI
-    updatePerkCounts();
+    updatePerkButtons();
     updateAllCoinDisplays();
     
     // Save current state
@@ -10199,30 +10427,7 @@ function sanitizeInput(input) {
 }
 
 
-const SessionManager = {
-    maxInactiveTime: 30 * 60 * 1000, // 30 minutes
-    lastActivity: Date.now(),
-    
-    init() {
-        document.addEventListener('click', () => this.updateActivity());
-        document.addEventListener('keypress', () => this.updateActivity());
-        setInterval(() => this.checkSession(), 60000);
-    },
-    
-    updateActivity() {
-        this.lastActivity = Date.now();
-    },
-    
-    async checkSession() {
-        if (Date.now() - this.lastActivity > this.maxInactiveTime) {
-            await handleLogout();
-            modalSystem.show('timeout', {
-                title: "Session Expired",
-                message: "Please log in again"
-            });
-        }
-    }
-};
+
 
 const DataValidator = {
     validateGameProgress(progress) {
@@ -11447,8 +11652,8 @@ async function startArcadeGame() {
    
    let initialCoins = 0;
    
-   // For premium users, get current coins from game progress
-   if (currentUser && currentUser.status === 'premium') {
+   // Load existing coins for ALL registered users, not just premium
+   if (currentUser) {
        try {
            const { data, error } = await supabaseClient
                .from('game_progress')
@@ -11459,26 +11664,43 @@ async function startArcadeGame() {
            if (!error && data) {
                initialCoins = data.coins;
                console.log('Loaded initial coins:', initialCoins);
-               
-               // Immediately update UI and broadcast initial state
-               currentGame.coins = initialCoins;
-               updateAllCoinDisplays();
-               
-               // Broadcast initial coin state
-               await window.arcadeChannel.send({
-                   type: 'broadcast',
-                   event: 'progress_update',
-                   payload: {
-                       username: playerUsername,
-                       wordsCompleted: 0,
-                       coins: initialCoins,
-                       timestamp: Date.now()
-                   }
-               });
            }
        } catch (error) {
            console.error('Failed to load coins:', error);
        }
+   }
+
+   // Reset game state with correct initial coins
+   currentGame = {
+       currentIndex: 0,
+       correctStreak: 0,
+       wrongStreak: 0,
+       words: currentArcadeSession.wordPool,
+       wordsCompleted: 0,
+       coins: initialCoins,
+       lastBroadcast: Date.now(),
+       initialCoinsLoaded: true,
+       playerUsername: playerUsername,
+       startingCoins: initialCoins  // Store starting coins for reference
+   };
+
+   // Update all coin displays immediately
+   updateAllCoinDisplays();
+
+   // Broadcast initial state
+   try {
+       await window.arcadeChannel.send({
+           type: 'broadcast',
+           event: 'player_initialized',
+           payload: {
+               username: playerUsername,
+               initialCoins: initialCoins,
+               wordsCompleted: 0,
+               timestamp: Date.now()
+           }
+       });
+   } catch (error) {
+       console.error('Initialization broadcast failed:', error);
    }
    
    // Reset game state with additional properties
@@ -11550,7 +11772,7 @@ async function startArcadeGame() {
            updateAllPlayersProgress();
            updateArcadeProgress();
        })
-       .on('broadcast', { event: 'progress_update' }, ({ payload }) => {
+.on('broadcast', { event: 'progress_update' }, ({ payload }) => {
            console.log('Progress update received:', payload);
            if (payload.username !== currentArcadeSession.playerName) {
                const existingPlayerIndex = currentArcadeSession.participants.findIndex(
@@ -11576,7 +11798,7 @@ async function startArcadeGame() {
                    coins: payload.coins
                });
            }
-       })
+       })       
        .on('broadcast', { event: 'powerup_effect' }, ({ payload }) => {
            if (payload.targetUser === currentArcadeSession.playerName) {
                const powerup = payload.powerup;
@@ -11883,32 +12105,61 @@ function handleArcadeAnswer(isCorrect) {
     const playerUsername = currentArcadeSession.playerName || 
         (currentUser?.user_metadata?.username || getRandomSimploName());
     
-    if (isCorrect) {
-        currentGame.wordsCompleted++;
-        currentGame.correctStreak++;
-        currentGame.wrongStreak = 0;
-        
-        // Award coins with streak bonus
-        let coinsEarned = 5;
-        if (currentGame.correctStreak >= 3) {
-            coinsEarned += 5;
-        }
-        
-        CoinsManager.updateCoins(coinsEarned).then(() => {
-            // Broadcast progress with updated coins
-            if (window.arcadeChannel) {
-                window.arcadeChannel.send({
-                    type: 'broadcast',
-                    event: 'progress_update',
-                    payload: {
-                        username: playerUsername,
-                        wordsCompleted: currentGame.wordsCompleted,
-                        coins: gameState.coins,
-                        timestamp: Date.now()
-                    }
-                });
+        if (isCorrect) {
+    currentGame.wordsCompleted++;
+    currentGame.correctStreak++;
+    currentGame.wrongStreak = 0;
+    
+    // Award coins with streak bonus
+    let coinsEarned = 5;
+    if (currentGame.correctStreak >= 3) {
+        coinsEarned += 5;
+    }
+    
+    // Update coins
+    currentGame.coins += coinsEarned;
+    
+    // For registered users, update their game_progress
+    if (currentUser) {
+        supabaseClient
+            .from('game_progress')
+            .update({ coins: currentGame.coins })
+            .eq('user_id', currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error('Failed to update coins:', error);
+            });
+    }
+    
+    // Update displays
+    updateAllCoinDisplays();
+    
+    // Broadcast progress
+    if (window.arcadeChannel) {
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'progress_update',
+            payload: {
+                username: playerUsername,
+                wordsCompleted: currentGame.wordsCompleted,
+                coins: currentGame.coins,
+                timestamp: Date.now()
             }
         });
+    }
+        
+        // Broadcast progress
+        if (window.arcadeChannel) {
+            window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'progress_update',
+                payload: {
+                    username: playerUsername,
+                    wordsCompleted: currentGame.wordsCompleted,
+                    coins: currentGame.coins,
+                    timestamp: Date.now()
+                }
+            });
+        }
         
         updateArcadeProgress();
         
@@ -11922,21 +12173,35 @@ function handleArcadeAnswer(isCorrect) {
             coinsLost += 3;
         }
         
-        CoinsManager.updateCoins(-coinsLost).then(() => {
-            // Broadcast progress with updated coins
-            if (window.arcadeChannel) {
-                window.arcadeChannel.send({
-                    type: 'broadcast',
-                    event: 'progress_update',
-                    payload: {
-                        username: playerUsername,
-                        wordsCompleted: currentGame.wordsCompleted,
-                        coins: gameState.coins,
-                        timestamp: Date.now()
-                    }
+        currentGame.coins = Math.max(0, currentGame.coins - coinsLost);
+        
+        // Update displays
+        updateAllCoinDisplays();
+        
+        // For registered users, update their game_progress
+        if (currentUser) {
+            supabaseClient
+                .from('game_progress')
+                .update({ coins: currentGame.coins })
+                .eq('user_id', currentUser.id)
+                .then(({ error }) => {
+                    if (error) console.error('Failed to update coins:', error);
                 });
-            }
-        });
+        }
+        
+        // Broadcast progress
+        if (window.arcadeChannel) {
+            window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'progress_update',
+                payload: {
+                    username: playerUsername,
+                    wordsCompleted: currentGame.wordsCompleted,
+                    coins: currentGame.coins,
+                    timestamp: Date.now()
+                }
+            });
+        }
     }
     
     if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
@@ -12339,7 +12604,7 @@ async function joinArcadeWithUsername() {
         return;
     }
 
-    // Allow Hebrew, English, numbers, and some special characters
+    // Validate username characters
     const validUsernameRegex = /^[a-zA-Z0-9\u0590-\u05FF\s._-]+$/;
     if (!validUsernameRegex.test(username)) {
         showErrorToast('Username can contain letters, numbers, spaces, periods, underscores, and hyphens');
@@ -12355,11 +12620,33 @@ async function joinArcadeWithUsername() {
     }
 
     try {
+        // Get initial coins first
+        let initialCoins = 0;
+        if (currentUser) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('game_progress')
+                    .select('coins')
+                    .eq('user_id', currentUser.id)
+                    .single();
+                    
+                if (!error && data) {
+                    initialCoins = data.coins;
+                }
+            } catch (error) {
+                console.error('Failed to load initial coins:', error);
+            }
+        } else {
+            // For guest users, get coins from localStorage
+            initialCoins = parseInt(localStorage.getItem('simploxCustomCoins') || '0');
+        }
+
         // Create Supabase channel for the specific arcade session
         window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`);
         
         // Set the player name for the current session
         currentArcadeSession.playerName = username;
+        currentArcadeSession.initialCoins = initialCoins;
         
         // Start state polling for late joiners
         let stateCheckInterval;
@@ -12387,13 +12674,15 @@ async function joinArcadeWithUsername() {
             })
             .subscribe();
 
-        // Broadcast player join event
+        // Broadcast join with coins included
         await window.arcadeChannel.send({
             type: 'broadcast',
             event: 'player_join',
             payload: {
                 username: username,
-                joinedAt: new Date().toISOString()
+                joinedAt: new Date().toISOString(),
+                coins: initialCoins,
+                initialState: true
             }
         });
 
