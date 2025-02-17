@@ -6438,24 +6438,25 @@ case 'reveal':
 }
 
 
-// REPLACE updatePerkButtons function
 function updatePerkButtons() {
     Object.entries(PERK_CONFIG).forEach(([perkType, config]) => {
         const button = document.getElementById(`${perkType}Perk`);
         if (button) {
-            const canAfford = gameState.coins >= config.cost;
+            // Calculate number of times perk can be purchased
+            const availablePurchases = Math.floor(gameState.coins / config.cost);
+            const canAfford = availablePurchases > 0;
+            
             button.disabled = !canAfford;
             button.classList.toggle('disabled', !canAfford);
             
-            // Update counter
+            // Update counter to show number of purchasable perks
             const countElement = button.querySelector('.perk-count');
             if (countElement) {
-                countElement.textContent = canAfford ? '1' : '0';
+                countElement.textContent = canAfford ? availablePurchases.toString() : '0';
             }
         }
     });
 }
-
 
 updatePerkButtons();
 
@@ -11965,34 +11966,6 @@ function loadNextArcadeQuestion() {
     
     // Remove used word from pool
     currentGame.words.splice(currentIndex, 1);
-}
-
-
-
-function handleArcadeCompletion() {
-    clearTimer();
-    
-    if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
-        window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'player_complete',
-            payload: {
-                username: currentArcadeSession.playerName,
-                wordsCompleted: currentGame.wordsCompleted,
-                coins: currentGame.coins,
-                completionTime: Date.now()
-            }
-        });
-
-        // Show completion screen
-        const completionData = {
-            wordsCompleted: currentGame.wordsCompleted,
-            coins: currentGame.coins,
-            rank: getRank()
-        };
-        
-        showArcadeCompletionScreen(completionData);
-    }
 }
 
 
