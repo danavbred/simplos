@@ -5193,7 +5193,79 @@ background-clip: text;
 </div>
 
 <script>
+    
+    document.addEventListener('DOMContentLoaded', () => {
+    const logoutButton = document.querySelector('.logout-button');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', handleLogout);
+    }
+});
 
+document.addEventListener('click', (e) => {
+    const sidePanel = document.querySelector('.side-panel');
+    const hamburgerButton = document.querySelector('.hamburger-button');
+    
+    if (sidePanel.classList.contains('open') && 
+        !sidePanel.contains(e.target) && 
+        !hamburgerButton.contains(e.target)) {
+        toggleSidePanel();
+    }
+});
+
+    document.addEventListener('DOMContentLoaded', () => {
+    const gameAssets = {
+        stages: {}, // Cache stage data
+        currentWords: [], // Cache current level words
+        particles: new Set() // Reuse particle elements
+    };
+});
+
+const ParticleSystem = {
+    particlePool: [],
+    maxParticles: 50,
+
+    init() {
+        // Pre-create particle elements
+        for(let i = 0; i < this.maxParticles; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            this.particlePool.push(particle);
+        }
+    },
+
+    createParticle(x, y) {
+        const particle = this.particlePool.pop();
+        if (!particle) return;
+
+        // Reuse particle instead of creating new
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        
+        setTimeout(() => {
+            this.particlePool.push(particle);
+        }, 1000);
+    }
+};
+
+// Use event delegation instead of multiple listeners
+document.addEventListener('click', (e) => {
+    const target = e.target;
+    
+    if (target.matches('.game-btn')) {
+        handleButtonClick(target);
+    } else if (target.matches('.level')) {
+        handleLevelClick(target);
+    }
+});
+
+function updateUI() {
+    // Batch DOM updates
+    requestAnimationFrame(() => {
+        const fragment = document.createDocumentFragment();
+        // Add elements to fragment
+        document.body.appendChild(fragment);
+    });
+}
 
 const CoinsManager = {
     displayElements: new Set(),
@@ -5297,79 +5369,87 @@ const CoinsManager = {
     }
 };
 
+const WordsManager = {
+    displayElements: new Set(),
     
-    document.addEventListener('DOMContentLoaded', () => {
-    const logoutButton = document.querySelector('.logout-button');
-    if (logoutButton) {
-        logoutButton.addEventListener('click', handleLogout);
-    }
-});
-
-document.addEventListener('click', (e) => {
-    const sidePanel = document.querySelector('.side-panel');
-    const hamburgerButton = document.querySelector('.hamburger-button');
+    initialize() {
+        this.displayElements.clear();
+        document.querySelectorAll('#totalWords').forEach(display => {
+            this.displayElements.add(display);
+        });
+    },
     
-    if (sidePanel.classList.contains('open') && 
-        !sidePanel.contains(e.target) && 
-        !hamburgerButton.contains(e.target)) {
-        toggleSidePanel();
-    }
-});
+    async loadUserWords() {
+        if (!currentUser) return 0;
 
-    document.addEventListener('DOMContentLoaded', () => {
-    const gameAssets = {
-        stages: {}, // Cache stage data
-        currentWords: [], // Cache current level words
-        particles: new Set() // Reuse particle elements
-    };
-});
+        try {
+            const { data, error } = await supabaseClient
+                .from('player_stats')
+                .select('unique_words_practiced')
+                .eq('user_id', currentUser.id)
+                .single();
 
-const ParticleSystem = {
-    particlePool: [],
-    maxParticles: 50,
-
-    init() {
-        // Pre-create particle elements
-        for(let i = 0; i < this.maxParticles; i++) {
-            const particle = document.createElement('div');
-            particle.className = 'particle';
-            this.particlePool.push(particle);
+            if (error) throw error;
+            return data?.unique_words_practiced || 0;
+        } catch (error) {
+            console.error('Error loading words:', error);
+            return 0;
         }
     },
 
-    createParticle(x, y) {
-        const particle = this.particlePool.pop();
-        if (!particle) return;
+    async updateWords(amount) {
+        try {
+            // Get current total
+            const oldTotal = parseInt(document.getElementById('totalWords').textContent) || 0;
+            const newTotal = oldTotal + amount;
 
-        // Reuse particle instead of creating new
-        particle.style.left = `${x}px`;
-        particle.style.top = `${y}px`;
-        
-        setTimeout(() => {
-            this.particlePool.push(particle);
-        }, 1000);
+            // Animate all displays
+            this.displayElements.forEach(display => {
+                let currentValue = oldTotal;
+                const duration = 1000;
+                const startTime = performance.now();
+                
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    currentValue = oldTotal + (newTotal - oldTotal) * progress;
+                    display.textContent = Math.round(currentValue);
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        display.textContent = newTotal;
+                    }
+                }
+                
+                requestAnimationFrame(animate);
+            });
+
+            // Save to database if user is logged in
+            if (currentUser) {
+                const { error } = await supabaseClient
+                    .from('player_stats')
+                    .update({ unique_words_practiced: newTotal })
+                    .eq('user_id', currentUser.id);
+
+                if (error) throw error;
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Failed to update words:', error);
+            return false;
+        }
+    },
+
+    updateDisplays(value) {
+        this.displayElements.forEach(display => {
+            display.textContent = value;
+        });
     }
 };
 
-// Use event delegation instead of multiple listeners
-document.addEventListener('click', (e) => {
-    const target = e.target;
-    
-    if (target.matches('.game-btn')) {
-        handleButtonClick(target);
-    } else if (target.matches('.level')) {
-        handleLevelClick(target);
-    }
-});
-
-function updateUI() {
-    // Batch DOM updates
-    requestAnimationFrame(() => {
-        const fragment = document.createDocumentFragment();
-        // Add elements to fragment
-        document.body.appendChild(fragment);
-    });
-}
 
 const perkButtons = {
     timeFreeze: document.getElementById('timeFreezePerk'),
@@ -5516,11 +5596,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     updatePerkButtons();
     updateGuestPlayButton();
     CoinsManager.initialize();
+    WordsManager.initialize();
     
     // Load initial coins
     if (currentUser) {
         gameState.coins = await CoinsManager.loadUserCoins();
         CoinsManager.updateDisplays();
+     
+        const words = await WordsManager.loadUserWords();
+        WordsManager.updateDisplays(words);
     }
     
     // Handle QR code joining
@@ -5845,25 +5929,72 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize particles immediately for all screens
-    document.querySelectorAll('.screen').forEach(screen => {
-        initializeParticles(screen);
-    });
-    
-    // Explicitly set currentUser to null if not logged in
-    currentUser = null;
-    
-    // Then handle session checks and game initialization
-    checkExistingSession().then(() => {
+    // Immediately invoke an async function
+    (async () => {
+        await checkExistingSession();
         initializeGame();
         updatePerkButtons();
-    });
-    
-    // Initialize particles for welcome screen
-    const welcomeScreen = document.getElementById('welcome-screen');
-    if (welcomeScreen) {
+        updateGuestPlayButton();
+        
+        CoinsManager.initialize();
+        WordsManager.initialize();
+        
+        // Load initial values if user is logged in
+        if (currentUser) {
+            const [coins, words] = await Promise.all([
+                CoinsManager.loadUserCoins(),
+                WordsManager.loadUserWords()
+            ]);
+            
+            gameState.coins = coins;
+            CoinsManager.updateDisplays();
+            WordsManager.updateDisplays(words);
+        }
+        
+        // Check for join hash on initial load
+        if (window.location.hash.startsWith('#join=')) {
+            console.log('Initial join hash detected');
+            const otp = window.location.hash.replace('#join=', '');
+            history.pushState("", document.title, window.location.pathname);
+            showJoinModal(otp);
+        }
+
+        // Ensure particles on welcome screen
+        const welcomeScreen = document.getElementById('welcome-screen');
         initializeParticles(welcomeScreen);
-    }
+        
+        await loadCustomLists();
+
+        // Mobile fullscreen handling
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            // Request on first touch
+            document.addEventListener('touchstart', function onFirstTouch() {
+                requestFullscreenMode();
+                document.removeEventListener('touchstart', onFirstTouch);
+            }, { once: true });
+            
+            // Request when clicking any button
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName === 'BUTTON') {
+                    requestFullscreenMode();
+                }
+            });
+            
+            // Screen orientation handling
+            if (screen.orientation) {
+                screen.orientation.lock('portrait')
+                    .catch(err => console.log('Failed to lock orientation:', err));
+            }
+        }
+
+        // Initialize real-time channels if user is logged in
+        if (currentUser) {
+            setupUserStatusSubscription();
+            initializeStatusCheck();
+        }
+    })().catch(error => {
+        console.error('Initialization error:', error);
+    });
 });
 
 async function loadUserGameProgress(userId) {
@@ -7452,19 +7583,13 @@ function loadNextQuestion() {
         });
 }
 
-function handleAnswer(isCorrect, fromPerk = false) {
-    console.log('Before handleAnswer:', {
-        timeRemaining, 
-        initialTimeRemaining: currentGame.initialTimeRemaining,
-        currentIndex: currentGame.currentIndex
-    });
-
+async function handleAnswer(isCorrect, fromPerk = false) {
     const now = Date.now();
     const lastAnswerTime = currentGame.lastAnswerTime || 0;
     
     // Enforce 1-second cooldown between answers
     if (now - lastAnswerTime < 1000) {
-        return; // Ignore rapid clicks
+        return;
     }
     
     currentGame.lastAnswerTime = now;
@@ -7477,9 +7602,12 @@ function handleAnswer(isCorrect, fromPerk = false) {
         currentGame.streakBonus = false;
         currentGame.wrongStreak++;
         
-        CoinsManager.updateCoins(-3).then(() => {
-    updatePerkButtons();  
-});
+        try {
+            await CoinsManager.updateCoins(-3);
+            updatePerkButtons();
+        } catch (error) {
+            console.error('Error updating coins:', error);
+        }
 
         // Move progress bar backwards
         if (currentGame.currentIndex > 0) {
@@ -7505,22 +7633,7 @@ function handleAnswer(isCorrect, fromPerk = false) {
             }
         }
 
-        if (currentGame.isCustomPractice) {
-            currentGame.firstAttempt = false;
-            currentGame.streakBonus = false;
-            CoinsManager.updateCoins(-3).then(() => {
-                updatePerkButtons();
-            });
-        }
-    } else {
-        currentGame.wrongStreak = 0; // Reset wrong streak on correct answer
-    }
-
-    const correctAnswer = currentGame.isHebrewToEnglish ? 
-        currentGame.words[currentGame.currentIndex] : 
-        currentGame.translations[currentGame.currentIndex];
-
-    if (isCorrect && !isLevelCompleted && !fromPerk) {
+    } else if (isCorrect && !isLevelCompleted && !fromPerk) {
         let totalCoinsEarned = 0;
 
         // Award time bonus and update perks
@@ -7543,6 +7656,13 @@ function handleAnswer(isCorrect, fromPerk = false) {
             totalCoinsEarned += 3;
             pulseCoins(3);
             
+            try {
+                // Update words count for first-time correct answers
+                await WordsManager.updateWords(1);
+            } catch (error) {
+                console.error('Error updating words:', error);
+            }
+            
             // Additional chance for perk on first attempt
             if (Math.random() < 0.1) { // 10% chance
                 const perkTypes = ['timeFreeze', 'skip', 'clue', 'reveal'];
@@ -7555,15 +7675,20 @@ function handleAnswer(isCorrect, fromPerk = false) {
             pulseCoins(1);
         }
 
-        // Update coins once with total amount
-        CoinsManager.updateCoins(totalCoinsEarned).then(() => {
+        try {
+            // Update coins once with total amount
+            await CoinsManager.updateCoins(totalCoinsEarned);
             updatePerkButtons();
-        });
-       
-        currentGame.correctAnswers++;
-    } else if (isCorrect) {
+        } catch (error) {
+            console.error('Error updating total coins:', error);
+        }
+        
         currentGame.correctAnswers++;
     }
+
+    const correctAnswer = currentGame.isHebrewToEnglish ? 
+        currentGame.words[currentGame.currentIndex] : 
+        currentGame.translations[currentGame.currentIndex];
 
     document.querySelectorAll('.buttons button').forEach(btn => {
         if (btn.textContent === correctAnswer) {
@@ -7580,19 +7705,16 @@ function handleAnswer(isCorrect, fromPerk = false) {
     updateProgressCircle();
     saveProgress();
    
-    // Use a promise-based delay for better timing control
-    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-    
-    delay(333).then(() => {
+    // Use setTimeout for consistent timing
+    setTimeout(() => {
         if (currentGame.currentIndex < currentGame.words.length) {
-            console.log('Restarting timer:', currentGame.initialTimeRemaining);
             startTimer(currentGame.words.length - currentGame.currentIndex);
             loadNextQuestion();
-            updatePerkButtons(); // Ensure perks are up to date after state changes
+            updatePerkButtons();
         } else {
             handleLevelCompletion();
         }
-    });
+    }, 333);
 }
 
 function awardTimeBonus() {
