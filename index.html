@@ -5194,48 +5194,6 @@ background-clip: text;
 
 <script>
     
-
-    const SessionManager = {
-    maxInactiveTime: 30 * 60 * 1000, // 30 minutes
-    lastActivity: Date.now(),
-    
-    init() {
-        ['click', 'keypress', 'mousemove'].forEach(event => {
-            document.addEventListener(event, () => this.updateActivity());
-        });
-        
-        this.sessionCheckInterval = setInterval(() => this.checkSession(), 60000);
-    },
-    
-    updateActivity() {
-        this.lastActivity = Date.now();
-    },
-    
-    async checkSession() {
-        if (Date.now() - this.lastActivity > this.maxInactiveTime) {
-            // Stop interval to prevent multiple triggers
-            clearInterval(this.sessionCheckInterval);
-            
-            try {
-                await handleLogout();
-                showNotification("Session expired. Please log in again.", "error");
-                showScreen('welcome-screen');
-            } catch (error) {
-                console.error('Logout during session expiry failed:', error);
-            }
-        }
-    },
-    
-    cleanup() {
-        clearInterval(this.sessionCheckInterval);
-    }
-};
-
-// Initialize on DOMContentLoaded
-document.addEventListener('DOMContentLoaded', () => {
-    SessionManager.init();
-});
-    
     document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.querySelector('.logout-button');
     if (logoutButton) {
@@ -6396,7 +6354,7 @@ const PERK_CONFIG = {
     skip: {
         name: 'Skip Question',
         description: 'Skip the current word without penalty',
-        cost: 0,
+        cost: 25,
         icon: 'fa-forward'
     },
     clue: {
@@ -6480,21 +6438,19 @@ case 'reveal':
 }
 
 
+// REPLACE updatePerkButtons function
 function updatePerkButtons() {
     Object.entries(PERK_CONFIG).forEach(([perkType, config]) => {
         const button = document.getElementById(`${perkType}Perk`);
         if (button) {
-            // Calculate number of times perk can be purchased
-            const availablePurchases = Math.floor(gameState.coins / config.cost);
-            const canAfford = availablePurchases > 0;
-            
+            const canAfford = gameState.coins >= config.cost;
             button.disabled = !canAfford;
             button.classList.toggle('disabled', !canAfford);
             
-            // Update counter to show number of purchasable perks
+            // Update counter
             const countElement = button.querySelector('.perk-count');
             if (countElement) {
-                countElement.textContent = canAfford ? availablePurchases.toString() : '0';
+                countElement.textContent = canAfford ? '1' : '0';
             }
         }
     });
@@ -6787,27 +6743,10 @@ function animateCoinsChange(element, startValue, endValue) {
 
 
 function updatePlayerProgress(payload) {
-    // If this is the current player, handle coins properly
-    if (payload.username === currentGame?.playerUsername) {
-        // If game hasn't started (no words completed) and we have starting coins, use those
-        if (!payload.wordsCompleted && currentGame.startingCoins !== undefined) {
-            payload.coins = currentGame.startingCoins;
-        } else {
-            // Otherwise use current game state coins
-            payload.coins = currentGame.coins;
-        }
-        console.log('Current player coins update:', {
-            username: payload.username,
-            startingCoins: currentGame.startingCoins,
-            currentCoins: currentGame.coins,
-            finalCoins: payload.coins
-        });
-    }
-
     const existingPlayerIndex = currentArcadeSession.participants.findIndex(
         p => p.username === payload.username
     );
-
+    
     // Store old positions and values for animation
     const oldPositions = {};
     const oldValues = {};
@@ -6825,24 +6764,15 @@ function updatePlayerProgress(payload) {
     });
     
     if (existingPlayerIndex !== -1) {
-        const existingPlayer = currentArcadeSession.participants[existingPlayerIndex];
-        // Don't reset coins to 0 if we already have a value and no new coins provided
-        const updatedCoins = payload.coins !== undefined ? payload.coins : existingPlayer.coins;
-        
         currentArcadeSession.participants[existingPlayerIndex] = {
-            ...existingPlayer,
-            ...payload,
-            coins: payload.username === currentGame?.playerUsername ? 
-                (currentGame.startingCoins && !payload.wordsCompleted ? 
-                    currentGame.startingCoins : currentGame.coins) 
-                : updatedCoins
+            ...currentArcadeSession.participants[existingPlayerIndex],
+            ...payload
         };
     } else {
         currentArcadeSession.participants.push({
             username: payload.username,
             wordsCompleted: payload.wordsCompleted || 0,
-            coins: payload.username === currentGame?.playerUsername ? 
-                currentGame.startingCoins || 0 : payload.coins || 0
+            coins: payload.coins || 0
         });
     }
     
@@ -6860,16 +6790,56 @@ function updatePlayerProgress(payload) {
              data-rank="${index + 1}">
             <div>${index + 1}</div>
             <div data-username="${player.username}">${player.username}</div>
-            <div data-words="${player.wordsCompleted || 0}">${player.wordsCompleted || 0}</div>
-            <div data-coins="${player.coins || 0}">${player.coins || 0}</div>
+            <div data-words="${player.wordsCompleted}">${player.wordsCompleted || 0}</div>
+            <div data-coins="${player.coins}">${player.coins || 0}</div>
         </div>
     `).join('');
     
     const leaderboard = document.getElementById('arcade-leaderboard');
-    if (leaderboard) {
-        leaderboard.innerHTML = leaderboard.querySelector('.leaderboard-header')?.outerHTML + entries;
-    }
+    leaderboard.innerHTML = leaderboard.querySelector('.leaderboard-header').outerHTML + entries;
+
+    // Apply animations
+    const newEntries = leaderboard.querySelectorAll('.leaderboard-entry');
+    newEntries.forEach(entry => {
+        const username = entry.querySelector('[data-username]').dataset.username;
+        if (oldPositions[username]) {
+            const oldPos = oldPositions[username];
+            const newPos = entry.getBoundingClientRect();
+            const diff = oldPos.top - newPos.top;
+            
+            if (diff > 0) {
+                entry.classList.add('moving-up');
+            } else if (diff < 0) {
+                entry.classList.add('moving-down');
+            }
+            
+            // Animate words and coins if values changed
+            if (oldValues[username]) {
+                const wordsElement = entry.querySelector('[data-words]');
+                const coinsElement = entry.querySelector('[data-coins]');
+                
+                animateCoinsChange(
+                    wordsElement, 
+                    oldValues[username].words, 
+                    parseInt(wordsElement.textContent)
+                );
+                
+                animateCoinsChange(
+                    coinsElement, 
+                    oldValues[username].coins, 
+                    parseInt(coinsElement.textContent)
+                );
+            }
+            
+            entry.addEventListener('animationend', () => {
+                entry.classList.remove('moving-up', 'moving-down');
+            }, { once: true });
+        }
+    });
 }
+
+// Update the handleArcadeAnswer function to use the new animation
+
 
 function handleTimeUp() {
     if (currentGame.currentIndex >= currentGame.words.length) return; // Don't show if level is complete
@@ -7617,8 +7587,9 @@ async function handleAnswer(isCorrect, fromPerk = false) {
     const now = Date.now();
     const lastAnswerTime = currentGame.lastAnswerTime || 0;
     
-    if (now - lastAnswerTime < 1000 && !fromPerk) {
-        return; 
+    // Enforce 1-second cooldown between answers
+    if (now - lastAnswerTime < 1000) {
+        return;
     }
     
     currentGame.lastAnswerTime = now;
@@ -10427,7 +10398,30 @@ function sanitizeInput(input) {
 }
 
 
-
+const SessionManager = {
+    maxInactiveTime: 30 * 60 * 1000, // 30 minutes
+    lastActivity: Date.now(),
+    
+    init() {
+        document.addEventListener('click', () => this.updateActivity());
+        document.addEventListener('keypress', () => this.updateActivity());
+        setInterval(() => this.checkSession(), 60000);
+    },
+    
+    updateActivity() {
+        this.lastActivity = Date.now();
+    },
+    
+    async checkSession() {
+        if (Date.now() - this.lastActivity > this.maxInactiveTime) {
+            await handleLogout();
+            modalSystem.show('timeout', {
+                title: "Session Expired",
+                message: "Please log in again"
+            });
+        }
+    }
+};
 
 const DataValidator = {
     validateGameProgress(progress) {
@@ -11652,8 +11646,8 @@ async function startArcadeGame() {
    
    let initialCoins = 0;
    
-   // Load existing coins for ALL registered users, not just premium
-   if (currentUser) {
+   // For premium users, get current coins from game progress
+   if (currentUser && currentUser.status === 'premium') {
        try {
            const { data, error } = await supabaseClient
                .from('game_progress')
@@ -11664,43 +11658,26 @@ async function startArcadeGame() {
            if (!error && data) {
                initialCoins = data.coins;
                console.log('Loaded initial coins:', initialCoins);
+               
+               // Immediately update UI and broadcast initial state
+               currentGame.coins = initialCoins;
+               updateAllCoinDisplays();
+               
+               // Broadcast initial coin state
+               await window.arcadeChannel.send({
+                   type: 'broadcast',
+                   event: 'progress_update',
+                   payload: {
+                       username: playerUsername,
+                       wordsCompleted: 0,
+                       coins: initialCoins,
+                       timestamp: Date.now()
+                   }
+               });
            }
        } catch (error) {
            console.error('Failed to load coins:', error);
        }
-   }
-
-   // Reset game state with correct initial coins
-   currentGame = {
-       currentIndex: 0,
-       correctStreak: 0,
-       wrongStreak: 0,
-       words: currentArcadeSession.wordPool,
-       wordsCompleted: 0,
-       coins: initialCoins,
-       lastBroadcast: Date.now(),
-       initialCoinsLoaded: true,
-       playerUsername: playerUsername,
-       startingCoins: initialCoins  // Store starting coins for reference
-   };
-
-   // Update all coin displays immediately
-   updateAllCoinDisplays();
-
-   // Broadcast initial state
-   try {
-       await window.arcadeChannel.send({
-           type: 'broadcast',
-           event: 'player_initialized',
-           payload: {
-               username: playerUsername,
-               initialCoins: initialCoins,
-               wordsCompleted: 0,
-               timestamp: Date.now()
-           }
-       });
-   } catch (error) {
-       console.error('Initialization broadcast failed:', error);
    }
    
    // Reset game state with additional properties
@@ -11772,7 +11749,7 @@ async function startArcadeGame() {
            updateAllPlayersProgress();
            updateArcadeProgress();
        })
-.on('broadcast', { event: 'progress_update' }, ({ payload }) => {
+       .on('broadcast', { event: 'progress_update' }, ({ payload }) => {
            console.log('Progress update received:', payload);
            if (payload.username !== currentArcadeSession.playerName) {
                const existingPlayerIndex = currentArcadeSession.participants.findIndex(
@@ -11798,7 +11775,7 @@ async function startArcadeGame() {
                    coins: payload.coins
                });
            }
-       })       
+       })
        .on('broadcast', { event: 'powerup_effect' }, ({ payload }) => {
            if (payload.targetUser === currentArcadeSession.playerName) {
                const powerup = payload.powerup;
@@ -12105,61 +12082,32 @@ function handleArcadeAnswer(isCorrect) {
     const playerUsername = currentArcadeSession.playerName || 
         (currentUser?.user_metadata?.username || getRandomSimploName());
     
-        if (isCorrect) {
-    currentGame.wordsCompleted++;
-    currentGame.correctStreak++;
-    currentGame.wrongStreak = 0;
-    
-    // Award coins with streak bonus
-    let coinsEarned = 5;
-    if (currentGame.correctStreak >= 3) {
-        coinsEarned += 5;
-    }
-    
-    // Update coins
-    currentGame.coins += coinsEarned;
-    
-    // For registered users, update their game_progress
-    if (currentUser) {
-        supabaseClient
-            .from('game_progress')
-            .update({ coins: currentGame.coins })
-            .eq('user_id', currentUser.id)
-            .then(({ error }) => {
-                if (error) console.error('Failed to update coins:', error);
-            });
-    }
-    
-    // Update displays
-    updateAllCoinDisplays();
-    
-    // Broadcast progress
-    if (window.arcadeChannel) {
-        window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'progress_update',
-            payload: {
-                username: playerUsername,
-                wordsCompleted: currentGame.wordsCompleted,
-                coins: currentGame.coins,
-                timestamp: Date.now()
+    if (isCorrect) {
+        currentGame.wordsCompleted++;
+        currentGame.correctStreak++;
+        currentGame.wrongStreak = 0;
+        
+        // Award coins with streak bonus
+        let coinsEarned = 5;
+        if (currentGame.correctStreak >= 3) {
+            coinsEarned += 5;
+        }
+        
+        CoinsManager.updateCoins(coinsEarned).then(() => {
+            // Broadcast progress with updated coins
+            if (window.arcadeChannel) {
+                window.arcadeChannel.send({
+                    type: 'broadcast',
+                    event: 'progress_update',
+                    payload: {
+                        username: playerUsername,
+                        wordsCompleted: currentGame.wordsCompleted,
+                        coins: gameState.coins,
+                        timestamp: Date.now()
+                    }
+                });
             }
         });
-    }
-        
-        // Broadcast progress
-        if (window.arcadeChannel) {
-            window.arcadeChannel.send({
-                type: 'broadcast',
-                event: 'progress_update',
-                payload: {
-                    username: playerUsername,
-                    wordsCompleted: currentGame.wordsCompleted,
-                    coins: currentGame.coins,
-                    timestamp: Date.now()
-                }
-            });
-        }
         
         updateArcadeProgress();
         
@@ -12173,35 +12121,21 @@ function handleArcadeAnswer(isCorrect) {
             coinsLost += 3;
         }
         
-        currentGame.coins = Math.max(0, currentGame.coins - coinsLost);
-        
-        // Update displays
-        updateAllCoinDisplays();
-        
-        // For registered users, update their game_progress
-        if (currentUser) {
-            supabaseClient
-                .from('game_progress')
-                .update({ coins: currentGame.coins })
-                .eq('user_id', currentUser.id)
-                .then(({ error }) => {
-                    if (error) console.error('Failed to update coins:', error);
+        CoinsManager.updateCoins(-coinsLost).then(() => {
+            // Broadcast progress with updated coins
+            if (window.arcadeChannel) {
+                window.arcadeChannel.send({
+                    type: 'broadcast',
+                    event: 'progress_update',
+                    payload: {
+                        username: playerUsername,
+                        wordsCompleted: currentGame.wordsCompleted,
+                        coins: gameState.coins,
+                        timestamp: Date.now()
+                    }
                 });
-        }
-        
-        // Broadcast progress
-        if (window.arcadeChannel) {
-            window.arcadeChannel.send({
-                type: 'broadcast',
-                event: 'progress_update',
-                payload: {
-                    username: playerUsername,
-                    wordsCompleted: currentGame.wordsCompleted,
-                    coins: currentGame.coins,
-                    timestamp: Date.now()
-                }
-            });
-        }
+            }
+        });
     }
     
     if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
@@ -12604,7 +12538,7 @@ async function joinArcadeWithUsername() {
         return;
     }
 
-    // Validate username characters
+    // Allow Hebrew, English, numbers, and some special characters
     const validUsernameRegex = /^[a-zA-Z0-9\u0590-\u05FF\s._-]+$/;
     if (!validUsernameRegex.test(username)) {
         showErrorToast('Username can contain letters, numbers, spaces, periods, underscores, and hyphens');
@@ -12620,33 +12554,11 @@ async function joinArcadeWithUsername() {
     }
 
     try {
-        // Get initial coins first
-        let initialCoins = 0;
-        if (currentUser) {
-            try {
-                const { data, error } = await supabaseClient
-                    .from('game_progress')
-                    .select('coins')
-                    .eq('user_id', currentUser.id)
-                    .single();
-                    
-                if (!error && data) {
-                    initialCoins = data.coins;
-                }
-            } catch (error) {
-                console.error('Failed to load initial coins:', error);
-            }
-        } else {
-            // For guest users, get coins from localStorage
-            initialCoins = parseInt(localStorage.getItem('simploxCustomCoins') || '0');
-        }
-
         // Create Supabase channel for the specific arcade session
         window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`);
         
         // Set the player name for the current session
         currentArcadeSession.playerName = username;
-        currentArcadeSession.initialCoins = initialCoins;
         
         // Start state polling for late joiners
         let stateCheckInterval;
@@ -12674,15 +12586,13 @@ async function joinArcadeWithUsername() {
             })
             .subscribe();
 
-        // Broadcast join with coins included
+        // Broadcast player join event
         await window.arcadeChannel.send({
             type: 'broadcast',
             event: 'player_join',
             payload: {
                 username: username,
-                joinedAt: new Date().toISOString(),
-                coins: initialCoins,
-                initialState: true
+                joinedAt: new Date().toISOString()
             }
         });
 
