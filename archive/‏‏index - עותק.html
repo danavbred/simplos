@@ -4800,6 +4800,95 @@ background-clip: text;
     font-weight: bold;
 }
 
+.victory-screen {
+    background: rgba(0,0,0,0.9);
+}
+
+.victory-screen .completion-modal-content {
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 400px;
+    padding: 0;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.victory-header {
+    width: 100%;
+    text-align: center;
+    padding: 1.5rem;
+    color: white;
+}
+
+.victory-header .rank-emoji {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.victory-header h2 {
+    font-size: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.victory-message {
+    padding: 1rem;
+    text-align: center;
+    background: rgba(255,255,255,0.1);
+    width: 100%;
+}
+
+.completion-stats {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+    padding: 1.5rem;
+    background: rgba(255,255,255,0.05);
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.stat-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.7);
+    text-transform: uppercase;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: white;
+}
+
+.victory-button {
+    width: 100%;
+    padding: 1rem;
+    background: var(--accent);
+    color: white;
+    border: none;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: background 0.3s ease;
+}
+
+.victory-button:hover {
+    background: color-mix(in srgb, var(--accent) 90%, white);
+}
+
     </style>
 </head>
 <body>
@@ -5239,7 +5328,7 @@ background-clip: text;
            <div class="word-goal">
                <h3>Word Goal:</h3>
                <select id="wordGoal">
-                   <option value="50">50 words</option>
+                   <option value="5">5 words</option>
                    <option value="100">100 words</option>
                    <option value="200">200 words</option>
                </select>
@@ -11234,7 +11323,12 @@ let currentArcadeSession = {
     participants: [],
     teacherId: null,
     wordGoal: 50,
-    state: 'pre-start',  // 'pre-start', 'started', 'active'
+    state: 'pre-start',  // 'pre-start', 'started', 'active', 'ended'
+    completedPlayers: [],  // To track players who already completed
+    playerRank: null,      // Current player's rank if completed
+    winnerScreenShown: false, // Flag to prevent multiple winner screens
+    startTime: null,       // When the session started
+    endTime: null          // When the session ended
 };
 
 
@@ -11917,6 +12011,9 @@ async function startArcadeGame() {
                currentGame.coins = initialCoins;
                updateAllCoinDisplays();
                
+               // Store initial coins value for final calculations
+               currentArcadeSession.initialCoins = initialCoins;
+               
                // Broadcast initial coin state
                await window.arcadeChannel.send({
                    type: 'broadcast',
@@ -11933,6 +12030,9 @@ async function startArcadeGame() {
            console.error('Failed to load coins:', error);
        }
    }
+   
+   // Mark session start time
+   currentArcadeSession.startTime = Date.now();
    
    // Reset game state with additional properties
    currentGame = {
@@ -11978,6 +12078,9 @@ async function startArcadeGame() {
            updateAllPlayersProgress();
        })
        .subscribe();
+
+   // Store channel reference for cleanup
+   currentArcadeSession.leaderboardChannel = leaderboardChannel;
 
    // Set up broadcast channel listeners
    window.arcadeChannel
@@ -12028,6 +12131,22 @@ async function startArcadeGame() {
                    wordsCompleted: payload.wordsCompleted,
                    coins: payload.coins
                });
+           }
+       })
+       .on('broadcast', { event: 'player_completed' }, ({ payload }) => {
+           console.log('Player completed event:', payload);
+           
+           // If this player has completed, add to completed players list
+           if (!currentArcadeSession.completedPlayers.includes(payload.username)) {
+               currentArcadeSession.completedPlayers.push(payload.username);
+           }
+           
+           // Update player UI
+           updatePlayerProgress(payload);
+           
+           // If 3 players have completed, end the game (failsafe for non-moderator)
+           if (currentArcadeSession.completedPlayers.length >= 3) {
+               endArcadeForAll();
            }
        })
        .on('broadcast', { event: 'powerup_effect' }, ({ payload }) => {
@@ -12085,46 +12204,53 @@ async function startArcadeGame() {
            }
        })
        .on('broadcast', { event: 'coin_effect' }, ({ payload }) => {
-    if (payload.targetUser === currentArcadeSession.playerName) {
-        const oldCoins = currentGame.coins;
-        currentGame.coins += payload.amount;
-        
-        // Animate coin changes
-        document.querySelectorAll('.coin-count').forEach(display => {
-            animateNumber(display, oldCoins, currentGame.coins);
+            if (payload.targetUser === currentArcadeSession.playerName) {
+                const oldCoins = currentGame.coins;
+                currentGame.coins += payload.amount;
+                
+                // Animate coin changes
+                document.querySelectorAll('.coin-count').forEach(display => {
+                    animateNumber(display, oldCoins, currentGame.coins);
+                });
+                
+                // Immediately update moderator leaderboard
+                const participantIndex = currentArcadeSession.participants.findIndex(
+                    p => p.username === currentArcadeSession.playerName
+                );
+                
+                if (participantIndex !== -1) {
+                    currentArcadeSession.participants[participantIndex].coins = currentGame.coins;
+                    updateModeratorLeaderboard();
+                }
+                
+                // Show notification
+                if (payload.type === 'blessing') {
+                    showNotification(`${payload.fromUser} high-fived you!`, 'blessing');
+                } else if (payload.type === 'curse') {
+                    showNotification(`${payload.fromUser} poisoned you!`, 'curse');
+                }
+                
+                // Update leaderboard
+                updatePlayerProgress({
+                    username: currentArcadeSession.playerName,
+                    coins: currentGame.coins,
+                    wordsCompleted: currentGame.wordsCompleted
+                });
+            }
+        })
+        .on('broadcast', { event: 'game_end' }, ({ payload }) => {
+            handleGameEnd(payload);
         });
-        
-        // Immediately update moderator leaderboard
-        const participantIndex = currentArcadeSession.participants.findIndex(
-            p => p.username === currentArcadeSession.playerName
-        );
-        
-        if (participantIndex !== -1) {
-            currentArcadeSession.participants[participantIndex].coins = currentGame.coins;
-            updateModeratorLeaderboard();
-        }
-        
-        // Show notification
-        if (payload.type === 'blessing') {
-            showNotification(`${payload.fromUser} high-fived you!`, 'blessing');
-        } else if (payload.type === 'curse') {
-            showNotification(`${payload.fromUser} poisoned you!`, 'curse');
-        }
-        
-        // Update leaderboard
-        updatePlayerProgress({
-            username: currentArcadeSession.playerName,
-            coins: currentGame.coins,
-            wordsCompleted: currentGame.wordsCompleted
-        });
-    }
-});
 
    // Update UI elements
    updateAllCoinDisplays();
    
    // Start first question
    loadNextArcadeQuestion();
+   
+   // Initialize arrays to track timers and intervals
+   window.arcadeTimeouts = [];
+   window.arcadeIntervals = [];
 }
 
 async function updateArcadeCoins(amount) {
@@ -12337,6 +12463,11 @@ function handleArcadeAnswer(isCorrect) {
         
         updateArcadeProgress();
         
+        // Check if player reached word goal
+        if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
+            handlePlayerCompletedGoal(playerUsername);
+        }
+        
     } else {
         currentGame.wrongStreak++;
         currentGame.correctStreak = 0;
@@ -12364,11 +12495,6 @@ function handleArcadeAnswer(isCorrect) {
         });
     }
     
-    if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
-        handleArcadeCompletion();
-        return;
-    }
-    
     loadNextArcadeQuestion();
 }
 
@@ -12387,28 +12513,37 @@ function checkGameEnd() {
 
 async function endArcade() {
     try {
+        // Mark session as ended
+        currentArcadeSession.state = 'ended';
+        currentArcadeSession.endTime = Date.now();
+        
+        // Get final player rankings
+        const finalRankings = [...currentArcadeSession.participants]
+            .sort((a, b) => {
+                if (b.wordsCompleted !== a.wordsCompleted) {
+                    return b.wordsCompleted - a.wordsCompleted;
+                }
+                return b.coins - a.coins;
+            });
+        
+        // Get top 3 players
+        const top3Players = finalRankings.slice(0, 3);
+        
         // Broadcast end game event to all participants
         await window.arcadeChannel.send({
             type: 'broadcast',
             event: 'game_end',
             payload: {
-                participants: currentArcadeSession.participants,
-                teacherId: currentUser.id  // Add teacher ID to help identify moderator
+                state: 'ended',
+                topPlayers: top3Players,
+                allPlayers: finalRankings,
+                teacherId: currentUser.id,
+                duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
             }
         });
         
-        currentArcadeSession.isActive = false;
-        
-        // Clean up channel
-        if (window.arcadeChannel) {
-            window.arcadeChannel.unsubscribe();
-        }
-        
-        // For the moderator, explicitly trigger game end
-        handleGameEnd({
-            participants: currentArcadeSession.participants,
-            teacherId: currentUser.id
-        });
+        // Show final results for teacher
+        showFinalResults(finalRankings);
         
     } catch (error) {
         console.error('End game error:', error);
@@ -12451,7 +12586,7 @@ function handleGameEnd(payload) {
     
     playerData.rank = sortedPlayers.findIndex(p => p.username === playerUsername) + 1;
     
-    // Create completion modal (same as previous implementation)
+    // Create completion modal (same implementation for all players)
     const overlay = document.createElement('div');
     overlay.className = 'arcade-completion-modal';
     overlay.innerHTML = `
@@ -13389,6 +13524,261 @@ function handleArcadeCompletion(playerData) {
             });
         }
     }
+}
+
+async function handlePlayerCompletedGoal(playerUsername) {
+    if (currentArcadeSession.completedPlayers.includes(playerUsername)) {
+        return; // Player already completed
+    }
+    
+    // Add player to completed list
+    currentArcadeSession.completedPlayers.push(playerUsername);
+    
+    // Get player's rank
+    const sortedPlayers = [...currentArcadeSession.participants]
+        .sort((a, b) => {
+            if (b.wordsCompleted !== a.wordsCompleted) {
+                return b.wordsCompleted - a.wordsCompleted;
+            }
+            return b.coins - a.coins;
+        });
+    
+    const playerRank = sortedPlayers.findIndex(p => p.username === playerUsername) + 1;
+    
+    // Store the player's rank
+    if (playerUsername === currentArcadeSession.playerName) {
+        currentArcadeSession.playerRank = playerRank;
+    }
+    
+    // Broadcast completion
+    await window.arcadeChannel.send({
+        type: 'broadcast',
+        event: 'player_completed',
+        payload: {
+            username: playerUsername,
+            rank: playerRank,
+            wordsCompleted: currentGame.wordsCompleted,
+            coins: gameState.coins || 0,
+            timestamp: Date.now()
+        }
+    });
+    
+    // If player is in top 3, show personal victory screen
+    if (playerRank <= 3 && playerUsername === currentArcadeSession.playerName) {
+        showPersonalVictoryScreen(playerRank);
+    }
+    
+    // If this was the third player to complete, end the game for everyone
+    if (currentArcadeSession.completedPlayers.length >= 3) {
+        endArcadeForAll();
+    }
+}
+
+function showPersonalVictoryScreen(rank) {
+    if (currentArcadeSession.winnerScreenShown) return;
+    currentArcadeSession.winnerScreenShown = true;
+    
+    // Ensure rank is correctly calculated
+    const sortedPlayers = [...currentArcadeSession.participants]
+        .sort((a, b) => {
+            if (b.wordsCompleted !== a.wordsCompleted) {
+                return b.wordsCompleted - a.wordsCompleted;
+            }
+            return b.coins - a.coins;
+        });
+    
+    const playerUsername = currentArcadeSession.playerName;
+    const playerIndex = sortedPlayers.findIndex(p => p.username === playerUsername);
+    const actualRank = playerIndex + 1;
+
+    // Different messages based on rank
+    const rankMessages = {
+        1: {
+            title: "🏆 FIRST PLACE! 🏆",
+            message: "Incredible! You've claimed the top spot!",
+            color: "linear-gradient(135deg, #FFD700, #FFA500)", // Gold gradient
+            emoji: "🥇"
+        },
+        2: {
+            title: "🥈 SECOND PLACE! 🥈",
+            message: "Amazing job! You've secured second place!",
+            color: "linear-gradient(135deg, #C0C0C0, #A0A0A0)", // Silver gradient
+            emoji: "🥈"
+        },
+        3: {
+            title: "🥉 THIRD PLACE! 🥉",
+            message: "Well done! You've earned third place!",
+            color: "linear-gradient(135deg, #CD7F32, #B87333)", // Bronze gradient
+            emoji: "🥉"
+        }
+    };
+    
+    const message = rankMessages[actualRank] || {
+        title: "Game Complete!",
+        message: "You've reached the word goal!",
+        color: "var(--accent)",
+        emoji: "🏅"
+    };
+    
+    // Calculate coins earned during this arcade session
+    const startingCoins = currentArcadeSession.initialCoins || 0;
+    const currentCoins = gameState.coins || 0;
+    const coinsEarned = currentCoins - startingCoins;
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'arcade-completion-modal victory-screen';
+    
+    overlay.innerHTML = `
+        <div class="completion-modal-content">
+            <div class="victory-header" style="background: ${message.color};">
+                <span class="rank-emoji">${message.emoji}</span>
+                <h2>${message.title}</h2>
+            </div>
+            <div class="victory-message">
+                <p>${message.message}</p>
+            </div>
+            <div class="completion-stats">
+                <div class="stat-item">
+                    <div class="stat-icon">🌍</div>
+                    <div class="stat-label">Words Learned</div>
+                    <div class="stat-value">${currentGame.wordsCompleted}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-label">Coins Earned</div>
+                    <div class="stat-value">${coinsEarned}</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon">🏅</div>
+                    <div class="stat-label">Your Rank</div>
+                    <div class="stat-value">${actualRank}</div>
+                </div>
+            </div>
+            <button onclick="exitArcadeCompletion()" class="victory-button">
+                Return to Welcome Screen
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('show'));
+}
+
+function hidePersonalVictoryScreen() {
+    const modal = document.querySelector('.arcade-completion-modal');
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            document.body.removeChild(modal);
+        }, 300);
+    }
+}
+
+async function endArcadeForAll() {
+    // Only the moderator or the last person to complete can trigger this
+    if (currentUser?.id === currentArcadeSession.teacherId || 
+        currentArcadeSession.completedPlayers.length >= 3) {
+        
+        currentArcadeSession.state = 'ended';
+        currentArcadeSession.endTime = Date.now();
+        
+        // Get the sorted list of participants for final rankings
+        const finalRankings = [...currentArcadeSession.participants]
+            .sort((a, b) => {
+                if (b.wordsCompleted !== a.wordsCompleted) {
+                    return b.wordsCompleted - a.wordsCompleted;
+                }
+                return b.coins - a.coins;
+            });
+        
+        const top3Players = finalRankings.slice(0, 3);
+        
+        // Broadcast game end to all participants
+        await window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'game_end',
+            payload: {
+                state: 'ended',
+                topPlayers: top3Players,
+                allPlayers: finalRankings,
+                teacherId: currentArcadeSession.teacherId,
+                duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
+            }
+        });
+        
+        // Show final results for everyone
+        showFinalResults(finalRankings);
+    }
+}
+
+function showFinalResults(players) {
+    // Create final results overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'arcade-completion-modal';
+    
+    // Get the top 3 players
+    const top3 = players.slice(0, 3);
+    
+    // Find current player's rank
+    const currentPlayerRank = players.findIndex(p => 
+        p.username === currentArcadeSession.playerName) + 1;
+    
+    // Calculate coins earned during this arcade session
+    const startingCoins = currentArcadeSession.initialCoins || 0;
+    const currentCoins = gameState.coins || 0;
+    const coinsEarned = currentCoins - startingCoins;
+    
+    overlay.innerHTML = `
+        <div class="completion-modal-content">
+            <h2>Arcade Session Complete!</h2>
+            ${currentPlayerRank <= 3 ? 
+                `<p class="personal-result">Congratulations! You finished in ${getOrdinal(currentPlayerRank)} place!</p>` : 
+                `<p class="personal-result">Your final rank: ${getOrdinal(currentPlayerRank)}</p>`
+            }
+            <div class="leaderboard-preview">
+                <h3>Final Standings</h3>
+                ${top3.map((player, index) => `
+                    <div class="podium-player rank-${index + 1} ${player.username === currentArcadeSession.playerName ? 'current-player' : ''}">
+                        <div class="player-rank">${index + 1}</div>
+                        <div class="player-name">${player.username}</div>
+                        <div class="player-stats">
+                            <span class="player-words">${player.wordsCompleted} words</span>
+                            <span class="player-coins">${player.coins} coins</span>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            ${currentPlayerRank > 0 ? `
+                <div class="your-stats">
+                    <h3>Your Results</h3>
+                    <div class="completion-stats">
+                        <div class="stat-item">
+                            <i class="fas fa-language"></i>
+                            <span>Words Learned</span>
+                            <strong>${currentGame.wordsCompleted || 0}</strong>
+                        </div>
+                        <div class="stat-item">
+                            <i class="fas fa-coins"></i>
+                            <span>Coins Earned</span>
+                            <strong>${coinsEarned}</strong>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+            <button onclick="exitArcadeCompletion()" class="start-button">
+                Return to Welcome
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('show'));
+}
+
+function getOrdinal(n) {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 </script>
