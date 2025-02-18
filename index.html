@@ -12639,16 +12639,20 @@ function showFinalResultsForPlayer(players) {
     }
     
     // Get current player's rank from podiumRanks if they're in top 3
-    let playerRank = currentArcadeSession.podiumRanks?.[playerUsername] || 0;
+    let playerRank = 0;
+    const podiumPlayer = top3.find(p => p.username === playerUsername);
+    if (podiumPlayer) {
+        playerRank = podiumPlayer.rank;
+    }
     const isOnPodium = playerRank > 0 && playerRank <= 3;
-    
-    // Find current player's stats
-    const currentPlayerStats = currentArcadeSession.participants.find(p => p.username === playerUsername);
     
     // Calculate earned coins
     const startingCoins = currentArcadeSession.initialCoins || 0;
     const currentCoins = gameState.coins || currentGame.coins || 0;
     const coinsEarned = currentCoins - startingCoins;
+    
+    // Get player's words completed
+    const wordsCompleted = currentGame.wordsCompleted || 0;
     
     // Create results modal
     const overlay = document.createElement('div');
@@ -12683,7 +12687,7 @@ function showFinalResultsForPlayer(players) {
                     <div class="stat-item" style="text-align: center;">
                         <i class="fas fa-language" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
                         <span style="display: block; margin-bottom: 0.25rem;">Words Learned</span>
-                        <strong style="font-size: 1.5rem;">${currentPlayerStats?.wordsCompleted || currentGame.wordsCompleted || 0}</strong>
+                        <strong style="font-size: 1.5rem;">${wordsCompleted}</strong>
                     </div>
                     <div class="stat-item" style="text-align: center;">
                         <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
