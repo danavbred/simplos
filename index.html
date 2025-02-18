@@ -6705,8 +6705,6 @@ let currentGame = {
     startTime: 0,
     levelStartTime: 0,
     timeBonus: 0,
-    wordsCompleted: 0,
-    mistakesMade: 0,
     streakBonus: true,
     questionStartTime: 0,
     wrongStreak: 0,
@@ -6977,6 +6975,7 @@ function animateCoinsChange(element, startValue, endValue) {
     updateFrame();
 }
 
+
 function updatePlayerProgress(payload) {
     const existingPlayerIndex = currentArcadeSession.participants.findIndex(
         p => p.username === payload.username
@@ -7001,15 +7000,13 @@ function updatePlayerProgress(payload) {
     if (existingPlayerIndex !== -1) {
         currentArcadeSession.participants[existingPlayerIndex] = {
             ...currentArcadeSession.participants[existingPlayerIndex],
-            ...payload,
-            mistakesMade: payload.mistakesMade || currentArcadeSession.participants[existingPlayerIndex].mistakesMade || 0
+            ...payload
         };
     } else {
         currentArcadeSession.participants.push({
             username: payload.username,
             wordsCompleted: payload.wordsCompleted || 0,
-            coins: payload.coins || 0,
-            mistakesMade: payload.mistakesMade || 0
+            coins: payload.coins || 0
         });
     }
     
@@ -7018,9 +7015,6 @@ function updatePlayerProgress(payload) {
         .sort((a, b) => {
             if (b.wordsCompleted !== a.wordsCompleted) {
                 return b.wordsCompleted - a.wordsCompleted;
-            }
-            if ((a.mistakesMade || 0) !== (b.mistakesMade || 0)) {
-                return (a.mistakesMade || 0) - (b.mistakesMade || 0);
             }
             return b.coins - a.coins;
         });
@@ -7036,56 +7030,46 @@ function updatePlayerProgress(payload) {
     `).join('');
     
     const leaderboard = document.getElementById('arcade-leaderboard');
-    if (leaderboard) {
-        // Preserve the header if it exists
-        const header = leaderboard.querySelector('.leaderboard-header');
-        if (header) {
-            leaderboard.innerHTML = header.outerHTML + entries;
-        } else {
-            leaderboard.innerHTML = entries;
-        }
-    }
+    leaderboard.innerHTML = leaderboard.querySelector('.leaderboard-header').outerHTML + entries;
 
     // Apply animations
-    const newEntries = leaderboard?.querySelectorAll('.leaderboard-entry');
-    if (newEntries) {
-        newEntries.forEach(entry => {
-            const username = entry.querySelector('[data-username]').dataset.username;
-            if (oldPositions[username]) {
-                const oldPos = oldPositions[username];
-                const newPos = entry.getBoundingClientRect();
-                const diff = oldPos.top - newPos.top;
-                
-                if (diff > 0) {
-                    entry.classList.add('moving-up');
-                } else if (diff < 0) {
-                    entry.classList.add('moving-down');
-                }
-                
-                // Animate words and coins if values changed
-                if (oldValues[username]) {
-                    const wordsElement = entry.querySelector('[data-words]');
-                    const coinsElement = entry.querySelector('[data-coins]');
-                    
-                    animateCoinsChange(
-                        wordsElement, 
-                        oldValues[username].words, 
-                        parseInt(wordsElement.textContent)
-                    );
-                    
-                    animateCoinsChange(
-                        coinsElement, 
-                        oldValues[username].coins, 
-                        parseInt(coinsElement.textContent)
-                    );
-                }
-                
-                entry.addEventListener('animationend', () => {
-                    entry.classList.remove('moving-up', 'moving-down');
-                }, { once: true });
+    const newEntries = leaderboard.querySelectorAll('.leaderboard-entry');
+    newEntries.forEach(entry => {
+        const username = entry.querySelector('[data-username]').dataset.username;
+        if (oldPositions[username]) {
+            const oldPos = oldPositions[username];
+            const newPos = entry.getBoundingClientRect();
+            const diff = oldPos.top - newPos.top;
+            
+            if (diff > 0) {
+                entry.classList.add('moving-up');
+            } else if (diff < 0) {
+                entry.classList.add('moving-down');
             }
-        });
-    }
+            
+            // Animate words and coins if values changed
+            if (oldValues[username]) {
+                const wordsElement = entry.querySelector('[data-words]');
+                const coinsElement = entry.querySelector('[data-coins]');
+                
+                animateCoinsChange(
+                    wordsElement, 
+                    oldValues[username].words, 
+                    parseInt(wordsElement.textContent)
+                );
+                
+                animateCoinsChange(
+                    coinsElement, 
+                    oldValues[username].coins, 
+                    parseInt(coinsElement.textContent)
+                );
+            }
+            
+            entry.addEventListener('animationend', () => {
+                entry.classList.remove('moving-up', 'moving-down');
+            }, { once: true });
+        }
+    });
 }
 
 function handleTimeUp() {
@@ -12471,7 +12455,6 @@ function handleArcadeAnswer(isCorrect) {
                         username: playerUsername,
                         wordsCompleted: currentGame.wordsCompleted,
                         coins: gameState.coins,
-                        mistakesMade: currentGame.mistakesMade, // Add mistakes to payload
                         timestamp: Date.now()
                     }
                 });
@@ -12488,7 +12471,6 @@ function handleArcadeAnswer(isCorrect) {
     } else {
         currentGame.wrongStreak++;
         currentGame.correctStreak = 0;
-        currentGame.mistakesMade++; // Track mistakes for tie-breaking
         
         // Lose coins with streak penalty
         let coinsLost = 2;
@@ -12506,7 +12488,6 @@ function handleArcadeAnswer(isCorrect) {
                         username: playerUsername,
                         wordsCompleted: currentGame.wordsCompleted,
                         coins: gameState.coins,
-                        mistakesMade: currentGame.mistakesMade, // Add mistakes to payload
                         timestamp: Date.now()
                     }
                 });
@@ -12574,23 +12555,45 @@ async function endArcade() {
 function handleGameEnd(payload) {
     console.log('Game End Payload:', payload);
 
-    // If no payload or no participants data, exit
+    // If no payload, exit
     if (!payload) return;
     
     // Use allPlayers if available, otherwise use participants
-    const allPlayers = payload.allPlayers || 
-                      payload.participants || 
-                      currentArcadeSession.participants || [];
-                      
-    if (allPlayers.length === 0) {
+    let finalPlayers = payload.allPlayers || 
+                    payload.participants || 
+                    currentArcadeSession.participants || [];
+                    
+    if (finalPlayers.length === 0) {
         console.warn('No player data found in game end payload');
         showScreen('welcome-screen');
         return;
     }
 
-    // Also store podium ranks if provided
+    // For data consistency, take only top 3 players
+    finalPlayers = finalPlayers
+        .sort((a, b) => {
+            if (a.rank && b.rank) return a.rank - b.rank;
+            if (b.wordsCompleted !== a.wordsCompleted) return b.wordsCompleted - a.wordsCompleted;
+            return b.coins - a.coins;
+        })
+        .slice(0, 3)
+        .map((player, index) => ({
+            ...player,
+            rank: player.rank || (index + 1)
+        }));
+
+    // Store podium ranks
     if (payload.podiumRanks) {
         currentArcadeSession.podiumRanks = payload.podiumRanks;
+    } else {
+        // Create podium ranks if not provided
+        const podiumRanks = {};
+        finalPlayers.forEach(player => {
+            if (player.username) {
+                podiumRanks[player.username] = player.rank;
+            }
+        });
+        currentArcadeSession.podiumRanks = podiumRanks;
     }
 
     // If forcibly ended by moderator, just go back to welcome
@@ -12601,18 +12604,16 @@ function handleGameEnd(payload) {
 
     // If this is the moderator, show victory screen
     if (currentUser?.id === payload.teacherId) {
-        showModeratorVictoryScreen(allPlayers);
+        showModeratorVictoryScreen(finalPlayers);
         return;
     }
 
     // Normal end for players - show final results
-    showFinalResultsForPlayer(allPlayers);
+    showFinalResultsForPlayer(finalPlayers);
 }
 
-// REPLACE showFinalResultsForPlayer function
 function showFinalResultsForPlayer(players) {
     const playerUsername = currentArcadeSession.playerName;
-    const currentPlayer = players.find(p => p.username === playerUsername);
     
     // If player already saw their victory screen (top 3), don't show another
     if (currentArcadeSession.winnerScreenShown && 
@@ -12621,47 +12622,44 @@ function showFinalResultsForPlayer(players) {
         return;
     }
     
-    // Get final rank from sorted players list
-    const playerRank = currentPlayer?.rank || 
-                      players.findIndex(p => p.username === playerUsername) + 1;
+    // Ensure we have only top 3 players with ranks properly assigned
+    const top3 = players
+        .filter(p => p.rank && p.rank <= 3)
+        .sort((a, b) => a.rank - b.rank);
     
-    // Create a complete top 3 from the players list
-    // This is crucial - we need to ensure all three podium positions are shown
-    const top3 = [];
-    
-    // First, find players with explicit ranks 1, 2, and 3
-    for (let rank = 1; rank <= 3; rank++) {
-        const player = players.find(p => p.rank === rank);
-        if (player) {
-            top3.push(player);
-        } else {
-            console.warn(`No player found with rank ${rank}`);
-        }
+    // Fill any missing ranks if we don't have 3 players
+    while (top3.length < 3) {
+        const nextRank = top3.length + 1;
+        top3.push({
+            username: '---',
+            wordsCompleted: 0,
+            coins: 0,
+            rank: nextRank
+        });
     }
     
-    // Sort by rank to ensure correct order
-    top3.sort((a, b) => a.rank - b.rank);
-    
-    console.log('Top 3 players for display:', top3);
-    
-    // Create results modal
-    const overlay = document.createElement('div');
-    overlay.className = 'arcade-completion-modal';
+    // Get current player's rank from podiumRanks if they're in top 3
+    let playerRank = currentArcadeSession.podiumRanks?.[playerUsername] || 0;
+    const isOnPodium = playerRank > 0 && playerRank <= 3;
     
     // Calculate earned coins
     const startingCoins = currentArcadeSession.initialCoins || 0;
     const currentCoins = gameState.coins || currentGame.coins || 0;
     const coinsEarned = currentCoins - startingCoins;
     
+    // Create results modal
+    const overlay = document.createElement('div');
+    overlay.className = 'arcade-completion-modal';
+    
     overlay.innerHTML = `
         <div class="completion-modal-content">
             <h2>Arcade Game Complete!</h2>
-            ${playerRank <= 3 ? 
+            ${isOnPodium ? 
                 `<p class="personal-result">Congratulations! You finished in ${getOrdinal(playerRank)} place!</p>` : 
-                `<p class="personal-result">You earned ${getOrdinal(playerRank)} place. Better luck next time!</p>`
+                `<p class="personal-result">Better luck next time!</p>`
             }
             <div class="leaderboard-preview">
-                <h3>Top Players</h3>
+                <h3>Winners</h3>
                 ${top3.map((player) => `
                     <div class="podium-player rank-${player.rank} ${player.username === playerUsername ? 'current-player' : ''}"
                          style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; margin: 0.5rem 0; 
@@ -12675,42 +12673,24 @@ function showFinalResultsForPlayer(players) {
                         </div>
                     </div>
                 `).join('')}
-                
-                ${playerRank > 3 ? `
-                    <div class="divider" style="border-top: 1px dashed rgba(255,255,255,0.2); margin: 1rem 0;"></div>
-                    <div class="current-player-row podium-player"
-                         style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; margin: 0.5rem 0; 
-                                background: rgba(255,255,255,0.1); border: 1px solid var(--accent);
-                                border-radius: 10px; color: var(--text);">
-                        <div class="player-rank">${playerRank}</div>
-                        <div class="player-name">${playerUsername}</div>
-                        <div class="player-stats">
-                            <span class="player-words">${currentPlayer?.wordsCompleted || 0} words</span>
-                            <span class="player-coins">${currentPlayer?.coins || 0} coins</span>
+            </div>
+            ${isOnPodium ? '' : `
+                <div class="your-stats">
+                    <h3>Your Results</h3>
+                    <div class="completion-stats" style="display: flex; justify-content: space-around; margin: 1.5rem 0;">
+                        <div class="stat-item" style="text-align: center;">
+                            <i class="fas fa-language" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                            <span style="display: block; margin-bottom: 0.25rem;">Words Learned</span>
+                            <strong style="font-size: 1.5rem;">${currentGame.wordsCompleted || 0}</strong>
+                        </div>
+                        <div class="stat-item" style="text-align: center;">
+                            <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                            <span style="display: block; margin-bottom: 0.25rem;">Coins Earned</span>
+                            <strong style="font-size: 1.5rem;">${coinsEarned}</strong>
                         </div>
                     </div>
-                ` : ''}
-            </div>
-            <div class="your-stats">
-                <h3>Your Results</h3>
-                <div class="completion-stats" style="display: flex; justify-content: space-around; margin: 1.5rem 0;">
-                    <div class="stat-item" style="text-align: center;">
-                        <i class="fas fa-language" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
-                        <span style="display: block; margin-bottom: 0.25rem;">Words Learned</span>
-                        <strong style="font-size: 1.5rem;">${currentPlayer?.wordsCompleted || 0}</strong>
-                    </div>
-                    <div class="stat-item" style="text-align: center;">
-                        <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
-                        <span style="display: block; margin-bottom: 0.25rem;">Coins Earned</span>
-                        <strong style="font-size: 1.5rem;">${coinsEarned}</strong>
-                    </div>
-                    <div class="stat-item" style="text-align: center;">
-                        <i class="fas fa-trophy" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
-                        <span style="display: block; margin-bottom: 0.25rem;">Your Rank</span>
-                        <strong style="font-size: 1.5rem;">${playerRank}</strong>
-                    </div>
                 </div>
-            </div>
+            `}
             <button onclick="exitArcadeCompletion()" class="start-button">
                 Return to Welcome
             </button>
@@ -14030,11 +14010,11 @@ async function handlePlayerCompletedGoal(playerUsername) {
     // Add player to completed list
     currentArcadeSession.completedPlayers.push(playerUsername);
     
-    // Track completion order for tie-breaking
+    // Determine player rank based on completion order
+    // ONLY the first 3 completions get ranks 1, 2, 3
+    let playerRank = 0;
     const completionIndex = currentArcadeSession.completedPlayers.indexOf(playerUsername);
     
-    // First determine podium ranks (1-3) based on completion order
-    let playerRank = 0;
     if (completionIndex < 3) {
         // First 3 players get podium ranks
         playerRank = completionIndex + 1;
@@ -14046,59 +14026,21 @@ async function handlePlayerCompletedGoal(playerUsername) {
         currentArcadeSession.podiumRanks[playerUsername] = playerRank;
         
         console.log(`Player ${playerUsername} earned podium rank ${playerRank}`);
-    } else {
-        // For non-podium players, calculate rank based on word count and mistakes
-        // Get all participants sorted by word count (descending) and mistakes (ascending)
-        const sortedParticipants = [...currentArcadeSession.participants]
-            .sort((a, b) => {
-                // First sort by words completed (descending)
-                if (b.wordsCompleted !== a.wordsCompleted) {
-                    return b.wordsCompleted - a.wordsCompleted;
-                }
-                // Then sort by mistakes made (ascending) for tie-breaking
-                return (a.mistakesMade || 0) - (b.mistakesMade || 0);
-            });
-        
-        // Find current player's position in this sorted list
-        const playerPosition = sortedParticipants.findIndex(p => p.username === playerUsername);
-        if (playerPosition !== -1) {
-            // Add 1 to convert from 0-based index to 1-based rank
-            // Ensure players with same word count and mistakes get same rank
-            const player = sortedParticipants[playerPosition];
-            
-            // Find first player with same word count
-            let sameWordCountIndex = playerPosition;
-            while (sameWordCountIndex > 0 &&
-                  sortedParticipants[sameWordCountIndex-1].wordsCompleted === player.wordsCompleted) {
-                sameWordCountIndex--;
-            }
-            
-            // Account for the 3 podium players
-            const podiumCount = Object.keys(currentArcadeSession.podiumRanks || {}).length;
-            playerRank = sameWordCountIndex + podiumCount + 1;
-            
-            console.log(`Player ${playerUsername} calculated rank: ${playerRank}`);
-        } else {
-            // Fallback if player not found in participants list
-            playerRank = currentArcadeSession.participants.length;
-        }
     }
     
     // Update player's data in participants array
     const playerEntry = currentArcadeSession.participants.find(p => p.username === playerUsername);
-    const mistakesMade = playerUsername === currentArcadeSession.playerName ? 
-                        currentGame.mistakesMade : (playerEntry?.mistakesMade || 0);
-    
     if (playerEntry) {
-        playerEntry.rank = playerRank;
+        // Only set rank for podium players (1-3)
+        if (playerRank > 0) {
+            playerEntry.rank = playerRank;
+        }
         playerEntry.wordsCompleted = currentGame.wordsCompleted;
         playerEntry.coins = gameState.coins || currentGame.coins || 0;
-        playerEntry.mistakesMade = mistakesMade;
         playerEntry.completed = true;
-        playerEntry.completionOrder = completionIndex;
     }
     
-    // Broadcast completion with all updated data
+    // Broadcast completion 
     await window.arcadeChannel.send({
         type: 'broadcast',
         event: 'player_completed',
@@ -14107,15 +14049,14 @@ async function handlePlayerCompletedGoal(playerUsername) {
             rank: playerRank,
             wordsCompleted: currentGame.wordsCompleted,
             coins: gameState.coins || currentGame.coins || 0,
-            mistakesMade: mistakesMade,
             timestamp: Date.now(),
-            completed: true,
-            completionOrder: completionIndex
+            completed: true
         }
     });
     
-    // Show personal victory screen for current player
-    if (playerUsername === currentArcadeSession.playerName) {
+    // If current player is the one who completed and earned a podium rank,
+    // show personal victory screen
+    if (playerUsername === currentArcadeSession.playerName && playerRank > 0) {
         showPersonalVictoryScreen(playerRank);
     }
     
@@ -14211,93 +14152,47 @@ async function endArcadeForAll() {
     currentArcadeSession.state = 'ended';
     currentArcadeSession.endTime = Date.now();
     
-    // Ensure podiumRanks exists
-    if (!currentArcadeSession.podiumRanks) {
-        currentArcadeSession.podiumRanks = {};
-    }
-    
-    // First, ensure top 3 ranks are fixed based on completion order (time)
-    currentArcadeSession.completedPlayers.slice(0, 3).forEach((username, index) => {
-        currentArcadeSession.podiumRanks[username] = index + 1;
-    });
-    
-    // Create a working copy of participants
-    let rankedParticipants = [];
-    
-    // First add the top 3 players (podium finishers)
-    currentArcadeSession.completedPlayers.slice(0, 3).forEach((username, index) => {
-        const participant = currentArcadeSession.participants.find(p => p.username === username);
-        if (participant) {
-            const playerEntry = {
-                ...participant,
-                rank: index + 1,  // Ranks 1, 2, 3
-                completionOrder: index
-            };
-            rankedParticipants.push(playerEntry);
-        }
-    });
-    
-    // For all other players (not in top 3), sort by words completed and then by mistakes
-    const otherParticipants = currentArcadeSession.participants
-        .filter(p => !currentArcadeSession.podiumRanks[p.username])
+    // Create a copy of participants sorted by words completed
+    const sortedParticipants = [...currentArcadeSession.participants]
         .sort((a, b) => {
             // Primary sort: words completed (descending)
             if (b.wordsCompleted !== a.wordsCompleted) {
                 return b.wordsCompleted - a.wordsCompleted;
             }
-            // Secondary sort: mistakes made (ascending for tie-breaking)
-            return (a.mistakesMade || 0) - (b.mistakesMade || 0);
+            // Secondary sort: coins (descending)
+            return b.coins - a.coins;
         });
     
-    // Now add these players to our ranked list
-    rankedParticipants = rankedParticipants.concat(otherParticipants);
+    // Take only top 3 players and assign ranks
+    const topThree = sortedParticipants.slice(0, 3).map((player, index) => ({
+        ...player,
+        rank: index + 1
+    }));
     
-    // Assign sequential ranks to all players beyond podium
-    let nextRank = 4;
-    let lastKey = '';
-    let currentRank = nextRank;
-    
-    for (let i = 3; i < rankedParticipants.length; i++) {
-        const player = rankedParticipants[i];
-        // Create a ranking key combining words and mistakes
-        const rankingKey = `${player.wordsCompleted}_${player.mistakesMade || 0}`;
-        
-        // If this player has the same ranking key as previous player,
-        // give them the same rank (tie)
-        if (rankingKey === lastKey) {
-            rankedParticipants[i].rank = currentRank;
-        } else {
-            // New ranking key = new rank
-            currentRank = nextRank;
-            rankedParticipants[i].rank = currentRank;
-            lastKey = rankingKey;
+    // Store podium ranks
+    const podiumRanks = {};
+    topThree.forEach(player => {
+        if (player.username) {
+            podiumRanks[player.username] = player.rank;
         }
-        
-        // Always increment nextRank for the next different ranking
-        nextRank++;
-    }
+    });
     
-    // Final sort by rank for display
-    rankedParticipants.sort((a, b) => a.rank - b.rank);
+    currentArcadeSession.podiumRanks = podiumRanks;
     
-    // Update the participants array with new ranks
-    currentArcadeSession.participants = rankedParticipants;
-    
-    console.log('Final rankings:', rankedParticipants.map(p => ({
+    console.log('Final top three:', topThree.map(p => ({
         username: p.username,
         rank: p.rank,
-        wordsCompleted: p.wordsCompleted,
-        mistakesMade: p.mistakesMade || 0
+        wordsCompleted: p.wordsCompleted
     })));
     
-    // Broadcast final rankings to all participants
+    // Broadcast final rankings with only top three players
     await window.arcadeChannel.send({
         type: 'broadcast',
         event: 'game_end',
         payload: {
             state: 'ended',
-            allPlayers: rankedParticipants,
-            podiumRanks: currentArcadeSession.podiumRanks,
+            allPlayers: topThree,
+            podiumRanks: podiumRanks,
             teacherId: currentArcadeSession.teacherId,
             duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
         }
@@ -14305,9 +14200,9 @@ async function endArcadeForAll() {
     
     // Show final results based on role
     if (currentUser?.id === currentArcadeSession.teacherId) {
-        showModeratorVictoryScreen(rankedParticipants);
+        showModeratorVictoryScreen(topThree);
     } else {
-        showFinalResultsForPlayer(rankedParticipants);
+        showFinalResultsForPlayer(topThree);
     }
 }
 
