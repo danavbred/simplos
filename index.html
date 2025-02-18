@@ -614,16 +614,6 @@ background-clip: text;
     text-align: center;
 }
 
-.leaderboard-entry {
-    display: grid;
-    grid-template-columns: 0.5fr 2fr 1fr 1fr;
-    padding: 1rem;
-    margin: 0.5rem;
-    background: var(--glass);
-    border-radius: 10px;
-    backdrop-filter: blur(5px);
-}
-
 .leaderboard-entry .name {
     color: var(--gold);
 }
@@ -775,6 +765,108 @@ background-clip: text;
 .end-arcade-button.visible {
     display: block;
     animation: fadeIn 0.3s ease-in-out;
+}
+
+.leaderboard-entry {
+    display: grid;
+    grid-template-columns: 1fr 3fr 1fr 1fr;
+    align-items: center;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.leaderboard-entry > div {
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.leaderboard-entry div[data-username] {
+    font-weight: 600;
+}
+
+.leaderboard-entry div[data-words],
+.leaderboard-entry div[data-coins] {
+    justify-content: center;
+    transition: color 0.3s ease;
+}
+
+.leaderboard-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    padding: 1rem;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    font-weight: bold;
+    text-align: center;
+}
+
+.leaderboard-header > div {
+    text-align: center;
+}
+
+/* Waiting state adjustments */
+.leaderboard-entry.waiting .player-name {
+    grid-column: 2;
+}
+
+.player-status-waiting {
+    grid-column: 3 / span 2;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.player-status-waiting .status-text {
+    background: rgba(30, 144, 255, 0.1);
+    color: var(--accent);
+    padding: 0.375rem 1rem;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: center;
+}
+
+.waiting-indicator {
+    position: absolute;
+    right: 50px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.waiting-indicator .dot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--accent);
+    border-radius: 50%;
+    opacity: 0.7;
+}
+
+.waiting-indicator .dot:nth-child(1) {
+    animation: dotPulse 1.4s infinite ease-in-out;
+}
+
+.waiting-indicator .dot:nth-child(2) {
+    animation: dotPulse 1.4s infinite ease-in-out 0.2s;
+}
+
+.waiting-indicator .dot:nth-child(3) {
+    animation: dotPulse 1.4s infinite ease-in-out 0.4s;
+}
+
+@keyframes dotPulse {
+    0%, 60%, 100% { transform: scale(1); opacity: 0.7; }
+    30% { transform: scale(1.5); opacity: 1; }
 }
 
 .completion-overlay {
@@ -2091,26 +2183,55 @@ background-clip: text;
 
 .leaderboard-entry {
     display: grid;
-    grid-template-columns: 0.5fr 2fr 1fr;
-    align-items: right;
+    grid-template-columns: 1fr 5fr 3fr;
+    align-items: center;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    transition: background-color 0.3s ease;
+    position: relative;
 }
 
-.player-status-waiting {
-    display: flex;
-    justify-content: flex-end;
-    width: 100%;
+.leaderboard-entry > div:first-child {
+    text-align: center;
+    font-weight: bold;
+    color: var(--gold);
 }
 
-.player-status-waiting .status-text {
-    background: rgba(30, 144, 255, 0.1);
-    color: var(--accent);
-    padding: 0.2rem 0.5rem;
-    border-radius: 12px;
-    font-size: 1.2rem;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    text-align: right;
+.leaderboard-entry > div:nth-child(2) {
+    text-align: center;
+    font-weight: 500;
 }
+
+
+.leaderboard-entry div[data-words],
+.leaderboard-entry div[data-coins] {
+    transition: color 0.3s ease;
+}
+
+.leaderboard-entry.moving-up {
+    background: rgba(76, 175, 80, 0.08);
+    animation: moveUp 0.8s ease-in-out forwards;
+    z-index: 2;
+}
+
+.leaderboard-entry.moving-down {
+    background: rgba(244, 67, 54, 0.08);
+    animation: moveDown 0.8s ease-in-out forwards;
+    z-index: 1;
+}
+
+@keyframes moveUp {
+    0% { transform: translateY(65px); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes moveDown {
+    0% { transform: translateY(-65px); }
+    100% { transform: translateY(0); }
+}
+
 
 .coins-header .coin-icon {
   color: var(--gold);
@@ -3134,16 +3255,8 @@ background-clip: text;
     font-size: 1.1rem;
 }
 
-.leaderboard-entry {
-    position: relative;
-    display: grid;
-    grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
-    padding: 1rem;
-    border-radius: 10px;
-    margin-bottom: 0.5rem;
-    background: rgba(255,255,255,0.05);
-    transform-origin: center;
-    transition: background-color 0.3s ease;
+.leaderboard-header > div {
+    text-align: center;
 }
 
 .leaderboard-entry.moving-up {
@@ -4678,6 +4791,14 @@ background-clip: text;
     }
 }
 
+.username-display {
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    margin-bottom: 0.5rem;
+    color: var(--gold);
+    font-weight: bold;
+}
 
     </style>
 </head>
@@ -5074,13 +5195,13 @@ background-clip: text;
     
     <h1 class="welcome-title">Speedboard</h1>
     
-    <div class="leaderboard-container">
-        <div class="leaderboard-header">
-    <div>Rank</div>
-    <div>Player</div>
-    <div>Levels</div>
-    <div>Words</div>
-</div>
+    <div class="leaderboard-header">
+        <div>Rank</div>
+        <div>Player</div>
+        <div>Status</div>
+    </div>
+
+
         <div id="leaderboard-entries">
             <!-- Entries will be populated here -->
         </div>
@@ -6861,9 +6982,6 @@ function updatePlayerProgress(payload) {
         }
     });
 }
-
-// Update the handleArcadeAnswer function to use the new animation
-
 
 function handleTimeUp() {
     if (currentGame.currentIndex >= currentGame.words.length) return; // Don't show if level is complete
@@ -11124,6 +11242,8 @@ async function showArcadeModal() {
     const modal = document.getElementById('arcade-modal');
     const teacherView = document.getElementById('teacher-view');
     const playerView = document.getElementById('player-view');
+    const usernameField = document.getElementById('arcadeUsername');
+    const usernameGroup = usernameField ? usernameField.closest('.input-group') : null;
 
     try {
         if (currentUser) {
@@ -11203,12 +11323,37 @@ async function showArcadeModal() {
                 playerView.style.display = 'none';
 
             } else {
+                // For registered non-teacher users, auto-fill username and hide that field
                 teacherView.style.display = 'none';
                 playerView.style.display = 'block';
+                
+                if (usernameField && usernameGroup) {
+                    const username = currentUser.user_metadata?.username || 
+                                    currentUser.email.split('@')[0];
+                    usernameField.value = username;
+                    usernameField.readOnly = true;
+                    usernameField.style.display = 'none';
+                    
+                    // Add a placeholder to show the username
+                    const usernamePlaceholder = document.createElement('div');
+                    usernamePlaceholder.className = 'username-display';
+                    usernamePlaceholder.textContent = `Joining as: ${username}`;
+                    usernameGroup.insertBefore(usernamePlaceholder, usernameField);
+                }
             }
         } else {
+            // For unregistered users, show both username and OTP fields
             teacherView.style.display = 'none';
             playerView.style.display = 'block';
+            
+            if (usernameField) {
+                usernameField.readOnly = false;
+                usernameField.style.display = 'block';
+                
+                // Remove any existing username display
+                const existingDisplay = usernameGroup?.querySelector('.username-display');
+                if (existingDisplay) existingDisplay.remove();
+            }
         }
 
         modal.style.display = 'block';
@@ -11461,7 +11606,18 @@ async function initializeArcade() {
         initButton.style.display = 'none';
         endButton.classList.add('visible');
         
-        currentArcadeSession.state = 'active';  // Update state
+        // Update session state
+        currentArcadeSession.state = 'active';
+        
+        // Initialize all players with 0 words and their starting coins
+        currentArcadeSession.participants = currentArcadeSession.participants.map(player => ({
+            ...player,
+            wordsCompleted: 0,
+            coins: player.coins || 0
+        }));
+        
+        // Update moderator UI immediately
+        updateAllPlayersProgress();
         
         // Signal all participants to start
         await window.arcadeChannel.send({
@@ -11588,27 +11744,62 @@ const shineColors = [
 function updateAllPlayersProgress() {
     // Sort by words completed
     const sortedPlayers = [...currentArcadeSession.participants]
-        .sort((a, b) => b.wordsCompleted - a.wordsCompleted);
+        .sort((a, b) => {
+            if (b.wordsCompleted !== a.wordsCompleted) {
+                return b.wordsCompleted - a.wordsCompleted;
+            }
+            return b.coins - a.coins;
+        });
     
-        const getRandomColor = () => shineColors[Math.floor(Math.random() * shineColors.length)];
-        const getReadyPhrase = () => readyPhrases[Math.floor(Math.random() * readyPhrases.length)];
+    const getRandomColor = () => shineColors[Math.floor(Math.random() * shineColors.length)];
+    const getReadyPhrase = () => readyPhrases[Math.floor(Math.random() * readyPhrases.length)];
 
-        const entries = sortedPlayers.map((player, index) => `
-    <div class="leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}"
-         data-rank="${index + 1}"
-         style="--player-color: ${getRandomColor()}">
-        <div>${index + 1}</div>
-        <div data-username="${player.username}" class="player-name">${player.username}</div>
-        <div class="player-status-waiting">
-            <span class="status-text">Waiting</span>
+    const entries = sortedPlayers.map((player, index) => {
+        if (currentArcadeSession.state === 'active' && player.username) {
+            // For active players (after game has started)
+            return `
+                <div class="leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}"
+                     data-rank="${index + 1}">
+                    <div class="rank">${index + 1}</div>
+                    <div data-username="${player.username}" class="player-name">${player.username}</div>
+                    <div data-words="${player.wordsCompleted || 0}" class="words">${player.wordsCompleted || 0}</div>
+                    <div data-coins="${player.coins || 0}" class="coins">${player.coins || 0}</div>
+                </div>
+            `;
+        } else {
+            // For waiting players
+            return `
+                <div class="leaderboard-entry waiting ${index < 3 ? `rank-${index + 1}` : ''}"
+                     data-rank="${index + 1}">
+                    <div class="rank">${index + 1}</div>
+                    <div data-username="${player.username}" class="player-name">${player.username}</div>
+                    <div class="player-status-waiting">
+                        <span class="status-text" style="color: ${getRandomColor()}">${getReadyPhrase()}</span>
+                    </div>
+                    <div class="waiting-indicator">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                    </div>
+                </div>
+            `;
+        }
+    }).join('');
+    
+    // Always show the header with all columns
+    const leaderboardHTML = `
+        <div class="leaderboard-header">
+            <div>Rank</div>
+            <div>Player</div>
+            <div>Words</div>
+            <div>Coins</div>
         </div>
-    </div>
-`).join('');
+        ${entries}
+    `;
     
     const leaderboard = document.getElementById('arcade-leaderboard');
-    const header = leaderboard.querySelector('.leaderboard-header').outerHTML;
-    leaderboard.innerHTML = header + entries;
-
+    leaderboard.innerHTML = leaderboardHTML;
+    
     // Update session metadata
     document.getElementById('activeParticipantCount').textContent = sortedPlayers.length;
     document.getElementById('sessionDate').textContent = new Date().toLocaleDateString();
@@ -12563,23 +12754,32 @@ function createParticles(x, y, type) {
 async function joinArcadeWithUsername() {
     const usernameInput = document.getElementById('arcadeUsername');
     const otpInput = document.getElementById('otpInput');
-    const username = usernameInput.value.trim();
-    const otp = otpInput.value.trim();
     
-    // Username validation
-    if (!username || username.length < 2 || username.length > 15) {
-        showErrorToast('Username must be between 2 and 15 characters');
-        usernameInput.focus();
-        return;
-    }
+    // Get username either from input or from current user
+    let username;
+    if (currentUser) {
+        username = currentUser.user_metadata?.username || 
+                  currentUser.email.split('@')[0];
+    } else {
+        username = usernameInput.value.trim();
+        
+        // Username validation for guest users
+        if (!username || username.length < 2 || username.length > 15) {
+            showErrorToast('Username must be between 2 and 15 characters');
+            usernameInput.focus();
+            return;
+        }
 
-    // Validate username characters
-    const validUsernameRegex = /^[a-zA-Z0-9\u0590-\u05FF\s._-]+$/;
-    if (!validUsernameRegex.test(username)) {
-        showErrorToast('Username can contain letters, numbers, spaces, periods, underscores, and hyphens');
-        usernameInput.focus();
-        return;
+        // Validate username characters
+        const validUsernameRegex = /^[a-zA-Z0-9\u0590-\u05FF\s._-]+$/;
+        if (!validUsernameRegex.test(username)) {
+            showErrorToast('Username can contain letters, numbers, spaces, periods, underscores, and hyphens');
+            usernameInput.focus();
+            return;
+        }
     }
+    
+    const otp = otpInput.value.trim();
     
     // OTP validation
     if (!otp || otp.length !== 4 || !/^\d+$/.test(otp)) {
@@ -12619,7 +12819,7 @@ async function joinArcadeWithUsername() {
         window.arcadeChannel
             .on('broadcast', { event: 'game_end' }, ({ payload }) => {
                 handleGameEnd(payload);
-                currentArcadeSession.state = payload.state;
+                currentArcadeSession.state = 'ended';
                 
                 if (payload.state === 'active') {
                     currentArcadeSession.wordPool = payload.wordPool;
@@ -12629,6 +12829,7 @@ async function joinArcadeWithUsername() {
             })
             .on('broadcast', { event: 'game_playing' }, ({ payload }) => {
                 if (payload.state === 'active') {
+                    currentArcadeSession.state = 'active';
                     currentArcadeSession.wordPool = payload.wordPool;
                     currentArcadeSession.wordGoal = payload.wordGoal;
                     startArcadeGame();
