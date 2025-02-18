@@ -5328,7 +5328,7 @@ background-clip: text;
            <div class="word-goal">
                <h3>Word Goal:</h3>
                <select id="wordGoal">
-                   <option value="7">7 words</option>
+                   <option value="5">5 words</option>
                    <option value="100">100 words</option>
                    <option value="200">200 words</option>
                </select>
@@ -12722,18 +12722,11 @@ function showPersonalVictoryScreen(rank) {
     if (currentArcadeSession.winnerScreenShown) return;
     currentArcadeSession.winnerScreenShown = true;
     
-    console.log(`Showing personal victory screen with rank: ${rank}`);
-    
-    // If this is rank 3 and game is ending, don't show personal victory
-    // They'll get the final results screen instead
-    if (rank === 3 && currentArcadeSession.state === 'ended') {
-        return;
-    }
+    console.log(`Showing victory screen with rank: ${rank}`);
     
     // Create a personalized victory overlay
     const overlay = document.createElement('div');
     overlay.className = 'arcade-completion-modal';
-    overlay.id = 'personal-victory-screen';
     
     // Different messages based on rank
     const rankMessages = {
@@ -12791,12 +12784,6 @@ function showPersonalVictoryScreen(rank) {
             </button>
         </div>
     `;
-    
-    // Remove any existing personal victory screens
-    const existingScreen = document.getElementById('personal-victory-screen');
-    if (existingScreen) {
-        existingScreen.remove();
-    }
     
     document.body.appendChild(overlay);
     requestAnimationFrame(() => overlay.classList.add('show'));
