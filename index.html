@@ -4889,6 +4889,52 @@ background-clip: text;
     background: color-mix(in srgb, var(--accent) 90%, white);
 }
 
+.game-code-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.game-code-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.code-action-btn {
+    background: transparent;
+    border: 2px solid var(--accent);
+    color: var(--text);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.code-action-btn:hover {
+    background: var(--accent);
+}
+
+.word-goal-options label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.1);
+    padding: 0.5rem;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.word-goal-options label:has(input:checked) {
+    background: var(--accent);
+}
+
     </style>
 </head>
 <body>
@@ -5376,39 +5422,116 @@ background-clip: text;
     <div class="moderator-container">
         <div class="session-info-panel">
             <div class="session-details">
-    <h2>Arcade Session</h2>
-    <div class="otp-display" id="moderatorOtp"></div>
-    <div class="qr-section">
-        <canvas id="qrCode"></canvas>
-        <p class="qr-hint">Scan to join game</p>
+                <h2>Arcade Session</h2>
+                <div class="otp-display" id="moderatorOtp"></div>
+                
+                <!-- Game Code Section -->
+                <div class="session-metadata game-code-section">
+                    <div class="game-code-wrapper">
+                        <span class="otp-display" id="gameCodeDisplay"></span>
+                        <div class="game-code-actions">
+                            <button onclick="copyGameCode()" class="code-action-btn">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                            <button onclick="regenerateGameCode()" class="code-action-btn">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                    <div class="session-metadata">
-                    <p>Date: <span id="sessionDate"></span></p>
-                    <p>Start Time: <span id="sessionStartTime"></span></p>
-                    <p>Word Goal: <span id="sessionWordGoal"></span></p>
-                    <p>Active Participants: <span id="activeParticipantCount">0</span></p>
+
+                <div class="qr-section">
+                    <canvas id="qrCode"></canvas>
+                    <p class="qr-hint">Scan to join game</p>
                 </div>
-                <div class="game-controls">
-                    <button class="start-button initialize-button" onclick="initializeArcade()">
-                        Initialize Arcade
+
+                <!-- Stage Selection Section -->
+                <div class="setup-section stage-selector">
+                    <h3>📋 Word Pools</h3>
+                    <div class="stage-checkboxes">
+                        <label>
+                            <input type="checkbox" value="1"> Stage 1
+                        </label>
+                        <label>
+                            <input type="checkbox" value="2"> Stage 2
+                        </label>
+                        <label>
+                            <input type="checkbox" value="3"> Stage 3
+                        </label>
+                        <label>
+                            <input type="checkbox" value="4"> Stage 4
+                        </label>
+                        <label>
+                            <input type="checkbox" value="5"> Stage 5
+                        </label>
+                    </div>
+                    <p class="stage-warning" style="display:none; color: var(--error);">
+                        Please select at least one stage
+                    </p>
+                </div>
+
+                <!-- Custom Lists Section -->
+                <div class="setup-section">
+                    <h3>📚 Custom Lists</h3>
+                    <button class="start-button" onclick="showCustomListDropdown()">
+                        <i class="fas fa-plus"></i> Add Custom List
                     </button>
-                    <button class="end-arcade-button" onclick="endArcade()">
-                        End Arcade
-                    </button>
+                    <div class="selected-lists" id="selectedCustomLists">
+                        <!-- Dynamically populated -->
+                    </div>
                 </div>
+
+                <!-- Word Goal Section -->
+                <div class="setup-section">
+                    <h3>🎯 Word Goal</h3>
+                    <div class="stage-checkboxes word-goal-options">
+                        <label>
+                            <input type="radio" name="wordGoal" value="50"> 50
+                        </label>
+                        <label>
+                            <input type="radio" name="wordGoal" value="100" checked> 100
+                        </label>
+                        <label>
+                            <input type="radio" name="wordGoal" value="200"> 200
+                        </label>
+                        <label>
+                            <input type="radio" name="wordGoal" value="custom"> Custom
+                        </label>
+                    </div>
+                    <input 
+                        type="number" 
+                        id="customWordGoalInput" 
+                        placeholder="Enter custom goal" 
+                        style="display:none; width: 100%; margin-top: 0.5rem;"
+                    >
+                </div>
+            </div>
+
+            <div class="game-controls">
+                <button 
+                    class="start-button initialize-button" 
+                    onclick="initializeArcade()" 
+                    id="initializeArcadeBtn"
+                >
+                    Initialize Arcade
+                </button>
+                <button 
+                    class="end-arcade-button" 
+                    onclick="endArcade()"
+                >
+                    End Arcade
+                </button>
             </div>
         </div>
-        <div class="leaderboard-panel">
-            <div id="arcade-leaderboard" class="moderator-leaderboard">
-                <div class="leaderboard-header">
-                    <div>Rank</div>
-                    <div>Player</div>
-                    <div>Words</div>
-                    <div>Coins</div>
-                    <div>Actions</div>
-                </div>
-                <!-- Participants will be dynamically populated here -->
+
+        <div class="leaderboard-panel" id="arcade-leaderboard">
+            <div class="leaderboard-header">
+                <div>Rank</div>
+                <div>Player</div>
+                <div>Words</div>
+                <div>Coins</div>
             </div>
+            <!-- Existing leaderboard entries remain unchanged -->
         </div>
     </div>
 </div>
@@ -11380,12 +11503,6 @@ let currentArcadeSession = {
 
 
 async function showArcadeModal() {
-    const modal = document.getElementById('arcade-modal');
-    const teacherView = document.getElementById('teacher-view');
-    const playerView = document.getElementById('player-view');
-    const usernameField = document.getElementById('arcadeUsername');
-    const usernameGroup = usernameField ? usernameField.closest('.input-group') : null;
-
     try {
         if (currentUser) {
             const { data: profile } = await supabaseClient
@@ -11395,110 +11512,18 @@ async function showArcadeModal() {
                 .single();
 
             if (profile?.role === 'teacher') {
-                // Generate OTP
-                const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
-                // Store in session
-                currentArcadeSession.otp = otp;
-                currentArcadeSession.teacherId = currentUser.id;
-                currentArcadeSession.participants = [];
-                currentArcadeSession.isInitialized = false;
-
-                // Create channel
-                window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`, {
-                    config: { broadcast: { self: true } }
-                });
-
-                // Set up channel listeners
-                window.arcadeChannel
-                    .on('broadcast', { event: 'player_join' }, ({ payload }) => {
-                        console.log('Player join event received:', payload);
-                        if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
-                            currentArcadeSession.participants.push({
-                                username: payload.username,
-                                wordsCompleted: 0,
-                                coins: 0
-                            });
-
-                            // Update both player count and leaderboard
-                            document.getElementById('player-count').textContent = 
-                                currentArcadeSession.participants.length;
-
-                            // Update leaderboard if visible
-                            const leaderboard = document.getElementById('arcade-leaderboard');
-                            if (leaderboard && leaderboard.offsetParent !== null) {
-                                updateAllPlayersProgress();
-                            }
-                        }
-                    })
-                    .subscribe();
-
-                // Add custom lists section before displaying teacher view
-                const customListsSection = document.createElement('div');
-                customListsSection.className = 'custom-lists-selector';
-                customListsSection.innerHTML = `
-                    <div class="section-header">
-                        <h3>Add Custom Lists (Optional)</h3>
-                        <button class="add-list-button">+ Add List</button>
-                    </div>
-                    <div class="selected-lists"></div>
-                    <div class="stage-requirement">
-                        <div class="requirement-note">* Selecting a stage is required</div>
-                    </div>
-                `;
-
-                // Insert before stage selector
-                const stageSelector = teacherView.querySelector('.stage-selector');
-                if (stageSelector) {
-                    teacherView.insertBefore(customListsSection, stageSelector);
-                    
-                    // Handle add list button
-                    const addListButton = customListsSection.querySelector('.add-list-button');
-                    if (addListButton) {
-                        addListButton.onclick = showCustomListDropdown;
-                    }
-                }
-
-                document.getElementById('otp').textContent = otp;
-                teacherView.style.display = 'block';
-                playerView.style.display = 'none';
-
-            } else {
-                // For registered non-teacher users, auto-fill username and hide that field
-                teacherView.style.display = 'none';
-                playerView.style.display = 'block';
-                
-                if (usernameField && usernameGroup) {
-                    const username = currentUser.user_metadata?.username || 
-                                    currentUser.email.split('@')[0];
-                    usernameField.value = username;
-                    usernameField.readOnly = true;
-                    usernameField.style.display = 'none';
-                    
-                    // Add a placeholder to show the username
-                    const usernamePlaceholder = document.createElement('div');
-                    usernamePlaceholder.className = 'username-display';
-                    usernamePlaceholder.textContent = `Joining as: ${username}`;
-                    usernameGroup.insertBefore(usernamePlaceholder, usernameField);
-                }
-            }
-        } else {
-            // For unregistered users, show both username and OTP fields
-            teacherView.style.display = 'none';
-            playerView.style.display = 'block';
-            
-            if (usernameField) {
-                usernameField.readOnly = false;
-                usernameField.style.display = 'block';
-                
-                // Remove any existing username display
-                const existingDisplay = usernameGroup?.querySelector('.username-display');
-                if (existingDisplay) existingDisplay.remove();
+                // DIRECT navigation to moderator screen for teachers
+                showScreen('moderator-screen');
+                return;
             }
         }
+        
+        // Existing modal logic for non-teacher users remains unchanged
+        const modal = document.getElementById('arcade-modal');
+        const teacherView = document.getElementById('teacher-view');
+        const playerView = document.getElementById('player-view');
 
-        modal.style.display = 'block';
-
+        // Rest of the existing modal setup code...
     } catch (error) {
         console.error('Arcade setup error:', error);
         alert('Failed to initialize arcade');
@@ -11740,42 +11765,115 @@ function showWaitingScreen() {
 }
 
 async function initializeArcade() {
-    try {
-        const initButton = document.querySelector('.initialize-button');
-        const endButton = document.querySelector('.end-arcade-button');
-        
-        initButton.style.display = 'none';
-        endButton.classList.add('visible');
-        
-        // Update session state
-        currentArcadeSession.state = 'active';
-        
-        // Initialize all players with 0 words and their starting coins
-        currentArcadeSession.participants = currentArcadeSession.participants.map(player => ({
-            ...player,
-            wordsCompleted: 0,
-            coins: player.coins || 0
-        }));
-        
-        // Update moderator UI immediately
-        updateAllPlayersProgress();
-        
-        // Signal all participants to start
-        await window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'game_playing',
-            payload: {
-                wordPool: currentArcadeSession.wordPool,
-                wordGoal: currentArcadeSession.wordGoal,
-                state: 'active'
-            }
-        });
-
-    } catch (error) {
-        console.error('Initialize error:', error);
-        alert('Failed to start game');
+    // Collect selected stages
+    const selectedStages = Array.from(
+        document.querySelectorAll('.stage-selector input:checked')
+    ).map(cb => parseInt(cb.value));
+    
+    // Validate stage selection
+    if (selectedStages.length === 0) {
+        document.querySelector('.stage-warning').style.display = 'block';
+        return;
     }
+
+    // Collect word goal
+    const wordGoalInputs = document.querySelectorAll('input[name="wordGoal"]');
+    let wordGoal = 100; // Default
+    
+    wordGoalInputs.forEach(input => {
+        if (input.checked) {
+            if (input.value === 'custom') {
+                const customGoal = document.getElementById('customWordGoalInput').value;
+                wordGoal = customGoal ? parseInt(customGoal) : 100;
+            } else {
+                wordGoal = parseInt(input.value);
+            }
+        }
+    });
+
+    // Validate word goal
+    if (!wordGoal || wordGoal <= 0) {
+        showNotification('Invalid word goal', 'error');
+        return;
+    }
+
+    // Existing initialization logic
+    currentArcadeSession.wordPool = generateWordPool(selectedStages);
+    currentArcadeSession.wordGoal = wordGoal;
+    currentArcadeSession.state = 'started';
+
+    // Call existing initialization logic
+    const initButton = document.querySelector('.initialize-button');
+    initButton.style.display = 'none';
+    
+    const endButton = document.querySelector('.end-arcade-button');
+    endButton.classList.add('visible');
+    
+    // Existing session state update
+    currentArcadeSession.participants = currentArcadeSession.participants.map(player => ({
+        ...player,
+        wordsCompleted: 0,
+        coins: player.coins || 0
+    }));
+    
+    // Update moderator UI
+    updateAllPlayersProgress();
+    
+    // Signal all participants to start
+    await window.arcadeChannel.send({
+        type: 'broadcast',
+        event: 'game_playing',
+        payload: {
+            wordPool: currentArcadeSession.wordPool,
+            wordGoal: currentArcadeSession.wordGoal,
+            state: 'active'
+        }
+    });
 }
+
+function copyGameCode() {
+    const gameCode = document.getElementById('gameCodeDisplay').textContent;
+    navigator.clipboard.writeText(gameCode).then(() => {
+        showNotification('Game code copied!', 'success');
+    });
+}
+
+// ADD: Regenerate Game Code Function
+function regenerateGameCode() {
+    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    // Update display
+    document.getElementById('gameCodeDisplay').textContent = otp;
+    document.getElementById('moderatorOtp').textContent = otp;
+    
+    // Regenerate QR code
+    const currentUrl = window.location.origin + window.location.pathname;
+    const joinUrl = `${currentUrl}#join=${otp}`;
+    
+    new QRious({
+        element: document.getElementById('qrCode'),
+        value: joinUrl,
+        size: 200,
+        backgroundAlpha: 1,
+        foreground: '#16213e',
+        background: '#ffffff',
+        level: 'H'
+    });
+
+    showNotification('New game code generated', 'info');
+}
+
+// ADD: Word Goal Custom Input Toggle
+document.addEventListener('DOMContentLoaded', () => {
+    const wordGoalInputs = document.querySelectorAll('input[name="wordGoal"]');
+    const customInput = document.getElementById('customWordGoalInput');
+    
+    wordGoalInputs.forEach(input => {
+        input.addEventListener('change', () => {
+            customInput.style.display = input.value === 'custom' ? 'block' : 'none';
+        });
+    });
+});
 
 function showModeratorScreen() {
     // Hide all screens

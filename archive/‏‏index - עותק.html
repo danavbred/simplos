@@ -4921,8 +4921,7 @@ background-clip: text;
         <div class="auth-modal-content">
             <div id="loginForm" class="auth-form">
                 <h2>Login</h2>
-                <input type="text" class="auth-input" placeholder="Username" id="loginUsername">
-                <input type="password" class="auth-input" placeholder="Password" id="loginPassword">
+                <input type="text" class="auth-input" placeholder="Username or Email" id="loginUsername">                <input type="password" class="auth-input" placeholder="Password" id="loginPassword">
                 <button class="auth-button" onclick="handleLogin()">Login</button>
                 <button class="auth-toggle" onclick="toggleAuthMode()">New? Register here</button>
             </div>
@@ -6064,19 +6063,45 @@ async function initializeGameProgressForUser(userId) {
 }
 
 async function handleLogin() {
-    const email = document.getElementById('loginUsername').value;
+    const loginInput = document.getElementById('loginUsername').value;
     const password = document.getElementById('loginPassword').value;
     
-    if (!email || !password) {
-        alert('Please enter both email and password');
+    if (!loginInput || !password) {
+        alert('Please enter both username/email and password');
         return;
     }
 
     try {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-        });
+        // Determine if input is an email or username
+        const isEmail = loginInput.includes('@');
+        
+        let loginMethod;
+        if (isEmail) {
+            // Login with email
+            loginMethod = supabaseClient.auth.signInWithPassword({
+                email: loginInput,
+                password: password
+            });
+        } else {
+            // Login with username
+            const { data: userProfile, error: profileError } = await supabaseClient
+                .from('user_profiles')
+                .select('email')
+                .eq('username', loginInput)
+                .single();
+
+            if (profileError || !userProfile) {
+                alert('Username not found');
+                return;
+            }
+
+            loginMethod = supabaseClient.auth.signInWithPassword({
+                email: userProfile.email,
+                password: password
+            });
+        }
+
+        const { data, error } = await loginMethod;
 
         if (error) {
             console.error('Login Error:', error);
@@ -6108,7 +6133,7 @@ async function handleLogin() {
             ]);
 
             updateAuthUI();
-            updateGuestPlayButton(); // Add this line
+            updateGuestPlayButton();
             showScreen('welcome-screen');
         }
 
