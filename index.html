@@ -6977,7 +6977,6 @@ function animateCoinsChange(element, startValue, endValue) {
     updateFrame();
 }
 
-
 function updatePlayerProgress(payload) {
     const existingPlayerIndex = currentArcadeSession.participants.findIndex(
         p => p.username === payload.username
@@ -7002,13 +7001,15 @@ function updatePlayerProgress(payload) {
     if (existingPlayerIndex !== -1) {
         currentArcadeSession.participants[existingPlayerIndex] = {
             ...currentArcadeSession.participants[existingPlayerIndex],
-            ...payload
+            ...payload,
+            mistakesMade: payload.mistakesMade || currentArcadeSession.participants[existingPlayerIndex].mistakesMade || 0
         };
     } else {
         currentArcadeSession.participants.push({
             username: payload.username,
             wordsCompleted: payload.wordsCompleted || 0,
-            coins: payload.coins || 0
+            coins: payload.coins || 0,
+            mistakesMade: payload.mistakesMade || 0
         });
     }
     
@@ -7017,6 +7018,9 @@ function updatePlayerProgress(payload) {
         .sort((a, b) => {
             if (b.wordsCompleted !== a.wordsCompleted) {
                 return b.wordsCompleted - a.wordsCompleted;
+            }
+            if ((a.mistakesMade || 0) !== (b.mistakesMade || 0)) {
+                return (a.mistakesMade || 0) - (b.mistakesMade || 0);
             }
             return b.coins - a.coins;
         });
@@ -7032,46 +7036,56 @@ function updatePlayerProgress(payload) {
     `).join('');
     
     const leaderboard = document.getElementById('arcade-leaderboard');
-    leaderboard.innerHTML = leaderboard.querySelector('.leaderboard-header').outerHTML + entries;
+    if (leaderboard) {
+        // Preserve the header if it exists
+        const header = leaderboard.querySelector('.leaderboard-header');
+        if (header) {
+            leaderboard.innerHTML = header.outerHTML + entries;
+        } else {
+            leaderboard.innerHTML = entries;
+        }
+    }
 
     // Apply animations
-    const newEntries = leaderboard.querySelectorAll('.leaderboard-entry');
-    newEntries.forEach(entry => {
-        const username = entry.querySelector('[data-username]').dataset.username;
-        if (oldPositions[username]) {
-            const oldPos = oldPositions[username];
-            const newPos = entry.getBoundingClientRect();
-            const diff = oldPos.top - newPos.top;
-            
-            if (diff > 0) {
-                entry.classList.add('moving-up');
-            } else if (diff < 0) {
-                entry.classList.add('moving-down');
-            }
-            
-            // Animate words and coins if values changed
-            if (oldValues[username]) {
-                const wordsElement = entry.querySelector('[data-words]');
-                const coinsElement = entry.querySelector('[data-coins]');
+    const newEntries = leaderboard?.querySelectorAll('.leaderboard-entry');
+    if (newEntries) {
+        newEntries.forEach(entry => {
+            const username = entry.querySelector('[data-username]').dataset.username;
+            if (oldPositions[username]) {
+                const oldPos = oldPositions[username];
+                const newPos = entry.getBoundingClientRect();
+                const diff = oldPos.top - newPos.top;
                 
-                animateCoinsChange(
-                    wordsElement, 
-                    oldValues[username].words, 
-                    parseInt(wordsElement.textContent)
-                );
+                if (diff > 0) {
+                    entry.classList.add('moving-up');
+                } else if (diff < 0) {
+                    entry.classList.add('moving-down');
+                }
                 
-                animateCoinsChange(
-                    coinsElement, 
-                    oldValues[username].coins, 
-                    parseInt(coinsElement.textContent)
-                );
+                // Animate words and coins if values changed
+                if (oldValues[username]) {
+                    const wordsElement = entry.querySelector('[data-words]');
+                    const coinsElement = entry.querySelector('[data-coins]');
+                    
+                    animateCoinsChange(
+                        wordsElement, 
+                        oldValues[username].words, 
+                        parseInt(wordsElement.textContent)
+                    );
+                    
+                    animateCoinsChange(
+                        coinsElement, 
+                        oldValues[username].coins, 
+                        parseInt(coinsElement.textContent)
+                    );
+                }
+                
+                entry.addEventListener('animationend', () => {
+                    entry.classList.remove('moving-up', 'moving-down');
+                }, { once: true });
             }
-            
-            entry.addEventListener('animationend', () => {
-                entry.classList.remove('moving-up', 'moving-down');
-            }, { once: true });
-        }
-    });
+        });
+    }
 }
 
 function handleTimeUp() {
@@ -12457,6 +12471,7 @@ function handleArcadeAnswer(isCorrect) {
                         username: playerUsername,
                         wordsCompleted: currentGame.wordsCompleted,
                         coins: gameState.coins,
+                        mistakesMade: currentGame.mistakesMade, // Add mistakes to payload
                         timestamp: Date.now()
                     }
                 });
@@ -12473,6 +12488,7 @@ function handleArcadeAnswer(isCorrect) {
     } else {
         currentGame.wrongStreak++;
         currentGame.correctStreak = 0;
+        currentGame.mistakesMade++; // Track mistakes for tie-breaking
         
         // Lose coins with streak penalty
         let coinsLost = 2;
@@ -12490,6 +12506,7 @@ function handleArcadeAnswer(isCorrect) {
                         username: playerUsername,
                         wordsCompleted: currentGame.wordsCompleted,
                         coins: gameState.coins,
+                        mistakesMade: currentGame.mistakesMade, // Add mistakes to payload
                         timestamp: Date.now()
                     }
                 });
@@ -14013,11 +14030,11 @@ async function handlePlayerCompletedGoal(playerUsername) {
     // Add player to completed list
     currentArcadeSession.completedPlayers.push(playerUsername);
     
-    // Determine player rank based on completion order
-    // ONLY the first 3 completions get ranks 1, 2, 3
-    let playerRank = 0;
+    // Track completion order for tie-breaking
     const completionIndex = currentArcadeSession.completedPlayers.indexOf(playerUsername);
     
+    // First determine podium ranks (1-3) based on completion order
+    let playerRank = 0;
     if (completionIndex < 3) {
         // First 3 players get podium ranks
         playerRank = completionIndex + 1;
@@ -14029,21 +14046,59 @@ async function handlePlayerCompletedGoal(playerUsername) {
         currentArcadeSession.podiumRanks[playerUsername] = playerRank;
         
         console.log(`Player ${playerUsername} earned podium rank ${playerRank}`);
+    } else {
+        // For non-podium players, calculate rank based on word count and mistakes
+        // Get all participants sorted by word count (descending) and mistakes (ascending)
+        const sortedParticipants = [...currentArcadeSession.participants]
+            .sort((a, b) => {
+                // First sort by words completed (descending)
+                if (b.wordsCompleted !== a.wordsCompleted) {
+                    return b.wordsCompleted - a.wordsCompleted;
+                }
+                // Then sort by mistakes made (ascending) for tie-breaking
+                return (a.mistakesMade || 0) - (b.mistakesMade || 0);
+            });
+        
+        // Find current player's position in this sorted list
+        const playerPosition = sortedParticipants.findIndex(p => p.username === playerUsername);
+        if (playerPosition !== -1) {
+            // Add 1 to convert from 0-based index to 1-based rank
+            // Ensure players with same word count and mistakes get same rank
+            const player = sortedParticipants[playerPosition];
+            
+            // Find first player with same word count
+            let sameWordCountIndex = playerPosition;
+            while (sameWordCountIndex > 0 &&
+                  sortedParticipants[sameWordCountIndex-1].wordsCompleted === player.wordsCompleted) {
+                sameWordCountIndex--;
+            }
+            
+            // Account for the 3 podium players
+            const podiumCount = Object.keys(currentArcadeSession.podiumRanks || {}).length;
+            playerRank = sameWordCountIndex + podiumCount + 1;
+            
+            console.log(`Player ${playerUsername} calculated rank: ${playerRank}`);
+        } else {
+            // Fallback if player not found in participants list
+            playerRank = currentArcadeSession.participants.length;
+        }
     }
     
     // Update player's data in participants array
     const playerEntry = currentArcadeSession.participants.find(p => p.username === playerUsername);
+    const mistakesMade = playerUsername === currentArcadeSession.playerName ? 
+                        currentGame.mistakesMade : (playerEntry?.mistakesMade || 0);
+    
     if (playerEntry) {
-        // Only set rank for podium players (1-3)
-        if (playerRank > 0) {
-            playerEntry.rank = playerRank;
-        }
+        playerEntry.rank = playerRank;
         playerEntry.wordsCompleted = currentGame.wordsCompleted;
         playerEntry.coins = gameState.coins || currentGame.coins || 0;
+        playerEntry.mistakesMade = mistakesMade;
         playerEntry.completed = true;
+        playerEntry.completionOrder = completionIndex;
     }
     
-    // Broadcast completion 
+    // Broadcast completion with all updated data
     await window.arcadeChannel.send({
         type: 'broadcast',
         event: 'player_completed',
@@ -14052,14 +14107,15 @@ async function handlePlayerCompletedGoal(playerUsername) {
             rank: playerRank,
             wordsCompleted: currentGame.wordsCompleted,
             coins: gameState.coins || currentGame.coins || 0,
+            mistakesMade: mistakesMade,
             timestamp: Date.now(),
-            completed: true
+            completed: true,
+            completionOrder: completionIndex
         }
     });
     
-    // If current player is the one who completed and earned a podium rank,
-    // show personal victory screen
-    if (playerUsername === currentArcadeSession.playerName && playerRank > 0) {
+    // Show personal victory screen for current player
+    if (playerUsername === currentArcadeSession.playerName) {
         showPersonalVictoryScreen(playerRank);
     }
     
@@ -14151,7 +14207,6 @@ function hidePersonalVictoryScreen() {
     }
 }
 
-// REPLACE endArcadeForAll function
 async function endArcadeForAll() {
     currentArcadeSession.state = 'ended';
     currentArcadeSession.endTime = Date.now();
@@ -14182,12 +14237,16 @@ async function endArcadeForAll() {
         }
     });
     
-    // For all other players (not in top 3), sort by words completed
+    // For all other players (not in top 3), sort by words completed and then by mistakes
     const otherParticipants = currentArcadeSession.participants
         .filter(p => !currentArcadeSession.podiumRanks[p.username])
         .sort((a, b) => {
             // Primary sort: words completed (descending)
-            return b.wordsCompleted - a.wordsCompleted;
+            if (b.wordsCompleted !== a.wordsCompleted) {
+                return b.wordsCompleted - a.wordsCompleted;
+            }
+            // Secondary sort: mistakes made (ascending for tie-breaking)
+            return (a.mistakesMade || 0) - (b.mistakesMade || 0);
         });
     
     // Now add these players to our ranked list
@@ -14195,22 +14254,26 @@ async function endArcadeForAll() {
     
     // Assign sequential ranks to all players beyond podium
     let nextRank = 4;
-    let lastWordsCompleted = -1;
+    let lastKey = '';
     let currentRank = nextRank;
     
     for (let i = 3; i < rankedParticipants.length; i++) {
-        // If this player has the same words completed as previous player,
+        const player = rankedParticipants[i];
+        // Create a ranking key combining words and mistakes
+        const rankingKey = `${player.wordsCompleted}_${player.mistakesMade || 0}`;
+        
+        // If this player has the same ranking key as previous player,
         // give them the same rank (tie)
-        if (rankedParticipants[i].wordsCompleted === lastWordsCompleted) {
+        if (rankingKey === lastKey) {
             rankedParticipants[i].rank = currentRank;
         } else {
-            // New words count = new rank
+            // New ranking key = new rank
             currentRank = nextRank;
             rankedParticipants[i].rank = currentRank;
-            lastWordsCompleted = rankedParticipants[i].wordsCompleted;
+            lastKey = rankingKey;
         }
         
-        // Always increment nextRank for the next different word count
+        // Always increment nextRank for the next different ranking
         nextRank++;
     }
     
@@ -14223,7 +14286,8 @@ async function endArcadeForAll() {
     console.log('Final rankings:', rankedParticipants.map(p => ({
         username: p.username,
         rank: p.rank,
-        wordsCompleted: p.wordsCompleted
+        wordsCompleted: p.wordsCompleted,
+        mistakesMade: p.mistakesMade || 0
     })));
     
     // Broadcast final rankings to all participants
