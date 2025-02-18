@@ -12615,10 +12615,12 @@ function handleGameEnd(payload) {
 function showFinalResultsForPlayer(players) {
     const playerUsername = currentArcadeSession.playerName;
     
-    // If player already saw their victory screen (top 3), don't show another
-    if (currentArcadeSession.winnerScreenShown && 
-        currentArcadeSession.podiumRanks && 
-        currentArcadeSession.podiumRanks[playerUsername]) {
+    // Check if player is in top 3 using podiumRanks
+    const isPodiumWinner = currentArcadeSession.podiumRanks && 
+                          currentArcadeSession.podiumRanks[playerUsername] !== undefined;
+    
+    // If player already saw their victory screen (for podium winners), don't show another
+    if (currentArcadeSession.winnerScreenShown && isPodiumWinner) {
         return;
     }
     
@@ -12638,73 +12640,105 @@ function showFinalResultsForPlayer(players) {
         });
     }
     
-    // Get current player's rank from podiumRanks if they're in top 3
-    let playerRank = 0;
-    const podiumPlayer = top3.find(p => p.username === playerUsername);
-    if (podiumPlayer) {
-        playerRank = podiumPlayer.rank;
-    }
-    const isOnPodium = playerRank > 0 && playerRank <= 3;
+    // Get current player's rank from podiumRanks
+    const playerRank = isPodiumWinner ? currentArcadeSession.podiumRanks[playerUsername] : 0;
     
-    // Calculate earned coins
-    const startingCoins = currentArcadeSession.initialCoins || 0;
-    const currentCoins = gameState.coins || currentGame.coins || 0;
-    const coinsEarned = currentCoins - startingCoins;
-    
-    // Get player's words completed
-    const wordsCompleted = currentGame.wordsCompleted || 0;
-    
-    // Create results modal
+    // Create overlay with content based on whether player is on podium
     const overlay = document.createElement('div');
     overlay.className = 'arcade-completion-modal';
     
-    overlay.innerHTML = `
-        <div class="completion-modal-content">
-            <h2>Arcade Game Complete!</h2>
-            ${isOnPodium ? 
-                `<p class="personal-result">Congratulations! You finished in ${getOrdinal(playerRank)} place!</p>` : 
-                `<p class="personal-result">Better luck next time!</p>`
-            }
-            <div class="leaderboard-preview">
-                <h3>Winners</h3>
-                ${top3.map((player) => `
-                    <div class="podium-player rank-${player.rank} ${player.username === playerUsername ? 'current-player' : ''}"
-                         style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; margin: 0.5rem 0; 
-                                background: ${getPlayerBackground(player.rank, player.username === playerUsername)};
-                                border-radius: 10px; color: ${player.rank === 1 ? '#000' : '#fff'};">
-                        <div class="player-rank">${player.rank}</div>
-                        <div class="player-name">${player.username}</div>
-                        <div class="player-stats">
-                            <span class="player-words">${player.wordsCompleted || 0} words</span>
-                            <span class="player-coins">${player.coins || 0} coins</span>
+    if (isPodiumWinner) {
+        // For podium winners (ranks 1-3)
+        
+        // Calculate earned coins
+        const startingCoins = currentArcadeSession.initialCoins || 0;
+        const currentCoins = gameState.coins || currentGame.coins || 0;
+        const coinsEarned = currentCoins - startingCoins;
+        
+        // Get player's words completed
+        const wordsCompleted = currentGame.wordsCompleted || 0;
+        
+        overlay.innerHTML = `
+            <div class="completion-modal-content">
+                <h2>Arcade Game Complete!</h2>
+                <p class="personal-result">Congratulations! You finished in ${getOrdinal(playerRank)} place!</p>
+                
+                <div class="leaderboard-preview">
+                    <h3>Winners</h3>
+                    ${top3.map((player) => `
+                        <div class="podium-player rank-${player.rank} ${player.username === playerUsername ? 'current-player' : ''}"
+                             style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; margin: 0.5rem 0; 
+                                    background: ${getPlayerBackground(player.rank, player.username === playerUsername)};
+                                    border-radius: 10px; color: ${player.rank === 1 ? '#000' : '#fff'};">
+                            <div class="player-rank">${player.rank}</div>
+                            <div class="player-name">${player.username}</div>
+                            <div class="player-stats">
+                                <span class="player-words">${player.wordsCompleted || 0} words</span>
+                                <span class="player-coins">${player.coins || 0} coins</span>
+                            </div>
                         </div>
-                    </div>
-                `).join('')}
-            </div>
-            <div class="your-stats">
-                <h3>Your Results</h3>
-                <div class="completion-stats" style="display: flex; justify-content: space-around; margin: 1.5rem 0;">
-                    <div class="stat-item" style="text-align: center;">
-                        <i class="fas fa-language" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
-                        <span style="display: block; margin-bottom: 0.25rem;">Words Learned</span>
-                        <strong style="font-size: 1.5rem;">${wordsCompleted}</strong>
-                    </div>
-                    <div class="stat-item" style="text-align: center;">
-                        <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
-                        <span style="display: block; margin-bottom: 0.25rem;">Coins Earned</span>
-                        <strong style="font-size: 1.5rem;">${coinsEarned}</strong>
-                    </div>
-                    <div class="stat-item" style="text-align: center;">
-                        <i class="fas fa-trophy" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
-                        <span style="display: block; margin-bottom: 0.25rem;">Your Rank</span>
-                        <strong style="font-size: 1.5rem;">${isOnPodium ? playerRank : '---'}</strong>
+                    `).join('')}
+                </div>
+                
+                <div class="your-stats">
+                    <h3>Your Results</h3>
+                    <div class="completion-stats" style="display: flex; justify-content: space-around; margin: 1.5rem 0;">
+                        <div class="stat-item" style="text-align: center;">
+                            <i class="fas fa-language" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                            <span style="display: block; margin-bottom: 0.25rem;">Words Learned</span>
+                            <strong style="font-size: 1.5rem;">${wordsCompleted}</strong>
+                        </div>
+                        <div class="stat-item" style="text-align: center;">
+                            <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                            <span style="display: block; margin-bottom: 0.25rem;">Coins Earned</span>
+                            <strong style="font-size: 1.5rem;">${coinsEarned}</strong>
+                        </div>
+                        <div class="stat-item" style="text-align: center;">
+                            <i class="fas fa-trophy" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                            <span style="display: block; margin-bottom: 0.25rem;">Your Rank</span>
+                            <strong style="font-size: 1.5rem;">${playerRank}</strong>
+                        </div>
                     </div>
                 </div>
             </div>
-            <button onclick="exitArcadeCompletion()" class="start-button">
-                Return to Welcome
-            </button>
-        </div>
+        `;
+    } else {
+        // For non-podium players - show only the winners without personal stats
+        overlay.innerHTML = `
+            <div class="completion-modal-content">
+                <h2>Arcade Game Complete!</h2>
+                <p class="winners-announcement">The winners are:</p>
+                
+                <div class="leaderboard-preview">
+                    <h3>Winners</h3>
+                    ${top3.map((player) => `
+                        <div class="podium-player rank-${player.rank}"
+                             style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; margin: 0.5rem 0; 
+                                    background: ${getPlayerBackground(player.rank, false)};
+                                    border-radius: 10px; color: ${player.rank === 1 ? '#000' : '#fff'};">
+                            <div class="player-rank">${player.rank}</div>
+                            <div class="player-name">${player.username}</div>
+                            <div class="player-stats">
+                                <span class="player-words">${player.wordsCompleted || 0} words</span>
+                                <span class="player-coins">${player.coins || 0} coins</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <p class="encouragement" style="margin-top: 1.5rem; color: var(--text); font-style: italic;">
+                    Better luck next time! Keep practicing to improve your skills.
+                </p>
+            </div>
+        `;
+    }
+    
+    // Add return button
+    const content = overlay.querySelector('.completion-modal-content');
+    content.innerHTML += `
+        <button onclick="exitArcadeCompletion()" class="start-button">
+            Return to Welcome
+        </button>
     `;
     
     document.body.appendChild(overlay);
