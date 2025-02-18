@@ -14052,7 +14052,6 @@ async function handlePlayerCompletedGoal(playerUsername) {
         playerEntry.wordsCompleted = currentGame.wordsCompleted;
         playerEntry.coins = gameState.coins || currentGame.coins || 0;
         playerEntry.completed = true;
-        playerEntry.completionTime = Date.now();
     }
     
     // Broadcast completion 
@@ -14069,19 +14068,14 @@ async function handlePlayerCompletedGoal(playerUsername) {
         }
     });
     
-    // For players 1 and 2, show personal victory screen
-    if (playerUsername === currentArcadeSession.playerName && playerRank > 0 && playerRank < 3) {
+    // If current player is the one who completed and earned a podium rank,
+    // show personal victory screen
+    if (playerUsername === currentArcadeSession.playerName && playerRank > 0) {
         showPersonalVictoryScreen(playerRank);
     }
     
     // If this was the third player to complete, end the game for everyone
     if (currentArcadeSession.completedPlayers.length === 3) {
-        // Don't show the rank 3 personal victory screen if it's the current player
-        // They'll see the final results screen instead
-        if (playerUsername === currentArcadeSession.playerName) {
-            currentArcadeSession.winnerScreenShown = true;
-        }
-        
         await endArcadeForAll();
     }
 }
