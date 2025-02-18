@@ -5328,7 +5328,7 @@ background-clip: text;
            <div class="word-goal">
                <h3>Word Goal:</h3>
                <select id="wordGoal">
-                   <option value="5">5 words</option>
+                   <option value="10">10 words</option>
                    <option value="100">100 words</option>
                    <option value="200">200 words</option>
                </select>
@@ -12517,33 +12517,34 @@ async function endArcade() {
         currentArcadeSession.state = 'ended';
         currentArcadeSession.endTime = Date.now();
         
-        // Get final player rankings
+        // Get final player rankings based on word completion
         const finalRankings = [...currentArcadeSession.participants]
             .sort((a, b) => {
                 if (b.wordsCompleted !== a.wordsCompleted) {
                     return b.wordsCompleted - a.wordsCompleted;
                 }
                 return b.coins - a.coins;
-            });
+            })
+            .map((player, index) => ({
+                ...player,
+                rank: index + 1 // Assign final rank
+            }));
         
-        // Get top 3 players
-        const top3Players = finalRankings.slice(0, 3);
-        
-        // Broadcast end game event to all participants
+        // Broadcast end game event with forcedEnd flag
         await window.arcadeChannel.send({
             type: 'broadcast',
             event: 'game_end',
             payload: {
                 state: 'ended',
-                topPlayers: top3Players,
                 allPlayers: finalRankings,
                 teacherId: currentUser.id,
-                duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
+                duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime),
+                forcedEnd: true
             }
         });
         
         // Show final results for teacher
-        showFinalResults(finalRankings);
+        showModeratorVictoryScreen(finalRankings);
         
     } catch (error) {
         console.error('End game error:', error);
@@ -12554,69 +12555,142 @@ async function endArcade() {
 function handleGameEnd(payload) {
     console.log('Game End Payload:', payload);
 
-    // If no payload or no participants, exit
-    if (!payload || !payload.participants) return;
+    // If no payload or no participants data, exit
+    if (!payload) return;
+    
+    // Use allPlayers if available, otherwise use participants
+    const allPlayers = payload.allPlayers || 
+                      payload.participants || 
+                      currentArcadeSession.participants || [];
+                      
+    if (allPlayers.length === 0) {
+        console.warn('No player data found in game end payload');
+        showScreen('welcome-screen');
+        return;
+    }
 
-    // Determine if current user is a participant or moderator
-    const playerUsername = currentUser?.user_metadata?.username || 
-                           (currentUser?.id === payload.teacherId ? 'Moderator' : getRandomSimploName());
+    // Also store podium ranks if provided
+    if (payload.podiumRanks) {
+        currentArcadeSession.podiumRanks = payload.podiumRanks;
+    }
 
-    // If moderator, just show welcome screen
+    // If forcibly ended by moderator, just go back to welcome
+    if (payload.forcedEnd) {
+        showScreen('welcome-screen');
+        return;
+    }
+
+    // If this is the moderator, show victory screen
     if (currentUser?.id === payload.teacherId) {
-        showScreen('welcome-screen');
+        showModeratorVictoryScreen(allPlayers);
         return;
     }
 
-    const playerData = payload.participants.find(p => p.username === playerUsername);
+    // Normal end for players - show final results
+    showFinalResultsForPlayer(allPlayers);
+}
 
-    if (!playerData) {
-        console.warn('No player data found for:', playerUsername);
-        showScreen('welcome-screen');
+// REPLACE showFinalResultsForPlayer function
+function showFinalResultsForPlayer(players) {
+    const playerUsername = currentArcadeSession.playerName;
+    const currentPlayer = players.find(p => p.username === playerUsername);
+    
+    // If player already saw their victory screen (top 3), don't show another
+    if (currentArcadeSession.winnerScreenShown && 
+        currentArcadeSession.podiumRanks && 
+        currentArcadeSession.podiumRanks[playerUsername]) {
         return;
     }
-
-    // Sort participants to get ranks
-    const sortedPlayers = payload.participants
-        .sort((a, b) => {
-            if (b.wordsCompleted !== a.wordsCompleted) {
-                return b.wordsCompleted - a.wordsCompleted;
-            }
-            return b.coins - a.coins;
-        });
     
-    playerData.rank = sortedPlayers.findIndex(p => p.username === playerUsername) + 1;
+    // Get final rank from sorted players list
+    const playerRank = currentPlayer?.rank || 
+                      players.findIndex(p => p.username === playerUsername) + 1;
     
-    // Create completion modal (same implementation for all players)
+    // Create a complete top 3 from the players list
+    // This is crucial - we need to ensure all three podium positions are shown
+    const top3 = [];
+    
+    // First, find players with explicit ranks 1, 2, and 3
+    for (let rank = 1; rank <= 3; rank++) {
+        const player = players.find(p => p.rank === rank);
+        if (player) {
+            top3.push(player);
+        } else {
+            console.warn(`No player found with rank ${rank}`);
+        }
+    }
+    
+    // Sort by rank to ensure correct order
+    top3.sort((a, b) => a.rank - b.rank);
+    
+    console.log('Top 3 players for display:', top3);
+    
+    // Create results modal
     const overlay = document.createElement('div');
     overlay.className = 'arcade-completion-modal';
+    
+    // Calculate earned coins
+    const startingCoins = currentArcadeSession.initialCoins || 0;
+    const currentCoins = gameState.coins || currentGame.coins || 0;
+    const coinsEarned = currentCoins - startingCoins;
+    
     overlay.innerHTML = `
         <div class="completion-modal-content">
-            <h2>Arcade Session Complete!</h2>
-            <div class="completion-stats">
-                <div class="stat-item">
-                    <i class="fas fa-language"></i>
-                    <span>Words Learned</span>
-                    <strong>${playerData.wordsCompleted || 0}</strong>
-                </div>
-                <div class="stat-item">
-                    <i class="fas fa-coins"></i>
-                    <span>Coins Earned</span>
-                    <strong>${playerData.coins || 0}</strong>
-                </div>
-                <div class="stat-item">
-                    <i class="fas fa-trophy"></i>
-                    <span>Rank</span>
-                    <strong>${playerData.rank || 'N/A'}</strong>
-                </div>
-            </div>
+            <h2>Arcade Game Complete!</h2>
+            ${playerRank <= 3 ? 
+                `<p class="personal-result">Congratulations! You finished in ${getOrdinal(playerRank)} place!</p>` : 
+                `<p class="personal-result">You earned ${getOrdinal(playerRank)} place. Better luck next time!</p>`
+            }
             <div class="leaderboard-preview">
-                <h3>Top 3 Players</h3>
-                ${sortedPlayers.slice(0, 3).map((player, index) => `
-                    <div class="podium-player rank-${index + 1}">
-                        <span class="player-name">${player.username}</span>
-                        <span class="player-words">${player.wordsCompleted} words</span>
+                <h3>Top Players</h3>
+                ${top3.map((player) => `
+                    <div class="podium-player rank-${player.rank} ${player.username === playerUsername ? 'current-player' : ''}"
+                         style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; margin: 0.5rem 0; 
+                                background: ${getPlayerBackground(player.rank, player.username === playerUsername)};
+                                border-radius: 10px; color: ${player.rank === 1 ? '#000' : '#fff'};">
+                        <div class="player-rank">${player.rank}</div>
+                        <div class="player-name">${player.username}</div>
+                        <div class="player-stats">
+                            <span class="player-words">${player.wordsCompleted || 0} words</span>
+                            <span class="player-coins">${player.coins || 0} coins</span>
+                        </div>
                     </div>
                 `).join('')}
+                
+                ${playerRank > 3 ? `
+                    <div class="divider" style="border-top: 1px dashed rgba(255,255,255,0.2); margin: 1rem 0;"></div>
+                    <div class="current-player-row podium-player"
+                         style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; margin: 0.5rem 0; 
+                                background: rgba(255,255,255,0.1); border: 1px solid var(--accent);
+                                border-radius: 10px; color: var(--text);">
+                        <div class="player-rank">${playerRank}</div>
+                        <div class="player-name">${playerUsername}</div>
+                        <div class="player-stats">
+                            <span class="player-words">${currentPlayer?.wordsCompleted || 0} words</span>
+                            <span class="player-coins">${currentPlayer?.coins || 0} coins</span>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+            <div class="your-stats">
+                <h3>Your Results</h3>
+                <div class="completion-stats" style="display: flex; justify-content: space-around; margin: 1.5rem 0;">
+                    <div class="stat-item" style="text-align: center;">
+                        <i class="fas fa-language" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                        <span style="display: block; margin-bottom: 0.25rem;">Words Learned</span>
+                        <strong style="font-size: 1.5rem;">${currentPlayer?.wordsCompleted || 0}</strong>
+                    </div>
+                    <div class="stat-item" style="text-align: center;">
+                        <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                        <span style="display: block; margin-bottom: 0.25rem;">Coins Earned</span>
+                        <strong style="font-size: 1.5rem;">${coinsEarned}</strong>
+                    </div>
+                    <div class="stat-item" style="text-align: center;">
+                        <i class="fas fa-trophy" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                        <span style="display: block; margin-bottom: 0.25rem;">Your Rank</span>
+                        <strong style="font-size: 1.5rem;">${playerRank}</strong>
+                    </div>
+                </div>
             </div>
             <button onclick="exitArcadeCompletion()" class="start-button">
                 Return to Welcome
@@ -12624,19 +12698,422 @@ function handleGameEnd(payload) {
         </div>
     `;
     
-    // Make the modal closable by clicking anywhere
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-            exitArcadeCompletion();
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('show'));
+    
+    // Helper function for podium background colors
+    function getPlayerBackground(rank, isCurrentPlayer) {
+        const backgrounds = {
+            1: 'linear-gradient(135deg, #FFD700 0%, #FFC800 100%)', // 1st place - gold
+            2: 'linear-gradient(135deg, #C0C0C0 0%, #A9A9A9 100%)', // 2nd place - silver
+            3: 'linear-gradient(135deg, #CD7F32 0%, #B87333 100%)'  // 3rd place - bronze
+        };
+        
+        if (isCurrentPlayer) {
+            return (backgrounds[rank] || 'rgba(255,255,255,0.1)') + 
+                   '; border: 2px solid white; box-shadow: 0 0 15px rgba(255,255,255,0.5)';
         }
-    });
+        
+        return backgrounds[rank] || 'rgba(255,255,255,0.1)';
+    }
+}
+
+function showPersonalVictoryScreen(rank) {
+    if (currentArcadeSession.winnerScreenShown) return;
+    currentArcadeSession.winnerScreenShown = true;
+    
+    console.log(`Showing victory screen with rank: ${rank}`);
+    
+    // Create a personalized victory overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'arcade-completion-modal';
+    
+    // Different messages based on rank
+    const rankMessages = {
+        1: {
+            title: "🏆 FIRST PLACE! 🏆",
+            message: "Incredible! You've claimed the top spot!",
+            color: "var(--gold)"
+        },
+        2: {
+            title: "🥈 SECOND PLACE! 🥈",
+            message: "Amazing job! You've secured second place!",
+            color: "var(--silver)"
+        },
+        3: {
+            title: "🥉 THIRD PLACE! 🥉",
+            message: "Well done! You've earned third place!",
+            color: "var(--bronze)"
+        }
+    };
+    
+    const message = rankMessages[rank] || {
+        title: "Game Complete!",
+        message: "You've reached the word goal!",
+        color: "var(--accent)"
+    };
+    
+    // Calculate coins earned during this arcade session
+    const startingCoins = currentArcadeSession.initialCoins || 0;
+    const currentCoins = gameState.coins || currentGame.coins || 0;
+    const coinsEarned = currentCoins - startingCoins;
+    
+    overlay.innerHTML = `
+        <div class="completion-modal-content">
+            <h2 style="color: ${message.color}">${message.title}</h2>
+            <p>${message.message}</p>
+            <div class="completion-stats">
+                <div class="stat-item">
+                    <i class="fas fa-language"></i>
+                    <span>Words Learned</span>
+                    <strong>${currentGame.wordsCompleted}</strong>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-coins"></i>
+                    <span>Coins Earned</span>
+                    <strong>${coinsEarned}</strong>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-trophy"></i>
+                    <span>Your Rank</span>
+                    <strong>${rank}</strong>
+                </div>
+            </div>
+            <button onclick="exitArcadeCompletion()" class="start-button">
+                Return to Welcome
+            </button>
+        </div>
+    `;
     
     document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('show'));
+}
+
+function showModeratorVictoryScreen(players) {
+    // First clean up any existing screens
+    const existingOverlay = document.querySelector('.arcade-completion-modal');
+    if (existingOverlay) existingOverlay.remove();
     
-    // Ensure the modal is visible
-    requestAnimationFrame(() => {
-        overlay.classList.add('show');
-    });
+    // Hide moderator screen
+    document.getElementById('moderator-screen').classList.remove('visible');
+    
+    // Create dramatic victory screen
+    const victoryScreen = document.createElement('div');
+    victoryScreen.className = 'screen visible';
+    victoryScreen.id = 'victory-screen';
+    victoryScreen.style.cssText = `
+        background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        width: 100%;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 2000;
+    `;
+    
+    // Get top 3 players
+    const top3 = players.slice(0, 3).reverse(); // Reverse so we can reveal 3rd->2nd->1st
+    
+    victoryScreen.innerHTML = `
+        <h1 class="victory-title" style="color: var(--gold); font-size: 3rem; margin-bottom: 2rem; text-align: center;">
+            Arcade Champions
+        </h1>
+        <div class="podium-container" style="display: flex; flex-direction: column; align-items: center; margin: 2rem 0; width: 100%;">
+            <div id="winners-reveal" style="display: flex; flex-direction: column; align-items: center; width: 100%;"></div>
+        </div>
+        <div class="victory-button-container" style="margin-top: 3rem; display: flex; gap: 2rem;">
+            <button class="start-button back-button" onclick="showScreen('welcome-screen')">
+                Back to Welcome
+            </button>
+            <button class="start-button play-again-button" onclick="restartArcade()">
+                Play Again
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(victoryScreen);
+    
+    // Dramatic reveal of winners (3rd, 2nd, then 1st place)
+    const revealWinners = async () => {
+        const winnersContainer = document.getElementById('winners-reveal');
+        
+        // Function to create confetti
+        const createConfetti = () => {
+            const colors = ['#FFD700', '#FFA500', '#1E90FF', '#ff1f5a', '#4CAF50'];
+            const confettiCount = 200;
+            
+            for (let i = 0; i < confettiCount; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti-piece';
+                
+                // Random position, color, and animation delay
+                const xPos = Math.random() * 100;
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                const delay = Math.random() * 3;
+                const duration = 3 + Math.random() * 2;
+                
+                confetti.style.cssText = `
+                    position: fixed;
+                    width: 10px;
+                    height: 10px;
+                    background-color: ${color};
+                    left: ${xPos}vw;
+                    top: -5vh;
+                    opacity: 0;
+                    border-radius: ${Math.random() > 0.5 ? '50%' : '0'};
+                    animation: confettiFall ${duration}s ease-in ${delay}s forwards;
+                    z-index: 1500;
+                `;
+                
+                document.body.appendChild(confetti);
+                
+                // Remove after animation completes
+                setTimeout(() => {
+                    confetti.remove();
+                }, (duration + delay) * 1000);
+            }
+        };
+        
+        // Define keyframes for confetti animation if not already defined
+        if (!document.getElementById('confetti-keyframes')) {
+            const keyframes = document.createElement('style');
+            keyframes.id = 'confetti-keyframes';
+            keyframes.textContent = `
+                @keyframes confettiFall {
+                    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+                    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+                }
+                @keyframes winnerReveal {
+                    0% { transform: translateY(50px); opacity: 0; }
+                    100% { transform: translateY(0); opacity: 1; }
+                }
+                @keyframes spotlight {
+                    0%, 100% { box-shadow: 0 0 30px 15px rgba(255, 215, 0, 0.3); }
+                    50% { box-shadow: 0 0 50px 25px rgba(255, 215, 0, 0.5); }
+                }
+                .winner-card {
+                    animation: winnerReveal 1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+                    opacity: 0;
+                }
+                .first-place {
+                    animation: spotlight 2s infinite, winnerReveal 1.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+                }
+            `;
+            document.head.appendChild(keyframes);
+        }
+        
+        // Reveal 3rd place after a delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (top3[0]) {
+            const thirdPlace = document.createElement('div');
+            thirdPlace.className = 'winner-card';
+            thirdPlace.innerHTML = createWinnerCard(top3[0], 3);
+            winnersContainer.appendChild(thirdPlace);
+        }
+        
+        // Reveal 2nd place after another delay
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        if (top3[1]) {
+            const secondPlace = document.createElement('div');
+            secondPlace.className = 'winner-card';
+            secondPlace.innerHTML = createWinnerCard(top3[1], 2);
+            winnersContainer.appendChild(secondPlace);
+        }
+        
+        // Reveal 1st place with confetti effect
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        if (top3[2]) {
+            createConfetti(); // Start confetti before revealing 1st place
+            const firstPlace = document.createElement('div');
+            firstPlace.className = 'winner-card first-place';
+            firstPlace.innerHTML = createWinnerCard(top3[2], 1);
+            winnersContainer.appendChild(firstPlace);
+        }
+    };
+    
+    // Helper to create winner cards
+    function createWinnerCard(player, place) {
+        const medals = {
+            1: '🏆',
+            2: '🥈',
+            3: '🥉'
+        };
+        
+        const colors = {
+            1: 'linear-gradient(135deg, #FFD700 0%, #FFC800 100%)',
+            2: 'linear-gradient(135deg, #C0C0C0 0%, #A9A9A9 100%)',
+            3: 'linear-gradient(135deg, #CD7F32 0%, #B87333 100%)'
+        };
+        
+        const titles = {
+            1: 'CHAMPION',
+            2: 'RUNNER-UP',
+            3: 'HONORABLE MENTION'
+        };
+        
+        return `
+            <div class="place-${place}" style="
+                background: ${colors[place]};
+                padding: 1.5rem;
+                border-radius: 20px;
+                margin: 1rem 0;
+                display: flex;
+                align-items: center;
+                width: 80%;
+                max-width: 500px;
+                justify-content: space-between;
+                position: relative;
+                overflow: hidden;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            ">
+                <div class="medal" style="font-size: 3rem; margin-right: 1.5rem;">${medals[place]}</div>
+                <div class="player-info" style="flex: 1; color: ${place === 1 ? '#000' : '#fff'};">
+                    <div class="player-title" style="font-size: 0.9rem; opacity: 0.8;">${titles[place]}</div>
+                    <div class="player-name" style="font-size: 1.8rem; font-weight: bold; margin: 0.5rem 0;">
+                        ${player.username}
+                    </div>
+                    <div class="player-stats" style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+                        <div class="stat">
+                            <span style="opacity: 0.8;">Words:</span>
+                            <strong>${player.wordsCompleted || 0}</strong>
+                        </div>
+                        <div class="stat">
+                            <span style="opacity: 0.8;">Coins:</span>
+                            <strong>${player.coins || 0}</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="place-number" style="
+                    font-size: 5rem;
+                    font-weight: bold;
+                    opacity: 0.2;
+                    position: absolute;
+                    right: 20px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                ">${place}</div>
+            </div>
+        `;
+    }
+    
+    // Start the dramatic reveal
+    revealWinners();
+}
+
+function showPlayerFinalResults(players) {
+    // Find current player's data and rank
+    const playerUsername = currentArcadeSession.playerName;
+    const currentPlayer = players.find(p => p.username === playerUsername);
+    
+    // Get player's rank - should be explicitly set in the players array
+    const currentPlayerRank = currentPlayer?.rank || 
+                            players.findIndex(p => p.username === playerUsername) + 1;
+    
+    // If we've already shown a victory screen for this player, don't show results
+    if (currentArcadeSession.winnerScreenShown && currentPlayerRank <= 3) {
+        return;
+    }
+    
+    // Create final results overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'arcade-completion-modal';
+    
+    // Get the top 3 players
+    const top3 = players
+        .filter(p => p.rank <= 3)
+        .sort((a, b) => a.rank - b.rank);
+    
+    // Calculate coins earned during this arcade session
+    const startingCoins = currentArcadeSession.initialCoins || 0;
+    const currentCoins = gameState.coins || currentGame.coins || 0;
+    const coinsEarned = currentCoins - startingCoins;
+    
+    overlay.innerHTML = `
+        <div class="completion-modal-content">
+            <h2>Arcade Game Complete!</h2>
+            ${currentPlayerRank <= 3 ? 
+                `<p class="personal-result">Congratulations! You finished in ${getOrdinal(currentPlayerRank)} place!</p>` : 
+                `<p class="personal-result">You earned ${getOrdinal(currentPlayerRank)} place. Better luck next time!</p>`
+            }
+            <div class="leaderboard-preview">
+                <h3>Top Players</h3>
+                ${top3.map((player) => `
+                    <div class="podium-player rank-${player.rank} ${player.username === playerUsername ? 'current-player' : ''}"
+                         style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; margin: 0.5rem 0; 
+                                background: ${getPlayerBackground(player.rank, player.username === playerUsername)};
+                                border-radius: 10px; color: ${player.rank === 1 ? '#000' : '#fff'};">
+                        <div class="player-rank">${player.rank}</div>
+                        <div class="player-name">${player.username}</div>
+                        <div class="player-stats">
+                            <span class="player-words">${player.wordsCompleted || 0} words</span>
+                            <span class="player-coins">${player.coins || 0} coins</span>
+                        </div>
+                    </div>
+                `).join('')}
+                
+                ${currentPlayerRank > 3 ? `
+                    <div class="divider" style="border-top: 1px dashed rgba(255,255,255,0.2); margin: 1rem 0;"></div>
+                    <div class="current-player-row podium-player"
+                         style="display: flex; justify-content: space-between; padding: 0.75rem 1rem; margin: 0.5rem 0; 
+                                background: rgba(255,255,255,0.1); border: 1px solid var(--accent);
+                                border-radius: 10px; color: var(--text);">
+                        <div class="player-rank">${currentPlayerRank}</div>
+                        <div class="player-name">${playerUsername}</div>
+                        <div class="player-stats">
+                            <span class="player-words">${currentPlayer?.wordsCompleted || 0} words</span>
+                            <span class="player-coins">${currentPlayer?.coins || 0} coins</span>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+            <div class="your-stats">
+                <h3>Your Results</h3>
+                <div class="completion-stats" style="display: flex; justify-content: space-around; margin: 1.5rem 0;">
+                    <div class="stat-item" style="text-align: center;">
+                        <i class="fas fa-language" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                        <span style="display: block; margin-bottom: 0.25rem;">Words Learned</span>
+                        <strong style="font-size: 1.5rem;">${currentPlayer?.wordsCompleted || 0}</strong>
+                    </div>
+                    <div class="stat-item" style="text-align: center;">
+                        <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                        <span style="display: block; margin-bottom: 0.25rem;">Coins Earned</span>
+                        <strong style="font-size: 1.5rem;">${coinsEarned}</strong>
+                    </div>
+                    <div class="stat-item" style="text-align: center;">
+                        <i class="fas fa-trophy" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                        <span style="display: block; margin-bottom: 0.25rem;">Your Rank</span>
+                        <strong style="font-size: 1.5rem;">${currentPlayerRank}</strong>
+                    </div>
+                </div>
+            </div>
+            <button onclick="exitArcadeCompletion()" class="start-button">
+                Return to Welcome
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('show'));
+    
+    // Helper function for podium background colors
+    function getPlayerBackground(rank, isCurrentPlayer) {
+        const backgrounds = {
+            1: 'linear-gradient(135deg, #FFD700 0%, #FFC800 100%)', // 1st place - gold
+            2: 'linear-gradient(135deg, #C0C0C0 0%, #A9A9A9 100%)', // 2nd place - silver
+            3: 'linear-gradient(135deg, #CD7F32 0%, #B87333 100%)'  // 3rd place - bronze
+        };
+        
+        if (isCurrentPlayer) {
+            return (backgrounds[rank] || 'rgba(255,255,255,0.1)') + 
+                   '; border: 2px solid white; box-shadow: 0 0 15px rgba(255,255,255,0.5)';
+        }
+        
+        return backgrounds[rank] || 'rgba(255,255,255,0.1)';
+    }
 }
 
 function removePlayer(username) {
@@ -13534,23 +14011,37 @@ async function handlePlayerCompletedGoal(playerUsername) {
     // Add player to completed list
     currentArcadeSession.completedPlayers.push(playerUsername);
     
-    // Get player's rank
-    const sortedPlayers = [...currentArcadeSession.participants]
-        .sort((a, b) => {
-            if (b.wordsCompleted !== a.wordsCompleted) {
-                return b.wordsCompleted - a.wordsCompleted;
-            }
-            return b.coins - a.coins;
-        });
+    // Determine player rank based on completion order
+    // ONLY the first 3 completions get ranks 1, 2, 3
+    let playerRank = 0;
+    const completionIndex = currentArcadeSession.completedPlayers.indexOf(playerUsername);
     
-    const playerRank = sortedPlayers.findIndex(p => p.username === playerUsername) + 1;
-    
-    // Store the player's rank
-    if (playerUsername === currentArcadeSession.playerName) {
-        currentArcadeSession.playerRank = playerRank;
+    if (completionIndex < 3) {
+        // First 3 players get podium ranks
+        playerRank = completionIndex + 1;
+        
+        // Store this podium assignment permanently in the session
+        if (!currentArcadeSession.podiumRanks) {
+            currentArcadeSession.podiumRanks = {};
+        }
+        currentArcadeSession.podiumRanks[playerUsername] = playerRank;
+        
+        console.log(`Player ${playerUsername} earned podium rank ${playerRank}`);
     }
     
-    // Broadcast completion
+    // Update player's data in participants array
+    const playerEntry = currentArcadeSession.participants.find(p => p.username === playerUsername);
+    if (playerEntry) {
+        // Only set rank for podium players (1-3)
+        if (playerRank > 0) {
+            playerEntry.rank = playerRank;
+        }
+        playerEntry.wordsCompleted = currentGame.wordsCompleted;
+        playerEntry.coins = gameState.coins || currentGame.coins || 0;
+        playerEntry.completed = true;
+    }
+    
+    // Broadcast completion 
     await window.arcadeChannel.send({
         type: 'broadcast',
         event: 'player_completed',
@@ -13558,104 +14049,88 @@ async function handlePlayerCompletedGoal(playerUsername) {
             username: playerUsername,
             rank: playerRank,
             wordsCompleted: currentGame.wordsCompleted,
-            coins: gameState.coins || 0,
-            timestamp: Date.now()
+            coins: gameState.coins || currentGame.coins || 0,
+            timestamp: Date.now(),
+            completed: true
         }
     });
     
-    // If player is in top 3, show personal victory screen
-    if (playerRank <= 3 && playerUsername === currentArcadeSession.playerName) {
+    // If current player is the one who completed and earned a podium rank,
+    // show personal victory screen
+    if (playerUsername === currentArcadeSession.playerName && playerRank > 0) {
         showPersonalVictoryScreen(playerRank);
     }
     
     // If this was the third player to complete, end the game for everyone
-    if (currentArcadeSession.completedPlayers.length >= 3) {
-        endArcadeForAll();
+    if (currentArcadeSession.completedPlayers.length === 3) {
+        await endArcadeForAll();
     }
 }
 
+// REPLACE function showPersonalVictoryScreen
 function showPersonalVictoryScreen(rank) {
     if (currentArcadeSession.winnerScreenShown) return;
     currentArcadeSession.winnerScreenShown = true;
     
-    // Ensure rank is correctly calculated
-    const sortedPlayers = [...currentArcadeSession.participants]
-        .sort((a, b) => {
-            if (b.wordsCompleted !== a.wordsCompleted) {
-                return b.wordsCompleted - a.wordsCompleted;
-            }
-            return b.coins - a.coins;
-        });
+    console.log(`Showing personal victory screen with rank: ${rank}`);
     
-    const playerUsername = currentArcadeSession.playerName;
-    const playerIndex = sortedPlayers.findIndex(p => p.username === playerUsername);
-    const actualRank = playerIndex + 1;
-
+    // Create a personalized victory overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'arcade-completion-modal';
+    
     // Different messages based on rank
     const rankMessages = {
         1: {
             title: "🏆 FIRST PLACE! 🏆",
             message: "Incredible! You've claimed the top spot!",
-            color: "linear-gradient(135deg, #FFD700, #FFA500)", // Gold gradient
-            emoji: "🥇"
+            color: "var(--gold)"
         },
         2: {
             title: "🥈 SECOND PLACE! 🥈",
             message: "Amazing job! You've secured second place!",
-            color: "linear-gradient(135deg, #C0C0C0, #A0A0A0)", // Silver gradient
-            emoji: "🥈"
+            color: "var(--silver)"
         },
         3: {
             title: "🥉 THIRD PLACE! 🥉",
             message: "Well done! You've earned third place!",
-            color: "linear-gradient(135deg, #CD7F32, #B87333)", // Bronze gradient
-            emoji: "🥉"
+            color: "var(--bronze)"
         }
     };
     
-    const message = rankMessages[actualRank] || {
+    const message = rankMessages[rank] || {
         title: "Game Complete!",
         message: "You've reached the word goal!",
-        color: "var(--accent)",
-        emoji: "🏅"
+        color: "var(--accent)"
     };
     
     // Calculate coins earned during this arcade session
     const startingCoins = currentArcadeSession.initialCoins || 0;
-    const currentCoins = gameState.coins || 0;
+    const currentCoins = gameState.coins || currentGame.coins || 0;
     const coinsEarned = currentCoins - startingCoins;
-    
-    const overlay = document.createElement('div');
-    overlay.className = 'arcade-completion-modal victory-screen';
     
     overlay.innerHTML = `
         <div class="completion-modal-content">
-            <div class="victory-header" style="background: ${message.color};">
-                <span class="rank-emoji">${message.emoji}</span>
-                <h2>${message.title}</h2>
-            </div>
-            <div class="victory-message">
-                <p>${message.message}</p>
-            </div>
+            <h2 style="color: ${message.color}">${message.title}</h2>
+            <p>${message.message}</p>
             <div class="completion-stats">
                 <div class="stat-item">
-                    <div class="stat-icon">🌍</div>
-                    <div class="stat-label">Words Learned</div>
-                    <div class="stat-value">${currentGame.wordsCompleted}</div>
+                    <i class="fas fa-language"></i>
+                    <span>Words Learned</span>
+                    <strong>${currentGame.wordsCompleted}</strong>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-icon">💰</div>
-                    <div class="stat-label">Coins Earned</div>
-                    <div class="stat-value">${coinsEarned}</div>
+                    <i class="fas fa-coins"></i>
+                    <span>Coins Earned</span>
+                    <strong>${coinsEarned}</strong>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-icon">🏅</div>
-                    <div class="stat-label">Your Rank</div>
-                    <div class="stat-value">${actualRank}</div>
+                    <i class="fas fa-trophy"></i>
+                    <span>Your Rank</span>
+                    <strong>${rank}</strong>
                 </div>
             </div>
-            <button onclick="exitArcadeCompletion()" class="victory-button">
-                Return to Welcome Screen
+            <button onclick="exitArcadeCompletion()" class="start-button">
+                Return to Welcome
             </button>
         </div>
     `;
@@ -13675,104 +14150,75 @@ function hidePersonalVictoryScreen() {
 }
 
 async function endArcadeForAll() {
-    // Only the moderator or the last person to complete can trigger this
-    if (currentUser?.id === currentArcadeSession.teacherId || 
-        currentArcadeSession.completedPlayers.length >= 3) {
-        
-        currentArcadeSession.state = 'ended';
-        currentArcadeSession.endTime = Date.now();
-        
-        // Get the sorted list of participants for final rankings
-        const finalRankings = [...currentArcadeSession.participants]
-            .sort((a, b) => {
-                if (b.wordsCompleted !== a.wordsCompleted) {
-                    return b.wordsCompleted - a.wordsCompleted;
-                }
-                return b.coins - a.coins;
-            });
-        
-        const top3Players = finalRankings.slice(0, 3);
-        
-        // Broadcast game end to all participants
-        await window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'game_end',
-            payload: {
-                state: 'ended',
-                topPlayers: top3Players,
-                allPlayers: finalRankings,
-                teacherId: currentArcadeSession.teacherId,
-                duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
+    currentArcadeSession.state = 'ended';
+    currentArcadeSession.endTime = Date.now();
+    
+    // Create a copy of participants to sort without modifying the original array
+    let sortedParticipants = [...currentArcadeSession.participants];
+    
+    // First, apply podium ranks from completions (these are fixed)
+    if (currentArcadeSession.podiumRanks) {
+        sortedParticipants.forEach(player => {
+            if (currentArcadeSession.podiumRanks[player.username]) {
+                player.rank = currentArcadeSession.podiumRanks[player.username];
             }
         });
+    }
+    
+    // Next, sort all non-podium players by performance
+    sortedParticipants.sort((a, b) => {
+        // Skip sorting for podium players
+        if (a.rank > 0 && a.rank <= 3) return -1;
+        if (b.rank > 0 && b.rank <= 3) return 1;
         
-        // Show final results for everyone
-        showFinalResults(finalRankings);
+        // Sort others by words completed (primary)
+        if (b.wordsCompleted !== a.wordsCompleted) {
+            return b.wordsCompleted - a.wordsCompleted;
+        }
+        // Then by coins (secondary)
+        return b.coins - a.coins;
+    });
+    
+    // Assign sequential ranks to non-podium players
+    let nextRank = 4;
+    sortedParticipants.forEach(player => {
+        // Only assign ranks to players who don't already have podium ranks
+        if (!player.rank || player.rank > 3) {
+            player.rank = nextRank++;
+        }
+    });
+    
+    // Final sort by rank for display
+    sortedParticipants.sort((a, b) => (a.rank || 999) - (b.rank || 999));
+    
+    // Broadcast final rankings to all participants
+    await window.arcadeChannel.send({
+        type: 'broadcast',
+        event: 'game_end',
+        payload: {
+            state: 'ended',
+            allPlayers: sortedParticipants,
+            podiumRanks: currentArcadeSession.podiumRanks,
+            teacherId: currentArcadeSession.teacherId,
+            duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
+        }
+    });
+    
+    // Show final results based on role
+    if (currentUser?.id === currentArcadeSession.teacherId) {
+        showModeratorVictoryScreen(sortedParticipants);
+    } else {
+        showFinalResultsForPlayer(sortedParticipants);
     }
 }
 
 function showFinalResults(players) {
-    // Create final results overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'arcade-completion-modal';
-    
-    // Get the top 3 players
-    const top3 = players.slice(0, 3);
-    
-    // Find current player's rank
-    const currentPlayerRank = players.findIndex(p => 
-        p.username === currentArcadeSession.playerName) + 1;
-    
-    // Calculate coins earned during this arcade session
-    const startingCoins = currentArcadeSession.initialCoins || 0;
-    const currentCoins = gameState.coins || 0;
-    const coinsEarned = currentCoins - startingCoins;
-    
-    overlay.innerHTML = `
-        <div class="completion-modal-content">
-            <h2>Arcade Session Complete!</h2>
-            ${currentPlayerRank <= 3 ? 
-                `<p class="personal-result">Congratulations! You finished in ${getOrdinal(currentPlayerRank)} place!</p>` : 
-                `<p class="personal-result">Your final rank: ${getOrdinal(currentPlayerRank)}</p>`
-            }
-            <div class="leaderboard-preview">
-                <h3>Final Standings</h3>
-                ${top3.map((player, index) => `
-                    <div class="podium-player rank-${index + 1} ${player.username === currentArcadeSession.playerName ? 'current-player' : ''}">
-                        <div class="player-rank">${index + 1}</div>
-                        <div class="player-name">${player.username}</div>
-                        <div class="player-stats">
-                            <span class="player-words">${player.wordsCompleted} words</span>
-                            <span class="player-coins">${player.coins} coins</span>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-            ${currentPlayerRank > 0 ? `
-                <div class="your-stats">
-                    <h3>Your Results</h3>
-                    <div class="completion-stats">
-                        <div class="stat-item">
-                            <i class="fas fa-language"></i>
-                            <span>Words Learned</span>
-                            <strong>${currentGame.wordsCompleted || 0}</strong>
-                        </div>
-                        <div class="stat-item">
-                            <i class="fas fa-coins"></i>
-                            <span>Coins Earned</span>
-                            <strong>${coinsEarned}</strong>
-                        </div>
-                    </div>
-                </div>
-            ` : ''}
-            <button onclick="exitArcadeCompletion()" class="start-button">
-                Return to Welcome
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    requestAnimationFrame(() => overlay.classList.add('show'));
+    // Different behavior for moderator vs player
+    if (currentUser?.id === currentArcadeSession.teacherId) {
+        showModeratorVictoryScreen(players);
+    } else {
+        showPlayerFinalResults(players);
+    }
 }
 
 function getOrdinal(n) {
