@@ -5328,7 +5328,7 @@ background-clip: text;
            <div class="word-goal">
                <h3>Word Goal:</h3>
                <select id="wordGoal">
-                   <option value="5">5 words</option>
+                   <option value="10">10 words</option>
                    <option value="100">100 words</option>
                    <option value="200">200 words</option>
                </select>
@@ -14149,80 +14149,47 @@ function hidePersonalVictoryScreen() {
     }
 }
 
-// REPLACE endArcadeForAll function
 async function endArcadeForAll() {
     currentArcadeSession.state = 'ended';
     currentArcadeSession.endTime = Date.now();
     
-    // Ensure podiumRanks exists
-    if (!currentArcadeSession.podiumRanks) {
-        currentArcadeSession.podiumRanks = {};
-    }
+    // Create a copy of participants to sort without modifying the original array
+    let sortedParticipants = [...currentArcadeSession.participants];
     
-    // First, ensure top 3 ranks are fixed based on completion order (time)
-    currentArcadeSession.completedPlayers.slice(0, 3).forEach((username, index) => {
-        currentArcadeSession.podiumRanks[username] = index + 1;
-    });
-    
-    // Create a working copy of participants
-    let rankedParticipants = [];
-    
-    // First add the top 3 players (podium finishers)
-    currentArcadeSession.completedPlayers.slice(0, 3).forEach((username, index) => {
-        const participant = currentArcadeSession.participants.find(p => p.username === username);
-        if (participant) {
-            const playerEntry = {
-                ...participant,
-                rank: index + 1,  // Ranks 1, 2, 3
-                completionOrder: index
-            };
-            rankedParticipants.push(playerEntry);
-        }
-    });
-    
-    // For all other players (not in top 3), sort by words completed
-    const otherParticipants = currentArcadeSession.participants
-        .filter(p => !currentArcadeSession.podiumRanks[p.username])
-        .sort((a, b) => {
-            // Primary sort: words completed (descending)
-            return b.wordsCompleted - a.wordsCompleted;
+    // First, apply podium ranks from completions (these are fixed)
+    if (currentArcadeSession.podiumRanks) {
+        sortedParticipants.forEach(player => {
+            if (currentArcadeSession.podiumRanks[player.username]) {
+                player.rank = currentArcadeSession.podiumRanks[player.username];
+            }
         });
-    
-    // Now add these players to our ranked list
-    rankedParticipants = rankedParticipants.concat(otherParticipants);
-    
-    // Assign sequential ranks to all players beyond podium
-    let nextRank = 4;
-    let lastWordsCompleted = -1;
-    let currentRank = nextRank;
-    
-    for (let i = 3; i < rankedParticipants.length; i++) {
-        // If this player has the same words completed as previous player,
-        // give them the same rank (tie)
-        if (rankedParticipants[i].wordsCompleted === lastWordsCompleted) {
-            rankedParticipants[i].rank = currentRank;
-        } else {
-            // New words count = new rank
-            currentRank = nextRank;
-            rankedParticipants[i].rank = currentRank;
-            lastWordsCompleted = rankedParticipants[i].wordsCompleted;
-        }
-        
-        // Always increment nextRank for the next different word count
-        nextRank++;
     }
+    
+    // Next, sort all non-podium players by performance
+    sortedParticipants.sort((a, b) => {
+        // Skip sorting for podium players
+        if (a.rank > 0 && a.rank <= 3) return -1;
+        if (b.rank > 0 && b.rank <= 3) return 1;
+        
+        // Sort others by words completed (primary)
+        if (b.wordsCompleted !== a.wordsCompleted) {
+            return b.wordsCompleted - a.wordsCompleted;
+        }
+        // Then by coins (secondary)
+        return b.coins - a.coins;
+    });
+    
+    // Assign sequential ranks to non-podium players
+    let nextRank = 4;
+    sortedParticipants.forEach(player => {
+        // Only assign ranks to players who don't already have podium ranks
+        if (!player.rank || player.rank > 3) {
+            player.rank = nextRank++;
+        }
+    });
     
     // Final sort by rank for display
-    rankedParticipants.sort((a, b) => a.rank - b.rank);
-    
-    // Update the participants array with new ranks
-    currentArcadeSession.participants = rankedParticipants;
-    
-    console.log('Final rankings:', rankedParticipants.map(p => ({
-        username: p.username,
-        rank: p.rank,
-        wordsCompleted: p.wordsCompleted
-    })));
+    sortedParticipants.sort((a, b) => (a.rank || 999) - (b.rank || 999));
     
     // Broadcast final rankings to all participants
     await window.arcadeChannel.send({
@@ -14230,7 +14197,7 @@ async function endArcadeForAll() {
         event: 'game_end',
         payload: {
             state: 'ended',
-            allPlayers: rankedParticipants,
+            allPlayers: sortedParticipants,
             podiumRanks: currentArcadeSession.podiumRanks,
             teacherId: currentArcadeSession.teacherId,
             duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
@@ -14239,9 +14206,9 @@ async function endArcadeForAll() {
     
     // Show final results based on role
     if (currentUser?.id === currentArcadeSession.teacherId) {
-        showModeratorVictoryScreen(rankedParticipants);
+        showModeratorVictoryScreen(sortedParticipants);
     } else {
-        showFinalResultsForPlayer(rankedParticipants);
+        showFinalResultsForPlayer(sortedParticipants);
     }
 }
 
