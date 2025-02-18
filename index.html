@@ -14172,7 +14172,7 @@ async function endArcadeForAll() {
         currentArcadeSession.podiumRanks = {};
     }
     
-    // First, ensure top 3 ranks are fixed based on completion order
+    // First, ensure top 3 ranks are fixed based on completion order (time)
     currentArcadeSession.completedPlayers.slice(0, 3).forEach((username, index) => {
         currentArcadeSession.podiumRanks[username] = index + 1;
     });
@@ -14180,53 +14180,49 @@ async function endArcadeForAll() {
     // Create a working copy of participants
     let rankedParticipants = [];
     
-    // First add all players who completed the word goal
-    // Sort them first by completion order for podium (1-3), 
-    // then by time for others who completed
-    currentArcadeSession.completedPlayers.forEach((username, index) => {
+    // First add the top 3 players (podium finishers)
+    currentArcadeSession.completedPlayers.slice(0, 3).forEach((username, index) => {
         const participant = currentArcadeSession.participants.find(p => p.username === username);
         if (participant) {
-            // Use podium rank if available, otherwise determine by completion time
             const playerEntry = {
                 ...participant,
+                rank: index + 1,  // Ranks 1, 2, 3
                 completionOrder: index
             };
-            
-            // Set rank if it's a podium position
-            if (index < 3) {
-                playerEntry.rank = index + 1;
-            }
-            
             rankedParticipants.push(playerEntry);
         }
     });
     
-    // Now add players who haven't completed the word goal
-    // Sort them by words completed, then by coins as a tiebreaker
-    const incompleteParticipants = currentArcadeSession.participants
-        .filter(p => !currentArcadeSession.completedPlayers.includes(p.username))
+    // For all other players (not in top 3), sort by words completed
+    const otherParticipants = currentArcadeSession.participants
+        .filter(p => !currentArcadeSession.podiumRanks[p.username])
         .sort((a, b) => {
-            // First sort by words completed
-            if (b.wordsCompleted !== a.wordsCompleted) {
-                return b.wordsCompleted - a.wordsCompleted;
-            }
-            // Then by coins (secondary criteria)
-            return b.coins - a.coins;
+            // Primary sort: words completed (descending)
+            return b.wordsCompleted - a.wordsCompleted;
         });
     
-    // Add incomplete participants to the end of the ranked list
-    rankedParticipants = rankedParticipants.concat(incompleteParticipants);
+    // Now add these players to our ranked list
+    rankedParticipants = rankedParticipants.concat(otherParticipants);
     
-    // Now assign sequential ranks to all players beyond podium
+    // Assign sequential ranks to all players beyond podium
     let nextRank = 4;
-    for (let i = 0; i < rankedParticipants.length; i++) {
-        // Skip podium players (already have ranks 1-3)
-        if (rankedParticipants[i].rank && rankedParticipants[i].rank <= 3) {
-            continue;
+    let lastWordsCompleted = -1;
+    let currentRank = nextRank;
+    
+    for (let i = 3; i < rankedParticipants.length; i++) {
+        // If this player has the same words completed as previous player,
+        // give them the same rank (tie)
+        if (rankedParticipants[i].wordsCompleted === lastWordsCompleted) {
+            rankedParticipants[i].rank = currentRank;
+        } else {
+            // New words count = new rank
+            currentRank = nextRank;
+            rankedParticipants[i].rank = currentRank;
+            lastWordsCompleted = rankedParticipants[i].wordsCompleted;
         }
         
-        // For all others, assign sequential ranks
-        rankedParticipants[i].rank = nextRank++;
+        // Always increment nextRank for the next different word count
+        nextRank++;
     }
     
     // Final sort by rank for display
@@ -14238,8 +14234,7 @@ async function endArcadeForAll() {
     console.log('Final rankings:', rankedParticipants.map(p => ({
         username: p.username,
         rank: p.rank,
-        wordsCompleted: p.wordsCompleted,
-        coins: p.coins
+        wordsCompleted: p.wordsCompleted
     })));
     
     // Broadcast final rankings to all participants
