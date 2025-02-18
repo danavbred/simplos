@@ -12642,6 +12642,9 @@ function showFinalResultsForPlayer(players) {
     let playerRank = currentArcadeSession.podiumRanks?.[playerUsername] || 0;
     const isOnPodium = playerRank > 0 && playerRank <= 3;
     
+    // Find current player's stats
+    const currentPlayerStats = currentArcadeSession.participants.find(p => p.username === playerUsername);
+    
     // Calculate earned coins
     const startingCoins = currentArcadeSession.initialCoins || 0;
     const currentCoins = gameState.coins || currentGame.coins || 0;
@@ -12674,23 +12677,26 @@ function showFinalResultsForPlayer(players) {
                     </div>
                 `).join('')}
             </div>
-            ${isOnPodium ? '' : `
-                <div class="your-stats">
-                    <h3>Your Results</h3>
-                    <div class="completion-stats" style="display: flex; justify-content: space-around; margin: 1.5rem 0;">
-                        <div class="stat-item" style="text-align: center;">
-                            <i class="fas fa-language" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
-                            <span style="display: block; margin-bottom: 0.25rem;">Words Learned</span>
-                            <strong style="font-size: 1.5rem;">${currentGame.wordsCompleted || 0}</strong>
-                        </div>
-                        <div class="stat-item" style="text-align: center;">
-                            <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
-                            <span style="display: block; margin-bottom: 0.25rem;">Coins Earned</span>
-                            <strong style="font-size: 1.5rem;">${coinsEarned}</strong>
-                        </div>
+            <div class="your-stats">
+                <h3>Your Results</h3>
+                <div class="completion-stats" style="display: flex; justify-content: space-around; margin: 1.5rem 0;">
+                    <div class="stat-item" style="text-align: center;">
+                        <i class="fas fa-language" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                        <span style="display: block; margin-bottom: 0.25rem;">Words Learned</span>
+                        <strong style="font-size: 1.5rem;">${currentPlayerStats?.wordsCompleted || currentGame.wordsCompleted || 0}</strong>
+                    </div>
+                    <div class="stat-item" style="text-align: center;">
+                        <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                        <span style="display: block; margin-bottom: 0.25rem;">Coins Earned</span>
+                        <strong style="font-size: 1.5rem;">${coinsEarned}</strong>
+                    </div>
+                    <div class="stat-item" style="text-align: center;">
+                        <i class="fas fa-trophy" style="font-size: 2rem; color: var(--gold); display: block; margin-bottom: 0.5rem;"></i>
+                        <span style="display: block; margin-bottom: 0.25rem;">Your Rank</span>
+                        <strong style="font-size: 1.5rem;">${isOnPodium ? playerRank : '---'}</strong>
                     </div>
                 </div>
-            `}
+            </div>
             <button onclick="exitArcadeCompletion()" class="start-button">
                 Return to Welcome
             </button>
