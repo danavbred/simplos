@@ -4958,13 +4958,20 @@ background-clip: text;
     transform-origin: left;
     transition: transform 1s linear;
 }
-
 @keyframes celebrationGlow {
     0% { box-shadow: 0 0 15px #FFD700; background: rgba(255, 215, 0, 0.2); }
     25% { box-shadow: 0 0 20px #FF1493; background: rgba(255, 20, 147, 0.2); }
     50% { box-shadow: 0 0 25px #00BFFF; background: rgba(0, 191, 255, 0.2); }
     75% { box-shadow: 0 0 20px #7CFC00; background: rgba(124, 252, 0, 0.2); }
     100% { box-shadow: 0 0 15px #FFD700; background: rgba(255, 215, 0, 0.2); }
+}
+
+@keyframes celebrationGlowIntense {
+    0% { box-shadow: 0 0 25px #FFD700; background: rgba(255, 215, 0, 0.3); }
+    25% { box-shadow: 0 0 35px #FF1493; background: rgba(255, 20, 147, 0.3); }
+    50% { box-shadow: 0 0 45px #00BFFF; background: rgba(0, 191, 255, 0.3); }
+    75% { box-shadow: 0 0 35px #7CFC00; background: rgba(124, 252, 0, 0.3); }
+    100% { box-shadow: 0 0 25px #FFD700; background: rgba(255, 215, 0, 0.3); }
 }
 
 @keyframes confettiFall {
@@ -4978,13 +4985,69 @@ background-clip: text;
     100% { transform: scale(1) rotate(0); opacity: 1; }
 }
 
+@keyframes gracefulCenterMove {
+    0% { 
+        position: absolute;
+        transform: translate(0, 0) scale(1);
+        z-index: 20;
+    }
+    100% { 
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(3);
+        z-index: 100;
+    }
+}
+
+@keyframes firstPlaceMove {
+    0% { 
+        position: absolute;
+        transform: translate(0, 0) scale(1);
+    }
+    100% { 
+        position: fixed;
+        top: 30vh;
+        left: 50%;
+        transform: translate(-50%, 0) scale(3);
+        z-index: 103;
+    }
+}
+
+@keyframes secondPlaceMove {
+    0% { 
+        position: absolute;
+        transform: translate(0, 0) scale(1);
+    }
+    100% { 
+        position: fixed;
+        top: 50vh;
+        left: 50%;
+        transform: translate(-50%, 0) scale(2.5);
+        z-index: 102;
+    }
+}
+
+@keyframes thirdPlaceMove {
+    0% { 
+        position: absolute;
+        transform: translate(0, 0) scale(1);
+    }
+    100% { 
+        position: fixed;
+        top: 70vh;
+        left: 50%;
+        transform: translate(-50%, 0) scale(2);
+        z-index: 101;
+    }
+}
+
 .winner-entry {
     position: relative;
     transition: all 0.5s ease;
 }
 
 .winner-entry.celebrating {
-    animation: celebrationGlow 2s infinite;
     border-radius: 15px;
     border: 2px solid transparent;
     overflow: visible !important;
@@ -4992,23 +5055,20 @@ background-clip: text;
 
 .winner-entry.first-place {
     border: 3px solid var(--gold);
-    animation: celebrationGlow 2s infinite;
+    animation: firstPlaceMove 1.5s forwards, celebrationGlowIntense 2s infinite 1.5s;
     background: rgba(255, 215, 0, 0.2);
-    z-index: 10;
 }
 
 .winner-entry.second-place {
     border: 3px solid var(--silver);
-    animation: celebrationGlow 2.5s infinite;
+    animation: secondPlaceMove 1.5s forwards, celebrationGlowIntense 2.5s infinite 1.5s;
     background: rgba(192, 192, 192, 0.2);
-    z-index: 9;
 }
 
 .winner-entry.third-place {
     border: 3px solid var(--bronze);
-    animation: celebrationGlow 3s infinite;
+    animation: thirdPlaceMove 1.5s forwards, celebrationGlowIntense 3s infinite 1.5s;
     background: rgba(205, 127, 50, 0.2);
-    z-index: 8;
 }
 
 .celebration-emoji {
@@ -5035,7 +5095,7 @@ background-clip: text;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.7);
+    background: rgba(0,0,0,0.85);
     z-index: 1;
     opacity: 0;
     transition: opacity 1s ease;
@@ -5048,7 +5108,7 @@ background-clip: text;
 
 .trophy-image {
     position: fixed;
-    top: 5vh;
+    top: 10vh;
     left: 50%;
     transform: translateX(-50%) scale(0);
     transition: transform 1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -5075,6 +5135,22 @@ background-clip: text;
 }
 
 .home-button-container.visible {
+    opacity: 1;
+}
+
+.winner-label {
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1.5rem;
+    color: var(--gold);
+    text-shadow: 0 0 10px rgba(0,0,0,0.5);
+    opacity: 0;
+    transition: opacity 0.5s ease 1.5s;
+}
+
+.winner-entry.centered .winner-label {
     opacity: 1;
 }
 
@@ -14956,7 +15032,7 @@ function startLeaderboardCelebration(winners) {
     const inactivityOverlay = document.querySelector('.moderator-inactivity-overlay');
     if (inactivityOverlay) inactivityOverlay.classList.remove('visible');
     
-    // Create celebration overlay
+    // Create celebration overlay to dim everything else
     const overlay = document.createElement('div');
     overlay.className = 'celebration-overlay';
     document.body.appendChild(overlay);
@@ -14967,49 +15043,106 @@ function startLeaderboardCelebration(winners) {
     trophy.className = 'trophy-image';
     trophy.innerHTML = '🏆';
     document.body.appendChild(trophy);
-    setTimeout(() => trophy.classList.add('visible'), 500);
+    setTimeout(() => trophy.classList.add('visible'), 1500);
     
-    // Identify and enhance winner entries
+    // Get and clone winner entries
     const leaderboard = document.getElementById('arcade-leaderboard');
     const entries = leaderboard.querySelectorAll('.leaderboard-entry');
     
-    // Track winners
-    const winnerElements = [];
-    entries.forEach(entry => {
-        const usernameEl = entry.querySelector('[data-username]');
-        if (!usernameEl) return;
-        
-        const username = usernameEl.dataset.username;
-        const winner = winners.find(w => w.username === username);
-        
-        if (winner) {
-            // Add visual highlights while maintaining position
-            entry.classList.add('winner-entry', 'celebrating');
+    // Map for tracking original positions
+    const originalPositions = new Map();
+    
+    // Find the winner entries and clone them
+    winners.forEach(winner => {
+        entries.forEach(entry => {
+            const usernameEl = entry.querySelector('[data-username]');
+            if (!usernameEl) return;
             
-            // Add specific place class
-            if (winner.rank === 1) {
-                entry.classList.add('first-place');
-                addWinnerEmojis(entry, ['🥇', '👑', '🌟']);
-            } else if (winner.rank === 2) {
-                entry.classList.add('second-place');
-                addWinnerEmojis(entry, ['🥈', '✨']);
-            } else if (winner.rank === 3) {
-                entry.classList.add('third-place');
-                addWinnerEmojis(entry, ['🥉', '🎉']);
+            const username = usernameEl.dataset.username;
+            if (username === winner.username) {
+                // Store original position
+                const rect = entry.getBoundingClientRect();
+                originalPositions.set(username, {
+                    left: rect.left,
+                    top: rect.top,
+                    width: rect.width,
+                    height: rect.height
+                });
+                
+                // Clone entry for animation
+                const clone = entry.cloneNode(true);
+                clone.classList.add('winner-entry', 'celebrating');
+                
+                // Add place-specific class
+                if (winner.rank === 1) {
+                    clone.classList.add('first-place');
+                    
+                    // Add winner label
+                    const label = document.createElement('div');
+                    label.className = 'winner-label';
+                    label.textContent = 'CHAMPION';
+                    clone.appendChild(label);
+                    
+                    addWinnerEmojis(clone, ['👑', '🏆', '🌟'], winner.rank);
+                } else if (winner.rank === 2) {
+                    clone.classList.add('second-place');
+                    
+                    const label = document.createElement('div');
+                    label.className = 'winner-label';
+                    label.textContent = 'RUNNER-UP';
+                    clone.appendChild(label);
+                    
+                    addWinnerEmojis(clone, ['🥈', '✨'], winner.rank);
+                } else if (winner.rank === 3) {
+                    clone.classList.add('third-place');
+                    
+                    const label = document.createElement('div');
+                    label.className = 'winner-label';
+                    label.textContent = 'BRONZE MEDAL';
+                    clone.appendChild(label);
+                    
+                    addWinnerEmojis(clone, ['🥉', '🎉'], winner.rank);
+                }
+                
+                // Set initial position to match original entry
+                clone.style.position = 'fixed';
+                clone.style.left = `${rect.left}px`;
+                clone.style.top = `${rect.top}px`;
+                clone.style.width = `${rect.width}px`;
+                clone.style.height = `${rect.height}px`;
+                clone.style.zIndex = 100 + (3 - winner.rank);
+                
+                // Append to body for animation
+                document.body.appendChild(clone);
+                
+                // Add animation class after a small delay to ensure starting position
+                setTimeout(() => {
+                    clone.classList.add('centered');
+                }, 50);
             }
-            
-            winnerElements.push(entry);
-        }
+        });
     });
     
-    // Start confetti
-    startConfettiShower();
+    // Start confetti after entries have moved to center
+    setTimeout(() => {
+        startConfettiShower();
+        
+        // Broadcast celebration to all players
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'celebration',
+            payload: {
+                winners: winners.map(w => ({
+                    username: w.username,
+                    rank: w.rank,
+                    wordsCompleted: w.wordsCompleted,
+                    coins: w.coins
+                }))
+            }
+        });
+    }, 1500);
     
-    // Add celebratory sounds if supported
-    const celebrationSound = new Audio('/sounds/celebration.mp3');
-    celebrationSound.play().catch(err => console.log('Sound not supported'));
-    
-    // Add home button after celebration
+    // Add home button
     const homeButtonContainer = document.createElement('div');
     homeButtonContainer.className = 'home-button-container';
     homeButtonContainer.innerHTML = `
@@ -15018,46 +15151,50 @@ function startLeaderboardCelebration(winners) {
         </button>
     `;
     document.body.appendChild(homeButtonContainer);
-    setTimeout(() => homeButtonContainer.classList.add('visible'), 2000);
+    setTimeout(() => homeButtonContainer.classList.add('visible'), 2500);
 }
 
-function addWinnerEmojis(element, emojis) {
-    emojis.forEach((emoji, index) => {
-        // Create small floating emojis around the entry
-        const emojiElement = document.createElement('div');
-        emojiElement.className = 'celebration-emoji';
-        emojiElement.textContent = emoji;
-        
-        // Position around the element without moving it
-        const side = index % 4; // 0-top, 1-right, 2-bottom, 3-left
-        let x, y;
-        
-        switch(side) {
-            case 0: // top
-                x = -20 + (Math.random() * 40);
-                y = -40;
-                break;
-            case 1: // right
-                x = element.offsetWidth + 10;
-                y = -10 + (Math.random() * 20);
-                break;
-            case 2: // bottom
-                x = -20 + (Math.random() * 40);
-                y = element.offsetHeight + 10;
-                break;
-            case 3: // left
-                x = -40;
-                y = -10 + (Math.random() * 20);
-                break;
-        }
-        
-        emojiElement.style.position = 'absolute';
-        emojiElement.style.left = `${x}px`;
-        emojiElement.style.top = `${y}px`;
-        emojiElement.style.animationDelay = `${0.3 + index * 0.2}s`;
-        
-        element.appendChild(emojiElement);
-    });
+function addWinnerEmojis(element, emojis, rank) {
+    // Add emojis with appropriate sizing and delay
+    setTimeout(() => {
+        emojis.forEach((emoji, index) => {
+            const emojiElement = document.createElement('div');
+            emojiElement.className = 'celebration-emoji';
+            emojiElement.textContent = emoji;
+            
+            // Position based on rank and index
+            let x, y, size;
+            const baseSize = 3;
+            
+            if (rank === 1) {
+                size = baseSize + 1;
+                // Position around the element in a crown-like formation
+                const angleOffset = index * (360 / emojis.length);
+                const angle = angleOffset * (Math.PI / 180);
+                const distance = 120;
+                x = Math.cos(angle) * distance;
+                y = Math.sin(angle) * distance - 50; // Higher up for first place
+            } else if (rank === 2) {
+                size = baseSize + 0.5;
+                // Second place emojis positioned horizontally
+                x = -100 + (index * 200 / (emojis.length - 1));
+                y = -30;
+            } else {
+                size = baseSize;
+                // Third place emojis in a simple arc
+                x = -80 + (index * 160 / (emojis.length - 1));
+                y = -20;
+            }
+            
+            emojiElement.style.fontSize = `${size}rem`;
+            emojiElement.style.position = 'absolute';
+            emojiElement.style.left = `calc(50% + ${x}px)`;
+            emojiElement.style.top = `calc(50% + ${y}px)`;
+            emojiElement.style.animationDelay = `${1.8 + index * 0.3}s`;
+            
+            element.appendChild(emojiElement);
+        });
+    }, 1800); // Add emojis after entries have moved to center
 }
 
 function startConfettiShower() {
@@ -15071,15 +15208,14 @@ function startConfettiShower() {
     createConfettiBatch();
     
     // Continue creating confetti
-    const confettiInterval = setInterval(createConfettiBatch, 1000);
+    const confettiInterval = setInterval(createConfettiBatch, 800);
     
-    // Stop after 15 seconds
-    setTimeout(() => {
-        clearInterval(confettiInterval);
-    }, 15000);
+    // Store interval ID globally for cleanup
+    window.celebrationConfettiInterval = confettiInterval;
     
+    // Function to create a batch of confetti
     function createConfettiBatch() {
-        for (let i = 0; i < 50; i++) {
+        for (let i = 0; i < 60; i++) {
             const confetti = document.createElement('div');
             confetti.className = 'confetti';
             
@@ -15114,19 +15250,213 @@ function finishCelebrationAndGoHome() {
     document.querySelector('.celebration-overlay')?.remove();
     document.querySelector('.trophy-image')?.remove();
     document.querySelector('.home-button-container')?.remove();
+    
+    // Clear confetti interval
+    if (window.celebrationConfettiInterval) {
+        clearInterval(window.celebrationConfettiInterval);
+    }
+    
+    // Remove all confetti
     document.querySelectorAll('.confetti').forEach(el => el.remove());
     
-    // Clean up winner styling
-    document.querySelectorAll('.winner-entry').forEach(el => {
-        el.classList.remove('winner-entry', 'celebrating', 'first-place', 'second-place', 'third-place');
-    });
-    document.querySelectorAll('.celebration-emoji').forEach(el => el.remove());
+    // Remove winner entries
+    document.querySelectorAll('.winner-entry.celebrating').forEach(el => el.remove());
     
     // Clean up moderator tracking
     cleanupModeratorInactivityMonitoring();
     
+    // Reset arcade session
+    currentArcadeSession = {
+        eventId: null,
+        otp: null,
+        wordPool: [],
+        participants: [],
+        teacherId: null,
+        wordGoal: 50,
+        state: 'pre-start',
+        completedPlayers: [],
+        playerRank: null,
+        winnerScreenShown: false,
+        startTime: null,
+        endTime: null
+    };
+    
     // Go home
     showScreen('welcome-screen');
+}
+
+// Add this to your existing window.arcadeChannel setup
+window.arcadeChannel.on('broadcast', { event: 'celebration' }, ({ payload }) => {
+    if (!payload.winners) return;
+    
+    // Check if current player is one of the winners
+    if (currentArcadeSession.playerName) {
+        const winnerEntry = payload.winners.find(w => w.username === currentArcadeSession.playerName);
+        
+        if (winnerEntry) {
+            // Show personal victory celebration
+            showPersonalVictoryCelebration(winnerEntry.rank);
+        }
+    }
+});
+
+function showPersonalVictoryCelebration(rank) {
+    // Don't show if already celebrating
+    if (currentArcadeSession.winnerScreenShown) return;
+    currentArcadeSession.winnerScreenShown = true;
+    
+    // Create celebration screen
+    const overlay = document.createElement('div');
+    overlay.className = 'personal-victory-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.5s ease;
+    `;
+    
+    // Define content based on rank
+    const rankContent = {
+        1: {
+            title: "🏆 CHAMPION! 🏆",
+            message: "Incredible! You've claimed the top spot!",
+            emoji: "👑",
+            color: "var(--gold)"
+        },
+        2: {
+            title: "🥈 RUNNER UP! 🥈",
+            message: "Amazing job! You've secured second place!",
+            emoji: "⭐",
+            color: "var(--silver)"
+        },
+        3: {
+            title: "🥉 BRONZE MEDALIST! 🥉",
+            message: "Well done! You've earned third place!",
+            emoji: "🌟",
+            color: "var(--bronze)"
+        }
+    };
+    
+    const content = rankContent[rank] || {
+        title: "GREAT PERFORMANCE!",
+        message: "You've completed the challenge!",
+        emoji: "🎉",
+        color: "var(--accent)"
+    };
+    
+    overlay.innerHTML = `
+        <div style="font-size: 8rem; margin-bottom: 1rem;">${content.emoji}</div>
+        <h1 style="color: ${content.color}; font-size: 3rem; margin-bottom: 1rem;">${content.title}</h1>
+        <p style="font-size: 1.5rem; margin-bottom: 2rem; text-align: center; max-width: 80%;">
+            ${content.message}
+        </p>
+        <div style="margin: 2rem 0; display: flex; gap: 2rem;">
+            <div style="text-align: center;">
+                <div style="font-size: 1.2rem; color: var(--text); opacity: 0.8;">YOUR RANK</div>
+                <div style="font-size: 3rem; color: ${content.color};">${rank}</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 1.2rem; color: var(--text); opacity: 0.8;">WORDS COMPLETED</div>
+                <div style="font-size: 3rem; color: var(--text);">${currentGame.wordsCompleted || 0}</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 1.2rem; color: var(--text); opacity: 0.8;">COINS EARNED</div>
+                <div style="font-size: 3rem; color: var(--gold);">${currentGame.coins || 0}</div>
+            </div>
+        </div>
+        <button class="start-button" style="margin-top: 2rem; padding: 1rem 2rem;" onclick="closePersonalVictory()">
+            Continue
+        </button>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Fade in
+    setTimeout(() => {
+        overlay.style.opacity = '1';
+        
+        // Start player confetti
+        startPlayerConfetti();
+    }, 100);
+}
+
+function startPlayerConfetti() {
+    // Colors for player confetti
+    const colors = [
+        '#FFD700', '#FF1493', '#00BFFF', '#7CFC00', '#FF4500',
+        '#9400D3', '#FF8C00', '#1E90FF', '#32CD32', '#FF69B4'
+    ];
+    
+    function createPlayerConfettiBatch() {
+        for (let i = 0; i < 40; i++) {
+            const confetti = document.createElement('div');
+            confetti.className = 'player-confetti';
+            confetti.style.cssText = `
+                position: fixed;
+                width: ${5 + Math.random() * 10}px;
+                height: ${5 + Math.random() * 10}px;
+                background-color: ${colors[Math.floor(Math.random() * colors.length)]};
+                top: -20px;
+                left: ${Math.random() * 100}vw;
+                opacity: 1;
+                z-index: 2001;
+                border-radius: ${Math.random() > 0.5 ? '0' : '50%'};
+                animation: confettiFall ${3 + Math.random() * 3}s linear ${Math.random() * 2}s forwards;
+            `;
+            
+            document.body.appendChild(confetti);
+            
+            // Remove after animation
+            setTimeout(() => {
+                confetti.remove();
+            }, 5000);
+        }
+    }
+    
+    // Initial batch
+    createPlayerConfettiBatch();
+    
+    // Continue creating batches
+    const interval = setInterval(createPlayerConfettiBatch, 1000);
+    
+    // Store for cleanup
+    window.playerConfettiInterval = interval;
+    
+    // Stop after 10 seconds
+    setTimeout(() => {
+        clearInterval(interval);
+    }, 10000);
+}
+
+function closePersonalVictory() {
+    // Clear confetti interval
+    if (window.playerConfettiInterval) {
+        clearInterval(window.playerConfettiInterval);
+    }
+    
+    // Remove all player confetti
+    document.querySelectorAll('.player-confetti').forEach(el => el.remove());
+    
+    // Remove victory overlay
+    const overlay = document.querySelector('.personal-victory-overlay');
+    if (overlay) {
+        overlay.style.opacity = '0';
+        setTimeout(() => {
+            overlay.remove();
+            
+            // Go to welcome screen
+            showScreen('welcome-screen');
+        }, 500);
+    }
 }
 
 </script>
