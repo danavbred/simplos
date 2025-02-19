@@ -5836,12 +5836,18 @@ const CustomListsManager = {
     lists: [],
     
     async initialize() {
-        if (currentUser) {
-            await this.loadFromSupabase();
-        } else {
-            this.loadFromLocalStorage();
-        }
-    },
+    // Skip if already initialized with data
+    if (this.lists && this.lists.length > 0) {
+        console.log('CustomListsManager already initialized with', this.lists.length, 'lists');
+        return;
+    }
+    
+    if (currentUser) {
+        await this.loadFromSupabase();
+    } else {
+        this.loadFromLocalStorage();
+    }
+},
     
     async loadFromSupabase() {
         try {
@@ -6527,6 +6533,8 @@ function showSetScreen(stageId) {
         });
     });
 }
+
+
 
 document.addEventListener('DOMContentLoaded', async () => {
    try {
@@ -7444,7 +7452,15 @@ async function saveCustomList() {
 
 async function loadCustomLists() {
     try {
+        // First attempt to initialize from scratch
         await CustomListsManager.initialize();
+        
+        // If we have no lists but user is logged in, force reload from Supabase
+        if (currentUser && (!CustomListsManager.lists || CustomListsManager.lists.length === 0)) {
+            console.log('No lists found, forcing reload from Supabase');
+            await CustomListsManager.loadFromSupabase();
+        }
+        
         updateListsDisplay();
     } catch (error) {
         console.error('Error in loadCustomLists:', error);
@@ -10815,7 +10831,6 @@ function saveListChanges(listId, wordList, listItem) {
     `;
 }
 
-
 function toggleAuthMode() {
     const loginForm = document.getElementById('loginForm');
     const signupForm = document.getElementById('signupForm');
@@ -10826,79 +10841,30 @@ function toggleAuthMode() {
 
 async function shareListWithUser(listId, recipientId) {
     try {
-        // Enhanced logging and error tracking
         console.group('Share List Diagnostics');
-        console.log('Current User ID:', currentUser.id);
-        console.log('Recipient User ID:', recipientId);
         console.log('List ID:', listId);
-
-        // Find the original list with more robust checking
-        const list = customPracticeLists.lists.find(l => l.id === listId);
+        console.log('Recipient ID:', recipientId);
+        
+        // Get fresh list data from CustomListsManager
+        const list = CustomListsManager.lists.find(l => l.id === listId);
         if (!list) {
-            console.error('List not found');
-            throw new Error('List not found');
+            console.error('List not found in CustomListsManager');
+            // Try to reload lists before giving up
+            await CustomListsManager.loadFromSupabase();
+            const refreshedList = CustomListsManager.lists.find(l => l.id === listId);
+            if (!refreshedList) {
+                throw new Error('List not found');
+            }
+            console.log('List found after reload:', refreshedList);
+            return await CustomListsManager.share(listId, recipientId);
         }
 
-        // Comprehensive validation
-        if (!recipientId) {
-            console.error('Invalid recipient');
-            throw new Error('Invalid recipient');
-        }
-
-        // Fetch recipient details to confirm existence
-        const { data: recipientData, error: recipientError } = await supabaseClient
-            .from('user_profiles')
-            .select('id, username')
-            .eq('id', recipientId)
-            .single();
-
-        if (recipientError) {
-            console.error('Recipient verification failed:', recipientError);
-            throw new Error('Cannot verify recipient');
-        }
-
-        // Create shared list with explicit type casting
-        const sharedList = {
-            user_id: recipientId,
-            name: `${list.name} (Shared by ${currentUser.user_metadata?.username || 'Anonymous'})`,
-            words: Array.isArray(list.words) ? list.words : [],
-            translations: Array.isArray(list.translations) ? list.translations : [],
-            is_shared: true,
-            local_id: Date.now(),
-            shared_with: [recipientId],
-            shared_by: currentUser.id
-        };
-
-        // Log the payload before insertion
-        console.log('Sharing Payload:', sharedList);
-
-        // Use bypass RLS for initial testing
-        const { data, error } = await supabaseClient.rpc('insert_shared_list', {
-            p_user_id: sharedList.user_id,
-            p_name: sharedList.name,
-            p_words: sharedList.words,
-            p_translations: sharedList.translations,
-            p_is_shared: sharedList.is_shared,
-            p_local_id: sharedList.local_id,
-            p_shared_with: sharedList.shared_with,
-            p_shared_by: sharedList.shared_by
-        });
-
-        if (error) {
-            console.error('Detailed Sharing Error:', error);
-            throw error;
-        }
-
-        console.log('Share Successful:', data);
-        console.groupEnd();
-
-        showSuccessToast('List shared successfully!');
-        closeShareModal();
-
+        return await CustomListsManager.share(listId, recipientId);
     } catch (error) {
-        console.error('Comprehensive Share Failure:', error);
+        console.error('Share error:', error);
+        throw error;
+    } finally {
         console.groupEnd();
-        showErrorToast(error.message || 'Failed to share list');
     }
 }
 
@@ -16552,6 +16518,8 @@ async function deleteCustomList(listId) {
         showNotification('Failed to delete list', 'error');
     }
 }
+
+
 
 </script>
 </body>
