@@ -5832,6 +5832,337 @@ const ParticleSystem = {
     }
 };
 
+const CustomListsManager = {
+    lists: [],
+    
+    async initialize() {
+        if (currentUser) {
+            await this.loadFromSupabase();
+        } else {
+            this.loadFromLocalStorage();
+        }
+    },
+    
+    async loadFromSupabase() {
+        try {
+            const { data, error } = await supabaseClient
+                .from('custom_lists')
+                .select('*')
+                .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
+                
+            if (error) throw error;
+            
+            this.lists = data.map(item => ({
+                id: item.id,
+                name: item.name,
+                words: item.words || [],
+                translations: item.translations || [],
+                isShared: item.is_shared,
+                sharedBy: item.shared_by,
+                userId: item.user_id,
+                createdAt: item.created_at
+            }));
+            
+            console.log('Loaded lists from Supabase:', this.lists.length);
+        } catch (error) {
+            console.error('Error loading lists from Supabase:', error);
+            this.lists = [];
+        }
+    },
+    
+    loadFromLocalStorage() {
+        try {
+            const savedLists = localStorage.getItem('simploxCustomLists');
+            this.lists = savedLists ? JSON.parse(savedLists) : [];
+            console.log('Loaded lists from localStorage:', this.lists.length);
+        } catch (error) {
+            console.error('Error loading lists from localStorage:', error);
+            this.lists = [];
+        }
+    },
+    
+    async save(list) {
+        if (!list) return null;
+        
+        if (currentUser) {
+            return await this.saveToSupabase(list);
+        } else {
+            return this.saveToLocalStorage(list);
+        }
+    },
+    
+    async saveToSupabase(list) {
+        try {
+            // Prepare data for Supabase
+            const listData = {
+                name: list.name,
+                words: list.words || [],
+                translations: list.translations || [],
+                user_id: currentUser.id
+            };
+            
+            // If updating existing list
+            if (list.id && typeof list.id === 'string' && list.id.length === 36) {
+                const { data, error } = await supabaseClient
+                    .from('custom_lists')
+                    .update(listData)
+                    .eq('id', list.id)
+                    .select()
+                    .single();
+                    
+                if (error) throw error;
+                return data;
+            } 
+            // Creating new list
+            else {
+                const { data, error } = await supabaseClient
+                    .from('custom_lists')
+                    .insert(listData)
+                    .select()
+                    .single();
+                    
+                if (error) throw error;
+                
+                // Update local array with the newly created list
+                const index = this.lists.findIndex(l => 
+                    l.id === list.id || 
+                    (l.tempId && l.tempId === list.tempId));
+                    
+                if (index !== -1) {
+                    this.lists[index] = {
+                        ...data,
+                        words: data.words || [],
+                        translations: data.translations || []
+                    };
+                } else {
+                    this.lists.push({
+                        ...data,
+                        words: data.words || [],
+                        translations: data.translations || []
+                    });
+                }
+                
+                return data;
+            }
+        } catch (error) {
+            console.error('Error saving list to Supabase:', error);
+            return null;
+        }
+    },
+    
+    saveToLocalStorage(list) {
+        try {
+            // For new lists or lists with tempId
+            const newList = {
+                ...list,
+                id: list.id || Date.now(),
+                tempId: list.tempId || Date.now()
+            };
+            
+            // Find if list already exists
+            const index = this.lists.findIndex(l => 
+                l.id === list.id || 
+                (l.tempId && l.tempId === list.tempId));
+                
+            if (index !== -1) {
+                this.lists[index] = newList;
+            } else {
+                this.lists.push(newList);
+            }
+            
+            // Save all lists
+            localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
+            return newList;
+        } catch (error) {
+            console.error('Error saving list to localStorage:', error);
+            return null;
+        }
+    },
+    
+    async delete(listId) {
+        if (currentUser) {
+            try {
+                // Check if this is a Supabase UUID
+                if (typeof listId === 'string' && listId.length === 36) {
+                    const { error } = await supabaseClient
+                        .from('custom_lists')
+                        .delete()
+                        .eq('id', listId);
+                        
+                    if (error) throw error;
+                }
+                
+                // Remove from local array regardless
+                this.lists = this.lists.filter(list => list.id !== listId);
+                return true;
+            } catch (error) {
+                console.error('Error deleting list from Supabase:', error);
+                return false;
+            }
+        } else {
+            // Just remove from local array and storage
+            this.lists = this.lists.filter(list => list.id !== listId);
+            localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
+            return true;
+        }
+    },
+    
+    async share(listId, recipientId) {
+        if (!currentUser) return false;
+        
+        try {
+            const list = this.lists.find(l => l.id === listId);
+            if (!list) return false;
+            
+            const result = await supabaseClient.rpc('insert_shared_list', {
+                p_user_id: recipientId,
+                p_name: `${list.name} (Shared by ${currentUser.user_metadata?.username || 'User'})`,
+                p_words: list.words || [],
+                p_translations: list.translations || [],
+                p_is_shared: true,
+                p_local_id: Date.now(),
+                p_shared_with: [recipientId],
+                p_shared_by: currentUser.id
+            });
+            
+            return !result.error;
+        } catch (error) {
+            console.error('Error sharing list:', error);
+            return false;
+        }
+    },
+    
+    getListLimits() {
+        if (!currentUser) {
+            return {
+                maxLists: 3,
+                maxWords: 10,
+                maxPlays: 5,
+                canShare: false,
+                playDisplay: '5'
+            };
+        }
+        
+        const userStatus = currentUser.status || 'free';
+        
+        switch(userStatus) {
+            case 'premium':
+                return {
+                    maxLists: 30,
+                    maxWords: 50,
+                    maxPlays: Infinity,
+                    canShare: true,
+                    playDisplay: '∞'
+                };
+            case 'pending':
+                return {
+                    maxLists: 30,
+                    maxWords: 50,
+                    maxPlays: Infinity,
+                    canShare: false,
+                    playDisplay: '∞'
+                };
+            case 'free':
+                return {
+                    maxLists: 5,
+                    maxWords: 20,
+                    maxPlays: 10,
+                    canShare: false,
+                    playDisplay: '10'
+                };
+            default:
+                return {
+                    maxLists: 3,
+                    maxWords: 10,
+                    maxPlays: 5,
+                    canShare: false,
+                    playDisplay: '5'
+                };
+        }
+    },
+    
+    canCreateMoreLists() {
+        const limits = this.getListLimits();
+        return this.lists.length < limits.maxLists;
+    }
+};
+
+const customGameState = {
+    isCustomPractice: false,
+    currentList: null,
+    currentLevel: 1,
+    levelData: null,
+    words: [],
+    translations: [],
+    wordsCompleted: 0,
+    correctStreak: 0,
+    wrongStreak: 0,
+    startCoins: 0,
+    
+    reset() {
+        this.isCustomPractice = false;
+        this.currentList = null;
+        this.currentLevel = 1;
+        this.levelData = null;
+        this.words = [];
+        this.translations = [];
+        this.wordsCompleted = 0;
+        this.correctStreak = 0;
+        this.wrongStreak = 0;
+        this.startCoins = 0;
+    },
+    
+    initializeFromList(list) {
+        if (!list || !list.words || !list.translations) {
+            console.error('Invalid list provided to custom game:', list);
+            return false;
+        }
+        
+        this.reset();
+        this.isCustomPractice = true;
+        this.currentList = list;
+        this.words = [...list.words];
+        this.translations = [...list.translations];
+        this.startCoins = gameState.coins;
+        this.currentLevel = 1;
+        
+        return true;
+    },
+    
+    getWordsForLevel(level) {
+        if (!this.words.length) return null;
+        
+        const levelConfigs = {
+            1: { start: 0, count: Math.min(3, this.words.length), isTest: false },
+            2: { start: 3, count: Math.min(3, Math.max(0, this.words.length - 3)), isTest: false },
+            3: { start: 0, count: Math.min(6, this.words.length), isTest: true },
+            4: { start: 6, count: Math.min(3, Math.max(0, this.words.length - 6)), isTest: false },
+            5: { start: 9, count: Math.min(3, Math.max(0, this.words.length - 9)), isTest: false },
+            6: { start: 6, count: Math.min(6, Math.max(0, this.words.length - 6)), isTest: true },
+            7: { start: 12, count: Math.min(4, Math.max(0, this.words.length - 12)), isTest: false },
+            8: { start: 16, count: Math.min(4, Math.max(0, this.words.length - 16)), isTest: false },
+            9: { start: 12, count: Math.min(8, Math.max(0, this.words.length - 12)), isTest: true },
+            10: { start: 0, count: Math.min(this.words.length, 20), isTest: true, isFinal: true }
+        };
+        
+        const config = levelConfigs[level] || levelConfigs[1];
+        
+        // Skip levels with no words
+        if (config.count <= 0) {
+            return this.getWordsForLevel(level + 1);
+        }
+        
+        this.levelData = {
+            words: this.words.slice(config.start, config.start + config.count),
+            translations: this.translations.slice(config.start, config.start + config.count),
+            isTest: config.isTest,
+            isFinal: config.isFinal || false
+        };
+        
+        return this.levelData;
+    }
+};
+
 const currentArcadeSessionStructure = {
     eventId: null,
     otp: null,
@@ -6198,81 +6529,334 @@ function showSetScreen(stageId) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-    await checkExistingSession();
-    initializeGame();
-    updatePerkButtons();
-    updateGuestPlayButton();
-    CoinsManager.initialize();
-    WordsManager.initialize();
-    
-    // Load initial coins
-    if (currentUser) {
-        gameState.coins = await CoinsManager.loadUserCoins();
-        CoinsManager.updateDisplays();
-     
-        const words = await WordsManager.loadUserWords();
-        WordsManager.updateDisplays(words);
-    }
-    
-    // Handle QR code joining
-    window.addEventListener('hashchange', handleHashChange);
-    window.addEventListener('load', handleHashChange);
-    
-    // Check for join hash on initial load
-    if (window.location.hash.startsWith('#join=')) {
-        console.log('Initial join hash detected');
-        const otp = window.location.hash.replace('#join=', '');
-        history.pushState("", document.title, window.location.pathname);
-        showJoinModal(otp);
-    }
+   try {
+       // Define CustomListsManager first before any functions try to use it
+       if (!window.CustomListsManager) {
+           window.CustomListsManager = {
+               lists: [],
+               
+               async initialize() {
+                   if (currentUser) {
+                       await this.loadFromSupabase();
+                   } else {
+                       this.loadFromLocalStorage();
+                   }
+               },
+               
+               async loadFromSupabase() {
+                   try {
+                       const { data, error } = await supabaseClient
+                           .from('custom_lists')
+                           .select('*')
+                           .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
+                           
+                       if (error) throw error;
+                       
+                       this.lists = data.map(item => ({
+                           id: item.id,
+                           name: item.name,
+                           words: item.words || [],
+                           translations: item.translations || [],
+                           isShared: item.is_shared,
+                           sharedBy: item.shared_by,
+                           userId: item.user_id,
+                           createdAt: item.created_at
+                       }));
+                       
+                       console.log('Loaded lists from Supabase:', this.lists.length);
+                   } catch (error) {
+                       console.error('Error loading lists from Supabase:', error);
+                       this.lists = [];
+                   }
+               },
+               
+               loadFromLocalStorage() {
+                   try {
+                       const savedLists = localStorage.getItem('simploxCustomLists');
+                       this.lists = savedLists ? JSON.parse(savedLists) : [];
+                       console.log('Loaded lists from localStorage:', this.lists.length);
+                   } catch (error) {
+                       console.error('Error loading lists from localStorage:', error);
+                       this.lists = [];
+                   }
+               },
+               
+               async save(list) {
+                   if (!list) return null;
+                   
+                   if (currentUser) {
+                       return await this.saveToSupabase(list);
+                   } else {
+                       return this.saveToLocalStorage(list);
+                   }
+               },
+               
+               async saveToSupabase(list) {
+                   try {
+                       const listData = {
+                           name: list.name,
+                           words: list.words || [],
+                           translations: list.translations || [],
+                           user_id: currentUser.id
+                       };
+                       
+                       if (list.id && typeof list.id === 'string' && list.id.length === 36) {
+                           const { data, error } = await supabaseClient
+                               .from('custom_lists')
+                               .update(listData)
+                               .eq('id', list.id)
+                               .select()
+                               .single();
+                               
+                           if (error) throw error;
+                           return data;
+                       } else {
+                           const { data, error } = await supabaseClient
+                               .from('custom_lists')
+                               .insert(listData)
+                               .select()
+                               .single();
+                               
+                           if (error) throw error;
+                           
+                           const index = this.lists.findIndex(l => 
+                               l.id === list.id || 
+                               (l.tempId && l.tempId === list.tempId));
+                               
+                           if (index !== -1) {
+                               this.lists[index] = {
+                                   ...data,
+                                   words: data.words || [],
+                                   translations: data.translations || []
+                               };
+                           } else {
+                               this.lists.push({
+                                   ...data,
+                                   words: data.words || [],
+                                   translations: data.translations || []
+                               });
+                           }
+                           
+                           return data;
+                       }
+                   } catch (error) {
+                       console.error('Error saving list to Supabase:', error);
+                       return null;
+                   }
+               },
+               
+               saveToLocalStorage(list) {
+                   try {
+                       const newList = {
+                           ...list,
+                           id: list.id || Date.now(),
+                           tempId: list.tempId || Date.now()
+                       };
+                       
+                       const index = this.lists.findIndex(l => 
+                           l.id === list.id || 
+                           (l.tempId && l.tempId === list.tempId));
+                           
+                       if (index !== -1) {
+                           this.lists[index] = newList;
+                       } else {
+                           this.lists.push(newList);
+                       }
+                       
+                       localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
+                       return newList;
+                   } catch (error) {
+                       console.error('Error saving list to localStorage:', error);
+                       return null;
+                   }
+               },
+               
+               async delete(listId) {
+                   if (currentUser) {
+                       try {
+                           if (typeof listId === 'string' && listId.length === 36) {
+                               const { error } = await supabaseClient
+                                   .from('custom_lists')
+                                   .delete()
+                                   .eq('id', listId);
+                                   
+                               if (error) throw error;
+                           }
+                           
+                           this.lists = this.lists.filter(list => list.id !== listId);
+                           return true;
+                       } catch (error) {
+                           console.error('Error deleting list from Supabase:', error);
+                           return false;
+                       }
+                   } else {
+                       this.lists = this.lists.filter(list => list.id !== listId);
+                       localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
+                       return true;
+                   }
+               },
+               
+               async share(listId, recipientId) {
+                   if (!currentUser) return false;
+                   
+                   try {
+                       const list = this.lists.find(l => l.id === listId);
+                       if (!list) return false;
+                       
+                       const result = await supabaseClient.rpc('insert_shared_list', {
+                           p_user_id: recipientId,
+                           p_name: `${list.name} (Shared by ${currentUser.user_metadata?.username || 'User'})`,
+                           p_words: list.words || [],
+                           p_translations: list.translations || [],
+                           p_is_shared: true,
+                           p_local_id: Date.now(),
+                           p_shared_with: [recipientId],
+                           p_shared_by: currentUser.id
+                       });
+                       
+                       return !result.error;
+                   } catch (error) {
+                       console.error('Error sharing list:', error);
+                       return false;
+                   }
+               },
+               
+               getListLimits() {
+                   if (!currentUser) {
+                       return {
+                           maxLists: 3,
+                           maxWords: 10,
+                           maxPlays: 5,
+                           canShare: false,
+                           playDisplay: '5'
+                       };
+                   }
+                   
+                   const userStatus = currentUser.status || 'free';
+                   
+                   switch(userStatus) {
+                       case 'premium':
+                           return {
+                               maxLists: 30,
+                               maxWords: 50,
+                               maxPlays: Infinity,
+                               canShare: true,
+                               playDisplay: '∞'
+                           };
+                       case 'pending':
+                           return {
+                               maxLists: 30,
+                               maxWords: 50,
+                               maxPlays: Infinity,
+                               canShare: false,
+                               playDisplay: '∞'
+                           };
+                       case 'free':
+                           return {
+                               maxLists: 5,
+                               maxWords: 20,
+                               maxPlays: 10,
+                               canShare: false,
+                               playDisplay: '10'
+                           };
+                       default:
+                           return {
+                               maxLists: 3,
+                               maxWords: 10,
+                               maxPlays: 5,
+                               canShare: false,
+                               playDisplay: '5'
+                           };
+                   }
+               },
+               
+               canCreateMoreLists() {
+                   const limits = this.getListLimits();
+                   return this.lists.length < limits.maxLists;
+               }
+           };
+       }
+       
+       // Next, check session and initialize the game
+       await checkExistingSession();
+       initializeGame();
+       updatePerkButtons();
+       updateGuestPlayButton();
+       
+       // Initialize managers in correct order
+       CoinsManager.initialize();
+       WordsManager.initialize();
+       await CustomListsManager.initialize();
 
-    // Ensure particles on welcome screen
-    const welcomeScreen = document.getElementById('welcome-screen');
-    initializeParticles(welcomeScreen);
-    
-    await loadCustomLists();
+       // Load initial coins
+       if (currentUser) {
+           gameState.coins = await CoinsManager.loadUserCoins();
+           CoinsManager.updateDisplays();
+           
+           const words = await WordsManager.loadUserWords();
+           WordsManager.updateDisplays(words);
+       }
+       
+       // Handle QR code joining
+       window.addEventListener('hashchange', handleHashChange);
+       window.addEventListener('load', handleHashChange);
+       
+       // Check for join hash on initial load
+       if (window.location.hash.startsWith('#join=')) {
+           console.log('Initial join hash detected');
+           const otp = window.location.hash.replace('#join=', '');
+           history.pushState("", document.title, window.location.pathname);
+           showJoinModal(otp);
+       }
 
-    // Mobile fullscreen handling
-    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Request on first touch
-        document.addEventListener('touchstart', function onFirstTouch() {
-            requestFullscreenMode();
-            document.removeEventListener('touchstart', onFirstTouch);
-        }, { once: true });
-        
-        // Request when clicking any button
-        document.addEventListener('click', function(e) {
-            if (e.target.tagName === 'BUTTON') {
-                requestFullscreenMode();
-            }
-        });
-        
-        // Screen orientation handling
-        if (screen.orientation) {
-            screen.orientation.lock('portrait')
-                .catch(err => console.log('Failed to lock orientation:', err));
-        }
-    }
+       // Ensure particles on welcome screen
+       const welcomeScreen = document.getElementById('welcome-screen');
+       initializeParticles(welcomeScreen);
+       
+       // Mobile fullscreen handling
+       if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+           // Request on first touch
+           document.addEventListener('touchstart', function onFirstTouch() {
+               requestFullscreenMode();
+               document.removeEventListener('touchstart', onFirstTouch);
+           }, { once: true });
+           
+           // Request when clicking any button
+           document.addEventListener('click', function(e) {
+               if (e.target.tagName === 'BUTTON') {
+                   requestFullscreenMode();
+               }
+           });
+           
+           // Screen orientation handling
+           if (screen.orientation) {
+               screen.orientation.lock('portrait')
+                   .catch(err => console.log('Failed to lock orientation:', err));
+           }
+       }
 
-    // OTP input handling
-    const otpInput = document.getElementById('otpInput');
-    if (otpInput) {
-        otpInput.addEventListener('input', function(e) {
-            // Remove any non-numeric characters
-            this.value = this.value.replace(/[^0-9]/g, '');
-            
-            // Limit to 4 digits
-            if (this.value.length > 4) {
-                this.value = this.value.slice(0, 4);
-            }
-        });
-    }
+       // OTP input handling
+       const otpInput = document.getElementById('otpInput');
+       if (otpInput) {
+           otpInput.addEventListener('input', function(e) {
+               // Remove any non-numeric characters
+               this.value = this.value.replace(/[^0-9]/g, '');
+               
+               // Limit to 4 digits
+               if (this.value.length > 4) {
+                   this.value = this.value.slice(0, 4);
+               }
+           });
+       }
 
-    // Initialize real-time channels if user is logged in
-    if (currentUser) {
-        setupUserStatusSubscription();
-        initializeStatusCheck();
-    }
+       // Initialize real-time channels if user is logged in
+       if (currentUser) {
+           setupUserStatusSubscription();
+           initializeStatusCheck();
+       }
+   } catch (error) {
+       console.error('Initialization error:', error);
+   }
 });
 
 // Add this to the existing showJoinModal function to ensure proper mobile display
@@ -6859,32 +7443,12 @@ async function saveCustomList() {
 }
 
 async function loadCustomLists() {
-    if (currentUser) {
-        const { data, error } = await supabaseClient
-            .from('custom_lists')
-            .select('*')
-            .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
-
-        if (error) {
-            console.error('Error loading custom lists:', error);
-            customPracticeLists.lists = [];
-        } else {
-            customPracticeLists.lists = data.map(item => ({
-                id: item.local_id || Date.now(),
-                supabaseId: item.id,
-                name: item.name,
-                words: item.words,
-                translations: item.translations,
-                is_shared: item.is_shared,
-                shared_by: item.shared_by
-            }));
-        }
-    } else {
-        const savedLists = localStorage.getItem('simploxCustomLists');
-        customPracticeLists.lists = savedLists ? JSON.parse(savedLists) : [];
+    try {
+        await CustomListsManager.initialize();
+        updateListsDisplay();
+    } catch (error) {
+        console.error('Error in loadCustomLists:', error);
     }
-    
-    updateListsDisplay();
 }
 
 function switchAuthTab(tab) {
@@ -8225,6 +8789,12 @@ async function handleAnswer(isCorrect, fromPerk = false) {
     
     currentGame.lastAnswerTime = now;
 
+    // Handle custom practice mode separately
+    if (currentGame.isCustomPractice) {
+        handleCustomPracticeAnswer(isCorrect, fromPerk);
+        return;
+    }
+
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     const isLevelCompleted = gameState.perfectLevels.has(levelKey);
 
@@ -9159,6 +9729,7 @@ const customPracticeLists = {
     maxLists: 5
 };
 
+
 // Function to add a new word list
 function addCustomWordList(name = null) {
     // Check if we've reached the maximum number of lists
@@ -9452,72 +10023,54 @@ function setupWordListKeyNavigation() {
 // Call this when word list is populated
 setupWordListKeyNavigation();
 
-function editCustomList(listId) {
-    // Ensure listId is a number
-    listId = typeof listId === 'string' ? parseInt(listId) : listId;
-    
-    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
-    const editButton = listItem.querySelector('.edit-button');
-    const wordList = document.getElementById(`list-${listId}`);
-    
-    // If currently in edit mode, save the list
-    if (editButton.textContent === 'Save') {
-        saveCurrentList();
-        editButton.textContent = 'Edit';
-        listItem.removeAttribute('data-in-edit-mode');
-        wordList.innerHTML = '';
-        showCustomListsManager();
-        return;
-    }
-    
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
-    
-    // Switch to custom practice screen
-    showScreen('custom-practice-screen');
-    
-    // Set the list name
-    const listNameInput = document.getElementById('custom-list-name');
-    listNameInput.value = list.name;
-    
-    // Show translations section
-    const translationResults = document.getElementById('translation-results');
-    const editWordList = document.getElementById('word-translation-list');
-    
-    // Clear previous translations
-    editWordList.innerHTML = '';
-    
-    // Create translation items for each word
-    list.words.forEach((word, index) => {
-        const wordItem = document.createElement('div');
-        wordItem.className = 'word-translation-item';
-        wordItem.draggable = true;
-        
-        wordItem.innerHTML = `
-            <div class="drag-handle">
-                <i class="fas fa-grip-vertical"></i>
-            </div>
-            <span class="source-word" contenteditable="true">${word}</span>
-            <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
-            <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-        `;
-        
-        editWordList.appendChild(wordItem);
-    });
-    
-    translationResults.style.display = 'block';
-    
-    // Mark list as in edit mode
-    listItem.setAttribute('data-in-edit-mode', 'true');
-    
-    // Change edit button text
-    editButton.textContent = 'Save';
-    
-    // Store the current list for later saving
-    customPracticeLists.currentList = list;
-    
-    // Initialize drag functionality
-    makeWordListDraggable();
+async function editCustomList(listId) {
+   // Find the list
+   const list = CustomListsManager.lists.find(l => l.id === listId);
+   if (!list) {
+       showNotification('List not found', 'error');
+       return;
+   }
+   
+   // Switch to custom practice screen
+   showScreen('custom-practice-screen');
+   
+   // Set the list name
+   const listNameInput = document.getElementById('custom-list-name');
+   listNameInput.value = list.name;
+   
+   // Show translations section
+   const translationResults = document.getElementById('translation-results');
+   const editWordList = document.getElementById('word-translation-list');
+   
+   // Clear previous translations
+   editWordList.innerHTML = '';
+   
+   // Create translation items for each word
+   (list.words || []).forEach((word, index) => {
+       const translation = list.translations?.[index] || '';
+       const wordItem = document.createElement('div');
+       wordItem.className = 'word-translation-item';
+       wordItem.draggable = true;
+       
+       wordItem.innerHTML = `
+           <div class="drag-handle">
+               <i class="fas fa-grip-vertical"></i>
+           </div>
+           <span class="source-word" contenteditable="true">${word}</span>
+           <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
+           <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+       `;
+       
+       editWordList.appendChild(wordItem);
+   });
+   
+   translationResults.style.display = 'block';
+   
+   // Store the current list for later saving
+   customPracticeLists.currentList = list;
+   
+   // Initialize drag functionality
+   makeWordListDraggable();
 }
 
 
@@ -9634,30 +10187,67 @@ function saveCurrentList() {
 }
 
 function updateListsDisplay() {
-    const container = document.getElementById('custom-lists-container');
-    if (!container) return;
-
-    container.innerHTML = '';
-
-    if (customPracticeLists.lists.length === 0) {
-        container.innerHTML = '<p>No custom lists created yet. Create your first list!</p>';
-        return;
-    }
-
-    customPracticeLists.lists.forEach(list => {
-        const listItem = document.createElement('div');
-        listItem.className = 'custom-list-item';
-        listItem.innerHTML = `
-            <h3>${list.name}</h3>
-            <p>${list.words.length} words</p>
-            <div class="list-actions">
-                <button onclick="startCustomListPractice(${list.id})">Practice</button>
-                <button onclick="editCustomList(${list.id})">Edit</button>
-                <button onclick="deleteCustomList(${list.id})">Delete</button>
-            </div>
-        `;
-        container.appendChild(listItem);
-    });
+   const container = document.getElementById('custom-lists-container');
+   if (!container) return;
+   
+   const limits = CustomListsManager.getListLimits();
+   const userStatus = currentUser?.status || 'unregistered';
+   
+   container.innerHTML = '';
+   console.log("Displaying lists count:", CustomListsManager.lists?.length || 0);
+   
+   if (!CustomListsManager.lists || CustomListsManager.lists.length === 0) {
+       container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
+       return;
+   }
+   
+   CustomListsManager.lists.forEach(list => {
+       const listItem = document.createElement('div');
+       listItem.className = `custom-list-item collapsed ${list.isShared ? 'shared-list' : ''}`;
+       listItem.dataset.listId = list.id;
+       
+       listItem.innerHTML = `
+           <div class="list-actions">
+               <button class="start-button practice-button">Practice</button>
+               <button class="edit-button" data-list-id="${list.id}">Edit</button>
+               <button class="start-button delete-button">Delete</button>
+               ${userStatus === 'premium' ? `
+                   <button class="share-button" onclick="showShareModal('${list.id}')">
+                       <i class="fas fa-share-alt"></i> Share
+                   </button>
+               ` : ''}
+           </div>
+           <div class="list-header">
+               <h3>${list.name}</h3>
+               <div class="list-summary">
+                   <span>${list.words?.length || 0} words</span>
+                   <span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>
+                   <p class="word-preview">${(list.words || []).slice(0,5).join(', ')}${list.words && list.words.length > 5 ? '...' : ''}</p>
+               </div>
+           </div>
+       `;
+       
+       // Add event listeners with explicit function calls
+       const practiceButton = listItem.querySelector('.practice-button');
+       practiceButton.addEventListener('click', () => startCustomListPractice(list.id));
+       
+       const editButton = listItem.querySelector('.edit-button');
+       editButton.addEventListener('click', () => {
+           console.log('Edit button clicked for list:', list.id);
+           editCustomList(list.id);
+       });
+       
+       const deleteButton = listItem.querySelector('.delete-button');
+       deleteButton.addEventListener('click', () => {
+           console.log('Delete button clicked for list:', list.id);
+           deleteCustomList(list.id);
+       });
+       
+       const header = listItem.querySelector('.list-header');
+       header.addEventListener('click', () => toggleListCollapse(list.id));
+       
+       container.appendChild(listItem);
+   });
 }
 
 function startCustomListPractice(listId) {
@@ -9734,14 +10324,24 @@ function calculateCustomLevelWords(level, practiceState) {
     };
 }
 
-function startCustomLevel(levelId, practiceState) {
+function startCustomLevel(levelId) {
     const powerupsContainer = document.querySelector('.powerups-container');
-if (powerupsContainer) {
-    powerupsContainer.style.display = 'none';
-}
-    const levelData = calculateCustomLevelWords(levelId, practiceState);
-    if (!levelData) return;
-
+    if (powerupsContainer) {
+        powerupsContainer.style.display = 'none';
+    }
+    
+    // Get level data
+    const levelData = customGameState.getWordsForLevel(levelId);
+    if (!levelData || !levelData.words.length) {
+        // No more words - user completed all levels
+        showNotification('Practice completed!', 'success');
+        showScreen('custom-practice-screen');
+        return;
+    }
+    
+    customGameState.currentLevel = levelId;
+    
+    // Set up current game object for the question screen
     currentGame = {
         words: levelData.words,
         translations: levelData.translations,
@@ -9751,8 +10351,6 @@ if (powerupsContainer) {
         isHebrewToEnglish: levelData.isTest ? Math.random() < 0.5 : false,
         mixed: levelData.isTest,
         speedChallenge: false,
-        practiceState: practiceState,
-        currentCustomLevel: levelId,
         isCustomPractice: true,
         startingCoins: gameState.coins,
         startingPerks: { ...gameState.perks },
@@ -9762,9 +10360,12 @@ if (powerupsContainer) {
         levelStartTime: Date.now(),
         questionStartTime: 0,
         wrongStreak: 0,
-        progressLost: 0
+        progressLost: 0,
+        customList: customGameState.currentList,
+        customLevel: levelId
     };
-
+    
+    // Show level intro
     showLevelIntro(levelId, () => {
         showScreen('question-screen');
         updateProgressCircle();
@@ -9775,6 +10376,7 @@ if (powerupsContainer) {
 
 function showCustomListsManager() {
     showScreen('custom-practice-screen');
+    updateListsDisplay();
     
     const container = document.getElementById('custom-lists-container');
     if (!container) return;
@@ -15663,6 +16265,291 @@ function closePersonalVictory() {
             // Go to welcome screen
             showScreen('welcome-screen');
         }, 500);
+    }
+}
+
+async function startCustomListPractice(listId) {
+    // Find the list
+    const list = CustomListsManager.lists.find(l => l.id === listId);
+    if (!list) {
+        showNotification('List not found', 'error');
+        return;
+    }
+    
+    // Validate list has content
+    if (!list.words || !list.translations || list.words.length === 0) {
+        showNotification('This list is empty', 'error');
+        return;
+    }
+    
+    // Initialize custom game state
+    const initialized = customGameState.initializeFromList(list);
+    if (!initialized) {
+        showNotification('Failed to initialize practice', 'error');
+        return;
+    }
+    
+    // Start first level
+    startCustomLevel(1);
+}
+
+function handleCustomLevelCompletion() {
+    const completedPerfectly = currentGame.streakBonus && 
+        currentGame.correctAnswers === currentGame.words.length;
+        
+    clearTimer();
+
+    if (completedPerfectly) {
+        // Award bonus coins
+        const bonusCoins = currentGame.firstAttempt ? 5 : 3;
+        gameState.coins += bonusCoins;
+        pulseCoins(bonusCoins);
+        updateAllCoinDisplays();
+        
+        // Update custom game state
+        customGameState.wordsCompleted += currentGame.words.length;
+        
+        // Determine next level
+        const nextLevel = customGameState.currentLevel + 1;
+        
+        // Max 10 levels or until words run out
+        if (nextLevel <= 10) {
+            setTimeout(() => startCustomLevel(nextLevel), 1500);
+        } else {
+            // Completed all levels
+            showCustomCompletionScreen();
+        }
+    } else {
+        // Retry level
+        setTimeout(() => startCustomLevel(customGameState.currentLevel), 1500);
+    }
+    
+    // Save progress
+    saveProgress();
+}
+
+function showCustomCompletionScreen() {
+    const overlay = document.createElement('div');
+    overlay.className = 'completion-overlay';
+    
+    // Calculate coins earned
+    const coinsEarned = gameState.coins - customGameState.startCoins;
+    
+    overlay.innerHTML = `
+        <div class="completion-content">
+            <h2>Practice Complete!</h2>
+            <div class="completion-stats">
+                <div class="stat-item">
+                    <i class="fas fa-book"></i>
+                    <span>Words Practiced: ${customGameState.wordsCompleted}</span>
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-coins"></i>
+                    <span>Coins Earned: ${coinsEarned}</span>
+                </div>
+            </div>
+            <button onclick="exitCustomPractice()" class="start-button">Continue</button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+}
+
+function exitCustomPractice() {
+    // Clean up
+    customGameState.reset();
+    
+    // Hide completion overlay
+    const overlay = document.querySelector('.completion-overlay');
+    if (overlay) overlay.remove();
+    
+    // Return to custom lists screen
+    showScreen('custom-practice-screen');
+}
+
+async function handleCustomPracticeAnswer(isCorrect, fromPerk = false) {
+    if (!isCorrect) {
+        currentGame.firstAttempt = false;
+        currentGame.streakBonus = false;
+        currentGame.wrongStreak++;
+        
+        try {
+            await CoinsManager.updateCoins(-3);
+            updatePerkButtons();
+        } catch (error) {
+            console.error('Error updating coins:', error);
+        }
+
+        // Move progress bar backwards
+        if (currentGame.currentIndex > 0) {
+            currentGame.progressLost++;
+            currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
+        }
+
+        // Check for game over condition
+        if (currentGame.wrongStreak >= 3) {
+            showGameOverOverlay();
+            document.querySelector('.restart-button').onclick = () => {
+                document.querySelector('.failure-overlay').style.display = 'none';
+                startCustomLevel(currentGame.customLevel);
+            };
+            return;
+        }
+    } else if (isCorrect && !fromPerk) {
+        let totalCoinsEarned = 0;
+
+        // Award time bonus
+        const timeBonus = awardTimeBonus();
+        if (timeBonus > 0) {
+            totalCoinsEarned += timeBonus;
+            pulseCoins(timeBonus);
+        }
+
+        // Award coins based on first attempt
+        if (currentGame.firstAttempt) {
+            totalCoinsEarned += 3;
+            pulseCoins(3);
+        } else {
+            totalCoinsEarned += 1;
+            pulseCoins(1);
+        }
+
+        try {
+            await CoinsManager.updateCoins(totalCoinsEarned);
+            updatePerkButtons();
+        } catch (error) {
+            console.error('Error updating total coins:', error);
+        }
+        
+        currentGame.correctAnswers++;
+    }
+
+    const correctAnswer = currentGame.isHebrewToEnglish ? 
+        currentGame.words[currentGame.currentIndex] : 
+        currentGame.translations[currentGame.currentIndex];
+
+    document.querySelectorAll('.buttons button').forEach(btn => {
+        if (btn.textContent === correctAnswer) {
+            btn.classList.add('correct');
+        } else if (!isCorrect && btn.textContent === event.target.textContent) {
+            btn.classList.add('wrong');
+        }
+    });
+
+    if (isCorrect) {
+        currentGame.currentIndex++;
+    }
+    
+    updateProgressCircle();
+    saveProgress();
+   
+    // Use setTimeout for consistent timing
+    setTimeout(() => {
+        if (currentGame.currentIndex < currentGame.words.length) {
+            loadNextQuestion();
+            updatePerkButtons();
+        } else {
+            handleCustomLevelCompletion();
+        }
+    }, 333);
+}
+
+async function saveCurrentList() {
+    if (!CustomListsManager.canCreateMoreLists() && !customPracticeLists.currentList) {
+        showNotification(`You can only create ${CustomListsManager.getListLimits().maxLists} custom lists`, 'error');
+        return;
+    }
+    
+    const listNameInput = document.getElementById('custom-list-name');
+    const wordList = document.getElementById('word-translation-list');
+    
+    // Get current list name
+    const name = listNameInput.value.trim() || 
+        (customPracticeLists.currentList ? 
+            customPracticeLists.currentList.name : 
+            `List ${CustomListsManager.lists.length + 1}`);
+            
+    const words = [];
+    const translations = [];
+    
+    const items = wordList.querySelectorAll('.word-translation-item');
+    items.forEach(item => {
+        const word = item.querySelector('.source-word').textContent.trim();
+        const translation = item.querySelector('.target-word').value.trim();
+        
+        if (word && translation) {
+            words.push(word);
+            translations.push(translation);
+        }
+    });
+    
+    // Validate word count limit
+    const limits = CustomListsManager.getListLimits();
+    if (words.length > limits.maxWords) {
+        showNotification(`You can only create lists with up to ${limits.maxWords} words`, 'error');
+        return;
+    }
+    
+    let listToSave;
+    
+    if (customPracticeLists.currentList) {
+        // Updating existing list
+        listToSave = {
+            ...customPracticeLists.currentList,
+            name,
+            words,
+            translations
+        };
+    } else {
+        // Creating new list 
+        listToSave = {
+            tempId: Date.now(),  // Temporary ID until saved to Supabase
+            name,
+            words,
+            translations
+        };
+    }
+    
+    // Save the list
+    const savedList = await CustomListsManager.save(listToSave);
+    
+    if (savedList) {
+        // Clear form
+        listNameInput.value = '';
+        wordList.innerHTML = '';
+        document.getElementById('translation-results').style.display = 'none';
+        
+        // Reset current list
+        customPracticeLists.currentList = null;
+        
+        // Force immediate reload of lists from appropriate source
+        if (currentUser) {
+            await CustomListsManager.loadFromSupabase();
+        } else {
+            CustomListsManager.loadFromLocalStorage();
+        }
+        
+        showNotification('List saved successfully', 'success');
+        
+        // Show screen after data refresh
+        showScreen('custom-practice-screen');
+        updateListsDisplay();
+    } else {
+        showNotification('Failed to save list', 'error');
+    }
+}
+
+async function deleteCustomList(listId) {
+    const confirmed = confirm('Are you sure you want to delete this list?');
+    if (!confirmed) return;
+    
+    const success = await CustomListsManager.delete(listId);
+    
+    if (success) {
+        showNotification('List deleted successfully', 'success');
+        updateListsDisplay();
+    } else {
+        showNotification('Failed to delete list', 'error');
     }
 }
 
