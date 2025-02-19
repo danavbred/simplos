@@ -11986,7 +11986,7 @@ function getRandomSimploName() {
 }
 
 function showWaitingScreen() {
-    // First check if game is already active
+    // If game is already active, skip waiting screen
     if (currentArcadeSession.state === 'active') {
         startArcadeGame();
         return;
@@ -12003,6 +12003,40 @@ function showWaitingScreen() {
     if (joinButton) {
         joinButton.style.display = currentArcadeSession.state === 'active' ? 'block' : 'none';
     }
+    
+    // Start polling for game state
+    const pollInterval = setInterval(() => {
+        if (window.arcadeChannel) {
+            try {
+                window.arcadeChannel.send({
+                    type: 'broadcast',
+                    event: 'check_game_status',
+                    payload: {
+                        username: currentArcadeSession.playerName,
+                        requestType: 'waitingCheck'
+                    }
+                });
+            } catch (err) {
+                console.error('Error checking game status:', err);
+            }
+        }
+    }, 2000);
+    
+    // Update player count
+    const playerCountElement = document.getElementById('waiting-player-count');
+    if (playerCountElement) {
+        playerCountElement.textContent = currentArcadeSession.participants.length || 0;
+    }
+    
+    // Store interval ID for cleanup
+    waitingScreen.dataset.pollInterval = pollInterval;
+
+    // Auto-cleanup after 5 minutes
+    setTimeout(() => {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+        }
+    }, 300000);
 }
 
 async function initializeArcade() {
@@ -12037,7 +12071,8 @@ async function initializeArcade() {
             payload: {
                 wordPool: currentArcadeSession.wordPool,
                 wordGoal: currentArcadeSession.wordGoal,
-                state: 'active'
+                state: 'active',
+                timestamp: Date.now()
             }
         });
 
@@ -12241,17 +12276,39 @@ async function startArcade() {
             checkGameEnd();
         })
         .on('broadcast', { event: 'check_game_status' }, async ({ payload }) => {
-            // Respond with current state
-            await window.arcadeChannel.send({
-                type: 'broadcast',
-                event: 'game_state_response',
-                payload: {
-                    state: currentArcadeSession.state,
-                    wordPool: currentArcadeSession.wordPool,
-                    wordGoal: currentArcadeSession.wordGoal
-                }
-            });
+        // Respond with current state
+        console.log('Received game status check:', payload);
+        await window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'game_state_response',
+            payload: {
+                state: currentArcadeSession.state,
+                wordPool: currentArcadeSession.wordPool,
+                wordGoal: currentArcadeSession.wordGoal,
+                requestType: payload?.requestType || 'standard'
+            }
         });
+        
+        // If this is a late join request and game is active, make sure player is tracked
+        if (payload?.requestType === 'lateJoin' && 
+            currentArcadeSession.state === 'active' &&
+            payload.username) {
+            // Add player to participants if not already there
+            if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
+                currentArcadeSession.participants.push({
+                    username: payload.username,
+                    wordsCompleted: 0,
+                    coins: 0,
+                    lateJoin: true
+                });
+                
+                // Update UI
+                document.getElementById('activeParticipantCount').textContent = 
+                    currentArcadeSession.participants.length;
+                updateAllPlayersProgress();
+            }
+        }
+    });
 
         document.getElementById('arcade-modal').style.display = 'none';
     showModeratorScreen();
@@ -12293,6 +12350,13 @@ function cleanupModeratorScreen() {
 }
 
 async function startArcadeGame() {
+   // Clean up any waiting screen intervals
+   const waitingScreen = document.getElementById('waiting-screen');
+   if (waitingScreen && waitingScreen.dataset.pollInterval) {
+       clearInterval(parseInt(waitingScreen.dataset.pollInterval));
+       delete waitingScreen.dataset.pollInterval;
+   }
+
    const questionScreen = document.getElementById('question-screen');
    questionScreen.classList.add('visible');
    document.getElementById('waiting-screen').classList.remove('visible');
@@ -12365,13 +12429,26 @@ async function startArcadeGame() {
        currentIndex: 0,
        correctStreak: 0,
        wrongStreak: 0,
-       words: currentArcadeSession.wordPool,
+       words: currentArcadeSession.wordPool || [],
        wordsCompleted: 0,
        coins: initialCoins,
        lastBroadcast: Date.now(),
        initialCoinsLoaded: true,
        playerUsername: playerUsername
    };
+   
+   // Guard against empty word pool for late joiners
+   if (!currentGame.words || currentGame.words.length === 0) {
+       console.error('Empty word pool detected. Trying to fetch from currentArcadeSession');
+       if (currentArcadeSession.wordPool && currentArcadeSession.wordPool.length > 0) {
+           currentGame.words = currentArcadeSession.wordPool;
+       } else {
+           // Show error and return to welcome screen
+           showErrorToast('Failed to join game: No words available');
+           showScreen('welcome-screen');
+           return;
+       }
+   }
 
    // Broadcast player initialization BEFORE first question
    try {
@@ -12382,7 +12459,8 @@ async function startArcadeGame() {
                username: playerUsername,
                initialCoins: initialCoins,
                wordsCompleted: 0,
-               timestamp: Date.now()
+               timestamp: Date.now(),
+               lateJoin: currentArcadeSession.state === 'active' // Flag for late joiners
            }
        });
    } catch (error) {
@@ -12420,7 +12498,8 @@ async function startArcadeGame() {
            const playerEntry = {
                username: payload.username,
                wordsCompleted: 0,
-               coins: payload.initialCoins || 0
+               coins: payload.initialCoins || 0,
+               lateJoin: payload.lateJoin || false
            };
            
            if (existingPlayerIndex === -1) {
@@ -13560,18 +13639,16 @@ async function joinArcadeWithUsername() {
         // Set player name and initial state
         currentArcadeSession.playerName = username;
         currentArcadeSession.initialCoins = initialCoins;
+        currentArcadeSession.otp = otp;
         
-        // Set up channel listeners
+        // First, check if game is already active by subscribing to channel
+        await window.arcadeChannel.subscribe();
+        
+        // Set up standard event listeners
         window.arcadeChannel
             .on('broadcast', { event: 'game_end' }, ({ payload }) => {
                 handleGameEnd(payload);
                 currentArcadeSession.state = 'ended';
-                
-                if (payload.state === 'active') {
-                    currentArcadeSession.wordPool = payload.wordPool;
-                    currentArcadeSession.wordGoal = payload.wordGoal;
-                    startArcadeGame();
-                }
             })
             .on('broadcast', { event: 'game_playing' }, ({ payload }) => {
                 if (payload.state === 'active') {
@@ -13581,9 +13658,48 @@ async function joinArcadeWithUsername() {
                     startArcadeGame();
                 }
             })
-            .subscribe();
+            .on('broadcast', { event: 'player_join' }, ({ payload }) => {
+                console.log('Player join event received:', payload);
+                if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
+                    currentArcadeSession.participants.push({
+                        username: payload.username,
+                        wordsCompleted: 0,
+                        coins: 0
+                    });
 
-        // Broadcast initial join with type and coins
+                    // Update player count 
+                    const playerCountElement = document.getElementById('player-count');
+                    if (playerCountElement) {
+                        playerCountElement.textContent = currentArcadeSession.participants.length;
+                    }
+
+                    // Update leaderboard if visible
+                    const leaderboard = document.getElementById('arcade-leaderboard');
+                    if (leaderboard && leaderboard.offsetParent !== null) {
+                        updateAllPlayersProgress();
+                    }
+                }
+            });
+        
+        // Set up game state check listener
+        window.arcadeChannel.on('broadcast', { event: 'game_state_response' }, ({ payload }) => {
+            console.log('Received game state response:', payload);
+            if (payload && payload.state === 'active') {
+                // Game is active, store state 
+                currentArcadeSession.state = 'active';
+                currentArcadeSession.wordPool = payload.wordPool;
+                currentArcadeSession.wordGoal = payload.wordGoal;
+                
+                // If we've already sent the join event, go straight to game
+                if (currentArcadeSession.joinEventSent) {
+                    // Hide arcade modal first
+                    document.getElementById('arcade-modal').style.display = 'none';
+                    startArcadeGame();
+                }
+            }
+        });
+
+        // Broadcast initial join
         await window.arcadeChannel.send({
             type: 'broadcast',
             event: 'player_join',
@@ -13594,10 +13710,30 @@ async function joinArcadeWithUsername() {
                 joinedAt: new Date().toISOString()
             }
         });
-
-        // Hide arcade modal and show waiting screen
+        currentArcadeSession.joinEventSent = true;
+        
+        // Now check if game is active
+        await window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'check_game_status',
+            payload: {
+                username: username,
+                requestType: 'lateJoin',
+                timestamp: Date.now()
+            }
+        });
+        
+        // Hide arcade modal
         document.getElementById('arcade-modal').style.display = 'none';
-        showWaitingScreen();
+        
+        // Wait a moment to see if we get a response indicating the game is active
+        setTimeout(() => {
+            // If state has been updated to active by a response, startArcadeGame will have been called
+            // Otherwise, show waiting screen
+            if (currentArcadeSession.state !== 'active') {
+                showWaitingScreen();
+            }
+        }, 500);
 
     } catch (error) {
         console.error('Join arcade error:', error);
