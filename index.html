@@ -5836,16 +5836,22 @@ const CustomListsManager = {
     lists: [],
     
     async initialize() {
-    // Skip if already initialized with data
-    if (this.lists && this.lists.length > 0) {
-        console.log('CustomListsManager already initialized with', this.lists.length, 'lists');
-        return;
-    }
-    
-    if (currentUser) {
-        await this.loadFromSupabase();
-    } else {
-        this.loadFromLocalStorage();
+    // Always try to load lists, regardless of user status
+    try {
+        if (currentUser) {
+            await this.loadFromSupabase();
+        } else {
+            this.loadFromLocalStorage();
+        }
+        
+        // Ensure lists are populated
+        if (!this.lists || this.lists.length === 0) {
+            console.log('No lists found, initializing empty array');
+            this.lists = [];
+        }
+    } catch (error) {
+        console.error('Custom Lists Initialization Error:', error);
+        this.lists = [];
     }
 },
     
@@ -7452,18 +7458,19 @@ async function saveCustomList() {
 
 async function loadCustomLists() {
     try {
-        // First attempt to initialize from scratch
-        await CustomListsManager.initialize();
-        
-        // If we have no lists but user is logged in, force reload from Supabase
-        if (currentUser && (!CustomListsManager.lists || CustomListsManager.lists.length === 0)) {
-            console.log('No lists found, forcing reload from Supabase');
+        // First, try to load from Supabase for logged-in users
+        if (currentUser) {
             await CustomListsManager.loadFromSupabase();
+        } 
+        // If no user or Supabase load fails, load from localStorage
+        else {
+            CustomListsManager.loadFromLocalStorage();
         }
         
+        // Always update lists display after loading
         updateListsDisplay();
     } catch (error) {
-        console.error('Error in loadCustomLists:', error);
+        console.error('Error loading custom lists:', error);
     }
 }
 
@@ -10392,77 +10399,88 @@ function startCustomLevel(levelId) {
 
 function showCustomListsManager() {
     showScreen('custom-practice-screen');
-    updateListsDisplay();
     
-    const container = document.getElementById('custom-lists-container');
-    if (!container) return;
-    
-    const limits = getUserListLimits();
-    const userStatus = currentUser?.status || 'unregistered';
-    
-    container.innerHTML = '';
-    
-    if (customPracticeLists.lists.length === 0) {
-        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
-        return;
-    }
+    // Use Promise-based initialization to ensure lists are loaded
+    Promise.resolve(CustomListsManager.initialize())
+        .then(() => {
+            // Directly use CustomListsManager lists for display
+            const container = document.getElementById('custom-lists-container');
+            if (!container) return;
+            
+            const limits = getUserListLimits();
+            const userStatus = currentUser?.status || 'unregistered';
+            
+            container.innerHTML = '';
+            
+            // Check lists from CustomListsManager
+            const availableLists = CustomListsManager.lists || [];
+            
+            if (availableLists.length === 0) {
+                container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
+                return;
+            }
 
-    customPracticeLists.lists.forEach(list => {
-        // Get play count
-        const playCountKey = `listPlays_${list.id}`;
-        const playsUsed = parseInt(localStorage.getItem(playCountKey) || '0');
-        const playsLeft = limits.maxPlays - playsUsed;
+            availableLists.forEach(list => {
+                // Get play count
+                const playCountKey = `listPlays_${list.id}`;
+                const playsUsed = parseInt(localStorage.getItem(playCountKey) || '0');
+                const playsLeft = limits.maxPlays - playsUsed;
 
-        if (playsLeft <= 0) return;
-        
-        const listItem = document.createElement('div');
-        listItem.className = `custom-list-item collapsed ${list.is_shared ? 'shared-list' : ''}`;
-        listItem.dataset.listId = list.id;
-        
-        listItem.innerHTML = `
-            <div class="list-actions">
-                <button class="start-button practice-button">Practice</button>
-                <button class="edit-button" data-list-id="${list.id}">Edit</button>
-                <button class="start-button delete-button">Delete</button>
-                ${userStatus === 'premium' ? `
-                    <button class="share-button" onclick="showShareModal(${list.id})">
-                        <i class="fas fa-share-alt"></i> Share
-                    </button>
-                ` : ''}
-            </div>
-            <div class="list-header">
-                <h3>${list.name}</h3>
-                <div class="list-summary">
-                    <span>${list.words.length} words</span>
-                    <span style="color: ${playsLeft <= 2 ? '#ff4444' : '#ffffff'}; margin-left: 1rem;">
-                        ${limits.playDisplay}
-                    </span>
-                    <p class="word-preview">${list.words.slice(0,5).join(', ')}${list.words.length > 5 ? '...' : ''}</p>
-                </div>
-            </div>
-        `;
+                if (playsLeft <= 0) return;
+                
+                const listItem = document.createElement('div');
+                listItem.className = `custom-list-item collapsed ${list.is_shared ? 'shared-list' : ''}`;
+                listItem.dataset.listId = list.id;
+                
+                listItem.innerHTML = `
+                    <div class="list-actions">
+                        <button class="start-button practice-button">Practice</button>
+                        <button class="edit-button" data-list-id="${list.id}">Edit</button>
+                        <button class="start-button delete-button">Delete</button>
+                        ${userStatus === 'premium' ? `
+                            <button class="share-button" onclick="showShareModal(${list.id})">
+                                <i class="fas fa-share-alt"></i> Share
+                            </button>
+                        ` : ''}
+                    </div>
+                    <div class="list-header">
+                        <h3>${list.name}</h3>
+                        <div class="list-summary">
+                            <span>${list.words?.length || 0} words</span>
+                            <span style="color: ${playsLeft <= 2 ? '#ff4444' : '#ffffff'}; margin-left: 1rem;">
+                                ${limits.playDisplay}
+                            </span>
+                            <p class="word-preview">${(list.words || []).slice(0,5).join(', ')}${(list.words?.length > 5) ? '...' : ''}</p>
+                        </div>
+                    </div>
+                `;
 
-        // Add event listeners with explicit function calls
-        const practiceButton = listItem.querySelector('.practice-button');
-        practiceButton.addEventListener('click', () => startCustomListPractice(list.id));
+                // Add event listeners with explicit function calls
+                const practiceButton = listItem.querySelector('.practice-button');
+                practiceButton.addEventListener('click', () => startCustomListPractice(list.id));
 
-        const editButton = listItem.querySelector('.edit-button');
-        editButton.addEventListener('click', () => {
-            console.log('Edit button clicked for list:', list.id);
-            editCustomList(list.id);
+                const editButton = listItem.querySelector('.edit-button');
+                editButton.addEventListener('click', () => {
+                    console.log('Edit button clicked for list:', list.id);
+                    editCustomList(list.id);
+                });
+
+                const deleteButton = listItem.querySelector('.delete-button');
+                deleteButton.addEventListener('click', () => {
+                    console.log('Delete button clicked for list:', list.id);
+                    deleteCustomList(list.id);
+                });
+
+                const header = listItem.querySelector('.list-header');
+                header.addEventListener('click', () => toggleListCollapse(list.id));
+
+                container.appendChild(listItem);
+            });
+        })
+        .catch(error => {
+            console.error('Failed to initialize custom lists:', error);
+            showNotification('Error loading lists', 'error');
         });
-
-        const deleteButton = listItem.querySelector('.delete-button');
-        deleteButton.addEventListener('click', () => {
-            console.log('Delete button clicked for list:', list.id);
-            deleteCustomList(list.id);
-        });
-
-        const header = listItem.querySelector('.list-header');
-        header.addEventListener('click', () => toggleListCollapse(list.id));
-
-        container.appendChild(listItem);
-    });
 }
 
 function getUserListLimits() {
@@ -16060,7 +16078,6 @@ function finishCelebrationAndGoHome() {
     showScreen('welcome-screen');
 }
 
-// Add this to your existing window.arcadeChannel setup
 window.arcadeChannel.on('broadcast', { event: 'celebration' }, ({ payload }) => {
     if (!payload.winners) return;
     
