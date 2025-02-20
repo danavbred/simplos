@@ -1732,7 +1732,6 @@ window.vocabularySets = {
             "take",
             "minute",
             "wrong",
-            "excuse",
             "piece"
         ],
         "translations": [
