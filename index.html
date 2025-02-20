@@ -2072,7 +2072,7 @@ background-clip: text;
 }
 
 
-.stage-container, .set-container, .level-selection {
+.stage-container, .set-container {
   display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 2rem;
@@ -2173,10 +2173,142 @@ background-clip: text;
     pointer-events: none;
 }
 
+/* New Level Selection Screen */
+.level-container {
+    width: 100%;
+    max-width: 1200px;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
 
-/* Lock icon styling */
-.level:not(.blue):not(.green)::before {
-    content: '\f023'; /* Font Awesome lock icon */
+.level-header {
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.level-title-area {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+}
+
+.set-icon {
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    background: linear-gradient(135deg, var(--accent), rgba(30, 144, 255, 0.7));
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
+}
+
+.set-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.set-name {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.set-desc {
+    opacity: 0.8;
+    font-size: 0.9rem;
+}
+
+.set-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.progress-bar {
+    width: 150px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--gold);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.level-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 1rem;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.level-item {
+    aspect-ratio: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: var(--text);
+    overflow: hidden;
+}
+
+.level-item.unlocked {
+    background: linear-gradient(135deg, var(--accent), rgba(30, 144, 255, 0.7));
+    box-shadow: 0 5px 15px rgba(30, 144, 255, 0.2);
+}
+
+.level-item.completed {
+    background: linear-gradient(135deg, var(--success), #45b649);
+    border: 2px solid var(--gold);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+}
+
+.level-item.perfect {
+    background: linear-gradient(135deg, var(--gold), #FFA500);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+}
+
+.level-item.boss {
+    background: linear-gradient(135deg, var(--gold), var(--accent));
+    box-shadow: 0 0 25px rgba(255, 215, 0, 0.5);
+}
+
+.level-item.locked {
+    background: rgba(128, 128, 128, 0.2);
+    cursor: not-allowed;
+}
+
+.level-item.locked::before {
+    content: '\f023';
     font-family: 'Font Awesome 6 Free';
     font-weight: 900;
     position: absolute;
@@ -2186,111 +2318,100 @@ background-clip: text;
     font-size: 1.5rem;
     color: rgba(255, 255, 255, 0.5);
     z-index: 1;
-    pointer-events: none;
 }
 
-/* Optional hover effect for locked levels */
-.level:not(.blue):not(.green):hover::before {
-    color: rgba(255, 255, 255, 0.7);
-    transform: translate(-50%, -50%) scale(1.1);
-    transition: all 0.3s ease;
+.level-item.test::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 25px 25px 0;
+    border-color: transparent var(--gold) transparent transparent;
 }
 
-/* Ensure the level number stays visible */
-.level {
+.level-item.unlocked:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(30, 144, 255, 0.3);
+}
+
+.level-item.completed:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(76, 175, 80, 0.3);
+}
+
+.level-item.perfect:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(255, 215, 0, 0.5);
+}
+
+.level-type-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1rem;
+    justify-content: center;
+}
+
+.legend-item {
     display: flex;
     align-items: center;
-    justify-content: center;
-    color: rgba(255, 255, 255, 0.5); /* Dim the number on locked levels */
+    gap: 0.5rem;
+    font-size: 0.9rem;
 }
 
-.level.blue, .level.green {
-    color: rgba(255, 255, 255, 1); /* Full opacity for unlocked levels */
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
 }
 
-
-.level.completing {
-    animation: completeLevel 1.5s forwards;
-}
-
-.level.unlocking {
-    animation: unlockLevel 1.5s forwards;
-}
-
-@keyframes completeLevel {
-    0% {
-        transform: scale(1);
-        background: linear-gradient(135deg, var(--accent), #1E90FF);
+@media (max-width: 768px) {
+    .level-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
     }
-    50% {
-        transform: scale(1.1);
-        background: var(--success);
-        box-shadow: 0 0 30px var(--gold);
+    
+    .set-icon {
+        width: 48px;
+        height: 48px;
+        font-size: 1.4rem;
     }
-    100% {
-        transform: scale(1);
-        background: var(--success);
-        border: 2px solid var(--gold);
-        box-shadow: 0 0 20px var(--gold);
+    
+    .set-name {
+        font-size: 1.2rem;
     }
-}
-
-/* Animation for unlocking next level */
-@keyframes unlockLevel {
-    0% { 
-        transform: scale(1);
-        background: var(--locked);
+    
+    .level-grid {
+        grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+        gap: 0.75rem;
+        padding: 1rem;
     }
-    40% { 
-        transform: scale(1.1);
-    }
-    50% { 
-        transform: scale(1.1);
-        background: var(--gold);
-        box-shadow: 0 0 30px var(--gold);
-    }
-    60% {
-        transform: scale(1.1);
-    }
-    100% { 
-        transform: scale(1);
-        background: linear-gradient(135deg, var(--accent), #ff1f5a);
-        box-shadow: 0 10px 20px rgba(233, 69, 96, 0.3);
+    
+    .level-item {
+        font-size: 1rem;
     }
 }
 
-/* Update the unlocking animation to handle the lock icon */
-.level.unlocking::before {
-    animation: fadeLockOut 0.5s forwards;
-}
-
-@keyframes fadeLockOut {
-    0% {
-        opacity: 1;
-        transform: translate(-50%, -50%) scale(1);
+@media (max-width: 480px) {
+    .level-container {
+        padding: 1rem;
     }
-    100% {
-        opacity: 0;
-        transform: translate(-50%, -50%) scale(0);
+    
+    .level-grid {
+        grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+        gap: 0.5rem;
+    }
+    
+    .set-progress {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }
 
-.level.blue {
-  background: linear-gradient(135deg, var(--accent), #1E90FF);
-  cursor: pointer;
-  box-shadow: 0 10px 20px rgba(233, 69, 96, 0.3);
-}
-
-.level.unlocking {
-  animation: unlockLevel 1s forwards;
-}
-
-.level.green {
-  background: linear-gradient(135deg, var(--success), #45b649);
-  border: 2px solid var(--gold);
-  box-shadow: 0 0 30px var(--gold);
-  animation: pulse 2s infinite;
-}
 
 /* Question screen specific styles */
 .question-screen {
@@ -3110,13 +3231,7 @@ background-clip: text;
     transform: rotate(45deg);
 }
 
-/* Update level grid for 21 levels */
-.level-selection {
-    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
-    max-width: 1200px;
-    gap: 1rem;
-    padding: 2rem;
-}
+
 
 .user-tier {
     display: block; /* Ensure it's always visible */
@@ -3528,11 +3643,6 @@ background-clip: text;
     padding: 0.75rem;
   }
   
-  .level-selection {
-    grid-template-columns: repeat(5, 1fr);
-    gap: 0.5rem;
-    padding: 0.5rem;
-  }
   
   .level {
     max-width: none;
@@ -3614,9 +3724,6 @@ background-clip: text;
     grid-template-columns: repeat(2, 1fr);
   }
   
-  .level-selection {
-    grid-template-columns: repeat(4, 1fr);
-  }
 
   .question-word {
     font-size: 2rem;
@@ -3744,35 +3851,6 @@ background-clip: text;
     }
 }
 
-/* Add to the existing CSS, preferably in the level-related section */
-.level {
-    transition: 
-        background-color 0.5s ease, 
-        box-shadow 0.5s ease, 
-        transform 0.5s ease;
-}
-
-.level.unlocking {
-    animation: unlockLevel 1s forwards;
-}
-
-@keyframes unlockLevel {
-    0% { 
-        transform: scale(1);
-        background: var(--locked);
-        box-shadow: none;
-    }
-    50% { 
-        transform: scale(1.1);
-        background: var(--gold);
-        box-shadow: 0 0 30px var(--gold);
-    }
-    100% { 
-        transform: scale(1);
-        background: linear-gradient(135deg, var(--accent), #1E90FF);
-        box-shadow: 0 10px 20px rgba(233, 69, 96, 0.3);
-    }
-}
 
 .particle-container {
     position: fixed;
@@ -5735,14 +5813,18 @@ background-clip: text;
     </div>
 </div>
 
+<!-- REPLACE level-screen div -->
 <div id="level-screen" class="screen">
     <div class="particle-container"></div>
     <div class="navigation-container">
-        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-            <i class="fas fa-home navigation-icon"></i>
+        <button class="navigation-button home-button" onclick="showScreen('stage-cascade-screen')">
+            <i class="fas fa-arrow-left navigation-icon"></i>
+        </button>
+        <button class="navigation-button fullscreen-button" onclick="toggleFullScreen()">
+            <i class="fas fa-expand navigation-icon"></i>
         </button>
     </div>
-    <div class="level-selection" id="level-container"></div>
+    <div class="level-container" id="level-container"></div>
 </div>
 
 <div id="question-screen" class="screen">
@@ -5854,6 +5936,7 @@ background-clip: text;
         </div>
     </div>
 </div>
+
 <div id="custom-practice-screen" class="screen">
     <div class="navigation-container">
         <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
@@ -7581,30 +7664,81 @@ async function loadUserGameProgress(userId) {
             progressData = existingData;
         }
 
+        // Debug log the loaded data
+        console.log('Loaded game progress:', progressData);
+
         // Update game state with loaded/created progress
         if (progressData) {
             gameState.currentStage = progressData.stage;
             gameState.currentSet = progressData.set_number;
+            gameState.currentLevel = progressData.level || 1;
             gameState.coins = progressData.coins;
             gameState.perks = progressData.perks;
-            gameState.unlockedSets = Object.fromEntries(
-                Object.entries(progressData.unlocked_sets).map(([k, v]) => [k, new Set(v)])
-            );
-            gameState.unlockedLevels = Object.fromEntries(
-                Object.entries(progressData.unlocked_levels).map(([k, v]) => [k, new Set(v)])
-            );
-            gameState.perfectLevels = new Set(progressData.perfect_levels);
-            gameState.completedLevels = new Set(progressData.completed_levels);
+            
+            // Convert array to Set for unlocked sets
+            gameState.unlockedSets = {};
+            if (progressData.unlocked_sets) {
+                Object.entries(progressData.unlocked_sets).forEach(([stageId, sets]) => {
+                    gameState.unlockedSets[stageId] = new Set(sets);
+                });
+            }
+            
+            // Convert array to Set for unlocked levels
+            gameState.unlockedLevels = {};
+            if (progressData.unlocked_levels) {
+                Object.entries(progressData.unlocked_levels).forEach(([setKey, levels]) => {
+                    gameState.unlockedLevels[setKey] = new Set(levels);
+                });
+            }
+            
+            // Convert arrays to Sets for completed and perfect levels
+            gameState.perfectLevels = new Set(progressData.perfect_levels || []);
+            gameState.completedLevels = new Set(progressData.completed_levels || []);
         }
 
         // After loading progress, ensure default unlocks are in place
         setupDefaultUnlocks();
+        
+        // Log the final game state after loading
+        console.log('Game state after loading progress:', {
+            currentStage: gameState.currentStage,
+            currentSet: gameState.currentSet,
+            currentLevel: gameState.currentLevel,
+            unlockedSets: gameState.unlockedSets,
+            unlockedLevels: gameState.unlockedLevels
+        });
 
         updateAllCoinDisplays();
 
     } catch (e) {
         console.error('Unexpected error in loadUserGameProgress:', e);
     }
+}
+
+function debugUnlockState() {
+    console.group('Current Game State');
+    console.log('Current Stage:', gameState.currentStage);
+    console.log('Current Set:', gameState.currentSet);
+    console.log('Current Level:', gameState.currentLevel);
+    
+    // Log unlocked sets
+    console.group('Unlocked Sets');
+    Object.entries(gameState.unlockedSets).forEach(([stageId, sets]) => {
+        console.log(`Stage ${stageId}:`, Array.from(sets).sort((a, b) => a - b));
+    });
+    console.groupEnd();
+    
+    // Log unlocked levels
+    console.group('Unlocked Levels');
+    Object.entries(gameState.unlockedLevels).forEach(([setKey, levels]) => {
+        console.log(`Set ${setKey}:`, Array.from(levels).sort((a, b) => a - b));
+    });
+    console.groupEnd();
+    
+    // Log completed levels
+    console.log('Completed Levels:', Array.from(gameState.completedLevels));
+    console.log('Perfect Levels:', Array.from(gameState.perfectLevels));
+    console.groupEnd();
 }
 
 async function handleLogout() {
@@ -8475,36 +8609,173 @@ document.addEventListener('fullscreenchange', function() {
 });
 
 
-
 function showLevelScreen(setId) {
     gameState.currentSet = setId;
+    debugUnlockState(); // Add debug call here
+    
+    // Clear existing screen
     const container = document.getElementById('level-container');
+    if (!container) return;
     container.innerHTML = '';
+    
     const stage = gameStructure.stages[gameState.currentStage - 1];
-    const testLevels = [3, 6, 9, 10, 13, 16, 19, 20];
-
-    for (let i = 1; i <= stage.levelsPerSet; i++) {
-        const levelDiv = document.createElement('div');
+    if (!stage) return;
+    
+    // Create level header
+    const levelHeader = document.createElement('div');
+    levelHeader.className = 'level-header';
+    
+    // Calculate level completion stats
+    const totalLevels = stage.levelsPerSet;
+    let completedCount = 0;
+    let perfectCount = 0;
+    
+    for (let i = 1; i <= totalLevels; i++) {
         const levelKey = `${gameState.currentStage}_${setId}_${i}`;
-        const isUnlocked = gameState.unlockedLevels[`${gameState.currentStage}_${setId}`]?.has(i);
-        const isPerfect = gameState.perfectLevels.has(levelKey);
-        const isBossLevel = i === stage.bossLevel;
-        const isTestLevel = testLevels.includes(i);
-
-        levelDiv.className = `level ${isUnlocked ? 'blue' : ''} 
-                            ${isPerfect ? 'green' : ''} 
-                            ${isBossLevel ? 'boss' : ''} 
-                            ${isTestLevel ? 'mixed' : ''}`;
-        levelDiv.textContent = i;
-        
-        if (isUnlocked) {
-            levelDiv.onclick = () => startLevel(i);
+        if (gameState.perfectLevels.has(levelKey)) {
+            perfectCount++;
+            completedCount++;
+        } else if (gameState.completedLevels.has(levelKey)) {
+            completedCount++;
         }
-        
-        container.appendChild(levelDiv);
     }
     
+    const progressPercentage = Math.round((completedCount / totalLevels) * 100);
+    const setIcon = getSetIcon(gameState.currentStage, setId);
+    const setDescription = getSetDescription(gameState.currentStage, setId);
+    
+    // Populate header
+    levelHeader.innerHTML = `
+        <div class="level-title-area">
+            <div class="set-icon">
+                <i class="${setIcon}"></i>
+            </div>
+            <div class="set-details">
+                <div class="set-name">Stage ${gameState.currentStage} - Set ${setId}</div>
+                <div class="set-desc">${setDescription}</div>
+            </div>
+        </div>
+        <div class="set-progress">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${progressPercentage}%"></div>
+            </div>
+            <div class="progress-text">${completedCount}/${totalLevels} levels</div>
+        </div>
+    `;
+    
+    container.appendChild(levelHeader);
+    
+    // Create level grid
+    const levelGrid = document.createElement('div');
+    levelGrid.className = 'level-grid';
+    
+    const testLevels = [3, 6, 9, 10, 13, 16, 19, 20];
+    const setKey = `${gameState.currentStage}_${setId}`;
+    
+    // Ensure unlockedLevels exists for this set
+    if (!gameState.unlockedLevels[setKey]) {
+        gameState.unlockedLevels[setKey] = new Set([1]); // At minimum, level 1 should be unlocked
+    }
+    
+    console.log(`Rendering levels for ${setKey}. Unlocked levels:`, 
+                Array.from(gameState.unlockedLevels[setKey] || []));
+    
+    for (let i = 1; i <= stage.levelsPerSet; i++) {
+        const levelItem = document.createElement('div');
+        const levelKey = `${gameState.currentStage}_${setId}_${i}`;
+        
+        // Check if level is unlocked - use more direct access with fallback
+        const isUnlocked = gameState.unlockedLevels[setKey]?.has(i);
+        console.log(`Level ${i} unlocked:`, isUnlocked);
+        
+        const isPerfect = gameState.perfectLevels.has(levelKey);
+        const isCompleted = gameState.completedLevels.has(levelKey);
+        const isBossLevel = i === stage.bossLevel;
+        const isTestLevel = testLevels.includes(i);
+        
+        // Set appropriate classes
+        levelItem.className = 'level-item';
+        if (isUnlocked) levelItem.classList.add('unlocked');
+        if (isPerfect) levelItem.classList.add('perfect');
+        else if (isCompleted) levelItem.classList.add('completed');
+        if (isBossLevel) levelItem.classList.add('boss');
+        if (isTestLevel) levelItem.classList.add('test');
+        if (!isUnlocked) levelItem.classList.add('locked');
+        
+        levelItem.textContent = i;
+        
+        if (isUnlocked) {
+            levelItem.onclick = () => startLevel(i);
+        }
+        
+        levelGrid.appendChild(levelItem);
+    }
+    
+    container.appendChild(levelGrid);
+    
+    // Add legend
+    const legend = document.createElement('div');
+    legend.className = 'level-type-legend';
+    legend.innerHTML = `
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--accent), rgba(30, 144, 255, 0.7));"></div>
+            <span>Normal</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--success), #45b649);"></div>
+            <span>Completed</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--gold), #FFA500);"></div>
+            <span>Perfect</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--gold), var(--accent));"></div>
+            <span>Boss</span>
+        </div>
+    `;
+    
+    container.appendChild(legend);
+    
+    // Show the screen
     showScreen('level-screen');
+}
+
+// Helper functions for the level screen
+function getSetIcon(stageId, setId) {
+    const baseIcons = {
+        1: 'fas fa-book',
+        2: 'fas fa-graduation-cap',
+        3: 'fas fa-school',
+        4: 'fas fa-university',
+        5: 'fas fa-brain'
+    };
+    
+    // Adjust icon based on set number
+    const variations = [
+        'fas fa-book-open', 
+        'fas fa-book-reader', 
+        'fas fa-bookmark', 
+        'fas fa-pencil-alt',
+        'fas fa-pen'
+    ];
+    
+    // Use base icon for first set, variations for others
+    return setId === 1 ? baseIcons[stageId] || 'fas fa-star' : 
+        variations[(setId - 2) % variations.length] || 'fas fa-star';
+}
+
+function getSetDescription(stageId, setId) {
+    const stageNames = {
+        1: 'Beginner',
+        2: 'Elementary',
+        3: 'Intermediate',
+        4: 'Advanced',
+        5: 'Expert'
+    };
+    
+    // Generic descriptions that combine stage and set
+    return `${stageNames[stageId] || 'Advanced'} vocabulary - Group ${setId}`;
 }
 
 // Level Logic
@@ -8753,6 +9024,11 @@ async function startLevel(levelId) {
     gameState.currentStage = gameState.currentStage || 1;
     gameState.currentSet = gameState.currentSet || 1;
     gameState.currentLevel = levelId;
+
+    // Debug data for progression tracking
+    console.log(`Starting level: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${levelId}`);
+    console.log('Current unlocked levels:', gameState.unlockedLevels);
+    console.log('Current completed levels:', gameState.completedLevels);
 
     const userStatus = currentUser ? currentUser.status : 'unregistered';
     const triggerLevels = [2, 7, 11, 15, 20];    
@@ -9408,7 +9684,7 @@ function handleLevelCompletion() {
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     console.log(`Completing level: ${levelKey}`);
 
-    const isLevelCompleted = gameState.perfectLevels.has(levelKey);
+    const isLevelCompleted = gameState.perfectLevels.has(levelKey) || gameState.completedLevels.has(levelKey);
     console.log(`Level was previously completed: ${isLevelCompleted}`);
 
     const isPerfectRun = !isLevelCompleted && 
@@ -9907,11 +10183,7 @@ function findFurthestProgression() {
             const context = JSON.parse(savedContext);
             if (context.stage && context.set && context.level) {
                 console.log('Resuming from saved context:', context);
-                return {
-                    stage: context.stage,
-                    set: context.set,
-                    level: context.level
-                };
+                return context;
             }
         } catch (e) {
             console.error('Error parsing saved context:', e);
@@ -9927,7 +10199,6 @@ function findFurthestProgression() {
     
     // Function to check if a level is a valid next level
     const isValidNextLevel = (stage, set, level) => {
-        // Get the levelKey
         const levelKey = `${stage}_${set}_${level}`;
         const setKey = `${stage}_${set}`;
         
@@ -9954,7 +10225,7 @@ function findFurthestProgression() {
             const setKey = `${preferredStage}_${set}`;
             if (!gameState.unlockedLevels[setKey]) continue;
             
-            const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a); // Descending
+            const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a);
             
             for (let level of unlockedLevels) {
                 if (isValidNextLevel(preferredStage, set, level)) {
@@ -9969,18 +10240,18 @@ function findFurthestProgression() {
     }
     
     // If we didn't find any valid level in the preferred stage,
-    // or if no preferred stage was set, check all stages
+    // or if no preferred stage was set, check all stages comprehensively
     if (!furthestProgress) {
         for (let stage = 1; stage <= 5; stage++) {
             if (!gameState.unlockedSets[stage]) continue;
             
-            const unlockedSets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => b - a); // Descending
+            const unlockedSets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => b - a);
             
             for (let set of unlockedSets) {
                 const setKey = `${stage}_${set}`;
                 if (!gameState.unlockedLevels[setKey]) continue;
                 
-                const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a); // Descending
+                const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a);
                 
                 for (let level of unlockedLevels) {
                     if (isValidNextLevel(stage, set, level)) {
@@ -17642,12 +17913,14 @@ function showGradeLevelSelector() {
 }
 
 function setupDefaultUnlocks() {
-    // Stage 1: All sets should be unlocked for all users
+    console.log('Setting up default unlocks...');
+    console.log('Before setup:', gameState.unlockedSets, gameState.unlockedLevels);
+    
+    // Stage 1: Level 1 of all sets should be unlocked
     if (!gameState.unlockedSets[1]) {
         gameState.unlockedSets[1] = new Set();
     }
     
-    // Unlock all 9 sets for Stage 1
     for (let i = 1; i <= 9; i++) {
         gameState.unlockedSets[1].add(i);
         const setKey = `1_${i}`;
@@ -17656,7 +17929,7 @@ function setupDefaultUnlocks() {
         }
     }
 
-    // Stages 2-5: Only Set 1 should be unlocked with Level 1 accessible
+    // Stages 2-5: Level 1 of Set 1 should be unlocked
     for (let stage = 2; stage <= 5; stage++) {
         if (!gameState.unlockedSets[stage]) {
             gameState.unlockedSets[stage] = new Set([1]);
@@ -17666,24 +17939,22 @@ function setupDefaultUnlocks() {
             gameState.unlockedLevels[setKey] = new Set([1]);
         }
     }
+    
+    // Handle progressed levels - ensure continuity
+    // If level 5 is unlocked, make sure 1-4 are also unlocked
+    Object.entries(gameState.unlockedLevels).forEach(([setKey, levels]) => {
+        const maxLevel = Math.max(...Array.from(levels));
+        for (let i = 1; i < maxLevel; i++) {
+            levels.add(i);
+        }
+    });
+    
+    console.log('After setup:', gameState.unlockedSets, gameState.unlockedLevels);
 }
 
 function saveProgress() {
     // Ensure currentUser is always defined, even for unregistered users
     const userId = currentUser ? currentUser.id : 'guest';
-
-    // Save current game context for resuming gameplay
-    // Only save if we're in an active game (level > 0)
-    if (gameState.currentLevel > 0) {
-        const gameContext = {
-            stage: gameState.currentStage,
-            set: gameState.currentSet,
-            level: gameState.currentLevel,
-            timestamp: Date.now()
-        };
-        console.log('Saving game context:', gameContext);
-        localStorage.setItem('gameContext', JSON.stringify(gameContext));
-    }
 
     // For guest users, save to localStorage
     const progressToSave = {
@@ -17698,20 +17969,27 @@ function saveProgress() {
         ),
         perfectLevels: Array.from(gameState.perfectLevels),
         completedLevels: Array.from(gameState.completedLevels),
-        coins: gameState.coins || 0
+        coins: gameState.coins || 0,
+        perks: gameState.perks || {}
     };
 
     if (currentUser) {
         // Save to Supabase for logged-in users
+        console.log('Saving progress to Supabase:', progressToSave);
         supabaseClient
             .from('game_progress')
             .update(progressToSave)
             .eq('user_id', currentUser.id)
-            .then(({ error }) => {
-                if (error) console.error('Error saving game progress:', error);
+            .then(({ data, error }) => {
+                if (error) {
+                    console.error('Error saving game progress:', error);
+                } else {
+                    console.log('Progress saved successfully');
+                }
             });
     } else {
         // Save to localStorage for guest users
+        console.log('Saving progress to localStorage:', progressToSave);
         localStorage.setItem('simploxProgress', JSON.stringify(progressToSave));
     }
 }
