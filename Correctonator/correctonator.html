@@ -2,97 +2,84 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Vocabulary Translation Verifier</title>
+    <title>Vocabulary Full Editor</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
-            text-align: center;
             background-color: #f4f4f4;
         }
         #set-selector {
-            margin-bottom: 20px;
-            padding: 10px;
             width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
             font-size: 16px;
         }
-        #verification-container {
+        #editor-container {
             background-color: white;
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            padding: 30px;
-            margin-top: 20px;
+            padding: 20px;
         }
-        #source-word {
-            font-size: 2em;
-            font-weight: bold;
-            margin-bottom: 20px;
-            color: #333;
+        .vocab-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 10px;
+            max-height: 600px;
+            overflow-y: auto;
         }
-        #translation-input {
-            width: 100%;
+        .vocab-item {
+            display: flex;
+            align-items: center;
+            border: 1px solid #ddd;
             padding: 10px;
-            margin-bottom: 20px;
-            font-size: 1.2em;
-            border: 2px solid #ddd;
             border-radius: 5px;
         }
-        #next-btn {
+        .vocab-item span {
+            flex-grow: 1;
+            margin-right: 10px;
+            word-break: break-word;
+        }
+        .vocab-item input {
+            flex-grow: 2;
+            padding: 5px;
+            width: 200px;
+        }
+        #save-btn {
+            display: block;
             width: 100%;
             padding: 15px;
-            font-size: 1.2em;
+            margin-top: 20px;
             background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            transition: background-color 0.3s ease;
+            font-size: 16px;
         }
-        #next-btn:hover {
+        #save-btn:hover {
             background-color: #45a049;
-        }
-        #next-btn:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        #progress {
-            margin-top: 20px;
-            font-size: 1em;
-            color: #666;
-        }
-        #save-btn {
-            margin-top: 20px;
-            padding: 10px 20px;
-            background-color: #2196F3;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <h1>Vocabulary Translation Verifier</h1>
+    <h1>Vocabulary Full Editor</h1>
     
     <select id="set-selector">
         <option value="">Select a Vocabulary Set</option>
     </select>
 
-    <div id="verification-container" style="display:none;">
-        <div id="source-word"></div>
-        <input type="text" id="translation-input" placeholder="Enter translation">
-        <button id="next-btn">Next (Enter)</button>
-        <div id="progress"></div>
+    <div id="editor-container" style="display:none;">
+        <div id="vocab-grid" class="vocab-grid"></div>
+        <button id="save-btn">Save Translations</button>
     </div>
 
-    <button id="save-btn" style="display:none;">Save All Translations</button>
-
     <script>
-        // Vocabulary data (replace with your actual data)
+        // Vocabulary data (copy the entire content from vocabs.js)
         const vocabularySets = {
-                "1_1": { words: ["pizza", "soup", "omelette", "chocolate", "rice", "muffins", "eggs", "lentils", "yogurt", "carrot", "sushi", "pasta", "cookies", "coffee", "grapes", "water", "potatoes", "pancake", "onion", "tea", "noodles", "chicken", "cheese", "sandwich", "hot dogs", "butter", "tomato", "lettuce", "salad", "milk", "banana", "fish", "hamburger", "orange", "croissant", "beans", "bread", "juice", "kebab", "cucumber", "ice cream", "french fries", "beef", "apple", "popsicle", "pepper", "popcorn", "cake", "garlic", "salt", "sauce", "ketchup", "mustard"], translations: ["פיצה", "מרק", "חביתה", "שוקולד", "אורז", "מאפינס", "ביצים", "עדשים", "יוגורט", "גזר", "סושי", "פסטה", "עוגיות", "קפה", "ענבים", "מים", "תפוחי אדמה", "פנקייק", "בצל", "תה", "נודלס", "עוף", "גבינה", "כריך", "נקניקיות", "חמאה", "עגבנייה", "חסה", "סלט", "חלב", "בננה", "דג", "המבורגר", "תפוז", "קרואסון", "שעועית", "לחם", "מיץ", "קבב", "מלפפון", "גלידה", "צ'יפס", "בקר", "תפוח", "ארטיק", "פלפל", "פופקורן", "עוגה", "שום", "מלח", "רוטב", "קטשופ", "חרדל"] },
+    "1_1": { words: ["Pizetta", "soup", "omelette", "chocolate", "rice", "muffins", "eggs", "lentils", "yogurt", "carrot", "sushi", "pasta", "cookies", "coffee", "grapes", "water", "potatoes", "pancake", "onion", "tea", "noodles", "chicken", "cheese", "sandwich", "hot dogs", "butter", "tomato", "lettuce", "salad", "milk", "banana", "fish", "hamburger", "orange", "croissant", "beans", "bread", "juice", "kebab", "cucumber", "ice cream", "french fries", "beef", "apple", "popsicle", "pepper", "popcorn", "cake", "garlic", "salt", "sauce", "ketchup", "mustard"], translations: ["פיצה", "מרק", "חביתה", "שוקולד", "אורז", "מאפינס", "ביצים", "עדשים", "יוגורט", "גזר", "סושי", "פסטה", "עוגיות", "קפה", "ענבים", "מים", "תפוחי אדמה", "פנקייק", "בצל", "תה", "נודלס", "עוף", "גבינה", "כריך", "נקניקיות", "חמאה", "עגבנייה", "חסה", "סלט", "חלב", "בננה", "דג", "המבורגר", "תפוז", "קרואסון", "שעועית", "לחם", "מיץ", "קבב", "מלפפון", "גלידה", "צ'יפס", "בקר", "תפוח", "ארטיק", "פלפל", "פופקורן", "עוגה", "שום", "מלח", "רוטב", "קטשופ", "חרדל"] },
     "1_2": { words: ["forehead", "eyebrow", "chin", "tongue", "ribs", "toe", "back", "head", "nail", "ear", "abdomen", "lip", "hair", "mouth", "hip", "sole", "eye", "stomach", "calf", "heart", "shoulder", "kidney", "spine", "liver", "bone", "chest", "elbow", "nose", "knee", "intestine", "waist", "hand", "lung", "neck", "ankle", "muscle", "nostril", "skull", "thigh", "arm", "heel", "brain", "wrist", "thumb", "eyelash", "finger", "tooth", "cheek", "foot", "navel"], translations: ["מצח", "גבה", "סנטר", "לשון", "צלעות", "בוהן", "גב", "ראש", "ציפורן", "אוזן", "חלל הבטן", "שפה", "שיער", "פה", "מותן", "כף הרגל", "עין", "בטן", "שוק", "לב", "כתף", "כליה", "עמוד השדרה", "כבד", "עצם", "חזה", "מרפק", "אף", "ברך", "מעיים", "אגן הירכיים", "יד", "ריאה", "צוואר", "קרסול", "שריר", "נחיר", "גולגולת", "ירך", "זרוע", "עקב", "מוח", "פרק כף היד", "אגודל", "ריס", "אצבע", "שן", "לחי", "כף רגל", "טבור"] },
     "1_3": { words: ["peacock", "crocodile", "goat", "bat", "shark", "eagle", "snake", "whale", "fox", "owl", "lion", "pig", "hawk", "penguin", "koala", "sparrow", "elephant", "camel", "deer", "mouse", "chicken", "bear", "wolf", "sheep", "pigeon", "fish", "rabbit", "frog", "parrot", "cow", "zebra", "cat", "giraffe", "dolphin", "turtle", "tiger", "rhinoceros", "rat", "hippopotamus", "squirrel", "alligator", "lizard", "gecko", "goose", "horse", "kangaroo", "dog", "duck", "chimpanzee"], translations: ["טווס", "תנין", "עז", "עטלף", "כריש", "נשר", "נחש", "לוויתן", "שועל", "ינשוף", "אריה", "חזיר", "נץ", "פינגווין", "קואלה", "דרור", "פיל", "גמל", "צבי", "עכבר", "עוף", "דוב", "זאב", "כבשה", "יונה", "דג", "ארנב", "צפרדע", "תוכי", "פרה", "זברה", "חתול", "ג'ירפה", "דולפין", "צב", "נמר", "קרנף", "עכברוש", "היפופוטם", "סנאי", "תנין", "לטאה", "חרדון", "אווז", "סוס", "קנגרו", "כלב", "ברווז", "שימפנזה"] },
     "1_4": { words: ["musician", "photographer", "programmer", "athlete", "carpenter", "writer", "chef", "waiter", "pharmacist", "waitress", "baker", "gardener", "tailor", "dentist", "dancer", "clown", "construction worker", "barber", "taxi driver", "hairdresser", "astronaut", "actor", "doctor", "news reporter", "magician", "nurse", "factory worker", "firefighter", "receptionist", "soldier", "teacher", "sailor", "lifeguard", "farmer", "bus driver", "plumber", "postman", "mechanic", "librarian", "fisherman", "scientist", "artist", "coach", "policeman", "pilot", "fashion designer", "veterinarian", "painter", "lawyer"], translations: ["מוזיקאי", "צלם", "מתכנת", "אתלט", "נגר", "סופר", "שף", "מלצר", "רוקח", "מלצרית", "אופה", "גנן", "חייט", "רופא שיניים", "רקדן", "ליצן", "עובד בניין", "ספר גברים", "נהג מונית", "מעצב שיער", "אסטרונאוט", "שחקן", "דוקטור", "כתב חדשות", "קוסם", "אחות", "עובד מפעל", "כבאי", "פקיד קבלה", "לוחם", "מורה", "מלח", "מציל", "חקלאי", "נהג אוטובוס", "שרברב", "דוור", "מכונאי", "ספרן", "דיג", "מדען", "אמן", "מאמן", "שוטר", "טיס", "מעצב אופנה", "וטרינר", "צייר", "עורך דין"] },
@@ -180,11 +167,8 @@
 
         // DOM Elements
         const setSelector = document.getElementById('set-selector');
-        const verificationContainer = document.getElementById('verification-container');
-        const sourceWordEl = document.getElementById('source-word');
-        const translationInput = document.getElementById('translation-input');
-        const nextBtn = document.getElementById('next-btn');
-        const progressEl = document.getElementById('progress');
+        const editorContainer = document.getElementById('editor-container');
+        const vocabGrid = document.getElementById('vocab-grid');
         const saveBtn = document.getElementById('save-btn');
 
         // Populate set selector
@@ -195,137 +179,91 @@
             setSelector.appendChild(option);
         });
 
-        // State variables
-        let currentSet = null;
-        let currentWords = [];
-        let currentTranslations = [];
-        let verifiedTranslations = {};
+        // Populate editor with selected set
+        function populateEditor(set) {
+            // Clear previous grid
+            vocabGrid.innerHTML = '';
+
+            // Create input fields for each word
+            set.words.forEach((word, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.classList.add('vocab-item');
+
+                const wordSpan = document.createElement('span');
+                wordSpan.textContent = word;
+
+                const translationInput = document.createElement('input');
+                translationInput.value = set.translations[index];
+                translationInput.dataset.index = index;
+
+                itemDiv.appendChild(wordSpan);
+                itemDiv.appendChild(translationInput);
+                vocabGrid.appendChild(itemDiv);
+            });
+        }
 
         // Set selector change handler
         setSelector.addEventListener('change', (e) => {
             const selectedSet = e.target.value;
             
             if (!selectedSet) {
-                verificationContainer.style.display = 'none';
-                saveBtn.style.display = 'none';
+                editorContainer.style.display = 'none';
                 return;
             }
 
-            // Reset state
-            currentSet = selectedSet;
-            currentWords = [...vocabularySets[selectedSet].words];
-            currentTranslations = [...vocabularySets[selectedSet].translations];
-            verifiedTranslations = {};
+            // Show editor container
+            editorContainer.style.display = 'block';
 
-            // Show verification container
-            verificationContainer.style.display = 'block';
-            saveBtn.style.display = 'block';
-
-            // Load first word
-            loadNextWord();
-        });
-
-        // Load next word
-        function loadNextWord() {
-            if (currentWords.length === 0) {
-                // No more words to verify
-                sourceWordEl.textContent = 'All words verified!';
-                translationInput.style.display = 'none';
-                nextBtn.disabled = true;
-                progressEl.textContent = 'Completed 100%';
-                return;
-            }
-
-            // Get next word
-            const wordIndex = 0;
-            sourceWordEl.textContent = currentWords[wordIndex];
-            translationInput.value = currentTranslations[wordIndex];
-            translationInput.focus();
-
-            // Update progress
-            const totalWords = vocabularySets[currentSet].words.length;
-            const remainingWords = currentWords.length;
-            const progress = Math.round(((totalWords - remainingWords) / totalWords) * 100);
-            progressEl.textContent = `Progress: ${progress}%`;
-        }
-
-        // Next button / Enter key handler
-        function processNext() {
-            if (currentWords.length === 0) return;
-
-            // Store verified translation
-            const wordIndex = 0;
-            const sourceWord = currentWords[wordIndex];
-            const translation = translationInput.value.trim();
-
-            // Store verified translation
-            verifiedTranslations[sourceWord] = translation;
-
-            // Remove processed word and translation
-            currentWords.splice(wordIndex, 1);
-            currentTranslations.splice(wordIndex, 1);
-
-            // Load next word
-            loadNextWord();
-        }
-
-        // Next button event listener
-        nextBtn.addEventListener('click', processNext);
-
-        // Enter key handler
-        translationInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                processNext();
-            }
+            // Populate editor with selected set
+            populateEditor(vocabularySets[selectedSet]);
         });
 
         // Save translations
         saveBtn.addEventListener('click', () => {
-            // Update the original vocabulary set with verified translations
-            const updatedSet = {...vocabularySets[currentSet]};
-            
-            // Create a mapping of source words to their positions
-            const wordIndexMap = updatedSet.words.reduce((map, word, index) => {
-                map[word] = index;
-                return map;
-            }, {});
+            const selectedSet = setSelector.value;
+            if (!selectedSet) return;
 
-            // Replace translations
-            Object.entries(verifiedTranslations).forEach(([word, translation]) => {
-                const index = wordIndexMap[word];
-                if (index !== undefined) {
-                    updatedSet.translations[index] = translation;
-                }
+            // Collect updated translations
+            const updatedTranslations = [];
+            vocabGrid.querySelectorAll('.vocab-item input').forEach(input => {
+                updatedTranslations.push(input.value.trim());
             });
 
             // Update the vocabularySets object
-            vocabularySets[currentSet] = updatedSet;
+            vocabularySets[selectedSet].translations = updatedTranslations;
 
-            // Create custom stringify function to match desired output format
-            function customStringify(obj) {
-                let output = '{\n';
-                const sets = Object.entries(obj).map(([key, value]) => {
-                    const wordsStr = JSON.stringify(value.words).replace(/"/g, "'");
-                    const translationsStr = JSON.stringify(value.translations).replace(/"/g, "'");
-                    return `    "${key}": { words: ${wordsStr}, translations: ${translationsStr} }`;
-                });
-                output += sets.join(',\n');
-                output += '\n}';
-                return output;
+            // Create a custom stringify function to match the original format
+            function createVocabsJsContent(sets) {
+                let setStrings = [];
+                
+                for (const [key, set] of Object.entries(sets)) {
+                    const wordsStr = JSON.stringify(set.words).replace(/"/g, "'");
+                    const translationsStr = JSON.stringify(set.translations).replace(/"/g, "'");
+                    
+                    setStrings.push(`    "${key}": { words: ${wordsStr}, translations: ${translationsStr} }`);
+                }
+                
+                return `window.vocabularySets = {\n${setStrings.join(',\n')}\n};`;
             }
 
-            // Create downloadable file
-            const dataStr = customStringify(vocabularySets);
-            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            // Generate file content
+            const fileContent = createVocabsJsContent(vocabularySets);
             
-            const exportFileDefaultName = 'vocabularySets.js';
+            // Create a downloadable file
+            const blob = new Blob([fileContent], {type: 'text/javascript'});
+            const url = URL.createObjectURL(blob);
             
-            const linkElement = document.createElement('a');
-            linkElement.setAttribute('href', dataUri);
-            linkElement.setAttribute('download', exportFileDefaultName);
-            linkElement.click();
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'vocabs.js';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
 
-            alert('Translations saved and exported!');
+            // Revoke the URL to free up memory
+            URL.revokeObjectURL(url);
+
+            alert('Translations saved. Replace your original vocabs.js with this downloaded file.');
         });
     </script>
 </body>

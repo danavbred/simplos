@@ -7802,7 +7802,7 @@ const PERK_CONFIG = {
     skip: {
         name: 'Skip Question',
         description: 'Skip the current word without penalty',
-        cost: 0,
+        cost: 25,
         icon: 'fa-forward'
     },
     clue: {
@@ -9355,18 +9355,20 @@ function handleLevelCompletion() {
                         currentGame.correctAnswers === currentGame.words.length;
 
     if (isPerfectRun) {
-        const finalCoins = gameState.coins;
+    const finalCoins = gameState.coins;
+    
+    const bonusAmount = 5;
+    
+    CoinsManager.updateCoins(bonusAmount).then(() => {
+        gameState.perfectLevels.add(levelKey);
         
-        const bonusAmount = 5;
-        
-        CoinsManager.updateCoins(bonusAmount).then(() => {
-            gameState.perfectLevels.add(levelKey);
-            
-            const questionScreen = document.getElementById('question-screen');
-            const rect = questionScreen.getBoundingClientRect();
-            createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
-        });
-    }
+        const questionScreen = document.getElementById('question-screen');
+        const rect = questionScreen.getBoundingClientRect();
+        createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
+        gameState.perfectLevels.add(levelKey);
+    
+    });
+}
 
     pulseCoins(5);
     updatePerkButtons();  
@@ -9400,23 +9402,14 @@ function handleLevelCompletion() {
                 gameState.unlockedLevels[nextSetKey] = new Set([1]);
             }
             
-            // Update current position before progressing
-            gameState.currentSet++;
-            gameState.currentLevel = 1;
-            
-            // Save progress immediately
-            saveProgress();
-            
             // Progress to next set
+            gameState.currentSet++;
             setTimeout(() => startLevel(1), 1500);
         } else if (isLastSetInStage && userStatus === 'premium') {
             // Premium users: Progress to next stage
             if (gameState.currentStage < 5) {
-                // Update current position
                 gameState.currentStage++;
                 gameState.currentSet = 1;
-                gameState.currentLevel = 1;
-                
                 const newSetKey = `${gameState.currentStage}_1`;
                 if (!gameState.unlockedSets[gameState.currentStage]) {
                     gameState.unlockedSets[gameState.currentStage] = new Set([1]);
@@ -9424,10 +9417,6 @@ function handleLevelCompletion() {
                 if (!gameState.unlockedLevels[newSetKey]) {
                     gameState.unlockedLevels[newSetKey] = new Set([1]);
                 }
-                
-                // Save progress immediately
-                saveProgress();
-                
                 setTimeout(() => startLevel(1), 1500);
             } else {
                 setTimeout(() => showScreen('stage-screen'), 1500);
@@ -9439,15 +9428,14 @@ function handleLevelCompletion() {
     } else {
         // Unlock and proceed to next level
         gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
-        
-        // Update current level position
-        gameState.currentLevel++; 
-        
-        // Save progress
         saveProgress();
-        
-        setTimeout(() => startLevel(gameState.currentLevel), 1500);
+        setTimeout(() => startLevel(gameState.currentLevel + 1), 1500);
     }
+
+    // Save progress
+    saveProgress();
+    updateAllCoinDisplays();
+    updatePerkButtons();
 }
 
 function handleProgression(levelKey) {
@@ -9836,49 +9824,63 @@ function showStagesFromMenu() {
 }
 
 function findFurthestProgression() {
-    // First check if we have explicit current position stored
-    if (gameState.currentStage && gameState.currentSet && gameState.currentLevel) {
-        // Validate that this level is unlocked before returning it
-        const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-        if (gameState.unlockedSets[gameState.currentStage]?.has(gameState.currentSet) &&
-            gameState.unlockedLevels[setKey]?.has(gameState.currentLevel)) {
-            return {
-                stage: gameState.currentStage,
-                set: gameState.currentSet,
-                level: gameState.currentLevel
-            };
-        }
-    }
-
-    // Start by finding the highest stage with any unlocked sets
-    const maxStage = Math.max(...Object.keys(gameState.unlockedSets).map(Number), 0);
-    
-    for (let stage = maxStage; stage >= 1; stage--) {
-        if (!gameState.unlockedSets[stage]) continue;
+    // First, check the most recent completed level in Stage 1
+    for (let set = 1; set <= 9; set++) {
+        const setKey = `1_${set}`;
+        const levels = gameState.unlockedLevels[setKey];
         
-        // Find highest unlocked set in this stage
-        const sets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => b - a);
+        if (!levels) continue;
         
-        for (const set of sets) {
-            const setKey = `${stage}_${set}`;
-            if (!gameState.unlockedLevels[setKey]) continue;
-            
-            // Find highest unlocked level in this set
-            const levels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a);
-            
-            if (levels.length > 0) {
+        // Get all levels in ascending order
+        const levelArray = Array.from(levels).sort((a, b) => a - b);
+        const maxLevel = Math.max(...levelArray);
+        
+        // Find the first incomplete level in this set
+        for (let level = 1; level <= maxLevel; level++) {
+            const levelKey = `1_${set}_${level}`;
+            if (!gameState.perfectLevels.has(levelKey)) {
                 return {
-                    stage: stage,
+                    stage: 1,
                     set: set,
-                    level: levels[0]
+                    level: level
                 };
             }
         }
     }
     
-    // If no progression found, return stage 1, set 1, level 1
+    // If no incomplete level found in Stage 1, proceed with other stages
+    for (let stage = 1; stage <= 5; stage++) {
+        if (!gameState.unlockedSets[stage]) continue;
+        
+        const sets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => a - b);
+        
+        for (const set of sets) {
+            const setKey = `${stage}_${set}`;
+            const levels = gameState.unlockedLevels[setKey];
+            
+            if (!levels) continue;
+            
+            const levelArray = Array.from(levels).sort((a, b) => a - b);
+            const maxLevel = Math.max(...levelArray);
+            
+            for (let level = 1; level <= maxLevel; level++) {
+                const levelKey = `${stage}_${set}_${level}`;
+                if (!gameState.perfectLevels.has(levelKey)) {
+                    return {
+                        stage: stage,
+                        set: set,
+                        level: level
+                    };
+                }
+            }
+        }
+    }
+    
+    // If no incomplete level found anywhere, return stage 1, set 1, level 1
     return { stage: 1, set: 1, level: 1 };
 }
+
+
 
 function startGame() {
     
