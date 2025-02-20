@@ -8373,8 +8373,13 @@ function handleTimeUp() {
     showReviveOverlay();
 }
 
-// Screen Management
 function showScreen(screenId, forceRefresh = false) {
+    // Clear game context when returning to welcome screen
+    if (screenId === 'welcome-screen') {
+        console.log('Returning to welcome screen, clearing game context');
+        localStorage.removeItem('gameContext');
+    }
+    
     // Extensive logging for debugging
     console.log('showScreen called with:', {
         screenId: screenId,
@@ -8701,6 +8706,17 @@ function generateAnswerChoices(correctAnswer, vocabulary) {
 }
 
 async function startLevel(levelId) {
+    // Save current game context at the start of each level
+    gameState.currentLevel = levelId;
+    const gameContext = {
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: levelId,
+        timestamp: Date.now()
+    };
+    console.log('Setting game context at level start:', gameContext);
+    localStorage.setItem('gameContext', JSON.stringify(gameContext));
+  
     // Reset stats tracking
     currentGame.wrongStreak = 0;
     currentGame.correctAnswers = 0;
@@ -9390,91 +9406,109 @@ function startCustomListPractice(listId) {
 function handleLevelCompletion() {
     clearTimer();
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
+    console.log(`Completing level: ${levelKey}`);
+
     const isLevelCompleted = gameState.perfectLevels.has(levelKey);
+    console.log(`Level was previously completed: ${isLevelCompleted}`);
 
     const isPerfectRun = !isLevelCompleted && 
                         currentGame.streakBonus && 
                         currentGame.correctAnswers === currentGame.words.length;
 
     if (isPerfectRun) {
-    const finalCoins = gameState.coins;
-    
-    const bonusAmount = 5;
-    
-    CoinsManager.updateCoins(bonusAmount).then(() => {
-        gameState.perfectLevels.add(levelKey);
+        const finalCoins = gameState.coins;
+        const bonusAmount = 5;
         
-        const questionScreen = document.getElementById('question-screen');
-        const rect = questionScreen.getBoundingClientRect();
-        createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
-        gameState.perfectLevels.add(levelKey);
-    
-    });
-}
+        CoinsManager.updateCoins(bonusAmount).then(() => {
+            gameState.perfectLevels.add(levelKey);
+            gameState.completedLevels.add(levelKey);
+            
+            const questionScreen = document.getElementById('question-screen');
+            const rect = questionScreen.getBoundingClientRect();
+            createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
+        });
+    } else if (!isLevelCompleted) {
+        // Mark as completed even if not perfect
+        gameState.completedLevels.add(levelKey);
+    }
 
     pulseCoins(5);
-    updatePerkButtons();  
-    gameState.perfectLevels.add(levelKey);
-
-    const questionScreen = document.getElementById('question-screen');
-    const rect = questionScreen.getBoundingClientRect();
-    createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
+    updatePerkButtons();
 
     const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
     const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
     const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
     const userStatus = currentUser ? currentUser.status : 'unregistered';
 
-    const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-    if (!gameState.unlockedLevels[setKey]) {
-        gameState.unlockedLevels[setKey] = new Set();
+    // Mark current level as completed
+    if (!gameState.unlockedLevels[`${gameState.currentStage}_${gameState.currentSet}`]) {
+        gameState.unlockedLevels[`${gameState.currentStage}_${gameState.currentSet}`] = new Set();
     }
-    gameState.unlockedLevels[setKey].add(gameState.currentLevel);
-
-    // Handle progression based on completion
+    gameState.unlockedLevels[`${gameState.currentStage}_${gameState.currentSet}`].add(gameState.currentLevel);
+    
+    // Unlock next level if not last in set
+    if (!isLastLevelInSet) {
+        gameState.unlockedLevels[`${gameState.currentStage}_${gameState.currentSet}`].add(gameState.currentLevel + 1);
+        saveProgress();
+        setTimeout(() => startLevel(gameState.currentLevel + 1), 1500);
+        return;
+    }
+    
+    // Handle set completion
     if (isLastLevelInSet) {
-        if (!isLastSetInStage && userStatus === 'premium') {
-            // Premium users: Unlock next set
-            const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
+        // Unlock next set for premium users or stage 1
+        if ((!isLastSetInStage && userStatus === 'premium') || gameState.currentStage === 1) {
+            // Unlock next set
             if (!gameState.unlockedSets[gameState.currentStage]) {
                 gameState.unlockedSets[gameState.currentStage] = new Set();
             }
             gameState.unlockedSets[gameState.currentStage].add(gameState.currentSet + 1);
+            
+            // Initialize first level of next set
+            const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
             if (!gameState.unlockedLevels[nextSetKey]) {
                 gameState.unlockedLevels[nextSetKey] = new Set([1]);
             }
             
             // Progress to next set
-            gameState.currentSet++;
-            setTimeout(() => startLevel(1), 1500);
-        } else if (isLastSetInStage && userStatus === 'premium') {
-            // Premium users: Progress to next stage
-            if (gameState.currentStage < 5) {
+            saveProgress();
+            setTimeout(() => {
+                gameState.currentSet++;
+                startLevel(1);
+            }, 1500);
+        }
+        // Handle last set in stage
+        else if (isLastSetInStage && userStatus === 'premium' && gameState.currentStage < 5) {
+            // Progress to next stage
+            if (!gameState.unlockedSets[gameState.currentStage + 1]) {
+                gameState.unlockedSets[gameState.currentStage + 1] = new Set([1]);
+            }
+            const newSetKey = `${gameState.currentStage + 1}_1`;
+            if (!gameState.unlockedLevels[newSetKey]) {
+                gameState.unlockedLevels[newSetKey] = new Set([1]);
+            }
+            
+            saveProgress();
+            setTimeout(() => {
                 gameState.currentStage++;
                 gameState.currentSet = 1;
-                const newSetKey = `${gameState.currentStage}_1`;
-                if (!gameState.unlockedSets[gameState.currentStage]) {
-                    gameState.unlockedSets[gameState.currentStage] = new Set([1]);
-                }
-                if (!gameState.unlockedLevels[newSetKey]) {
-                    gameState.unlockedLevels[newSetKey] = new Set([1]);
-                }
-                setTimeout(() => startLevel(1), 1500);
-            } else {
-                setTimeout(() => showScreen('stage-screen'), 1500);
-            }
-        } else {
-            // Non-premium users: Show upgrade prompt
-            showUpgradePrompt();
+                startLevel(1);
+            }, 1500);
         }
-    } else {
-        // Unlock and proceed to next level
-        gameState.unlockedLevels[setKey].add(gameState.currentLevel + 1);
-        saveProgress();
-        setTimeout(() => startLevel(gameState.currentLevel + 1), 1500);
+        // Handle all other cases (non-premium or completed all)
+        else {
+            // For non-premium users who completed a set, show upgrade prompt
+            if (!isLastSetInStage && userStatus !== 'premium') {
+                saveProgress();
+                setTimeout(() => showUpgradePrompt(), 1500);
+            } else {
+                // Return to stage selection
+                saveProgress();
+                setTimeout(() => showScreen('stage-cascade-screen'), 1500);
+            }
+        }
     }
 
-    // Save progress
     saveProgress();
     updateAllCoinDisplays();
     updatePerkButtons();
@@ -9866,82 +9900,134 @@ function showStagesFromMenu() {
 }
 
 function findFurthestProgression() {
-    // First, check the most recent completed level in Stage 1
-    for (let set = 1; set <= 9; set++) {
-        const setKey = `1_${set}`;
-        const levels = gameState.unlockedLevels[setKey];
-        
-        if (!levels) continue;
-        
-        // Get all levels in ascending order
-        const levelArray = Array.from(levels).sort((a, b) => a - b);
-        const maxLevel = Math.max(...levelArray);
-        
-        // Find the first incomplete level in this set
-        for (let level = 1; level <= maxLevel; level++) {
-            const levelKey = `1_${set}_${level}`;
-            if (!gameState.perfectLevels.has(levelKey)) {
+    // First check for any in-progress level saved in game context
+    const savedContext = localStorage.getItem('gameContext');
+    if (savedContext) {
+        try {
+            const context = JSON.parse(savedContext);
+            if (context.stage && context.set && context.level) {
+                console.log('Resuming from saved context:', context);
                 return {
-                    stage: 1,
-                    set: set,
-                    level: level
+                    stage: context.stage,
+                    set: context.set,
+                    level: context.level
                 };
             }
+        } catch (e) {
+            console.error('Error parsing saved context:', e);
         }
     }
     
-    // If no incomplete level found in Stage 1, proceed with other stages
-    for (let stage = 1; stage <= 5; stage++) {
-        if (!gameState.unlockedSets[stage]) continue;
+    // Check if the user has a preferred stage from their first login
+    const preferredStage = parseInt(localStorage.getItem('preferredStage'));
+    
+    // Track the furthest level found
+    let furthestProgress = null;
+    let maxProgress = -1;
+    
+    // Function to check if a level is a valid next level
+    const isValidNextLevel = (stage, set, level) => {
+        // Get the levelKey
+        const levelKey = `${stage}_${set}_${level}`;
+        const setKey = `${stage}_${set}`;
         
-        const sets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => a - b);
+        // Check if the level is unlocked
+        const isUnlocked = gameState.unlockedLevels[setKey]?.has(level);
         
-        for (const set of sets) {
-            const setKey = `${stage}_${set}`;
-            const levels = gameState.unlockedLevels[setKey];
+        // Check if the level is not yet completed
+        const isNotCompleted = !gameState.completedLevels.has(levelKey) && 
+                              !gameState.perfectLevels.has(levelKey);
+                              
+        return isUnlocked && isNotCompleted;
+    };
+    
+    // Calculate a progress score to determine furthest level
+    // Higher stage = higher score, within stage higher set = higher score, etc.
+    const calculateProgressScore = (stage, set, level) => {
+        return (stage * 10000) + (set * 100) + level;
+    };
+    
+    // Prioritize the user's preferred stage if set
+    if (preferredStage && preferredStage >= 1 && preferredStage <= 5) {
+        // First check incomplete levels in this stage
+        for (let set = 1; set <= gameStructure.stages[preferredStage-1].numSets; set++) {
+            const setKey = `${preferredStage}_${set}`;
+            if (!gameState.unlockedLevels[setKey]) continue;
             
-            if (!levels) continue;
+            const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a); // Descending
             
-            const levelArray = Array.from(levels).sort((a, b) => a - b);
-            const maxLevel = Math.max(...levelArray);
-            
-            for (let level = 1; level <= maxLevel; level++) {
-                const levelKey = `${stage}_${set}_${level}`;
-                if (!gameState.perfectLevels.has(levelKey)) {
-                    return {
-                        stage: stage,
-                        set: set,
-                        level: level
-                    };
+            for (let level of unlockedLevels) {
+                if (isValidNextLevel(preferredStage, set, level)) {
+                    const progress = calculateProgressScore(preferredStage, set, level);
+                    if (progress > maxProgress) {
+                        maxProgress = progress;
+                        furthestProgress = { stage: preferredStage, set, level };
+                    }
                 }
             }
         }
     }
     
-    // If no incomplete level found anywhere, return stage 1, set 1, level 1
-    return { stage: 1, set: 1, level: 1 };
+    // If we didn't find any valid level in the preferred stage,
+    // or if no preferred stage was set, check all stages
+    if (!furthestProgress) {
+        for (let stage = 1; stage <= 5; stage++) {
+            if (!gameState.unlockedSets[stage]) continue;
+            
+            const unlockedSets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => b - a); // Descending
+            
+            for (let set of unlockedSets) {
+                const setKey = `${stage}_${set}`;
+                if (!gameState.unlockedLevels[setKey]) continue;
+                
+                const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a); // Descending
+                
+                for (let level of unlockedLevels) {
+                    if (isValidNextLevel(stage, set, level)) {
+                        const progress = calculateProgressScore(stage, set, level);
+                        if (progress > maxProgress) {
+                            maxProgress = progress;
+                            furthestProgress = { stage, set, level };
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // If still no progress found, default to stage 1, set 1, level 1
+    // Or to the preferred stage's first level if set
+    if (!furthestProgress) {
+        if (preferredStage && preferredStage >= 1 && preferredStage <= 5) {
+            return { stage: preferredStage, set: 1, level: 1 };
+        } else {
+            return { stage: 1, set: 1, level: 1 };
+        }
+    }
+    
+    console.log('Found furthest progress:', furthestProgress);
+    return furthestProgress;
 }
 
-
-
 function startGame() {
-    if (!gameState.unlockedSets[1] || !gameState.unlockedLevels['1_1']) {
-        gameState.unlockedSets[1] = new Set([1]);
-        gameState.unlockedLevels['1_1'] = new Set([1]);
-        gameState.currentStage = 1;
-        gameState.currentSet = 1;
-        startLevel(1);
+    // First check if this is a first-time player (no progress saved)
+    const isFirstTimePlayer = !hasExistingProgress();
+    
+    if (isFirstTimePlayer) {
+        showGradeLevelSelector();
         return;
     }
     
+    // For returning players, find the furthest progression
     const furthestPoint = findFurthestProgression();
     console.log('Furthest Progression:', furthestPoint); // Diagnostic log
     
+    // Set current stage and set
     gameState.currentStage = furthestPoint.stage;
     gameState.currentSet = furthestPoint.set;
     
-    // Show stage cascade screen instead of going directly to level
-    showStageCascadeScreen();
+    // Start the specific level
+    startLevel(furthestPoint.level);
 }
 
 function showLevelIntro(levelId, setupCallback) {
@@ -17247,66 +17333,65 @@ function populateSetsGrid(stageId) {
     
     const stage = gameStructure.stages[stageId - 1];
     const unlockedSets = gameState.unlockedSets[stageId] || new Set();
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
     
-    // Get user access limits
-    let accessLimits = null;
-    checkUserAccess().then(access => {
-        accessLimits = access;
+    // Create set buttons
+    for (let i = 1; i <= stage.numSets; i++) {
+        const setButton = document.createElement('div');
+        const setKey = `${stageId}_${i}`;
         
-        // Create set buttons
-        for (let i = 1; i <= stage.numSets; i++) {
-            const setButton = document.createElement('div');
-            const setKey = `${stageId}_${i}`;
-            
-            // Check if set is unlocked in game progress
-            const isUnlocked = unlockedSets.has(i);
-            
-            // Check if set is accessible based on user status
-            let isPremiumLocked = false;
-            if (accessLimits) {
-                const hasStageAccess = accessLimits.unlockedStages[stageId] === 'full';
-                const hasSetAccess = Array.isArray(accessLimits.unlockedStages[stageId]) && 
-                                  accessLimits.unlockedStages[stageId].includes(i);
-                
-                if (!hasStageAccess && !hasSetAccess && stageId > 2) {
-                    isPremiumLocked = true;
-                }
-            }
-            
-            // Set button class based on status
-            setButton.className = 'set-button';
-            if (isUnlocked && !isPremiumLocked) {
-                setButton.classList.add('active');
-            } else {
-                setButton.classList.add('locked');
-            }
-            
-            // Check if set is completed
-            const isCompleted = isSetCompleted(stageId, i);
-            
-            // Set button content
-            setButton.innerHTML = `
-                <span>Set ${i}</span>
-                ${isCompleted ? `
-                <div class="completed-indicator">
-                    <i class="fas fa-check-circle"></i>
-                </div>` : ''}
-                ${(!isUnlocked || isPremiumLocked) ? `
-                <div class="lock-icon">
-                    <i class="fas ${isPremiumLocked ? 'fa-crown' : 'fa-lock'}"></i>
-                </div>` : ''}
-            `;
-            
-            // Set click handler based on status
-            if (isUnlocked && !isPremiumLocked) {
-                setButton.onclick = () => showLevelScreen(i);
-            } else if (isPremiumLocked) {
-                setButton.onclick = () => showUpgradePrompt();
-            }
-            
-            setsGrid.appendChild(setButton);
+        // Check if set is unlocked in game progress
+        const isUnlocked = unlockedSets.has(i);
+        
+        // Determine if set should be premium-locked
+        let isPremiumLocked = false;
+        
+        // Stage 1 is always fully accessible
+        if (stageId === 1) {
+            isPremiumLocked = false;
         }
-    });
+        // For stages 2-5, only set 1 is free, others need premium
+        else if (stageId >= 2 && i > 1 && userStatus !== 'premium') {
+            isPremiumLocked = true;
+        }
+        
+        // Set button class based on status
+        setButton.className = 'set-button';
+        if (isUnlocked && !isPremiumLocked) {
+            setButton.classList.add('active');
+        } else {
+            setButton.classList.add('locked');
+        }
+        
+        // Check if set is completed
+        const isCompleted = isSetCompleted(stageId, i);
+        
+        // Set button content
+        setButton.innerHTML = `
+            <span>Set ${i}</span>
+            ${isCompleted ? `
+            <div class="completed-indicator">
+                <i class="fas fa-check-circle"></i>
+            </div>` : ''}
+            ${(!isUnlocked || isPremiumLocked) ? `
+            <div class="lock-icon">
+                <i class="fas ${isPremiumLocked ? 'fa-crown' : 'fa-lock'}"></i>
+            </div>` : ''}
+        `;
+        
+        // Set click handler based on status
+        if (isUnlocked && !isPremiumLocked) {
+            setButton.onclick = () => {
+                gameState.currentStage = stageId;
+                gameState.currentSet = i;
+                showLevelScreen(i);
+            };
+        } else if (isPremiumLocked) {
+            setButton.onclick = () => showUpgradePrompt();
+        }
+        
+        setsGrid.appendChild(setButton);
+    }
 }
 
 function isSetCompleted(stageId, setId) {
@@ -17402,6 +17487,232 @@ function toggleSidePanel() {
         sidePanel.classList.add('open');
         hamburgerButton.classList.add('open');
         if (modalOverlay) modalOverlay.classList.add('open');
+    }
+}
+
+function hasExistingProgress() {
+    // Check if we have any completed levels or stage progress
+    if (gameState.completedLevels.size > 0 || gameState.perfectLevels.size > 0) {
+        return true;
+    }
+    
+    // Check if we have unlocked any sets beyond the defaults
+    for (let stage = 1; stage <= 5; stage++) {
+        const unlockedSets = gameState.unlockedSets[stage];
+        // For stage 1, having just the default 9 sets doesn't count as progress
+        if (stage === 1 && unlockedSets && unlockedSets.size === 9) {
+            continue;
+        }
+        // For other stages, having more than set 1 unlocked counts as progress
+        if (unlockedSets && unlockedSets.size > 1) {
+            return true;
+        }
+    }
+    
+    // Check localStorage for previously saved progress
+    const savedProgress = localStorage.getItem('simploxProgress');
+    if (savedProgress) {
+        const parsed = JSON.parse(savedProgress);
+        if (parsed.completedLevels && parsed.completedLevels.length > 0) {
+            return true;
+        }
+        if (parsed.perfectLevels && parsed.perfectLevels.length > 0) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+function findFurthestLevelInStage(stage) {
+    if (!gameState.unlockedSets[stage]) return null;
+    
+    const sets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => b - a); // Sort descending
+    
+    for (const set of sets) {
+        const setKey = `${stage}_${set}`;
+        if (!gameState.unlockedLevels[setKey]) continue;
+        
+        const levels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a); // Sort descending
+        
+        for (const level of levels) {
+            const levelKey = `${stage}_${set}_${level}`;
+            // If level is not completed, this is the furthest progress
+            if (!gameState.perfectLevels.has(levelKey) && !gameState.completedLevels.has(levelKey)) {
+                return { stage, set, level };
+            }
+        }
+    }
+    
+    // If all levels in all sets are completed, return the first level of the next set
+    // or first level of next stage if this was the last set
+    const stageConfig = gameStructure.stages[stage - 1];
+    const currentSetIndex = sets[0];
+    
+    if (currentSetIndex < stageConfig.numSets) {
+        // Next set in current stage
+        return { stage, set: currentSetIndex + 1, level: 1 };
+    } else if (stage < 5) {
+        // First set of next stage
+        return { stage: stage + 1, set: 1, level: 1 };
+    }
+    
+    // Fallback: return last known position
+    return { stage, set: sets[0], level: 1 };
+}
+
+function showGradeLevelSelector() {
+    // Create overlay and modal
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(5px);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+    
+    const modal = document.createElement('div');
+    modal.className = 'grade-level-modal';
+    modal.style.cssText = `
+        background: var(--glass);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    `;
+    
+    modal.innerHTML = `
+        <h2 style="color: var(--gold); margin-bottom: 1.5rem;">What grade level are you?</h2>
+        <p style="margin-bottom: 2rem; opacity: 0.9;">Choose your education level for the best learning experience:</p>
+        <div class="grade-options" style="display: flex; flex-direction: column; gap: 1rem;">
+            <button class="grade-option" data-stage="2" style="padding: 1rem; border-radius: 10px; background: rgba(255,255,255,0.1); border: none; color: var(--text); cursor: pointer; transition: all 0.3s ease;">
+                <i class="fas fa-school" style="margin-right: 0.5rem;"></i> Elementary School
+            </button>
+            <button class="grade-option" data-stage="3" style="padding: 1rem; border-radius: 10px; background: rgba(255,255,255,0.1); border: none; color: var(--text); cursor: pointer; transition: all 0.3s ease;">
+                <i class="fas fa-graduation-cap" style="margin-right: 0.5rem;"></i> Junior High School
+            </button>
+            <button class="grade-option" data-stage="4" style="padding: 1rem; border-radius: 10px; background: rgba(255,255,255,0.1); border: none; color: var(--text); cursor: pointer; transition: all 0.3s ease;">
+                <i class="fas fa-user-graduate" style="margin-right: 0.5rem;"></i> High School
+            </button>
+            <button class="grade-option" data-stage="5" style="padding: 1rem; border-radius: 10px; background: rgba(255,255,255,0.1); border: none; color: var(--text); cursor: pointer; transition: all 0.3s ease;">
+                <i class="fas fa-university" style="margin-right: 0.5rem;"></i> University
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    overlay.appendChild(modal);
+    
+    // Add hover effect
+    const buttons = modal.querySelectorAll('.grade-option');
+    buttons.forEach(button => {
+        button.addEventListener('mouseover', () => {
+            button.style.background = 'rgba(255,255,255,0.2)';
+            button.style.transform = 'translateY(-2px)';
+        });
+        
+        button.addEventListener('mouseout', () => {
+            button.style.background = 'rgba(255,255,255,0.1)';
+            button.style.transform = 'translateY(0)';
+        });
+        
+        button.addEventListener('click', () => {
+            const stage = parseInt(button.dataset.stage);
+            localStorage.setItem('preferredStage', stage);
+            overlay.remove();
+            
+            // Set current stage and start first level
+            gameState.currentStage = stage;
+            gameState.currentSet = 1;
+            startLevel(1);
+        });
+    });
+}
+
+function setupDefaultUnlocks() {
+    // Stage 1: All sets should be unlocked for all users
+    if (!gameState.unlockedSets[1]) {
+        gameState.unlockedSets[1] = new Set();
+    }
+    
+    // Unlock all 9 sets for Stage 1
+    for (let i = 1; i <= 9; i++) {
+        gameState.unlockedSets[1].add(i);
+        const setKey = `1_${i}`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set([1]);
+        }
+    }
+
+    // Stages 2-5: Only Set 1 should be unlocked with Level 1 accessible
+    for (let stage = 2; stage <= 5; stage++) {
+        if (!gameState.unlockedSets[stage]) {
+            gameState.unlockedSets[stage] = new Set([1]);
+        }
+        const setKey = `${stage}_1`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set([1]);
+        }
+    }
+}
+
+function saveProgress() {
+    // Ensure currentUser is always defined, even for unregistered users
+    const userId = currentUser ? currentUser.id : 'guest';
+
+    // Save current game context for resuming gameplay
+    // Only save if we're in an active game (level > 0)
+    if (gameState.currentLevel > 0) {
+        const gameContext = {
+            stage: gameState.currentStage,
+            set: gameState.currentSet,
+            level: gameState.currentLevel,
+            timestamp: Date.now()
+        };
+        console.log('Saving game context:', gameContext);
+        localStorage.setItem('gameContext', JSON.stringify(gameContext));
+    }
+
+    // For guest users, save to localStorage
+    const progressToSave = {
+        currentStage: gameState.currentStage || 1,
+        currentSet: gameState.currentSet || 1,
+        currentLevel: gameState.currentLevel || 1,
+        unlockedSets: Object.fromEntries(
+            Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+        ),
+        unlockedLevels: Object.fromEntries(
+            Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+        ),
+        perfectLevels: Array.from(gameState.perfectLevels),
+        completedLevels: Array.from(gameState.completedLevels),
+        coins: gameState.coins || 0
+    };
+
+    if (currentUser) {
+        // Save to Supabase for logged-in users
+        supabaseClient
+            .from('game_progress')
+            .update(progressToSave)
+            .eq('user_id', currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error('Error saving game progress:', error);
+            });
+    } else {
+        // Save to localStorage for guest users
+        localStorage.setItem('simploxProgress', JSON.stringify(progressToSave));
     }
 }
 
