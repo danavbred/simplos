@@ -10183,7 +10183,11 @@ function findFurthestProgression() {
             const context = JSON.parse(savedContext);
             if (context.stage && context.set && context.level) {
                 console.log('Resuming from saved context:', context);
-                return context;
+                return {
+                    stage: context.stage,
+                    set: context.set,
+                    level: context.level
+                };
             }
         } catch (e) {
             console.error('Error parsing saved context:', e);
@@ -10199,6 +10203,7 @@ function findFurthestProgression() {
     
     // Function to check if a level is a valid next level
     const isValidNextLevel = (stage, set, level) => {
+        // Get the levelKey
         const levelKey = `${stage}_${set}_${level}`;
         const setKey = `${stage}_${set}`;
         
@@ -10225,7 +10230,7 @@ function findFurthestProgression() {
             const setKey = `${preferredStage}_${set}`;
             if (!gameState.unlockedLevels[setKey]) continue;
             
-            const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a);
+            const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a); // Descending
             
             for (let level of unlockedLevels) {
                 if (isValidNextLevel(preferredStage, set, level)) {
@@ -10240,18 +10245,18 @@ function findFurthestProgression() {
     }
     
     // If we didn't find any valid level in the preferred stage,
-    // or if no preferred stage was set, check all stages comprehensively
+    // or if no preferred stage was set, check all stages
     if (!furthestProgress) {
         for (let stage = 1; stage <= 5; stage++) {
             if (!gameState.unlockedSets[stage]) continue;
             
-            const unlockedSets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => b - a);
+            const unlockedSets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => b - a); // Descending
             
             for (let set of unlockedSets) {
                 const setKey = `${stage}_${set}`;
                 if (!gameState.unlockedLevels[setKey]) continue;
                 
-                const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a);
+                const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a); // Descending
                 
                 for (let level of unlockedLevels) {
                     if (isValidNextLevel(stage, set, level)) {
