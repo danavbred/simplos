@@ -5095,7 +5095,176 @@ background-clip: text;
     opacity: 1;
 }
 
-    </style>
+/* Word Goal Slider Styles */
+.slider-container {
+    width: 100%;
+    max-width: 500px;
+    margin: 1rem auto;
+    position: relative;
+}
+
+.word-goal-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.2);
+    outline: none;
+    direction: ltr; /* Ensure left-to-right behavior */
+}
+
+.word-goal-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--gold);
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    transition: all 0.2s ease;
+}
+
+.word-goal-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--gold);
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    transition: all 0.2s ease;
+}
+
+.word-goal-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+}
+
+.slider-stops {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    padding: 0 10px;
+}
+
+.slider-stop {
+    position: relative;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text);
+    transition: all 0.2s ease;
+}
+
+.slider-stop:hover {
+    color: var(--gold);
+    transform: translateY(-2px);
+}
+
+.slider-stop::before {
+    content: '';
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 10px;
+    background-color: rgba(255,255,255,0.5);
+}
+
+.word-goal-input {
+    width: 80px;
+    padding: 0.5rem;
+    text-align: center;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 25px;
+    color: var(--text);
+    margin-top: 1rem;
+    font-size: 1rem;
+}
+
+.word-goal-input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.stage-checkboxes label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    font-size: 1.4rem; /* Increased from 1.2rem */
+    padding: 1.25rem; /* Increased from 1rem */
+    background: rgba(255,255,255,0.1);
+    border-radius: 15px;
+    transition: all 0.3s ease;
+    min-width: 120px; /* Added minimum width */
+    justify-content: center; /* Center content */
+}
+
+.stage-checkboxes input[type="checkbox"] {
+    width: 28px; /* Increased from 24px */
+    height: 28px; /* Increased from 24px */
+    cursor: pointer;
+    accent-color: var(--gold); /* Highlight selected checkboxes */
+}
+
+.slider-stops {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.75rem;
+    padding: 0 10px;
+    width: 100%;
+}
+
+.slider-stop {
+    position: relative;
+    cursor: pointer;
+    font-size: 1rem; /* Increased from 0.9rem */
+    color: var(--text);
+    transition: all 0.3s ease;
+    padding: 0.5rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    min-width: 40px;
+    text-align: center;
+}
+
+.slider-stop:hover {
+    color: var(--gold);
+    transform: translateY(-3px);
+    background: rgba(255,255,255,0.1);
+}
+
+.slider-stop::before {
+    content: '';
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 3px; /* Increased from 2px */
+    height: 12px; /* Increased from 10px */
+    background-color: rgba(255,255,255,0.6);
+}
+
+.word-goal-slider {
+    height: 8px; /* Slightly thicker slider */
+    border-radius: 4px;
+    margin: 1.5rem 0 0.5rem;
+}
+
+.word-goal-slider::-webkit-slider-thumb {
+    width: 24px; /* Larger thumb */
+    height: 24px;
+}
+
+.word-goal-slider::-moz-range-thumb {
+    width: 24px; /* Larger thumb */
+    height: 24px;
+}
+
+</style>
 </head>
 <body>
 
@@ -5532,13 +5701,19 @@ background-clip: text;
            </div>
 
            <div class="word-goal">
-               <h3>Word Goal:</h3>
-               <select id="wordGoal">
-                   <option value="5">5 words</option>
-                   <option value="100">100 words</option>
-                   <option value="200">200 words</option>
-               </select>
-           </div>
+            <h3>Word Goal: <span id="wordGoalDisplay">50</span> words</h3>
+            <div class="slider-container">
+                <input type="range" min="1" max="200" value="50" class="word-goal-slider" id="wordGoalSlider">
+                <div class="slider-stops">
+                    <span class="slider-stop" data-value="0">0</span>
+                    <span class="slider-stop" data-value="50">50</span>
+                    <span class="slider-stop" data-value="100">100</span>
+                    <span class="slider-stop" data-value="150">150</span>
+                    <span class="slider-stop" data-value="200">200</span>
+                </div>
+            </div>
+            <input type="number" id="wordGoalInput" min="1" max="200" value="50" class="word-goal-input">
+        </div>
 
            <button class="start-button" onclick="startArcade()">Start</button>
        </div>
@@ -12352,36 +12527,17 @@ async function showArcadeModal() {
                     })
                     .subscribe();
 
-                // Add custom lists section before displaying teacher view
-                const customListsSection = document.createElement('div');
-                customListsSection.className = 'custom-lists-selector';
-                customListsSection.innerHTML = `
-                    <div class="section-header">
-                        <h3>Add Custom Lists (Optional)</h3>
-                        <button class="add-list-button">+ Add List</button>
-                    </div>
-                    <div class="selected-lists"></div>
-                    <div class="stage-requirement">
-                        <div class="requirement-note">* Selecting a stage is required</div>
-                    </div>
-                `;
-
-                // Insert before stage selector
-                const stageSelector = teacherView.querySelector('.stage-selector');
-                if (stageSelector) {
-                    teacherView.insertBefore(customListsSection, stageSelector);
-                    
-                    // Handle add list button
-                    const addListButton = customListsSection.querySelector('.add-list-button');
-                    if (addListButton) {
-                        addListButton.onclick = showCustomListDropdown;
-                    }
-                }
+                // Generate QR code with proper URL construction
+                const currentUrl = window.location.origin + window.location.pathname;
+                const joinUrl = `${currentUrl}#join=${otp}`;
+                generateQRCode(otp);
 
                 document.getElementById('otp').textContent = otp;
                 teacherView.style.display = 'block';
                 playerView.style.display = 'none';
 
+                // Initialize word goal slider
+                initializeWordGoalSlider();
             } else {
                 // For registered non-teacher users, auto-fill username and hide that field
                 teacherView.style.display = 'none';
@@ -12422,6 +12578,51 @@ async function showArcadeModal() {
         console.error('Arcade setup error:', error);
         alert('Failed to initialize arcade');
     }
+}
+
+function initializeWordGoalSlider() {
+    const slider = document.getElementById('wordGoalSlider');
+    const display = document.getElementById('wordGoalDisplay');
+    const input = document.getElementById('wordGoalInput');
+    const stops = document.querySelectorAll('.slider-stop');
+    
+    if (!slider || !display || !input) return;
+    
+    // Set the min attribute to 0 to match visual display
+    slider.min = 0;
+    slider.max = 200;
+    slider.value = 50; // Default value
+    display.textContent = 50;
+    input.value = 50;
+    
+    // Update display and input when slider changes
+    slider.addEventListener('input', function() {
+        const value = parseInt(this.value);
+        display.textContent = value;
+        input.value = value;
+    });
+    
+    // Update slider and display when input changes
+    input.addEventListener('input', function() {
+        let value = parseInt(this.value) || 0;
+        
+        // Enforce min/max constraints
+        value = Math.max(0, Math.min(200, value));
+        
+        slider.value = value;
+        display.textContent = value;
+        this.value = value;
+    });
+    
+    // Allow clicking on preset stops
+    stops.forEach(stop => {
+        stop.addEventListener('click', function() {
+            const value = parseInt(this.dataset.value);
+            slider.value = value;
+            display.textContent = value;
+            input.value = value;
+        });
+    });
 }
 
 function showCustomListDropdown() {
@@ -12913,14 +13114,48 @@ async function startArcade() {
     const selectedStages = Array.from(document.querySelectorAll('.stage-checkboxes input:checked'))
         .map(cb => parseInt(cb.value));
         
+    // Validate stage selection
+    const stageWarning = document.querySelector('.stage-warning');
     if (selectedStages.length === 0) {
-        document.querySelector('.stage-warning').style.display = 'block';
+        if (stageWarning) {
+            stageWarning.style.display = 'block';
+        }
+        console.error('No stages selected');
         return;
+    } else if (stageWarning) {
+        stageWarning.style.display = 'none';
     }
 
+    // Generate word pool from selected stages
     currentArcadeSession.wordPool = generateWordPool(selectedStages);
-    currentArcadeSession.wordGoal = parseInt(document.getElementById('wordGoal').value);
-    currentArcadeSession.state = 'started';  // Update state
+
+    // Find word goal element with multiple potential selectors
+    const wordGoalSlider = 
+        document.getElementById('wordGoal') || 
+        document.getElementById('wordGoalSlider');
+
+    // Log diagnostic information
+    if (!wordGoalSlider) {
+        console.error('Word goal slider element not found. Available elements:', 
+            document.querySelectorAll('select, input[type="range"]')
+        );
+        
+        // Fallback to default
+        currentArcadeSession.wordGoal = 50;
+        console.warn('Defaulting to word goal of 50');
+    } else {
+        // Parse value with additional safeguards
+        const goalValue = parseInt(wordGoalSlider.value);
+        currentArcadeSession.wordGoal = isNaN(goalValue) ? 50 : goalValue;
+        
+        console.log('Selected word goal:', currentArcadeSession.wordGoal);
+    }
+
+    // Update session state
+    currentArcadeSession.state = 'started';
+
+    // Initialize participants list
+    currentArcadeSession.participants = [];
 
     // Add channel subscriptions for progress updates
     window.arcadeChannel
@@ -12929,41 +13164,48 @@ async function startArcade() {
             checkGameEnd();
         })
         .on('broadcast', { event: 'check_game_status' }, async ({ payload }) => {
-        // Respond with current state
-        console.log('Received game status check:', payload);
-        await window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'game_state_response',
-            payload: {
-                state: currentArcadeSession.state,
-                wordPool: currentArcadeSession.wordPool,
-                wordGoal: currentArcadeSession.wordGoal,
-                requestType: payload?.requestType || 'standard'
+            // Respond with current state
+            console.log('Received game status check:', payload);
+            await window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'game_state_response',
+                payload: {
+                    state: currentArcadeSession.state,
+                    wordPool: currentArcadeSession.wordPool,
+                    wordGoal: currentArcadeSession.wordGoal,
+                    requestType: payload?.requestType || 'standard'
+                }
+            });
+            
+            // If this is a late join request and game is active, make sure player is tracked
+            if (payload?.requestType === 'lateJoin' && 
+                currentArcadeSession.state === 'active' &&
+                payload.username) {
+                // Add player to participants if not already there
+                if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
+                    currentArcadeSession.participants.push({
+                        username: payload.username,
+                        wordsCompleted: 0,
+                        coins: 0,
+                        lateJoin: true
+                    });
+                    
+                    // Update UI
+                    const activeParticipantCount = document.getElementById('activeParticipantCount');
+                    if (activeParticipantCount) {
+                        activeParticipantCount.textContent = 
+                            currentArcadeSession.participants.length;
+                    }
+                    updateAllPlayersProgress();
+                }
             }
         });
-        
-        // If this is a late join request and game is active, make sure player is tracked
-        if (payload?.requestType === 'lateJoin' && 
-            currentArcadeSession.state === 'active' &&
-            payload.username) {
-            // Add player to participants if not already there
-            if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
-                currentArcadeSession.participants.push({
-                    username: payload.username,
-                    wordsCompleted: 0,
-                    coins: 0,
-                    lateJoin: true
-                });
-                
-                // Update UI
-                document.getElementById('activeParticipantCount').textContent = 
-                    currentArcadeSession.participants.length;
-                updateAllPlayersProgress();
-            }
-        }
-    });
 
-        document.getElementById('arcade-modal').style.display = 'none';
+    const arcadeModal = document.getElementById('arcade-modal');
+    if (arcadeModal) {
+        arcadeModal.style.display = 'none';
+    }
+
     showModeratorScreen();
     
     // Initialize idle detection for moderator
