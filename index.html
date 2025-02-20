@@ -5264,6 +5264,209 @@ background-clip: text;
     height: 24px;
 }
 
+/* Revive Overlay Styles */
+.revive-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+.revive-overlay.show {
+    opacity: 1;
+}
+
+.revive-content {
+    text-align: center;
+    transform: translateY(30px);
+    transition: transform 0.5s ease;
+}
+
+.revive-overlay.show .revive-content {
+    transform: translateY(0);
+}
+
+.ankh-symbol {
+    font-size: 8rem;
+    color: var(--gold);
+    margin-bottom: 1rem;
+    text-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+    animation: ankhPulse 2s infinite;
+}
+
+@keyframes ankhPulse {
+    0%, 100% { 
+        transform: scale(1);
+        text-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+    }
+    50% { 
+        transform: scale(1.1);
+        text-shadow: 0 0 50px rgba(255, 215, 0, 0.8);
+    }
+}
+
+.revive-title {
+    font-size: 3rem;
+    color: var(--text);
+    margin-bottom: 2rem;
+}
+
+.revive-timer {
+    font-size: 5rem;
+    color: var(--gold);
+    font-weight: bold;
+    margin-bottom: 2rem;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+}
+
+.revive-button {
+    padding: 1rem 3rem;
+    font-size: 1.5rem;
+    background: var(--accent);
+    color: var(--text);
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 20px var(--accent);
+    animation: buttonGlow 1.5s infinite;
+}
+
+.revive-button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0 30px var(--accent);
+}
+
+@keyframes buttonGlow {
+    0%, 100% { box-shadow: 0 0 20px var(--accent); }
+    50% { box-shadow: 0 0 30px var(--accent); }
+}
+
+/* Resurrection Animation Styles */
+.resurrection-animation {
+    position: relative;
+    width: 240px;
+    height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.resurrection-circle {
+    width: 200px;
+    height: 200px;
+}
+
+.resurrection-progress {
+    stroke: var(--gold);
+    stroke-linecap: round;
+    transform-origin: center;
+    transform: rotate(-90deg);
+    stroke-dashoffset: 339.29;
+    filter: drop-shadow(0 0 10px var(--gold));
+}
+
+.resurrection-ankh {
+    position: absolute;
+    font-size: 5rem;
+    color: var(--gold);
+    animation: resurrectGlow 2s infinite;
+}
+
+@keyframes resurrectGlow {
+    0%, 100% { text-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+    50% { text-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
+}
+
+@keyframes particleFlow {
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+    }
+    100% {
+        transform: translate(calc(-50% + var(--end-x)), calc(-50% + var(--end-y))) scale(1);
+        opacity: 0;
+    }
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 768px) {
+    .ankh-symbol {
+        font-size: 6rem;
+    }
+    
+    .revive-title {
+        font-size: 2rem;
+    }
+    
+    .revive-timer {
+        font-size: 4rem;
+    }
+    
+    .revive-button {
+        padding: 0.75rem 2rem;
+        font-size: 1.2rem;
+    }
+    
+    .resurrection-animation {
+        width: 180px;
+        height: 180px;
+    }
+    
+    .resurrection-circle {
+        width: 150px;
+        height: 150px;
+    }
+    
+    .resurrection-ankh {
+        font-size: 3.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .ankh-symbol {
+        font-size: 5rem;
+    }
+    
+    .revive-title {
+        font-size: 1.8rem;
+    }
+    
+    .revive-timer {
+        font-size: 3.5rem;
+    }
+    
+    .revive-button {
+        padding: 0.5rem 1.5rem;
+        font-size: 1rem;
+    }
+    
+    .resurrection-animation {
+        width: 150px;
+        height: 150px;
+    }
+    
+    .resurrection-circle {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .resurrection-ankh {
+        font-size: 3rem;
+    }
+}
+
 </style>
 </head>
 <body>
@@ -8088,29 +8291,7 @@ function handleTimeUp() {
     if (currentGame.currentIndex >= currentGame.words.length) return; // Don't show if level is complete
     
     clearTimer();
-    const overlay = document.querySelector('.failure-overlay');
-    overlay.style.display = 'flex';
-    setTimeout(() => {
-        overlay.classList.add('show');
-    }, 100);
-    
-    // Update home button functionality
-    document.querySelector('.failure-overlay .home-button').onclick = () => {
-        overlay.classList.remove('show');
-        setTimeout(() => {
-            overlay.style.display = 'none';
-            showScreen('welcome-screen');
-        }, 1000);
-    };
-    
-    // Keep restart functionality
-    document.querySelector('.failure-overlay .restart-button').onclick = () => {
-        overlay.classList.remove('show');
-        setTimeout(() => {
-            overlay.style.display = 'none';
-            startLevel(gameState.currentLevel);
-        }, 1000);
-    };
+    showReviveOverlay();
 }
 
 // Screen Management
@@ -16768,7 +16949,169 @@ async function deleteCustomList(listId) {
     }
 }
 
+function showReviveOverlay() {
+    const overlay = document.createElement('div');
+    overlay.className = 'revive-overlay';
+    overlay.innerHTML = `
+        <div class="revive-content">
+            <div class="ankh-symbol">☥</div>
+            <h2 class="revive-title">Revive?</h2>
+            <div class="revive-timer">5</div>
+            <button class="revive-button">Revive</button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Fade in animation
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
+    
+    // Set up countdown
+    let seconds = 5;
+    const timerDisplay = overlay.querySelector('.revive-timer');
+    
+    const countdownInterval = setInterval(() => {
+        seconds--;
+        timerDisplay.textContent = seconds;
+        
+        if (seconds <= 0) {
+            clearInterval(countdownInterval);
+            handleReviveTimeout();
+        }
+    }, 1000);
+    
+    // Handle revive button click
+    const reviveButton = overlay.querySelector('.revive-button');
+    reviveButton.onclick = () => {
+        clearInterval(countdownInterval);
+        handleRevive();
+    };
+    
+    // Store interval for cleanup
+    overlay.dataset.intervalId = countdownInterval;
+}
 
+function handleReviveTimeout() {
+    const overlay = document.querySelector('.revive-overlay');
+    
+    if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            overlay.remove();
+            showScreen('welcome-screen');
+        }, 500);
+    }
+}
+
+function handleRevive() {
+    const overlay = document.querySelector('.revive-overlay');
+    
+    if (overlay) {
+        // First change content to show resurrection animation
+        const content = overlay.querySelector('.revive-content');
+        content.innerHTML = `
+            <div class="resurrection-animation">
+                <div class="progress-circle resurrection-circle">
+                    <svg width="100%" height="100%" viewBox="0 0 120 120">
+                        <circle class="bg" cx="60" cy="60" r="54" stroke-width="8"/>
+                        <circle class="resurrection-progress" cx="60" cy="60" r="54" stroke-width="8"/>
+                    </svg>
+                    <div class="ankh-symbol resurrection-ankh">☥</div>
+                </div>
+            </div>
+        `;
+        
+        // Start resurrection animation
+        const progressCircle = overlay.querySelector('.resurrection-progress');
+        const circumference = 2 * Math.PI * 54;
+        progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+        progressCircle.style.strokeDashoffset = circumference;
+        
+        // Create light particles effect
+        createResurrectionParticles();
+        
+        // Animate progress circle filling
+        setTimeout(() => {
+            progressCircle.style.transition = 'stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1)';
+            progressCircle.style.strokeDashoffset = '0';
+        }, 100);
+        
+        // After animation completes, restart level
+        setTimeout(() => {
+            overlay.classList.remove('show');
+            setTimeout(() => {
+                overlay.remove();
+                
+                // Reset game state
+                currentGame.wrongStreak = 0;
+                timeRemaining = currentGame.initialTimeRemaining;
+                
+                // If in custom practice, handle specially
+                if (currentGame.isCustomPractice) {
+                    startCustomLevel(currentGame.customLevel);
+                } else {
+                    startLevel(gameState.currentLevel);
+                }
+            }, 500);
+        }, 2500);
+    }
+}
+
+function createResurrectionParticles() {
+    const container = document.querySelector('.resurrection-animation');
+    if (!container) return;
+    
+    // Get center of container
+    const rect = container.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // Create particles
+    for (let i = 0; i < 40; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'resurrection-particle';
+        
+        // Random angle and distance
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 100 + Math.random() * 150;
+        const duration = 1 + Math.random() * 1.5;
+        const delay = Math.random() * 0.5;
+        const size = 3 + Math.random() * 7;
+        
+        // Calculate end position
+        const endX = Math.cos(angle) * distance;
+        const endY = Math.sin(angle) * distance;
+        
+        // Set particle style
+        particle.style.cssText = `
+            position: fixed;
+            left: ${centerX}px;
+            top: ${centerY}px;
+            width: ${size}px;
+            height: ${size}px;
+            background: #FFD700;
+            border-radius: 50%;
+            opacity: 0;
+            z-index: 1001;
+            box-shadow: 0 0 ${size}px #FFD700;
+            transform: translate(-50%, -50%);
+            animation: particleFlow ${duration}s ease-out ${delay}s forwards;
+        `;
+        
+        // Set custom properties for animation
+        particle.style.setProperty('--end-x', `${endX}px`);
+        particle.style.setProperty('--end-y', `${endY}px`);
+        
+        document.body.appendChild(particle);
+        
+        // Clean up after animation
+        setTimeout(() => {
+            particle.remove();
+        }, (duration + delay) * 1000 + 100);
+    }
+}
 
 </script>
 </body>
