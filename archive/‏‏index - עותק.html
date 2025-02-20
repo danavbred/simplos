@@ -2084,38 +2084,7 @@ background-clip: text;
 
 
 
-.stage-button, .set-button, .level {
-  aspect-ratio: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--text);
-    background: var(--glass);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
-    position: relative;
-    overflow: hidden;
-    flex-direction: column;
-}
 
-@media (max-width: 768px) {
-    .level-selection {
-        grid-template-columns: repeat(4, 1fr);
-        gap: 0.75rem;
-        padding: 1rem;
-    }
-
-    .level {
-        aspect-ratio: 1;
-        min-height: 60px;
-        font-size: 1.2rem;
-    }
-}
 
 .stage-name {
   font-size: 1.2rem;
@@ -2126,58 +2095,8 @@ background-clip: text;
     text-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
-.stage-button::before, .set-button.active::before, .level.blue::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.2) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
 
-.stage-button:hover, .set-button.active:hover, .level.blue:hover {
-  transform: translateY(-10px) scale(1.05);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-}
 
-.stage-button:hover::before, .set-button.active:hover::before, .level.blue:hover::before {
-  opacity: 1;
-}
-
-.set-button {
-  cursor: not-allowed;
-    opacity: 0.5;
-    background: var(--locked);
-    transition: all 0.5s ease;
-}
-
-.set-button.active {
-  opacity: 1;
-    cursor: pointer;
-    background: linear-gradient(135deg, var(--gold), #ffa500);
-    box-shadow: 0 10px 20px rgba(255, 215, 0, 0.3);
-}
-
-/* Test Level Visual Distinction */
-.level.test-level {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    position: relative;
-    border: 2px solid #00f2fe;
-}
-
-.level.test-level::before {
-    content: '↻';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 1.5em;
-    color: rgba(255, 255, 255, 0.2);
-    animation: rotate 3s linear infinite;
-}
 
 .test-badge {
     background: rgba(255, 255, 255, 0.1);
@@ -3711,34 +3630,6 @@ background-clip: text;
 
   .timer-value {
     font-size: 2rem;
-  }
-}
-
-/* Touch Optimizations */
-@media (hover: none) {
-  .buttons button,
-  .stage-button,
-  .set-button,
-  .level {
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-
-  .stage-button:hover,
-  .set-button:hover,
-  .level:hover,
-  .buttons button:hover {
-    transform: none;
-    box-shadow: none;
-  }
-  
-  .buttons button:active,
-  .stage-button:active,
-  .set-button:active,
-  .level:active {
-    transform: scale(0.95);
-    transition: transform 0.1s;
   }
 }
 
@@ -5467,6 +5358,259 @@ background-clip: text;
     }
 }
 
+/* Stage-Set Cascade UI Styles */
+.stages-container {
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1rem;
+  margin: 0 auto;
+  margin-top: 3rem;
+}
+
+.stage-wrapper {
+  width: 100%;
+}
+
+.stage-wrapper .stage-button {
+  width: 100%;
+  padding: 1.25rem;
+  border-radius: 16px;
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.stage-wrapper .stage-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.15) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.stage-wrapper .stage-button:hover::before {
+  opacity: 1;
+}
+
+.stage-wrapper .stage-button:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+}
+
+.stage-info {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.stage-icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  background: linear-gradient(135deg, var(--accent), rgba(30, 144, 255, 0.7));
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
+}
+
+.stage-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stage-wrapper .stage-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.stage-desc {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.stage-status {
+  font-size: 0.85rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 50px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.stage-toggle {
+  font-size: 1.25rem;
+  transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+}
+
+.stage-wrapper.open .stage-toggle {
+  transform: rotate(180deg);
+}
+
+/* Sets container and styling */
+.sets-container {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 0 0 16px 16px;
+  margin-top: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: none;
+}
+
+.stage-wrapper.open .sets-container {
+  max-height: 800px; /* Allows up to around 6-7 sets visible */
+}
+
+.sets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.sets-grid .set-button {
+  aspect-ratio: 16/9;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  overflow: hidden;
+}
+
+.sets-grid .set-button.active {
+  background: linear-gradient(135deg, var(--accent), rgba(30, 144, 255, 0.7));
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 5px 15px rgba(30, 144, 255, 0.2);
+}
+
+.sets-grid .set-button.locked {
+  background: rgba(128, 128, 128, 0.2);
+  cursor: not-allowed;
+}
+
+.sets-grid .set-button:not(.locked):hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+}
+
+.sets-grid .set-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 80%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.sets-grid .set-button:not(.locked):hover::before {
+  opacity: 1;
+}
+
+.lock-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.completed-indicator {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--gold);
+}
+
+/* Open/Closed Stage State */
+.stage-wrapper.closed .sets-container {
+  max-height: 0;
+}
+
+.stage-wrapper.open .stage-button {
+  border-radius: 16px 16px 0 0;
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Stage themes */
+.stage-wrapper[data-stage="1"] .stage-icon {
+  background: linear-gradient(135deg, #ff416c, #ff4b2b);
+}
+
+.stage-wrapper[data-stage="2"] .stage-icon {
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+}
+
+.stage-wrapper[data-stage="3"] .stage-icon {
+  background: linear-gradient(135deg, #a18cd1, #fbc2eb);
+}
+
+.stage-wrapper[data-stage="4"] .stage-icon {
+  background: linear-gradient(135deg, #84fab0, #8fd3f4);
+}
+
+.stage-wrapper[data-stage="5"] .stage-icon {
+  background: linear-gradient(135deg, #fad0c4, #ffd1ff);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .stages-container {
+    max-width: 100%;
+    padding: 0.5rem;
+  }
+  
+  .stage-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 1.4rem;
+  }
+  
+  .stage-wrapper .stage-name {
+    font-size: 1rem;
+  }
+  
+  .stage-desc {
+    font-size: 0.8rem;
+  }
+  
+  .sets-grid {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    padding: 1rem;
+    gap: 0.75rem;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -5492,6 +5636,7 @@ background-clip: text;
         <button class="main-button guest-play-button" onclick="startGame()">Play as Guest</button>
         <button class="main-button arcade-button" onclick="showArcadeModal()">Arcade</button>
         <button class="main-button" onclick="showCustomListsManager()">My Lists</button>
+        <button class="main-button stages-button" onclick="showStageCascadeScreen()">Stages</button>
         <button class="main-button" disabled>Download the App</button>
     </div>
 
@@ -5571,51 +5716,23 @@ background-clip: text;
 </div>
 </div>
 
-<div id="stage-screen" class="screen">
+<div id="stage-cascade-screen" class="screen">
     <div class="particle-container"></div>
     <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">
-    <button class="navigation-button home-button" onclick="navigateHome()">
-        <i class="fas fa-home navigation-icon"></i>
-    </button>
-    <button class="navigation-button reset-button" onclick="handleResetProgress()">
-        <i class="fas fa-trash-alt navigation-icon"></i>
-    </button>
-    <button class="navigation-button fullscreen-button" onclick="toggleFullScreen()">
-        <i class="fas fa-expand navigation-icon"></i>
-    </button>
-</div>
-    <div class="stage-container">
-        <div class="stage-button junior-level" onclick="showSetScreen(1)">
-            <div class="stage-name">מתחילים</div>
-            Stage 1
-        </div>
-        <div class="stage-button bronze-level" onclick="showSetScreen(2)">
-            <div class="stage-name">יסודי</div>
-            Stage 2
-        </div>
-        <div class="stage-button silver-level" onclick="showSetScreen(3)">
-            <div class="stage-name">חטיבת ביניים</div>
-            Stage 3
-        </div>
-        <div class="stage-button gold-level" onclick="showSetScreen(4)">
-            <div class="stage-name">תיכון</div>
-            Stage 4
-        </div>
-        <div class="stage-button diamond-level" onclick="showSetScreen(5)">
-            <div class="stage-name">אוניברסיטה</div>
-            Stage 5
-        </div>
-    </div>
-</div>
-
-<div id="set-screen" class="screen">
-    <div class="particle-container"></div>
-    <div class="navigation-container">
-        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
+        <button class="navigation-button home-button" onclick="navigateHome()">
             <i class="fas fa-home navigation-icon"></i>
         </button>
+        <button class="navigation-button reset-button" onclick="handleResetProgress()">
+            <i class="fas fa-trash-alt navigation-icon"></i>
+        </button>
+        <button class="navigation-button fullscreen-button" onclick="toggleFullScreen()">
+            <i class="fas fa-expand navigation-icon"></i>
+        </button>
     </div>
-    <div class="set-container" id="set-container"></div>
+    
+    <div class="stages-container">
+        <!-- Stages will be populated dynamically here -->
+    </div>
 </div>
 
 <div id="level-screen" class="screen">
@@ -6731,44 +6848,6 @@ const supabaseClient = createClient(
     }
 );
 
-function showSetScreen(stageId) {
-    gameState.currentStage = stageId;
-    const container = document.getElementById('set-container');
-    container.innerHTML = '';
-    
-    const stage = gameStructure.stages[stageId - 1];
-    
-    for (let i = 1; i <= stage.numSets; i++) {
-        const setButton = document.createElement('div');
-        setButton.className = 'set-button';
-        setButton.textContent = `Set ${i}`;
-        
-        if (gameState.unlockedSets[stageId]?.has(i)) {
-            setButton.classList.add('active');
-            setButton.onclick = () => showLevelScreen(i);
-        }
-        
-        container.appendChild(setButton);
-    }
-    
-    // Check user access and apply lock overlay if needed
-    checkUserAccess().then(access => {
-        if (!access) return;
-        
-        container.querySelectorAll('.set-button').forEach((btn, index) => {
-            const i = index + 1;
-            const hasAccess = access.unlockedStages[stageId] === 'full' || 
-                             (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
-            
-            if (!hasAccess) {
-                btn.classList.remove('active');
-                btn.classList.add('locked');
-                btn.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
-                btn.onclick = () => showUpgradePrompt();
-            }
-        });
-    });
-}
 
 document.addEventListener('DOMContentLoaded', async () => {
    try {
@@ -8364,9 +8443,10 @@ function showScreen(screenId, forceRefresh = false) {
                 startGame();
             }
             break;
-        case 'stage-screen':
-            // Any stage screen specific logic
-            break;
+        case 'stage-cascade-screen':
+            showStageCascadeScreen();
+            return; 
+     
     }
 
     console.log(`Switched to screen: ${screenId}`);
@@ -8389,45 +8469,7 @@ document.addEventListener('fullscreenchange', function() {
     }
 });
 
-function showSetScreen(stageId) {
-    gameState.currentStage = stageId;
-    const container = document.getElementById('set-container');
-    container.innerHTML = '';
-    
-    const stage = gameStructure.stages[stageId - 1];
-    
-    for (let i = 1; i <= stage.numSets; i++) {
-        const setButton = document.createElement('div');
-        setButton.className = 'set-button active';
-        setButton.textContent = `Set ${i}`;
-        
-        if (gameState.unlockedSets[stageId]?.has(i)) {
-            setButton.onclick = () => showLevelScreen(i);
-        }
-        
-        container.appendChild(setButton);
-    }
-    
-    showScreen('set-screen');
 
-    // Run access check after showing screen
-    checkUserAccess().then(access => {
-        if (!access) return;
-        
-        container.querySelectorAll('.set-button').forEach((btn, index) => {
-            const i = index + 1;
-            const hasAccess = access.unlockedStages[stageId] === 'full' || 
-                             (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
-            
-            if (!hasAccess) {
-                btn.classList.remove('active');
-                btn.classList.add('locked');
-                btn.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
-                btn.onclick = () => showUpgradePrompt();
-            }
-        });
-    });
-}
 
 function showLevelScreen(setId) {
     gameState.currentSet = setId;
@@ -9883,7 +9925,6 @@ function findFurthestProgression() {
 
 
 function startGame() {
-    
     if (!gameState.unlockedSets[1] || !gameState.unlockedLevels['1_1']) {
         gameState.unlockedSets[1] = new Set([1]);
         gameState.unlockedLevels['1_1'] = new Set([1]);
@@ -9898,7 +9939,9 @@ function startGame() {
     
     gameState.currentStage = furthestPoint.stage;
     gameState.currentSet = furthestPoint.set;
-    startLevel(furthestPoint.level);
+    
+    // Show stage cascade screen instead of going directly to level
+    showStageCascadeScreen();
 }
 
 function showLevelIntro(levelId, setupCallback) {
@@ -11369,45 +11412,6 @@ function handleProgressionAfterCompletion(isLevelCompleted) {
     }
 }
 
-function showSetScreen(stageId) {
-    gameState.currentStage = stageId;
-    const container = document.getElementById('set-container');
-    container.innerHTML = '';
-    
-    const stage = gameStructure.stages[stageId - 1];
-    
-    for (let i = 1; i <= stage.numSets; i++) {
-        const setButton = document.createElement('div');
-        setButton.className = 'set-button active';
-        setButton.textContent = `Set ${i}`;
-        
-        if (gameState.unlockedSets[stageId]?.has(i)) {
-            setButton.onclick = () => showLevelScreen(i);
-        }
-        
-        container.appendChild(setButton);
-    }
-    
-    showScreen('set-screen');
-
-    checkUserAccess().then(access => {
-        if (!access) return;
-        
-        container.querySelectorAll('.set-button').forEach((btn, index) => {
-            const i = index + 1;
-            const hasAccess = access.unlockedStages[stageId] === 'full' || 
-                             (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i));
-            
-            if (!hasAccess) {
-                btn.classList.remove('active');
-                btn.classList.add('locked');
-                btn.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
-                btn.onclick = () => showUpgradePrompt();
-            }
-        });
-    });
-}
-
 
 
 function hideUpgradePrompt() {
@@ -11531,60 +11535,27 @@ async function checkUserAccess() {
     }
 }
 
-async function showSetScreen(stageId) {
-    gameState.currentStage = stageId;
-    const container = document.getElementById('set-container');
-    container.innerHTML = '';
-    
-    const stage = gameStructure.stages[stageId - 1];
-    
-    const access = await checkUserAccess();
-    if (!access) return;
-
-    for (let i = 1; i <= stage.numSets; i++) {
-        const setButton = document.createElement('div');
-        
-        // Determine if set is accessible
-        const isSetAccessible = (
-            (access.unlockedStages[stageId] && access.unlockedStages[stageId].includes(i)) ||
-            (i === 1)  // First set always accessible
-        );
-        
-        // Determine if user is premium
-        const isPremium = currentUser && currentUser.status === 'premium';
-        
-        // Set button classes
-        setButton.className = `set-button ${isSetAccessible ? 'active' : 'locked'}`;
-        setButton.textContent = `Set ${i}`;
-        
-        if (isSetAccessible) {
-            // Always allow clicking on first set
-            if (i === 1 || gameState.unlockedSets[stageId]?.has(i)) {
-                setButton.onclick = () => showLevelScreen(i);
-            }
-        } else {
-            // Add lock overlay for non-accessible sets
-            setButton.innerHTML += `<div class="lock-overlay"><i class="fas fa-lock"></i></div>`;
-            
-            // For non-premium users, show upgrade prompt
-            if (!isPremium && i !== 1) {
-                setButton.onclick = () => showUpgradePrompt();
-            }
-        }
-        
-        container.appendChild(setButton);
-    }
-    
-    showScreen('set-screen');
-}
-
-
 function toggleAuthMode() {
     const loginForm = document.getElementById('loginForm');
     const signupForm = document.getElementById('signupForm');
     
     loginForm.classList.toggle('hidden');
     signupForm.classList.toggle('hidden');
+}
+
+// REPLACE this function
+function showSetScreen(stageId) {
+    // This function now redirects to the cascade screen
+    gameState.currentStage = stageId;
+    showStageCascadeScreen();
+    
+    // Automatically open the selected stage
+    setTimeout(() => {
+        const stageWrapper = document.querySelector(`.stage-wrapper[data-stage="${stageId}"]`);
+        if (stageWrapper && !stageWrapper.classList.contains('open')) {
+            stageWrapper.classList.add('open');
+        }
+    }, 100);
 }
 
 function showUnregisteredWarning(callback) {
@@ -17110,6 +17081,327 @@ function createResurrectionParticles() {
         setTimeout(() => {
             particle.remove();
         }, (duration + delay) * 1000 + 100);
+    }
+}
+
+function updateSidePanelLink() {
+    const levelMapLink = document.querySelector('.nav-link[onclick*="stage-screen"]');
+    if (levelMapLink) {
+        levelMapLink.setAttribute('onclick', "showScreen('stage-cascade-screen'); return false;");
+    }
+}
+
+// Call the function immediately after defining it
+updateSidePanelLink();
+
+// Also call it when DOM is loaded to ensure it works
+document.addEventListener('DOMContentLoaded', () => {
+    updateSidePanelLink();
+});
+
+
+// Function to build and display the stage-set cascade UI
+function showStageCascadeScreen() {
+    const container = document.querySelector('.stages-container');
+    if (!container) return;
+    
+    // Clear existing content
+    container.innerHTML = '';
+    
+    // Create stage wrappers for each stage
+    gameStructure.stages.forEach(stage => {
+        // Create stage wrapper
+        const stageWrapper = document.createElement('div');
+        stageWrapper.className = 'stage-wrapper';
+        stageWrapper.dataset.stage = stage.id;
+        
+        // Get stage completion data
+        const totalSets = stage.numSets;
+        const unlockedSets = gameState.unlockedSets[stage.id] || new Set();
+        const unlockedCount = unlockedSets.size;
+        let completedSets = 0;
+        
+        // Count completed sets
+        if (unlockedSets.size > 0) {
+            unlockedSets.forEach(setId => {
+                const setKey = `${stage.id}_${setId}`;
+                const levelCount = gameStructure.stages[stage.id - 1].levelsPerSet;
+                const completedLevels = new Set();
+                
+                // Count levels that are in completedLevels or perfectLevels
+                for (let level = 1; level <= levelCount; level++) {
+                    const levelKey = `${stage.id}_${setId}_${level}`;
+                    if (gameState.completedLevels.has(levelKey) || gameState.perfectLevels.has(levelKey)) {
+                        completedLevels.add(level);
+                    }
+                }
+                
+                // If all levels in a set are completed, count it as a completed set
+                if (completedLevels.size === levelCount) {
+                    completedSets++;
+                }
+            });
+        }
+        
+        // Stage button content
+        const stageIcon = getStageIcon(stage.id);
+        const stageName = getStageHebrewName(stage.id);
+        const stageDesc = getStageDescription(stage.id);
+        const stageStatus = getStageStatus(stage.id, completedSets, totalSets);
+        
+        // Create stage button
+        stageWrapper.innerHTML = `
+            <div class="stage-button">
+                <div class="stage-info">
+                    <div class="stage-icon">
+                        <i class="${stageIcon}"></i>
+                    </div>
+                    <div class="stage-text">
+                        <div class="stage-name">${stageName} - Stage ${stage.id}</div>
+                        <div class="stage-desc">${stageDesc}</div>
+                    </div>
+                </div>
+                <div class="stage-status">${stageStatus}</div>
+                <div class="stage-toggle">
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+            
+            <div class="sets-container">
+                <div class="sets-grid" id="sets-grid-${stage.id}"></div>
+            </div>
+        `;
+        
+        container.appendChild(stageWrapper);
+        
+        // Populate sets grid
+        populateSetsGrid(stage.id);
+    });
+    
+    // Add event listeners to stage buttons
+    addStageToggleListeners();
+    
+    // Initial state: open the current stage
+    if (gameState.currentStage) {
+        const currentStageWrapper = document.querySelector(`.stage-wrapper[data-stage="${gameState.currentStage}"]`);
+        if (currentStageWrapper) {
+            currentStageWrapper.classList.add('open');
+        }
+    }
+    
+    const cascadeScreen = document.getElementById('stage-cascade-screen');
+if (cascadeScreen) {
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('visible');
+    });
+    cascadeScreen.classList.add('visible');
+}
+}
+
+function getStageIcon(stageId) {
+    const icons = {
+        1: 'fas fa-book',
+        2: 'fas fa-graduation-cap',
+        3: 'fas fa-school',
+        4: 'fas fa-university',
+        5: 'fas fa-brain'
+    };
+    return icons[stageId] || 'fas fa-star';
+}
+
+function getStageHebrewName(stageId) {
+    const names = {
+        1: 'מתחילים',
+        2: 'יסודי',
+        3: 'חטיבת ביניים',
+        4: 'תיכון',
+        5: 'אוניברסיטה'
+    };
+    return names[stageId] || `Stage ${stageId}`;
+}
+
+function getStageDescription(stageId) {
+    const descriptions = {
+        1: 'Beginner level words and simple phrases',
+        2: 'Elementary level vocabulary and structures',
+        3: 'Middle school level vocabulary',
+        4: 'High school level vocabulary',
+        5: 'University level vocabulary'
+    };
+    return descriptions[stageId] || 'Advanced vocabulary';
+}
+
+function getStageStatus(stageId, completedSets, totalSets) {
+    // For premium stages, show premium status for non-premium users
+    if (stageId > 2 && (!currentUser || currentUser.status !== 'premium')) {
+        return 'Premium Feature';
+    }
+    
+    // For unlocked stages, show completion status
+    return `${completedSets}/${totalSets} Sets Completed`;
+}
+
+function populateSetsGrid(stageId) {
+    const setsGrid = document.getElementById(`sets-grid-${stageId}`);
+    if (!setsGrid) return;
+    
+    const stage = gameStructure.stages[stageId - 1];
+    const unlockedSets = gameState.unlockedSets[stageId] || new Set();
+    
+    // Get user access limits
+    let accessLimits = null;
+    checkUserAccess().then(access => {
+        accessLimits = access;
+        
+        // Create set buttons
+        for (let i = 1; i <= stage.numSets; i++) {
+            const setButton = document.createElement('div');
+            const setKey = `${stageId}_${i}`;
+            
+            // Check if set is unlocked in game progress
+            const isUnlocked = unlockedSets.has(i);
+            
+            // Check if set is accessible based on user status
+            let isPremiumLocked = false;
+            if (accessLimits) {
+                const hasStageAccess = accessLimits.unlockedStages[stageId] === 'full';
+                const hasSetAccess = Array.isArray(accessLimits.unlockedStages[stageId]) && 
+                                  accessLimits.unlockedStages[stageId].includes(i);
+                
+                if (!hasStageAccess && !hasSetAccess && stageId > 2) {
+                    isPremiumLocked = true;
+                }
+            }
+            
+            // Set button class based on status
+            setButton.className = 'set-button';
+            if (isUnlocked && !isPremiumLocked) {
+                setButton.classList.add('active');
+            } else {
+                setButton.classList.add('locked');
+            }
+            
+            // Check if set is completed
+            const isCompleted = isSetCompleted(stageId, i);
+            
+            // Set button content
+            setButton.innerHTML = `
+                <span>Set ${i}</span>
+                ${isCompleted ? `
+                <div class="completed-indicator">
+                    <i class="fas fa-check-circle"></i>
+                </div>` : ''}
+                ${(!isUnlocked || isPremiumLocked) ? `
+                <div class="lock-icon">
+                    <i class="fas ${isPremiumLocked ? 'fa-crown' : 'fa-lock'}"></i>
+                </div>` : ''}
+            `;
+            
+            // Set click handler based on status
+            if (isUnlocked && !isPremiumLocked) {
+                setButton.onclick = () => showLevelScreen(i);
+            } else if (isPremiumLocked) {
+                setButton.onclick = () => showUpgradePrompt();
+            }
+            
+            setsGrid.appendChild(setButton);
+        }
+    });
+}
+
+function isSetCompleted(stageId, setId) {
+    const setKey = `${stageId}_${setId}`;
+    const levelCount = gameStructure.stages[stageId - 1].levelsPerSet;
+    let completedCount = 0;
+    
+    for (let level = 1; level <= levelCount; level++) {
+        const levelKey = `${stageId}_${setId}_${level}`;
+        if (gameState.completedLevels.has(levelKey) || gameState.perfectLevels.has(levelKey)) {
+            completedCount++;
+        }
+    }
+    
+    return completedCount === levelCount;
+}
+
+function addStageToggleListeners() {
+    document.querySelectorAll('.stage-wrapper .stage-button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const wrapper = button.closest('.stage-wrapper');
+            wrapper.classList.toggle('open');
+            e.stopPropagation(); // Prevent event bubbling
+        });
+    });
+}
+
+// Add this helper function to ensure the screen exists
+function ensureScreenExists(screenId) {
+    if (!document.getElementById(screenId)) {
+        console.warn(`Screen ${screenId} doesn't exist. Creating it.`);
+        const screen = document.createElement('div');
+        screen.id = screenId;
+        screen.className = 'screen';
+        document.body.appendChild(screen);
+    }
+}
+
+// Call this before showScreen
+function safeShowScreen(screenId, forceRefresh = false) {
+    ensureScreenExists(screenId);
+    showScreen(screenId, forceRefresh);
+}
+
+// Update the navigation link in the side panel
+function updateSidePanelLinks() {
+    const levelMapLink = document.querySelector('.nav-link[onclick*="stage-screen"]');
+    if (levelMapLink) {
+        levelMapLink.setAttribute('onclick', "safeShowScreen('stage-cascade-screen'); return false;");
+    }
+    
+    // Update any other links that might go to this screen
+    document.querySelectorAll('button[onclick*="stage-screen"]').forEach(button => {
+        const onclick = button.getAttribute('onclick');
+        if (onclick && onclick.includes('stage-screen')) {
+            button.setAttribute('onclick', onclick.replace('stage-screen', 'stage-cascade-screen'));
+        }
+    });
+}
+
+// Add to document ready function
+document.addEventListener('DOMContentLoaded', () => {
+    // Make sure all the necessary screens exist
+    ensureScreenExists('stage-cascade-screen');
+    
+    // Update navigation links
+    updateSidePanelLinks();
+    
+    // If any other initialization is needed for stage-cascade-screen
+    initializeStageCascadeScreen();
+});
+
+// Simple initialization function for the stage cascade screen
+function initializeStageCascadeScreen() {
+    const screen = document.getElementById('stage-cascade-screen');
+    if (!screen.querySelector('.stages-container')) {
+        const container = document.createElement('div');
+        container.className = 'stages-container';
+        screen.appendChild(container);
+    }
+}
+
+function toggleSidePanel() {
+    const sidePanel = document.querySelector('.side-panel');
+    const hamburgerButton = document.querySelector('.hamburger-button');
+    const modalOverlay = document.querySelector('.modal-overlay');
+    
+    if (sidePanel.classList.contains('open')) {
+        sidePanel.classList.remove('open');
+        hamburgerButton.classList.remove('open');
+        if (modalOverlay) modalOverlay.classList.remove('open');
+    } else {
+        sidePanel.classList.add('open');
+        hamburgerButton.classList.add('open');
+        if (modalOverlay) modalOverlay.classList.add('open');
     }
 }
 
