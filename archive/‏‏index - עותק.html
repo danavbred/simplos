@@ -8826,10 +8826,23 @@ function getSetDescription(stageId, setId) {
     return `${stageNames[stageId] || 'Advanced'} vocabulary - Group ${setId}`;
 }
 
-// Level Logic
 function calculateWordsForLevel(level, vocabulary) {
     const totalWords = vocabulary.words.length;
     const wordSurplus = totalWords - 50;
+
+    // If we haven't already created a randomized index mapping for this vocabulary set
+    // then create one and store it in the vocabulary object
+    if (!vocabulary.randomIndices) {
+        // Create an array of indices and shuffle it
+        vocabulary.randomIndices = Array.from({ length: totalWords }, (_, i) => i);
+        // Fisher-Yates shuffle algorithm
+        for (let i = vocabulary.randomIndices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [vocabulary.randomIndices[i], vocabulary.randomIndices[j]] = 
+            [vocabulary.randomIndices[j], vocabulary.randomIndices[i]];
+        }
+        console.log('Created randomized word indices:', vocabulary.randomIndices);
+    }
 
     // Boss Level (21) - all words from the set with special mechanics
     if (level === 21) {
@@ -8841,36 +8854,44 @@ function calculateWordsForLevel(level, vocabulary) {
             mixed: true,                    // Mix Hebrew/English questions
             isTestLevel: true,              // Boss is always a test level
             isHebrewToEnglish: Math.random() < 0.5,
-            testLevels: []                  // Boss level doesn't need test levels
+            testLevels: [],                 // Boss level doesn't need test levels
+            randomIndices: vocabulary.randomIndices // Pass the entire randomized index array
         };
     }
 
     // Level 1-2: Choose 3 new words
     if (level === 1 || level === 2) {
+        // Get 3 words starting from the randomized index position
+        const startPos = (level - 1) * 3;
         return {
-            startIndex: (level - 1) * 3,
+            startIndex: startPos,
             count: 3,
-            testLevels: [3, 10, 21]
+            testLevels: [3, 10, 21],
+            randomIndices: vocabulary.randomIndices.slice(startPos, startPos + 3)
         };
     }
 
     // Level 3: Test words from levels 1-2
     if (level === 3) {
+        // Test all 6 words from levels 1-2 (randomized indices 0-5)
         return {
             startIndex: 0,
             count: 6,
             isTestLevel: true,
             mixed: true,
-            isHebrewToEnglish: Math.random() < 0.5
+            isHebrewToEnglish: Math.random() < 0.5,
+            randomIndices: vocabulary.randomIndices.slice(0, 6)
         };
     }
 
     // Level 4-5: Choose 3 new words
     if (level === 4 || level === 5) {
+        const startPos = 6 + (level - 4) * 3;
         return {
-            startIndex: 6 + (level - 4) * 3,
+            startIndex: startPos,
             count: 3,
-            testLevels: [6, 10, 21]
+            testLevels: [6, 10, 21],
+            randomIndices: vocabulary.randomIndices.slice(startPos, startPos + 3)
         };
     }
 
@@ -8881,16 +8902,19 @@ function calculateWordsForLevel(level, vocabulary) {
             count: 6,
             isTestLevel: true,
             mixed: true,
-            isHebrewToEnglish: Math.random() < 0.5
+            isHebrewToEnglish: Math.random() < 0.5,
+            randomIndices: vocabulary.randomIndices.slice(6, 12)
         };
     }
 
     // Level 7-8: Choose 4 new words
     if (level === 7 || level === 8) {
+        const startPos = 12 + (level - 7) * 4;
         return {
-            startIndex: 12 + (level - 7) * 4,
+            startIndex: startPos,
             count: 4,
-            testLevels: [9, 10, 21]
+            testLevels: [9, 10, 21],
+            randomIndices: vocabulary.randomIndices.slice(startPos, startPos + 4)
         };
     }
 
@@ -8901,7 +8925,8 @@ function calculateWordsForLevel(level, vocabulary) {
             count: 8,
             isTestLevel: true,
             mixed: true,
-            isHebrewToEnglish: Math.random() < 0.5
+            isHebrewToEnglish: Math.random() < 0.5,
+            randomIndices: vocabulary.randomIndices.slice(12, 20)
         };
     }
 
@@ -8913,16 +8938,19 @@ function calculateWordsForLevel(level, vocabulary) {
             isTestLevel: true,
             speedChallenge: true,
             mixed: true,
-            isHebrewToEnglish: Math.random() < 0.5
+            isHebrewToEnglish: Math.random() < 0.5,
+            randomIndices: vocabulary.randomIndices.slice(0, 20)
         };
     }
 
     // Level 11-12: Choose 4 new words
     if (level === 11 || level === 12) {
+        const startPos = 20 + (level - 11) * 4;
         return {
-            startIndex: 20 + (level - 11) * 4,
+            startIndex: startPos,
             count: 4,
-            testLevels: [13, 20, 21]
+            testLevels: [13, 20, 21],
+            randomIndices: vocabulary.randomIndices.slice(startPos, startPos + 4)
         };
     }
 
@@ -8933,16 +8961,20 @@ function calculateWordsForLevel(level, vocabulary) {
             count: 8,
             isTestLevel: true,
             mixed: true,
-            isHebrewToEnglish: Math.random() < 0.5
+            isHebrewToEnglish: Math.random() < 0.5,
+            randomIndices: vocabulary.randomIndices.slice(20, 28)
         };
     }
 
     // Level 14-15: Choose 5-6 new words
     if (level === 14 || level === 15) {
+        const count = level === 14 ? 5 : 6;
+        const startPos = 28 + (level === 14 ? 0 : 5);
         return {
-            startIndex: 28 + (level === 14 ? 0 : 5),
-            count: level === 14 ? 5 : 6,
-            testLevels: [16, 20, 21]
+            startIndex: startPos,
+            count: count,
+            testLevels: [16, 20, 21],
+            randomIndices: vocabulary.randomIndices.slice(startPos, startPos + count)
         };
     }
 
@@ -8953,7 +8985,8 @@ function calculateWordsForLevel(level, vocabulary) {
             count: 11,
             isTestLevel: true,
             mixed: true,
-            isHebrewToEnglish: Math.random() < 0.5
+            isHebrewToEnglish: Math.random() < 0.5,
+            randomIndices: vocabulary.randomIndices.slice(28, 39)
         };
     }
 
@@ -8961,10 +8994,12 @@ function calculateWordsForLevel(level, vocabulary) {
     if (level === 17 || level === 18) {
         const baseCount = level === 17 ? 5 : 6;
         const adjustedCount = baseCount + (wordSurplus > 0 ? wordSurplus : 0);
+        const startPos = 39 + (level === 17 ? 0 : baseCount);
         return {
-            startIndex: 39 + (level === 17 ? 0 : adjustedCount),
+            startIndex: startPos,
             count: adjustedCount,
-            testLevels: [19, 20, 21]
+            testLevels: [19, 20, 21],
+            randomIndices: vocabulary.randomIndices.slice(startPos, startPos + adjustedCount)
         };
     }
 
@@ -8975,7 +9010,8 @@ function calculateWordsForLevel(level, vocabulary) {
             count: 11,
             isTestLevel: true,
             mixed: true,
-            isHebrewToEnglish: Math.random() < 0.5
+            isHebrewToEnglish: Math.random() < 0.5,
+            randomIndices: vocabulary.randomIndices.slice(39, 50)
         };
     }
 
@@ -8987,7 +9023,8 @@ function calculateWordsForLevel(level, vocabulary) {
             isTestLevel: true,
             speedChallenge: true,
             mixed: true,
-            isHebrewToEnglish: Math.random() < 0.5
+            isHebrewToEnglish: Math.random() < 0.5,
+            randomIndices: vocabulary.randomIndices.slice(20, 50)
         };
     }
 }
@@ -9135,32 +9172,9 @@ function proceedWithLevel(levelId) {
     showLevelIntro(levelId, () => {
         // Setup all game state while curtain is down
         const levelConfig = calculateWordsForLevel(levelId, vocabulary);
-        if (typeof levelConfig === 'object') {
-            const { startIndex, count, isHebrewToEnglish, mixed, speedChallenge } = levelConfig;
-            currentGame = {
-                ...currentGame,
-                words: vocabulary.words.slice(startIndex, startIndex + count),
-                translations: vocabulary.translations.slice(startIndex, startIndex + count),
-                currentIndex: 0,
-                correctAnswers: 0,
-                firstAttempt: true,
-                isHebrewToEnglish: isHebrewToEnglish || false,
-                mixed: mixed || false,
-                speedChallenge: speedChallenge || false
-            };
-        } else {
-            currentGame = {
-                ...currentGame,
-                words: vocabulary.words.slice(0, levelConfig),
-                translations: vocabulary.translations.slice(0, levelConfig),
-                currentIndex: 0,
-                correctAnswers: 0,
-                firstAttempt: true,
-                isHebrewToEnglish: false,
-                mixed: false,
-                speedChallenge: false
-            };
-        }
+        
+        // Use our updated setupGameState function
+        setupGameState(levelConfig, vocabulary);
         
         // Prepare the question screen while curtain is still down
         showScreen('question-screen');
@@ -9211,32 +9225,7 @@ function proceedWithLevel(levelId) {
     showLevelIntro(levelId, () => {
         // Setup all game state while curtain is down
         const levelConfig = calculateWordsForLevel(levelId, vocabulary);
-        if (typeof levelConfig === 'object') {
-            const { startIndex, count, isHebrewToEnglish, mixed, speedChallenge } = levelConfig;
-            currentGame = {
-                ...currentGame,
-                words: vocabulary.words.slice(startIndex, startIndex + count),
-                translations: vocabulary.translations.slice(startIndex, startIndex + count),
-                currentIndex: 0,
-                correctAnswers: 0,
-                firstAttempt: true,
-                isHebrewToEnglish: isHebrewToEnglish || false,
-                mixed: mixed || false,
-                speedChallenge: speedChallenge || false
-            };
-        } else {
-            currentGame = {
-                ...currentGame,
-                words: vocabulary.words.slice(0, levelConfig),
-                translations: vocabulary.translations.slice(0, levelConfig),
-                currentIndex: 0,
-                correctAnswers: 0,
-                firstAttempt: true,
-                isHebrewToEnglish: false,
-                mixed: false,
-                speedChallenge: false
-            };
-        }
+        setupGameState(levelConfig, vocabulary);
         
         // Prepare the question screen while curtain is still down
         showScreen('question-screen');
@@ -9252,17 +9241,40 @@ function proceedWithLevel(levelId) {
 
 function setupGameState(levelConfig, vocabulary) {
     if (typeof levelConfig === 'object') {
-        const { startIndex, count, isHebrewToEnglish, mixed } = levelConfig;
-        Object.assign(currentGame, {
-            words: vocabulary.words.slice(startIndex, startIndex + count),
-            translations: vocabulary.translations.slice(startIndex, startIndex + count),
-            currentIndex: 0,
-            correctAnswers: 0,
-            firstAttempt: true,
-            isHebrewToEnglish: isHebrewToEnglish || false,
-            mixed: mixed || false
-        });
+        // Check if we have randomized indices
+        if (levelConfig.randomIndices) {
+            // Create new arrays with just the words we need based on random indices
+            const randomWords = levelConfig.randomIndices.map(index => vocabulary.words[index]);
+            const randomTranslations = levelConfig.randomIndices.map(index => vocabulary.translations[index]);
+            
+            Object.assign(currentGame, {
+                words: randomWords,
+                translations: randomTranslations,
+                currentIndex: 0,
+                correctAnswers: 0,
+                firstAttempt: true,
+                isHebrewToEnglish: levelConfig.isHebrewToEnglish || false,
+                mixed: levelConfig.mixed || false,
+                speedChallenge: levelConfig.speedChallenge || false,
+                isBossLevel: levelConfig.isBossLevel || false
+            });
+        } else {
+            // Fallback to original behavior if randomIndices not available
+            const { startIndex, count, isHebrewToEnglish, mixed, speedChallenge, isBossLevel } = levelConfig;
+            Object.assign(currentGame, {
+                words: vocabulary.words.slice(startIndex, startIndex + count),
+                translations: vocabulary.translations.slice(startIndex, startIndex + count),
+                currentIndex: 0,
+                correctAnswers: 0,
+                firstAttempt: true,
+                isHebrewToEnglish: isHebrewToEnglish || false,
+                mixed: mixed || false,
+                speedChallenge: speedChallenge || false,
+                isBossLevel: isBossLevel || false
+            });
+        }
     } else {
+        // Legacy behavior for backwards compatibility
         Object.assign(currentGame, {
             words: vocabulary.words.slice(0, levelConfig),
             translations: vocabulary.translations.slice(0, levelConfig),
@@ -9270,7 +9282,9 @@ function setupGameState(levelConfig, vocabulary) {
             correctAnswers: 0,
             firstAttempt: true,
             isHebrewToEnglish: false,
-            mixed: false
+            mixed: false,
+            speedChallenge: false,
+            isBossLevel: false
         });
     }
 }
@@ -9408,7 +9422,6 @@ function showCompletionEffect(progressCircle) {
     }, 2000);
 }
 
-// Question Management
 function loadNextQuestion() {
     if (currentGame.currentIndex >= currentGame.words.length) {
         handleLevelCompletion();
@@ -9677,7 +9690,6 @@ function revealCorrectAnswer() {
 }
 
 
-// REPLACE buyPerk function
 function buyPerk(perkType) {
     const perkConfig = PERK_CONFIG[perkType];
     const button = document.getElementById(`${perkType}Perk`);
@@ -9695,51 +9707,41 @@ function buyPerk(perkType) {
 
     // Deduct coins first
     gameState.coins -= perkConfig.cost;
-    updateAllCoinDisplays();
+    
+    // Improved perk count display update
+    const countElement = button.querySelector('.perk-count');
+    const currentCount = parseInt(countElement.textContent) || 0;
+    const newCount = currentCount - 1;
+    
+    // Use animation to smoothly transition the count
+    animateNumberChange(countElement, currentCount, newCount);
 
     // Apply effect immediately
     switch(perkType) {
         case 'timeFreeze':
             isFrozen = true;
             button.disabled = true;
-            if (button) {
-                const countElement = button.querySelector('.perk-count');
-                if (countElement) countElement.textContent = '0';
-            }
             setTimeout(() => {
                 isFrozen = false;
                 button.disabled = false;
-                // Re-enable button only if player has enough coins
-                if (gameState.coins >= perkConfig.cost) {
-                    button.disabled = false;
-                }
             }, perkConfig.duration);
             break;
 
         case 'skip':
-            if (button) {
-                const countElement = button.querySelector('.perk-count');
-                if (countElement) countElement.textContent = '0';
-            }
             handleAnswer(true, true);
             break;
 
         case 'clue':
-            if (button) {
-                const countElement = button.querySelector('.perk-count');
-                if (countElement) countElement.textContent = '0';
-            }
             eliminateWrongAnswer();
             break;
 
         case 'reveal':
-            if (button) {
-                const countElement = button.querySelector('.perk-count');
-                if (countElement) countElement.textContent = '0';
-            }
             revealCorrectAnswer();
             break;
     }
+
+    // Update all coin displays
+    updateAllCoinDisplays();
 
     // Update button state based on remaining coins
     if (button) {
@@ -9749,6 +9751,34 @@ function buyPerk(perkType) {
 
     // Save progress after perk use
     saveProgress();
+}
+
+// New helper function for smooth number transition
+function animateNumberChange(element, startValue, endValue) {
+    if (!element) return;
+    
+    const duration = 300; // Shorter animation for quick updates
+    const frames = 20;
+    const increment = (endValue - startValue) / frames;
+    
+    let currentFrame = 0;
+    let currentValue = startValue;
+
+    function updateFrame() {
+        currentFrame++;
+        currentValue += increment;
+        
+        if (currentFrame <= frames) {
+            // Round to nearest integer
+            element.textContent = Math.round(currentValue);
+            requestAnimationFrame(updateFrame);
+        } else {
+            // Ensure final value is exact
+            element.textContent = endValue;
+        }
+    }
+
+    requestAnimationFrame(updateFrame);
 }
 
 function startCustomListPractice(listId) {

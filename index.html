@@ -9690,7 +9690,6 @@ function revealCorrectAnswer() {
 }
 
 
-// REPLACE buyPerk function
 function buyPerk(perkType) {
     const perkConfig = PERK_CONFIG[perkType];
     const button = document.getElementById(`${perkType}Perk`);
@@ -9708,51 +9707,41 @@ function buyPerk(perkType) {
 
     // Deduct coins first
     gameState.coins -= perkConfig.cost;
-    updateAllCoinDisplays();
+    
+    // Improved perk count display update
+    const countElement = button.querySelector('.perk-count');
+    const currentCount = parseInt(countElement.textContent) || 0;
+    const newCount = currentCount - 1;
+    
+    // Use animation to smoothly transition the count
+    animateNumberChange(countElement, currentCount, newCount);
 
     // Apply effect immediately
     switch(perkType) {
         case 'timeFreeze':
             isFrozen = true;
             button.disabled = true;
-            if (button) {
-                const countElement = button.querySelector('.perk-count');
-                if (countElement) countElement.textContent = '0';
-            }
             setTimeout(() => {
                 isFrozen = false;
                 button.disabled = false;
-                // Re-enable button only if player has enough coins
-                if (gameState.coins >= perkConfig.cost) {
-                    button.disabled = false;
-                }
             }, perkConfig.duration);
             break;
 
         case 'skip':
-            if (button) {
-                const countElement = button.querySelector('.perk-count');
-                if (countElement) countElement.textContent = '0';
-            }
             handleAnswer(true, true);
             break;
 
         case 'clue':
-            if (button) {
-                const countElement = button.querySelector('.perk-count');
-                if (countElement) countElement.textContent = '0';
-            }
             eliminateWrongAnswer();
             break;
 
         case 'reveal':
-            if (button) {
-                const countElement = button.querySelector('.perk-count');
-                if (countElement) countElement.textContent = '0';
-            }
             revealCorrectAnswer();
             break;
     }
+
+    // Update all coin displays
+    updateAllCoinDisplays();
 
     // Update button state based on remaining coins
     if (button) {
@@ -9762,6 +9751,34 @@ function buyPerk(perkType) {
 
     // Save progress after perk use
     saveProgress();
+}
+
+// New helper function for smooth number transition
+function animateNumberChange(element, startValue, endValue) {
+    if (!element) return;
+    
+    const duration = 300; // Shorter animation for quick updates
+    const frames = 20;
+    const increment = (endValue - startValue) / frames;
+    
+    let currentFrame = 0;
+    let currentValue = startValue;
+
+    function updateFrame() {
+        currentFrame++;
+        currentValue += increment;
+        
+        if (currentFrame <= frames) {
+            // Round to nearest integer
+            element.textContent = Math.round(currentValue);
+            requestAnimationFrame(updateFrame);
+        } else {
+            // Ensure final value is exact
+            element.textContent = endValue;
+        }
+    }
+
+    requestAnimationFrame(updateFrame);
 }
 
 function startCustomListPractice(listId) {
