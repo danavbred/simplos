@@ -43,6 +43,28 @@
   --gold-gradient: linear-gradient(135deg, var(--gold), #ffa500);
 }
 
+/* Add to existing CSS, preferably in a mobile-specific section */
+* {
+    -webkit-tap-highlight-color: transparent; /* Removes flash on tap */
+    -webkit-touch-callout: none; /* Prevents default touch actions */
+    touch-action: manipulation; /* Improves touch responsiveness */
+}
+
+body, html {
+    overscroll-behavior-y: contain; /* Prevents bounce effect on iOS */
+    overflow-x: hidden;
+    max-width: 100%;
+    position: relative;
+}
+
+.screen {
+    transition: opacity 0.3s ease-in-out; /* Smoother, shorter transition */
+    opacity: 0;
+}
+
+.screen.visible {
+    opacity: 1;
+}
 
 
 /* Update auth modal */
@@ -1288,12 +1310,6 @@ background-clip: text;
 
 .coin-icon {
     color: var(--gold);
-    animation: coinPulse 3s ease-in-out infinite;
-}
-
-@keyframes coinPulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
 }
 
 /* Hamburger Button */
@@ -6238,28 +6254,32 @@ document.addEventListener('click', (e) => {
 
 const ParticleSystem = {
     particlePool: [],
-    maxParticles: 50,
-
+    maxParticles: 20, // Reduced from 50
+    
     init() {
-        // Pre-create particle elements
+        // Pre-create fewer particles
         for(let i = 0; i < this.maxParticles; i++) {
             const particle = document.createElement('div');
-            particle.className = 'particle';
+            particle.className = 'particle mobile-particle'; // Add mobile class
             this.particlePool.push(particle);
         }
     },
-
+    
     createParticle(x, y) {
+        // Check if mobile before creating
+        if (window.innerWidth <= 768) {
+            return; // Skip particle creation on mobile
+        }
+        
         const particle = this.particlePool.pop();
         if (!particle) return;
-
-        // Reuse particle instead of creating new
+        
         particle.style.left = `${x}px`;
         particle.style.top = `${y}px`;
         
         setTimeout(() => {
             this.particlePool.push(particle);
-        }, 1000);
+        }, 500); // Reduced timeout
     }
 };
 
@@ -18050,6 +18070,59 @@ function saveProgress() {
         console.log('Saving progress to localStorage:', progressToSave);
         localStorage.setItem('simploxProgress', JSON.stringify(progressToSave));
     }
+}
+
+// Add to existing performance-related functions
+function optimizeMobileRendering() {
+    // Throttle particle generation
+    ParticleSystem.maxParticles = 20; // Reduce from 50
+    
+    // Debounce heavy function calls
+    const debouncedShowScreen = debounce(showScreen, 200);
+    
+    // Limit complex animations on mobile
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+        document.body.classList.add('mobile-device');
+        
+        // Reduce complex CSS animations
+        document.head.insertAdjacentHTML('beforeend', `
+            <style>
+                @media (max-width: 768px) {
+                    .confetti, .particle {
+                        display: none;
+                    }
+                }
+            </style>
+        `);
+    }
+}
+
+// Utility debounce function
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Modify existing event listeners
+function optimizeMobileEvents() {
+    // Use passive event listeners
+    document.addEventListener('touchstart', () => {}, { passive: true });
+    document.addEventListener('touchmove', () => {}, { passive: true });
+    
+    // Remove unnecessary event listeners
+    const cleanupEventListeners = () => {
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.removeEventListener('touchstart', () => {});
+            screen.removeEventListener('touchmove', () => {});
+        });
+    };
 }
 
 </script>
