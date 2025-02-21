@@ -8976,7 +8976,7 @@ function generateAnswerChoices(correctAnswer, vocabulary) {
     return Array.from(choices).sort(() => Math.random() - 0.5);
 }
 
-async function startLevel(levelId) {
+function startLevel(levelId) {
     // Save current game context at the start of each level
     gameState.currentLevel = levelId;
     const gameContext = {
@@ -8995,8 +8995,10 @@ async function startLevel(levelId) {
     currentGame.firstAttempt = true;
     currentGame.streakBonus = true;
 
+    // Update perk buttons
     updatePerkButtons();
 
+    // Toggle perks and powerups containers
     const perksContainer = document.querySelector('.perks-container');
     const powerupsContainer = document.querySelector('.powerups-container');    
     perksContainer.style.display = 'flex';
@@ -9008,7 +9010,7 @@ async function startLevel(levelId) {
         coinDisplay.textContent = gameState.coins || 0;
     }
 
-    // Initialize coins and ensure containers are visible
+    // Ensure containers are visible
     const coinsContainer = document.querySelector('.coins-container');
     if (coinsContainer) {
         coinsContainer.style.display = 'flex';
@@ -9020,7 +9022,7 @@ async function startLevel(levelId) {
         progressCircle.style.display = 'flex';
     }
 
-    // Regular game initialization
+    // Ensure current game state values
     gameState.currentStage = gameState.currentStage || 1;
     gameState.currentSet = gameState.currentSet || 1;
     gameState.currentLevel = levelId;
@@ -9030,15 +9032,16 @@ async function startLevel(levelId) {
     console.log('Current unlocked levels:', gameState.unlockedLevels);
     console.log('Current completed levels:', gameState.completedLevels);
 
+    // Define trigger levels
+    const triggerLevels = [2, 7, 11, 15, 20];
+    
+    // Check user status
     const userStatus = currentUser ? currentUser.status : 'unregistered';
-    const triggerLevels = [2, 7, 11, 15, 20];    
-    if (gameState.currentStage === 1 && 
-        gameState.currentSet === 1 && 
-        triggerLevels.includes(levelId) && 
-        userStatus !== 'premium') {
-            
-        const continueLevelId = levelId; // Store levelId for callback
-            
+    
+    // Check for upgrade prompt
+    if (triggerLevels.includes(levelId) && userStatus !== 'premium') {
+        const continueLevelId = levelId;
+        
         if (!currentUser) {
             showUnregisteredWarning(() => {
                 proceedWithLevel(continueLevelId);
@@ -9052,7 +9055,75 @@ async function startLevel(levelId) {
         }
     }
 
+    // Proceed with level start
     proceedWithLevel(levelId);
+}
+
+function proceedWithLevel(levelId) {
+    if (!currentGame.restartsRemaining) {
+        currentGame.restartsRemaining = 2;
+    }
+    
+    gameState.currentLevel = levelId;
+    const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+    const vocabulary = vocabularySets[setKey];
+
+    // Ensure coin display remains visible
+    const coinDisplay = document.querySelector('.coin-count');
+    if (coinDisplay) {
+        coinDisplay.textContent = gameState.coins || 0;
+        coinDisplay.style.display = 'block';
+    }
+
+    // Prepare all game state first
+    currentGame.startingCoins = gameState.coins;
+    currentGame.startingPerks = { ...gameState.perks };
+    currentGame.timeBonus = 0;
+    currentGame.initialTimeRemaining = null;
+    currentGame.streakBonus = true;
+    currentGame.levelStartTime = Date.now();
+    
+    // Show intro, but prepare the level during the curtain-down moment
+    showLevelIntro(levelId, () => {
+        // Setup all game state while curtain is down
+        const levelConfig = calculateWordsForLevel(levelId, vocabulary);
+        if (typeof levelConfig === 'object') {
+            const { startIndex, count, isHebrewToEnglish, mixed, speedChallenge } = levelConfig;
+            currentGame = {
+                ...currentGame,
+                words: vocabulary.words.slice(startIndex, startIndex + count),
+                translations: vocabulary.translations.slice(startIndex, startIndex + count),
+                currentIndex: 0,
+                correctAnswers: 0,
+                firstAttempt: true,
+                isHebrewToEnglish: isHebrewToEnglish || false,
+                mixed: mixed || false,
+                speedChallenge: speedChallenge || false
+            };
+        } else {
+            currentGame = {
+                ...currentGame,
+                words: vocabulary.words.slice(0, levelConfig),
+                translations: vocabulary.translations.slice(0, levelConfig),
+                currentIndex: 0,
+                correctAnswers: 0,
+                firstAttempt: true,
+                isHebrewToEnglish: false,
+                mixed: false,
+                speedChallenge: false
+            };
+        }
+        
+        // Prepare the question screen while curtain is still down
+        showScreen('question-screen');
+        updateProgressCircle();
+        loadNextQuestion();
+        
+        // Only start the timer after curtain is fully up
+        setTimeout(() => {
+            startTimer(currentGame.words.length);
+        }, 200);
+    });
 }
 
 document.querySelector('.perks-container').innerHTML = `
@@ -9345,140 +9416,122 @@ async function handleAnswer(isCorrect, fromPerk = false) {
     const now = Date.now();
     const lastAnswerTime = currentGame.lastAnswerTime || 0;
     
-    // Enforce 1-second cooldown between answers
+    // Enforce a cooldown between answers to prevent rapid clicking
     if (now - lastAnswerTime < 1000) {
+        console.warn('Answer too quickly. Please wait a moment.');
         return;
     }
     
+    // Safety checks
+    if (!currentGame || 
+        !currentGame.words || 
+        currentGame.words.length === 0 || 
+        currentGame.currentIndex >= currentGame.words.length
+    ) {
+        console.error('Invalid game state or index');
+        return;
+    }
+
+    // Update last answer time to prevent rapid subsequent clicks
     currentGame.lastAnswerTime = now;
 
-    // Handle custom practice mode separately
-    if (currentGame.isCustomPractice) {
-        handleCustomPracticeAnswer(isCorrect, fromPerk);
-        return;
-    }
+    // Ensure perks exist with default values
+    currentGame.perks = currentGame.perks || {
+        clue: 0,
+        skip: 0,
+        timeFreeze: 0,
+        reveal: 0
+    };
 
-    const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
-    const isLevelCompleted = gameState.perfectLevels.has(levelKey);
-
-    if (!isCorrect) {
-        currentGame.firstAttempt = false;
-        currentGame.streakBonus = false;
-        currentGame.wrongStreak++;
-        
-        try {
-            await CoinsManager.updateCoins(-3);
-            updatePerkButtons();
-        } catch (error) {
-            console.error('Error updating coins:', error);
-        }
-
-        // Move progress bar backwards
-        if (currentGame.currentIndex > 0) {
-            currentGame.progressLost++;
-            currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
-        }
-
-        // Check for game over condition
-        if (currentGame.wrongStreak >= 3) {
-            if (currentGame.isCustomPractice) {
-                showGameOverOverlay();
-                document.querySelector('.restart-button').onclick = () => {
-                    document.querySelector('.failure-overlay').style.display = 'none';
-                    startCustomLevel(currentGame.currentCustomLevel, {
-                        ...currentGame.practiceState,
-                        currentLevel: currentGame.currentCustomLevel
-                    });
-                };
-                return;
-            } else {
-                showGameOverOverlay();
-                return;
-            }
-        }
-
-    } else if (isCorrect && !isLevelCompleted && !fromPerk) {
-        let totalCoinsEarned = 0;
-
-        // Award time bonus and update perks
-        const timeBonus = awardTimeBonus();
-        if (timeBonus > 0) {
-            totalCoinsEarned += timeBonus;
-            pulseCoins(timeBonus);
-
-            // Add perk chance when earning time bonus
-            if (Math.random() < 0.15) { // 15% chance
-                const perkTypes = ['timeFreeze', 'skip', 'clue', 'reveal'];
-                const randomPerk = perkTypes[Math.floor(Math.random() * perkTypes.length)];
-                gameState.perks[randomPerk]++;
-                updatePerkButtons();
-            }
-        }
-
-        // Award coins based on first attempt
-        if (currentGame.firstAttempt) {
-            totalCoinsEarned += 3;
-            pulseCoins(3);
+    try {
+        // Rest of the existing answer handling logic
+        if (!isCorrect) {
+            currentGame.firstAttempt = false;
+            currentGame.streakBonus = false;
+            currentGame.wrongStreak++;
             
             try {
-                // Update words count for first-time correct answers
-                await WordsManager.updateWords(1);
+                await CoinsManager.updateCoins(-3);
+                updatePerkButtons();
             } catch (error) {
-                console.error('Error updating words:', error);
+                console.error('Error updating coins:', error);
+            }
+
+            // Move progress bar backwards
+            if (currentGame.currentIndex > 0) {
+                currentGame.progressLost++;
+                currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
+            }
+
+            // Check for game over condition
+            if (currentGame.wrongStreak >= 3) {
+                showGameOverOverlay();
+                return;
+            }
+        } else if (isCorrect && !fromPerk) {
+            let totalCoinsEarned = 0;
+
+            // Award time bonus
+            const timeBonus = awardTimeBonus();
+            if (timeBonus > 0) {
+                totalCoinsEarned += timeBonus;
+                pulseCoins(timeBonus);
+            }
+
+            // Award coins based on first attempt
+            if (currentGame.firstAttempt) {
+                totalCoinsEarned += 3;
+                pulseCoins(3);
+            } else {
+                totalCoinsEarned += 1;
+                pulseCoins(1);
+            }
+
+            try {
+                await CoinsManager.updateCoins(totalCoinsEarned);
+                updatePerkButtons();
+            } catch (error) {
+                console.error('Error updating total coins:', error);
             }
             
-            // Additional chance for perk on first attempt
-            if (Math.random() < 0.1) { // 10% chance
-                const perkTypes = ['timeFreeze', 'skip', 'clue', 'reveal'];
-                const randomPerk = perkTypes[Math.floor(Math.random() * perkTypes.length)];
-                gameState.perks[randomPerk]++;
-                updatePerkButtons();
-            }
-        } else {
-            totalCoinsEarned += 1;
-            pulseCoins(1);
+            currentGame.correctAnswers++;
         }
 
-        try {
-            // Update coins once with total amount
-            await CoinsManager.updateCoins(totalCoinsEarned);
-            updatePerkButtons();
-        } catch (error) {
-            console.error('Error updating total coins:', error);
+        const correctAnswer = currentGame.isHebrewToEnglish ? 
+            currentGame.words[currentGame.currentIndex] : 
+            currentGame.translations[currentGame.currentIndex];
+
+        document.querySelectorAll('.buttons button').forEach(btn => {
+            if (btn.textContent === correctAnswer) {
+                btn.classList.add('correct');
+            } else if (!isCorrect && btn.textContent === event.target.textContent) {
+                btn.classList.add('wrong');
+            }
+        });
+
+        if (isCorrect) {
+            currentGame.currentIndex++;
         }
         
-        currentGame.correctAnswers++;
+        updateProgressCircle();
+        saveProgress();
+       
+        // Use setTimeout for consistent timing and to prevent rapid subsequent calls
+        setTimeout(() => {
+            if (currentGame.currentIndex < currentGame.words.length) {
+                startTimer(currentGame.words.length - currentGame.currentIndex);
+                loadNextQuestion();
+                updatePerkButtons();
+            } else {
+                handleLevelCompletion();
+            }
+        }, 333);
+
+    } catch (error) {
+        console.error('Unexpected error in handleAnswer:', error);
+        // Provide a fallback to prevent complete game breakdown
+        loadNextQuestion();
     }
-
-    const correctAnswer = currentGame.isHebrewToEnglish ? 
-        currentGame.words[currentGame.currentIndex] : 
-        currentGame.translations[currentGame.currentIndex];
-
-    document.querySelectorAll('.buttons button').forEach(btn => {
-        if (btn.textContent === correctAnswer) {
-            btn.classList.add('correct');
-        } else if (!isCorrect && btn.textContent === event.target.textContent) {
-            btn.classList.add('wrong');
-        }
-    });
-
-    if (isCorrect) {
-        currentGame.currentIndex++;
-    }
-    
-    updateProgressCircle();
-    saveProgress();
-   
-    // Use setTimeout for consistent timing
-    setTimeout(() => {
-        if (currentGame.currentIndex < currentGame.words.length) {
-            startTimer(currentGame.words.length - currentGame.currentIndex);
-            loadNextQuestion();
-            updatePerkButtons();
-        } else {
-            handleLevelCompletion();
-        }
-    }, 333);
 }
 
 function awardTimeBonus() {
