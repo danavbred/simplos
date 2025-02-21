@@ -6287,24 +6287,24 @@ const CustomListsManager = {
     lists: [],
     
     async initialize() {
-    // Always try to load lists, regardless of user status
-    try {
-        if (currentUser) {
-            await this.loadFromSupabase();
-        } else {
-            this.loadFromLocalStorage();
-        }
-        
-        // Ensure lists are populated
-        if (!this.lists || this.lists.length === 0) {
-            console.log('No lists found, initializing empty array');
+        // Always try to load lists, regardless of user status
+        try {
+            if (currentUser) {
+                await this.loadFromSupabase();
+            } else {
+                this.loadFromLocalStorage();
+            }
+            
+            // Ensure lists are populated
+            if (!this.lists || this.lists.length === 0) {
+                console.log('No lists found, initializing empty array');
+                this.lists = [];
+            }
+        } catch (error) {
+            console.error('Custom Lists Initialization Error:', error);
             this.lists = [];
         }
-    } catch (error) {
-        console.error('Custom Lists Initialization Error:', error);
-        this.lists = [];
-    }
-},
+    },
     
     async loadFromSupabase() {
         try {
@@ -6316,20 +6316,19 @@ const CustomListsManager = {
             if (error) throw error;
             
             this.lists = data.map(item => ({
-    id: item.id,
-    name: item.name,
-    words: item.words || [],
-    translations: item.translations || [], 
-    isShared: item.is_shared,
-    sharedBy: item.shared_by,
-    userId: item.user_id,
-    createdAt: item.created_at
-}));
-// Removed noisy console log
-} catch (error) {
-    console.error('Error loading lists from Supabase:', error);
-    this.lists = [];
-}
+                id: item.id,
+                name: item.name,
+                words: item.words || [],
+                translations: item.translations || [], 
+                isShared: item.is_shared,
+                sharedBy: item.shared_by,
+                userId: item.user_id,
+                createdAt: item.created_at
+            }));
+        } catch (error) {
+            console.error('Error loading lists from Supabase:', error);
+            this.lists = [];
+        }
     },
     
     loadFromLocalStorage() {
@@ -6546,6 +6545,27 @@ const CustomListsManager = {
     canCreateMoreLists() {
         const limits = this.getListLimits();
         return this.lists.length < limits.maxLists;
+    },
+    
+    // ADD THIS FUNCTION to the CustomListsManager object
+    validateListForPractice(list) {
+        const MIN_WORDS_REQUIRED = 6;
+        
+        if (!list || !list.words || !list.translations) {
+            return {
+                valid: false,
+                message: 'Invalid list format'
+            };
+        }
+        
+        if (list.words.length < MIN_WORDS_REQUIRED) {
+            return {
+                valid: false,
+                message: `Lists need at least ${MIN_WORDS_REQUIRED} words to practice`
+            };
+        }
+        
+        return { valid: true };
     }
 };
 
@@ -6560,6 +6580,7 @@ const customGameState = {
     correctStreak: 0,
     wrongStreak: 0,
     startCoins: 0,
+    completedLevels: new Set(),
     
     reset() {
         this.isCustomPractice = false;
@@ -6572,6 +6593,7 @@ const customGameState = {
         this.correctStreak = 0;
         this.wrongStreak = 0;
         this.startCoins = 0;
+        this.completedLevels = new Set();
     },
     
     initializeFromList(list) {
@@ -6594,6 +6616,13 @@ const customGameState = {
     getWordsForLevel(level) {
         if (!this.words.length) return null;
         
+        // Calculate max levels based on word count
+        const maxLevels = this.words.length >= 12 ? 9 : 
+                         (this.words.length >= 9 ? 6 : 3);
+        
+        // Return null if requested level exceeds max
+        if (level > maxLevels) return null;
+        
         const levelConfigs = {
             1: { start: 0, count: Math.min(3, this.words.length), isTest: false },
             2: { start: 3, count: Math.min(3, Math.max(0, this.words.length - 3)), isTest: false },
@@ -6603,8 +6632,7 @@ const customGameState = {
             6: { start: 6, count: Math.min(6, Math.max(0, this.words.length - 6)), isTest: true },
             7: { start: 12, count: Math.min(4, Math.max(0, this.words.length - 12)), isTest: false },
             8: { start: 16, count: Math.min(4, Math.max(0, this.words.length - 16)), isTest: false },
-            9: { start: 12, count: Math.min(8, Math.max(0, this.words.length - 12)), isTest: true },
-            10: { start: 0, count: Math.min(this.words.length, 20), isTest: true, isFinal: true }
+            9: { start: 12, count: Math.min(8, Math.max(0, this.words.length - 12)), isTest: true }
         };
         
         const config = levelConfigs[level] || levelConfigs[1];
@@ -6618,7 +6646,7 @@ const customGameState = {
             words: this.words.slice(config.start, config.start + config.count),
             translations: this.translations.slice(config.start, config.start + config.count),
             isTest: config.isTest,
-            isFinal: config.isFinal || false
+            isFinal: level === maxLevels
         };
         
         return this.levelData;
@@ -10964,6 +10992,7 @@ function updateListsDisplay() {
    
    const limits = CustomListsManager.getListLimits();
    const userStatus = currentUser?.status || 'unregistered';
+   const MIN_WORDS = 6;
    
    // Clear container
    container.innerHTML = '';
@@ -10978,6 +11007,11 @@ function updateListsDisplay() {
    CustomListsManager.lists.forEach(list => {
        if (!list || !list.id) return; // Skip invalid list entries
        
+       // Update list with max levels info
+       const enhancedList = updateCustomListSchema(list);
+       const wordCount = enhancedList.words?.length || 0;
+       const hasEnoughWords = wordCount >= MIN_WORDS;
+       
        // Create list item container
        const listItem = document.createElement('div');
        listItem.className = `custom-list-item collapsed ${list.isShared ? 'shared-list' : ''}`;
@@ -10986,7 +11020,9 @@ function updateListsDisplay() {
        // Create list item content
        listItem.innerHTML = `
            <div class="list-actions">
-               <button class="main-button practice-button">Practice</button>
+               <button class="main-button practice-button" ${!hasEnoughWords ? 'disabled' : ''}>
+                   ${hasEnoughWords ? 'Practice' : `Need ${MIN_WORDS - wordCount} more`}
+               </button>
                <button class="main-button edit-button">Edit</button>
                <button class="main-button delete-button">Delete</button>
                ${userStatus === 'premium' ? `
@@ -10998,8 +11034,10 @@ function updateListsDisplay() {
            <div class="list-header">
                <h3>${list.name || 'Unnamed List'}</h3>
                <div class="list-summary">
-                   <span>${list.words?.length || 0} words</span>
+                   <span class="word-count ${!hasEnoughWords ? 'insufficient' : ''}">${wordCount} words</span>
+                   ${!hasEnoughWords ? `<span class="warning-text">(Minimum ${MIN_WORDS} needed)</span>` : ''}
                    <span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>
+                   ${enhancedList.max_levels > 0 ? `<span class="level-info">Supports ${enhancedList.max_levels} levels</span>` : ''}
                    <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0,5).join(', ') : ''}${list.words && list.words.length > 5 ? '...' : ''}</p>
                </div>
            </div>
@@ -11011,9 +11049,14 @@ function updateListsDisplay() {
        // Set up event listeners for buttons
        const practiceButton = listItem.querySelector('.practice-button');
        if (practiceButton) {
-           practiceButton.onclick = function() {
-               startCustomListPractice(list.id);
-           };
+           if (hasEnoughWords) {
+               practiceButton.onclick = function() {
+                   startCustomListPractice(list.id);
+               };
+           } else {
+               practiceButton.style.opacity = '0.6';
+               practiceButton.style.cursor = 'not-allowed';
+           }
        }
        
        const editButton = listItem.querySelector('.edit-button');
@@ -11046,6 +11089,34 @@ function updateListsDisplay() {
            };
        }
    });
+
+   // Add some custom CSS for the warning style
+   const styleEl = document.getElementById('custom-list-styles');
+   if (!styleEl) {
+       const newStyle = document.createElement('style');
+       newStyle.id = 'custom-list-styles';
+       newStyle.textContent = `
+           .word-count.insufficient {
+               color: #ff6b6b;
+               font-weight: bold;
+           }
+           .warning-text {
+               color: #ff6b6b;
+               font-size: 0.85rem;
+               margin-left: 0.5rem;
+           }
+           .level-info {
+               color: var(--accent);
+               font-size: 0.85rem;
+               margin-left: 0.5rem;
+           }
+           .practice-button[disabled] {
+               opacity: 0.6;
+               cursor: not-allowed;
+           }
+       `;
+       document.head.appendChild(newStyle);
+   }
 }
 
 function startCustomListPractice(listId) {
@@ -11160,7 +11231,8 @@ function startCustomLevel(levelId) {
         wrongStreak: 0,
         progressLost: 0,
         customList: customGameState.currentList,
-        customLevel: levelId
+        customLevel: levelId,
+        isFinalLevel: levelData.isFinal
     };
     
     // Show level intro
@@ -17076,9 +17148,10 @@ async function startCustomListPractice(listId) {
         return;
     }
     
-    // Validate list has content
-    if (!list.words || !list.translations || list.words.length === 0) {
-        showNotification('This list is empty', 'error');
+    // Validate list has minimum required words
+    const validation = CustomListsManager.validateListForPractice(list);
+    if (!validation.valid) {
+        showNotification(validation.message, 'error');
         return;
     }
     
@@ -17100,6 +17173,9 @@ function handleCustomLevelCompletion() {
     clearTimer();
 
     if (completedPerfectly) {
+        // Add level to completed levels
+        customGameState.completedLevels.add(customGameState.currentLevel);
+        
         // Award bonus coins
         const bonusCoins = currentGame.firstAttempt ? 5 : 3;
         gameState.coins += bonusCoins;
@@ -17112,12 +17188,13 @@ function handleCustomLevelCompletion() {
         // Determine next level
         const nextLevel = customGameState.currentLevel + 1;
         
-        // Max 10 levels or until words run out
-        if (nextLevel <= 10) {
-            setTimeout(() => startCustomLevel(nextLevel), 1500);
-        } else {
+        // Check if this was the final level
+        if (currentGame.isFinalLevel) {
             // Completed all levels
             showCustomCompletionScreen();
+        } else {
+            // Continue to next level after delay
+            setTimeout(() => startCustomLevel(nextLevel), 1500);
         }
     } else {
         // Retry level
@@ -18119,6 +18196,49 @@ function optimizeMobileEvents() {
             screen.removeEventListener('touchstart', () => {});
             screen.removeEventListener('touchmove', () => {});
         });
+    };
+}
+
+// This goes into the CustomListsManager object
+function validateListForPractice(list) {
+    const MIN_WORDS_REQUIRED = 6;
+    
+    if (!list || !list.words || !list.translations) {
+        return {
+            valid: false,
+            message: 'Invalid list format'
+        };
+    }
+    
+    if (list.words.length < MIN_WORDS_REQUIRED) {
+        return {
+            valid: false,
+            message: `Lists need at least ${MIN_WORDS_REQUIRED} words to practice`
+        };
+    }
+    
+    return { valid: true };
+}
+
+function updateCustomListSchema(list) {
+    const MIN_WORDS = 6;
+    
+    if (!list) return list;
+    
+    const wordCount = list.words?.length || 0;
+    let maxLevels = 0;
+    
+    if (wordCount >= MIN_WORDS) {
+        if (wordCount >= 12) maxLevels = 9;
+        else if (wordCount >= 9) maxLevels = 6;
+        else maxLevels = 3;
+    }
+    
+    // Create a new object rather than modifying the original
+    return {
+        ...list,
+        min_words: MIN_WORDS,
+        max_levels: maxLevels
     };
 }
 
