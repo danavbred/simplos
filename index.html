@@ -6934,8 +6934,7 @@ const supabaseClient = createClient(
 
 document.addEventListener('DOMContentLoaded', async () => {
    try {
-    window.unregisteredWarningShown = false;
-       console.log('⚠️ Reset unregisteredWarningShown flag on page load');
+       // Define CustomListsManager first before any functions try to use it
        if (!window.CustomListsManager) {
            window.CustomListsManager = {
                lists: [],
@@ -8509,23 +8508,18 @@ function handleTimeUp() {
 }
 
 function showScreen(screenId, forceRefresh = false) {
-    // Reset unregistered warning flag when returning to welcome screen
-    // EXCEPT when it's called during the sign up process
+    // Clear game context when returning to welcome screen
     if (screenId === 'welcome-screen') {
-        console.log('⚠️ Reset unregisteredWarningShown flag in showScreen');
-        
-        // Don't reset flag if auth modal is currently showing
-        const authModal = document.getElementById('authModal');
-        const isAuthModalVisible = authModal && authModal.classList.contains('show');
-        
-        if (!isAuthModalVisible) {
-            window.unregisteredWarningShown = false;
-            localStorage.removeItem('gameContext');
-        }
+        console.log('Returning to welcome screen, clearing game context');
+        localStorage.removeItem('gameContext');
     }
-
-    // Log for debugging
-    console.log(`Showing screen: ${screenId}`);
+    
+    // Extensive logging for debugging
+    console.log('showScreen called with:', {
+        screenId: screenId,
+        forceRefresh: forceRefresh,
+        currentUser: currentUser ? currentUser.id : 'No user'
+    });
 
     if (document.querySelector('.screen.visible')?.id === 'leaderboard-screen') {
         cleanupLeaderboard();
@@ -8541,7 +8535,11 @@ function showScreen(screenId, forceRefresh = false) {
     // Comprehensive refresh mechanism
     if (forceRefresh && screenId === 'welcome-screen') {
         console.log('Initiating full page reload');
+        
+        // Save any critical state before reload if needed
         saveProgress(); // Ensure current progress is saved
+        
+        // Use modern reload method with cache bypass
         window.location.reload(true);
         return;
     }
@@ -8587,6 +8585,7 @@ function showScreen(screenId, forceRefresh = false) {
         case 'stage-cascade-screen':
             showStageCascadeScreen();
             return; 
+     
     }
 
     console.log(`Switched to screen: ${screenId}`);
@@ -8608,24 +8607,6 @@ document.addEventListener('fullscreenchange', function() {
         console.log('Exited full-screen');
     }
 });
-
-// Add flag monitoring to debug popup issues
-(function() {
-    // Original value to detect changes
-    let originalValue = window.unregisteredWarningShown;
-    
-    // Create property with getter/setter to monitor changes
-    Object.defineProperty(window, 'unregisteredWarningShown', {
-        get: function() {
-            return originalValue;
-        },
-        set: function(value) {
-            console.log(`⚠️ unregisteredWarningShown changing from ${originalValue} to ${value}`);
-            console.trace('Flag changed at:'); // Show stack trace
-            originalValue = value;
-        }
-    });
-})();
 
 
 function showLevelScreen(setId) {
@@ -8995,7 +8976,7 @@ function generateAnswerChoices(correctAnswer, vocabulary) {
     return Array.from(choices).sort(() => Math.random() - 0.5);
 }
 
-async function startLevel(levelId) {
+function startLevel(levelId) {
     // Save current game context at the start of each level
     gameState.currentLevel = levelId;
     const gameContext = {
@@ -9014,8 +8995,10 @@ async function startLevel(levelId) {
     currentGame.firstAttempt = true;
     currentGame.streakBonus = true;
 
+    // Update perk buttons
     updatePerkButtons();
 
+    // Toggle perks and powerups containers
     const perksContainer = document.querySelector('.perks-container');
     const powerupsContainer = document.querySelector('.powerups-container');    
     perksContainer.style.display = 'flex';
@@ -9027,7 +9010,7 @@ async function startLevel(levelId) {
         coinDisplay.textContent = gameState.coins || 0;
     }
 
-    // Initialize coins and ensure containers are visible
+    // Ensure containers are visible
     const coinsContainer = document.querySelector('.coins-container');
     if (coinsContainer) {
         coinsContainer.style.display = 'flex';
@@ -9039,7 +9022,7 @@ async function startLevel(levelId) {
         progressCircle.style.display = 'flex';
     }
 
-    // Regular game initialization
+    // Ensure current game state values
     gameState.currentStage = gameState.currentStage || 1;
     gameState.currentSet = gameState.currentSet || 1;
     gameState.currentLevel = levelId;
@@ -9049,391 +9032,98 @@ async function startLevel(levelId) {
     console.log('Current unlocked levels:', gameState.unlockedLevels);
     console.log('Current completed levels:', gameState.completedLevels);
 
-    // Get user status - ensure it's 'unregistered' for guest users
-    const userStatus = currentUser ? currentUser.status : 'unregistered';
-    
-    // Define trigger levels that should show the popup
+    // Define trigger levels
     const triggerLevels = [2, 7, 11, 15, 20];
     
-    // Log the conditions to help debug
-    console.log('Popup trigger check:', {
-        currentStage: gameState.currentStage,
-        currentSet: gameState.currentSet,
-        levelId: levelId,
-        userStatus: userStatus,
-        isLevelInTriggers: triggerLevels.includes(levelId),
-        showForUnregistered: (!currentUser && triggerLevels.includes(levelId)),
-        showForFree: (currentUser && userStatus !== 'premium' && triggerLevels.includes(levelId))
-    });
+    // Check user status
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
     
-    // CRITICAL UPDATE: Show popup for ANY stage/set with a trigger level for guest users
-    if (!currentUser && triggerLevels.includes(levelId)) {
-    console.log("🔴 SHOWING GUEST SIGNUP POPUP - ANY STAGE/SET!");
-    
-    // Use setTimeout to ensure UI is ready
-    setTimeout(() => {
-        showDirectGuestPrompt(() => {
-            proceedWithLevel(levelId);
-        });
-    }, 300);
-    
-    return; // Stop further execution
-}
-    
-    // Show upgrade prompt for registered non-premium users
-    if (currentUser && userStatus !== 'premium' && triggerLevels.includes(levelId) && 
-        !localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
+    // Check for upgrade prompt
+    if (triggerLevels.includes(levelId) && userStatus !== 'premium') {
+        const continueLevelId = levelId;
         
-        console.log('Showing upgrade prompt for free registered user');
-        
-        setTimeout(() => {
-            showUpgradePrompt(() => {
-                proceedWithLevel(levelId);
+        if (!currentUser) {
+            showUnregisteredWarning(() => {
+                proceedWithLevel(continueLevelId);
             });
-        }, 300);
-        
-        return;
+            return;
+        } else if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
+            showUpgradePrompt(() => {
+                proceedWithLevel(continueLevelId);
+            });
+            return;
+        }
     }
 
-    // If no popup needs to be shown, proceed with the level
+    // Proceed with level start
     proceedWithLevel(levelId);
 }
 
-function showDirectGuestPrompt(continueCallback) {
-    console.log('🟢 Creating direct guest prompt...');
+function proceedWithLevel(levelId) {
+    if (!currentGame.restartsRemaining) {
+        currentGame.restartsRemaining = 2;
+    }
     
-    // Create overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'direct-prompt-overlay';
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: black;
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
-    
-    // Create prompt
-    const prompt = document.createElement('div');
-    prompt.className = 'direct-prompt';
-    prompt.style.cssText = `
-        background: var(--glass);
-        backdrop-filter: blur(10px);
-        padding: 2rem;
-        border-radius: 20px;
-        width: 90%;
-        max-width: 400px;
-        text-align: center;
-        animation: fadeIn 0.3s ease-out;
-        border: 2px solid var(--gold);
-        box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
-    `;
-    
-    prompt.innerHTML = `
-        <h2 style="color: var(--gold); margin-bottom: 1.5rem; font-size: 1.8rem;">Save Your Progress!</h2>
-        <p style="margin-bottom: 2rem; font-size: 1.1rem; line-height: 1.5;">Create a free account to save your progress and unlock more content!</p>
-        <div style="display: flex; flex-direction: column; gap: 1rem;">
-            <button id="directSignupBtn" style="
-                padding: 1rem;
-                background: var(--gold);
-                color: black;
-                border: none;
-                border-radius: 25px;
-                font-size: 1.1rem;
-                font-weight: bold;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            ">Sign Up</button>
-            <button id="directContinueBtn" style="
-                padding: 1rem;
-                background: transparent;
-                color: var(--text);
-                border: 1px solid var(--text);
-                border-radius: 25px;
-                font-size: 1.1rem;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            ">Continue Playing</button>
-        </div>
-    `;
-    
-    // Add animation keyframes
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-    `;
-    document.head.appendChild(style);
-    
-    // Add to document
-    document.body.appendChild(overlay);
-    overlay.appendChild(prompt);
-    
-    console.log('🟢 Direct guest prompt created and added to DOM');
-    
-    // Add event listeners
-    document.getElementById('directSignupBtn').addEventListener('click', function() {
-        console.log('🟢 Signup clicked');
-        overlay.remove();
-        window.unregisteredWarningShown = true;
-        
-        // Redirect to welcome screen and show auth modal
-        showScreen('welcome-screen');
-        
-        // Show auth modal with signup form
-        const authModal = document.getElementById('authModal');
-        if (authModal) {
-            authModal.classList.add('show');
-            
-            // Switch to signup form
-            const signupForm = document.getElementById('signupForm');
-            const loginForm = document.getElementById('loginForm');
-            if (signupForm && loginForm) {
-                signupForm.classList.remove('hidden');
-                loginForm.classList.add('hidden');
-            }
-        }
-    });
-    
-    document.getElementById('directContinueBtn').addEventListener('click', function() {
-        console.log('🟢 Continue clicked');
-        overlay.remove();
-        window.unregisteredWarningShown = true;
-        
-        if (continueCallback) {
-            continueCallback();
-        }
-    });
-}
+    gameState.currentLevel = levelId;
+    const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+    const vocabulary = vocabularySets[setKey];
 
-function showDirectGuestPrompt(continueCallback) {
-    console.log('🟢 Creating direct guest prompt...');
-    
-    // Create overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'direct-prompt-overlay';
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: black;
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
-    
-    // Create prompt
-    const prompt = document.createElement('div');
-    prompt.className = 'direct-prompt';
-    prompt.style.cssText = `
-        background: var(--glass);
-        backdrop-filter: blur(10px);
-        padding: 2rem;
-        border-radius: 20px;
-        width: 90%;
-        max-width: 400px;
-        text-align: center;
-        animation: fadeIn 0.3s ease-out;
-        border: 2px solid var(--gold);
-        box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
-    `;
-    
-    prompt.innerHTML = `
-        <h2 style="color: var(--gold); margin-bottom: 1.5rem; font-size: 1.8rem;">Save Your Progress!</h2>
-        <p style="margin-bottom: 2rem; font-size: 1.1rem; line-height: 1.5;">Create a free account to save your progress and unlock more content!</p>
-        <div style="display: flex; flex-direction: column; gap: 1rem;">
-            <button id="directSignupBtn" style="
-                padding: 1rem;
-                background: var(--gold);
-                color: black;
-                border: none;
-                border-radius: 25px;
-                font-size: 1.1rem;
-                font-weight: bold;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            ">Sign Up</button>
-            <button id="directContinueBtn" style="
-                padding: 1rem;
-                background: transparent;
-                color: var(--text);
-                border: 1px solid var(--text);
-                border-radius: 25px;
-                font-size: 1.1rem;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            ">Continue Playing</button>
-        </div>
-    `;
-    
-    // Add animation keyframes
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-    `;
-    document.head.appendChild(style);
-    
-    // Add to document
-    document.body.appendChild(overlay);
-    overlay.appendChild(prompt);
-    
-    console.log('🟢 Direct guest prompt created and added to DOM');
-    
-    // Add event listeners
-    document.getElementById('directSignupBtn').addEventListener('click', function() {
-        console.log('🟢 Signup clicked');
-        overlay.remove();
-        window.unregisteredWarningShown = true;
-        
-        // Redirect to welcome screen and show auth modal
-        showScreen('welcome-screen');
-        
-        // Show auth modal with signup form
-        const authModal = document.getElementById('authModal');
-        if (authModal) {
-            authModal.classList.add('show');
-            
-            // Switch to signup form
-            const signupForm = document.getElementById('signupForm');
-            const loginForm = document.getElementById('loginForm');
-            if (signupForm && loginForm) {
-                signupForm.classList.remove('hidden');
-                loginForm.classList.add('hidden');
-            }
-        }
-    });
-    
-    document.getElementById('directContinueBtn').addEventListener('click', function() {
-        console.log('🟢 Continue clicked');
-        overlay.remove();
-        window.unregisteredWarningShown = true;
-        
-        if (continueCallback) {
-            continueCallback();
-        }
-    });
-}
-
-function showUnregisteredWarning(callback) {
-    // Prevent multiple popups in the same page load
-    if (window.unregisteredWarningShown) {
-        if (callback) callback();
-        return;
+    // Ensure coin display remains visible
+    const coinDisplay = document.querySelector('.coin-count');
+    if (coinDisplay) {
+        coinDisplay.textContent = gameState.coins || 0;
+        coinDisplay.style.display = 'block';
     }
 
-    console.log('⚠️ unregisteredWarningShown changing from', window.unregisteredWarningShown, 'to true');
-    console.trace('Flag changed at:');
+    // Prepare all game state first
+    currentGame.startingCoins = gameState.coins;
+    currentGame.startingPerks = { ...gameState.perks };
+    currentGame.timeBonus = 0;
+    currentGame.initialTimeRemaining = null;
+    currentGame.streakBonus = true;
+    currentGame.levelStartTime = Date.now();
     
-    // Mark that the warning has been shown
-    window.unregisteredWarningShown = true;
-
-    const prompt = document.createElement('div');
-    prompt.className = 'upgrade-prompt';
-    console.log('Direct guest prompt created and added to DOM');
-    
-    prompt.innerHTML = `
-        <div class="upgrade-prompt-content">
-            <h2>Save Your Progress!</h2>
-            <p>Create a free account to save your progress and unlock more content!</p>
-            <div class="upgrade-prompt-buttons">
-                <button class="start-button signup-now">Sign Up</button>
-                <button class="start-button secondary">Continue Playing</button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(prompt);
-    
-    // Use requestAnimationFrame to ensure smooth animation
-    requestAnimationFrame(() => {
-        prompt.classList.add('show');
-    });
-
-    function hidePrompt(continueCallback) {
-        prompt.classList.remove('show');
+    // Show intro, but prepare the level during the curtain-down moment
+    showLevelIntro(levelId, () => {
+        // Setup all game state while curtain is down
+        const levelConfig = calculateWordsForLevel(levelId, vocabulary);
+        if (typeof levelConfig === 'object') {
+            const { startIndex, count, isHebrewToEnglish, mixed, speedChallenge } = levelConfig;
+            currentGame = {
+                ...currentGame,
+                words: vocabulary.words.slice(startIndex, startIndex + count),
+                translations: vocabulary.translations.slice(startIndex, startIndex + count),
+                currentIndex: 0,
+                correctAnswers: 0,
+                firstAttempt: true,
+                isHebrewToEnglish: isHebrewToEnglish || false,
+                mixed: mixed || false,
+                speedChallenge: speedChallenge || false
+            };
+        } else {
+            currentGame = {
+                ...currentGame,
+                words: vocabulary.words.slice(0, levelConfig),
+                translations: vocabulary.translations.slice(0, levelConfig),
+                currentIndex: 0,
+                correctAnswers: 0,
+                firstAttempt: true,
+                isHebrewToEnglish: false,
+                mixed: false,
+                speedChallenge: false
+            };
+        }
+        
+        // Prepare the question screen while curtain is still down
+        showScreen('question-screen');
+        updateProgressCircle();
+        loadNextQuestion();
+        
+        // Only start the timer after curtain is fully up
         setTimeout(() => {
-            document.body.removeChild(prompt);
-            if (continueCallback) continueCallback();
-        }, 300);
-    }
-
-    // Handle signup button click - directly show auth modal
-    prompt.querySelector('.signup-now').onclick = () => {
-        console.log('🟢 Signup clicked');
-        hidePrompt(() => {
-            // Directly show the auth modal and switch to signup form
-            const authModal = document.getElementById('authModal');
-            if (authModal) {
-                // Show the modal
-                authModal.classList.add('show');
-                
-                // Get the forms
-                const loginForm = document.getElementById('loginForm');
-                const signupForm = document.getElementById('signupForm');
-                
-                // Hide login, show signup
-                if (loginForm && signupForm) {
-                    loginForm.classList.add('hidden');
-                    signupForm.classList.remove('hidden');
-                }
-            }
-        });
-    };
-
-    prompt.querySelector('.secondary').onclick = () => {
-        hidePrompt(callback);
-    };
-}
-
-// Function to debug the guest popup trigger
-function debugPopupTrigger() {
-    console.log('Current Game State:', {
-        currentUser: currentUser ? {
-            id: currentUser.id,
-            status: currentUser.status
-        } : 'No user (guest)',
-        currentStage: gameState.currentStage,
-        currentSet: gameState.currentSet,
-        currentLevel: gameState.currentLevel,
-        unregisteredWarningShown: window.unregisteredWarningShown || false
+            startTimer(currentGame.words.length);
+        }, 200);
     });
-    
-    // Test if conditions would trigger for current state
-    const userStatus = currentUser ? currentUser.status : 'unregistered';
-    const triggerLevels = [2, 7, 11, 15, 20];
-    const wouldTrigger = (
-        gameState.currentStage === 1 && 
-        gameState.currentSet === 1 && 
-        triggerLevels.includes(gameState.currentLevel) && 
-        userStatus !== 'premium'
-    );
-    
-    console.log('Would popup trigger now:', wouldTrigger);
-    
-    return {
-        reset: function() {
-            window.unregisteredWarningShown = false;
-            console.log('Reset unregisteredWarningShown flag');
-        },
-        forceShow: function() {
-            showUnregisteredWarning(() => {
-                console.log('Forced popup shown and closed');
-            });
-        }
-    };
 }
 
 document.querySelector('.perks-container').innerHTML = `
@@ -10669,12 +10359,6 @@ function findFurthestProgression() {
 function startGame() {
     // First check if this is a first-time player (no progress saved)
     const isFirstTimePlayer = !hasExistingProgress();
-    
-    // Reset flag for guest users at game start
-    if (!currentUser) {
-        window.unregisteredWarningShown = false;
-        console.log('⚠️ Reset unregisteredWarningShown flag in startGame for guest');
-    }
     
     if (isFirstTimePlayer) {
         showGradeLevelSelector();
@@ -12380,120 +12064,6 @@ function showUnregisteredWarning(callback) {
     };
 }
 
-function showDirectGuestPrompt(continueCallback) {
-    console.log('🟢 Creating direct guest prompt...');
-    
-    // Create overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'direct-prompt-overlay';
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: black;
-        z-index: 10000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    `;
-    
-    // Create prompt
-    const prompt = document.createElement('div');
-    prompt.className = 'direct-prompt';
-    prompt.style.cssText = `
-        background: var(--glass);
-        backdrop-filter: blur(10px);
-        padding: 2rem;
-        border-radius: 20px;
-        width: 90%;
-        max-width: 400px;
-        text-align: center;
-        animation: fadeIn 0.3s ease-out;
-        border: 2px solid var(--gold);
-        box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
-    `;
-    
-    prompt.innerHTML = `
-        <h2 style="color: var(--gold); margin-bottom: 1.5rem; font-size: 1.8rem;">Save Your Progress!</h2>
-        <p style="margin-bottom: 2rem; font-size: 1.1rem; line-height: 1.5;">Create a free account to save your progress and unlock more content!</p>
-        <div style="display: flex; flex-direction: column; gap: 1rem;">
-            <button id="directSignupBtn" style="
-                padding: 1rem;
-                background: var(--gold);
-                color: black;
-                border: none;
-                border-radius: 25px;
-                font-size: 1.1rem;
-                font-weight: bold;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            ">Sign Up</button>
-            <button id="directContinueBtn" style="
-                padding: 1rem;
-                background: transparent;
-                color: var(--text);
-                border: 1px solid var(--text);
-                border-radius: 25px;
-                font-size: 1.1rem;
-                cursor: pointer;
-                transition: all 0.3s ease;
-            ">Continue Playing</button>
-        </div>
-    `;
-    
-    // Add animation keyframes
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-    `;
-    document.head.appendChild(style);
-    
-    // Add to document
-    document.body.appendChild(overlay);
-    overlay.appendChild(prompt);
-    
-    console.log('🟢 Direct guest prompt created and added to DOM');
-    
-    // Add event listeners
-    document.getElementById('directSignupBtn').addEventListener('click', function() {
-        console.log('🟢 Signup clicked');
-        overlay.remove();
-        window.unregisteredWarningShown = true;
-        
-        // Redirect to welcome screen and show auth modal
-        showScreen('welcome-screen');
-        
-        // Show auth modal with signup form
-        const authModal = document.getElementById('authModal');
-        if (authModal) {
-            authModal.classList.add('show');
-            
-            // Switch to signup form
-            const signupForm = document.getElementById('signupForm');
-            const loginForm = document.getElementById('loginForm');
-            if (signupForm && loginForm) {
-                signupForm.classList.remove('hidden');
-                loginForm.classList.add('hidden');
-            }
-        }
-    });
-    
-    document.getElementById('directContinueBtn').addEventListener('click', function() {
-        console.log('🟢 Continue clicked');
-        overlay.remove();
-        window.unregisteredWarningShown = true;
-        
-        if (continueCallback) {
-            continueCallback();
-        }
-    });
-}
-
 function handleCustomPracticeCompletion() {
     const completedPerfectly = currentGame.streakBonus && 
         currentGame.correctAnswers === currentGame.words.length;
@@ -13112,30 +12682,15 @@ function setupUserStatusSubscription() {
 function restoreGameContext() {
     const savedContext = localStorage.getItem('gameContext');
     if (savedContext) {
-        try {
-            const context = JSON.parse(savedContext);
-            
-            // Don't restore if we're at level 2 and need to show the popup
-            if (!currentUser && context.stage === 1 && context.set === 1 && context.level === 2) {
-                console.log('Not restoring context for level 2 guest - need to show popup');
-                localStorage.removeItem('gameContext');
-                return false;
-            }
-            
-            gameState.currentStage = context.stage || 1;
-            gameState.currentSet = context.set || 1;
-            gameState.currentLevel = context.level;
-            
-            // Clear the saved context
-            localStorage.removeItem('gameContext');
-            
-            console.log('Restored game context:', context);
-            return true;
-        } catch (e) {
-            console.error('Failed to parse game context:', e);
-            localStorage.removeItem('gameContext');
-            return false;
-        }
+        const context = JSON.parse(savedContext);
+        gameState.currentStage = context.stage || 1;
+        gameState.currentSet = context.set || 1;
+        gameState.currentLevel = context.level;
+        
+        // Clear the saved context
+        localStorage.removeItem('gameContext');
+        
+        return true;
     }
     return false;
 }
@@ -15226,7 +14781,7 @@ function toggleSidePanel() {
 function showAuthModal() {
     const modal = document.getElementById('authModal');
     if (modal) {
-        modal.classList.add('show');
+        modal.classList.add('open');
     }
 }
 
@@ -17978,11 +17533,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
+// Function to build and display the stage-set cascade UI
 function showStageCascadeScreen() {
-    // Reset the unregistered warning flag when returning to main screen
-    // This allows it to show again if the user starts a new game session
-    window.unregisteredWarningShown = false;
-    
     const container = document.querySelector('.stages-container');
     if (!container) return;
     
@@ -17991,8 +17543,6 @@ function showStageCascadeScreen() {
     
     // Create stage wrappers for each stage
     gameStructure.stages.forEach(stage => {
-        // Rest of the function remains the same...
-        
         // Create stage wrapper
         const stageWrapper = document.createElement('div');
         stageWrapper.className = 'stage-wrapper';
@@ -18073,12 +17623,12 @@ function showStageCascadeScreen() {
     }
     
     const cascadeScreen = document.getElementById('stage-cascade-screen');
-    if (cascadeScreen) {
-        document.querySelectorAll('.screen').forEach(screen => {
-            screen.classList.remove('visible');
-        });
-        cascadeScreen.classList.add('visible');
-    }
+if (cascadeScreen) {
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('visible');
+    });
+    cascadeScreen.classList.add('visible');
+}
 }
 
 function getStageIcon(stageId) {
