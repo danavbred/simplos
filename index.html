@@ -5705,6 +5705,295 @@ background-clip: text;
   }
 }
 
+/* Add to the existing CSS in index.html */
+.accessibility-toggle {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--accent);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 9999;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.accessibility-toggle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+}
+
+.accessibility-toggle i {
+    font-size: 24px;
+}
+
+.accessibility-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.accessibility-modal.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.accessibility-content {
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: var(--primary-dark);
+    border-radius: 20px;
+    padding: 2rem;
+    color: var(--text);
+    border: 1px solid var(--accent);
+}
+
+.accessibility-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.accessibility-header h2 {
+    margin: 0;
+    color: var(--gold);
+    font-size: 1.8rem;
+}
+
+.close-accessibility {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 1.5rem;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+
+.close-accessibility:hover {
+    opacity: 1;
+}
+
+.accessibility-options {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.accessibility-section {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.accessibility-section h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: var(--accent);
+    font-size: 1.3rem;
+}
+
+.option-group {
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.option-group label {
+    font-size: 1rem;
+    color: var(--text);
+    opacity: 0.9;
+}
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.accessibility-button {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.accessibility-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.accessibility-button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--primary-dark);
+    box-shadow: 0 0 10px rgba(30, 144, 255, 0.5);
+}
+
+.accessibility-footer {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    text-align: center;
+}
+
+.reset-all {
+    width: 100%;
+    padding: 0.75rem !important;
+    background: rgba(244, 67, 54, 0.2) !important;
+    border: 1px solid rgba(244, 67, 54, 0.4) !important;
+    color: #f44336 !important;
+}
+
+.reset-all:hover {
+    background: rgba(244, 67, 54, 0.3) !important;
+}
+
+/* Helper classes that will be applied by JavaScript */
+body.high-contrast {
+    --primary-dark: #000000;
+    --primary: #000000;
+    --secondary: #000000;
+    --text: #ffffff;
+    --accent: #ffff00;
+}
+
+body.inverted-colors {
+    filter: invert(1) hue-rotate(180deg);
+}
+
+body.grayscale {
+    filter: grayscale(1);
+}
+
+body.large-font {
+    --font-scale: 1.2;
+    font-size: calc(1rem * var(--font-scale));
+}
+
+body.larger-font {
+    --font-scale: 1.4;
+    font-size: calc(1rem * var(--font-scale));
+}
+
+body.largest-font {
+    --font-scale: 1.6;
+    font-size: calc(1rem * var(--font-scale));
+}
+
+body.dyslexic-font {
+    font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif;
+}
+
+body.increased-letter-spacing {
+    letter-spacing: 0.1em;
+}
+
+body.no-animations * {
+    animation: none !important;
+    transition: none !important;
+}
+
+body.reduced-animations * {
+    animation-duration: 0.001s !important;
+    transition-duration: 0.001s !important;
+}
+
+body.high-focus :focus {
+    outline: 3px solid var(--accent) !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 0 3px var(--accent) !important;
+}
+
+body.large-buttons button,
+body.large-buttons .main-button,
+body.large-buttons .nav-link,
+body.large-buttons input[type="submit"] {
+    padding: calc(0.75rem * 1.3) calc(1.5rem * 1.3) !important;
+    font-size: calc(1rem * 1.3) !important;
+    min-height: 44px !important;
+}
+
+body.large-cursor,
+body.large-cursor * {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='white' stroke='black' stroke-width='2'/%3E%3C/svg%3E") 16 16, auto !important;
+}
+
+/* Light theme */
+body.light-theme {
+    --primary-dark: #ffffff;
+    --primary: #f5f5f5;
+    --secondary: #e0e0e0;
+    --text: #333333;
+    --accent: #1E90FF;
+    --gradient: linear-gradient(135deg, #f5f5f5, #e0e0e0);
+}
+
+/* Dark theme - already exists in original CSS */
+body.dark-theme {
+    --primary-dark: #1a1a2e;
+    --primary: #16213e;
+    --secondary: #0f3460;
+    --text: #ffffff;
+    --accent: #1E90FF;
+    --gradient: linear-gradient(135deg, var(--secondary), var(--primary-dark));
+}
+
+/* Add OpenDyslexic font support */
+@font-face {
+    font-family: 'OpenDyslexic';
+    src: url('https://cdn.jsdelivr.net/npm/open-dyslexic@1.0.3/woff/OpenDyslexic-Regular.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* Media query for mobile devices */
+@media (max-width: 768px) {
+    .accessibility-content {
+        width: 95%;
+        padding: 1.5rem;
+    }
+    
+    .accessibility-toggle {
+        bottom: 15px;
+        right: 15px;
+        width: 45px;
+        height: 45px;
+    }
+    
+    .accessibility-button {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+    }
+}
+
 </style>
 </head>
 <body>
@@ -6221,6 +6510,148 @@ background-clip: text;
            <button class="start-button secondary" onclick="closeRemoveModal()">Cancel</button>
        </div>
    </div>
+</div>
+
+<!-- Add before the closing </body> tag in index.html -->
+<button class="accessibility-toggle" aria-label="Open accessibility menu">
+    <i class="fas fa-universal-access"></i>
+</button>
+
+<div class="accessibility-modal">
+    <div class="accessibility-content">
+        <div class="accessibility-header">
+            <h2>Accessibility Options</h2>
+            <button class="close-accessibility" aria-label="Close accessibility menu">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="accessibility-options">
+            <!-- Appearance Section -->
+            <div class="accessibility-section">
+                <h3>Display</h3>
+                
+                <!-- Contrast Controls -->
+                <div class="option-group">
+                    <label for="contrast-setting">Contrast</label>
+                    <div class="controls">
+                        <button class="accessibility-button" data-action="contrast" data-value="normal">Normal</button>
+                        <button class="accessibility-button" data-action="contrast" data-value="high">High</button>
+                        <button class="accessibility-button" data-action="contrast" data-value="inverted">Inverted</button>
+                    </div>
+                </div>
+                
+                <!-- Theme Controls -->
+                <div class="option-group">
+                    <label>Theme</label>
+                    <div class="controls">
+                        <button class="accessibility-button" data-action="theme" data-value="default">Default</button>
+                        <button class="accessibility-button" data-action="theme" data-value="light">Light</button>
+                        <button class="accessibility-button" data-action="theme" data-value="dark">Dark</button>
+                    </div>
+                </div>
+                
+                <!-- Saturation Controls -->
+                <div class="option-group">
+                    <label>Saturation</label>
+                    <div class="controls">
+                        <button class="accessibility-button" data-action="saturation" data-value="normal">Normal</button>
+                        <button class="accessibility-button" data-action="saturation" data-value="grayscale">Grayscale</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Text Section -->
+            <div class="accessibility-section">
+                <h3>Text</h3>
+                
+                <!-- Font Size Controls -->
+                <div class="option-group">
+                    <label>Font Size</label>
+                    <div class="controls">
+                        <button class="accessibility-button" data-action="fontSize" data-value="decrease">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <button class="accessibility-button" data-action="fontSize" data-value="reset">
+                            Reset
+                        </button>
+                        <button class="accessibility-button" data-action="fontSize" data-value="increase">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Font Type Controls -->
+                <div class="option-group">
+                    <label>Font Type</label>
+                    <div class="controls">
+                        <button class="accessibility-button" data-action="fontFamily" data-value="default">Default</button>
+                        <button class="accessibility-button" data-action="fontFamily" data-value="dyslexic">Dyslexia Friendly</button>
+                    </div>
+                </div>
+                
+                <!-- Letter Spacing Controls -->
+                <div class="option-group">
+                    <label>Letter Spacing</label>
+                    <div class="controls">
+                        <button class="accessibility-button" data-action="letterSpacing" data-value="normal">Normal</button>
+                        <button class="accessibility-button" data-action="letterSpacing" data-value="increased">Increased</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Motion and Navigation Section -->
+            <div class="accessibility-section">
+                <h3>Motion & Navigation</h3>
+                
+                <!-- Animation Controls -->
+                <div class="option-group">
+                    <label>Animations</label>
+                    <div class="controls">
+                        <button class="accessibility-button" data-action="animations" data-value="enabled">Enabled</button>
+                        <button class="accessibility-button" data-action="animations" data-value="reduced">Reduced</button>
+                        <button class="accessibility-button" data-action="animations" data-value="disabled">Disabled</button>
+                    </div>
+                </div>
+                
+                <!-- Focus Indicator Controls -->
+                <div class="option-group">
+                    <label>Focus Indicator</label>
+                    <div class="controls">
+                        <button class="accessibility-button" data-action="focus" data-value="normal">Normal</button>
+                        <button class="accessibility-button" data-action="focus" data-value="high">Enhanced</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Interface Section -->
+            <div class="accessibility-section">
+                <h3>Interface</h3>
+                
+                <!-- Button Size Controls -->
+                <div class="option-group">
+                    <label>Button Size</label>
+                    <div class="controls">
+                        <button class="accessibility-button" data-action="buttonSize" data-value="normal">Normal</button>
+                        <button class="accessibility-button" data-action="buttonSize" data-value="large">Large</button>
+                    </div>
+                </div>
+                
+                <!-- Cursor Size Controls -->
+                <div class="option-group">
+                    <label>Cursor Size</label>
+                    <div class="controls">
+                        <button class="accessibility-button" data-action="cursorSize" data-value="normal">Normal</button>
+                        <button class="accessibility-button" data-action="cursorSize" data-value="large">Large</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="accessibility-footer">
+            <button class="accessibility-button reset-all" data-action="reset" data-value="all">Reset All Settings</button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -18270,6 +18701,284 @@ function updateCustomListSchema(list) {
         min_words: MIN_WORDS,
         max_levels: maxLevels
     };
+}
+
+// Add to the end of the <body> section after all other scripts
+// Accessibility Menu Functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize accessibility menu
+    initAccessibilityMenu();
+});
+
+function initAccessibilityMenu() {
+    // Set up toggle button
+    const toggleButton = document.querySelector('.accessibility-toggle');
+    const modal = document.querySelector('.accessibility-modal');
+    const closeButton = document.querySelector('.close-accessibility');
+    
+    // Load saved settings
+    loadAccessibilitySettings();
+    
+    // Toggle modal visibility
+    if (toggleButton && modal) {
+        toggleButton.addEventListener('click', function() {
+            modal.classList.add('show');
+        });
+    }
+    
+    // Close modal
+    if (closeButton && modal) {
+        closeButton.addEventListener('click', function() {
+            modal.classList.remove('show');
+        });
+        
+        // Close when clicking outside the content
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                modal.classList.remove('show');
+            }
+        });
+    }
+    
+    // Add event listeners to all accessibility buttons
+    const accessibilityButtons = document.querySelectorAll('.accessibility-button');
+    accessibilityButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const action = this.getAttribute('data-action');
+            const value = this.getAttribute('data-value');
+            
+            applyAccessibilitySetting(action, value);
+            
+            // Update active state on buttons
+            if (action !== 'fontSize' && action !== 'reset') {
+                const siblings = document.querySelectorAll(`[data-action="${action}"]`);
+                siblings.forEach(sibling => sibling.classList.remove('active'));
+                this.classList.add('active');
+            }
+        });
+    });
+}
+
+function applyAccessibilitySetting(action, value) {
+    const body = document.body;
+    
+    // Handle each setting type
+    switch(action) {
+        case 'contrast':
+            body.classList.remove('high-contrast', 'inverted-colors');
+            if (value === 'high') body.classList.add('high-contrast');
+            if (value === 'inverted') body.classList.add('inverted-colors');
+            break;
+            
+        case 'theme':
+            body.classList.remove('light-theme', 'dark-theme');
+            if (value === 'light') body.classList.add('light-theme');
+            if (value === 'dark') body.classList.add('dark-theme');
+            break;
+            
+        case 'saturation':
+            body.classList.remove('grayscale');
+            if (value === 'grayscale') body.classList.add('grayscale');
+            break;
+            
+        case 'fontSize':
+            let currentScale = parseFloat(getComputedStyle(body).getPropertyValue('--font-scale') || 1);
+            
+            if (value === 'increase') {
+                currentScale = Math.min(currentScale + 0.1, 1.8);
+                body.style.setProperty('--font-scale', currentScale);
+                body.style.fontSize = `calc(1rem * ${currentScale})`;
+            } else if (value === 'decrease') {
+                currentScale = Math.max(currentScale - 0.1, 0.8);
+                body.style.setProperty('--font-scale', currentScale);
+                body.style.fontSize = `calc(1rem * ${currentScale})`;
+            } else if (value === 'reset') {
+                body.style.removeProperty('--font-scale');
+                body.style.fontSize = '';
+            }
+            break;
+            
+        case 'fontFamily':
+            body.classList.remove('dyslexic-font');
+            if (value === 'dyslexic') body.classList.add('dyslexic-font');
+            break;
+            
+        case 'letterSpacing':
+            body.classList.remove('increased-letter-spacing');
+            if (value === 'increased') body.classList.add('increased-letter-spacing');
+            break;
+            
+        case 'animations':
+            body.classList.remove('no-animations', 'reduced-animations');
+            if (value === 'disabled') body.classList.add('no-animations');
+            if (value === 'reduced') body.classList.add('reduced-animations');
+            break;
+            
+        case 'focus':
+            body.classList.remove('high-focus');
+            if (value === 'high') body.classList.add('high-focus');
+            break;
+            
+        case 'buttonSize':
+            body.classList.remove('large-buttons');
+            if (value === 'large') body.classList.add('large-buttons');
+            break;
+            
+        case 'cursorSize':
+            body.classList.remove('large-cursor');
+            if (value === 'large') body.classList.add('large-cursor');
+            break;
+            
+        case 'reset':
+            if (value === 'all') resetAllAccessibilitySettings();
+            break;
+    }
+    
+    // Save settings
+    saveAccessibilitySettings();
+}
+
+function saveAccessibilitySettings() {
+    const body = document.body;
+    const settings = {
+        classNames: body.className,
+        fontSize: body.style.fontSize,
+        fontScale: body.style.getPropertyValue('--font-scale')
+    };
+    
+    localStorage.setItem('accessibilitySettings', JSON.stringify(settings));
+}
+
+function loadAccessibilitySettings() {
+    const savedSettings = localStorage.getItem('accessibilitySettings');
+    if (savedSettings) {
+        const settings = JSON.parse(savedSettings);
+        const body = document.body;
+        
+        // Apply saved class names
+        if (settings.classNames) {
+            body.className = settings.classNames;
+        }
+        
+        // Apply font size
+        if (settings.fontSize) {
+            body.style.fontSize = settings.fontSize;
+        }
+        
+        // Apply font scale
+        if (settings.fontScale) {
+            body.style.setProperty('--font-scale', settings.fontScale);
+        }
+        
+        // Mark active buttons
+        updateActiveButtons();
+    }
+}
+
+function updateActiveButtons() {
+    const body = document.body;
+    
+    // Check classes and update button states
+    const classesToCheck = {
+        'high-contrast': { action: 'contrast', value: 'high' },
+        'inverted-colors': { action: 'contrast', value: 'inverted' },
+        'light-theme': { action: 'theme', value: 'light' },
+        'dark-theme': { action: 'theme', value: 'dark' },
+        'grayscale': { action: 'saturation', value: 'grayscale' },
+        'dyslexic-font': { action: 'fontFamily', value: 'dyslexic' },
+        'increased-letter-spacing': { action: 'letterSpacing', value: 'increased' },
+        'no-animations': { action: 'animations', value: 'disabled' },
+        'reduced-animations': { action: 'animations', value: 'reduced' },
+        'high-focus': { action: 'focus', value: 'high' },
+        'large-buttons': { action: 'buttonSize', value: 'large' },
+        'large-cursor': { action: 'cursorSize', value: 'large' }
+    };
+    
+    // Loop through possible classes and update buttons
+    Object.entries(classesToCheck).forEach(([className, buttonData]) => {
+        const hasClass = body.classList.contains(className);
+        const button = document.querySelector(`[data-action="${buttonData.action}"][data-value="${buttonData.value}"]`);
+        
+        if (button) {
+            if (hasClass) {
+                button.classList.add('active');
+            } else {
+                button.classList.remove('active');
+            }
+        }
+    });
+    
+    // Set default buttons if no special settings
+    if (!document.querySelector('[data-action="contrast"].active')) {
+        document.querySelector('[data-action="contrast"][data-value="normal"]')?.classList.add('active');
+    }
+    
+    if (!document.querySelector('[data-action="theme"].active')) {
+        document.querySelector('[data-action="theme"][data-value="default"]')?.classList.add('active');
+    }
+    
+    if (!document.querySelector('[data-action="saturation"].active')) {
+        document.querySelector('[data-action="saturation"][data-value="normal"]')?.classList.add('active');
+    }
+    
+    if (!document.querySelector('[data-action="fontFamily"].active')) {
+        document.querySelector('[data-action="fontFamily"][data-value="default"]')?.classList.add('active');
+    }
+    
+    if (!document.querySelector('[data-action="letterSpacing"].active')) {
+        document.querySelector('[data-action="letterSpacing"][data-value="normal"]')?.classList.add('active');
+    }
+    
+    if (!document.querySelector('[data-action="animations"].active')) {
+        document.querySelector('[data-action="animations"][data-value="enabled"]')?.classList.add('active');
+    }
+    
+    if (!document.querySelector('[data-action="focus"].active')) {
+        document.querySelector('[data-action="focus"][data-value="normal"]')?.classList.add('active');
+    }
+    
+    if (!document.querySelector('[data-action="buttonSize"].active')) {
+        document.querySelector('[data-action="buttonSize"][data-value="normal"]')?.classList.add('active');
+    }
+    
+    if (!document.querySelector('[data-action="cursorSize"].active')) {
+        document.querySelector('[data-action="cursorSize"][data-value="normal"]')?.classList.add('active');
+    }
+}
+
+function resetAllAccessibilitySettings() {
+    const body = document.body;
+    
+    // Remove all accessibility classes
+    body.classList.remove(
+        'high-contrast', 'inverted-colors', 'light-theme', 'dark-theme',
+        'grayscale', 'dyslexic-font', 'increased-letter-spacing',
+        'no-animations', 'reduced-animations', 'high-focus',
+        'large-buttons', 'large-cursor'
+    );
+    
+    // Reset inline styles
+    body.style.fontSize = '';
+    body.style.removeProperty('--font-scale');
+    
+    // Reset active buttons
+    document.querySelectorAll('.accessibility-button.active').forEach(button => {
+        button.classList.remove('active');
+    });
+    
+    // Set default buttons as active
+    document.querySelector('[data-action="contrast"][data-value="normal"]')?.classList.add('active');
+    document.querySelector('[data-action="theme"][data-value="default"]')?.classList.add('active');
+    document.querySelector('[data-action="saturation"][data-value="normal"]')?.classList.add('active');
+    document.querySelector('[data-action="fontFamily"][data-value="default"]')?.classList.add('active');
+    document.querySelector('[data-action="letterSpacing"][data-value="normal"]')?.classList.add('active');
+    document.querySelector('[data-action="animations"][data-value="enabled"]')?.classList.add('active');
+    document.querySelector('[data-action="focus"][data-value="normal"]')?.classList.add('active');
+    document.querySelector('[data-action="buttonSize"][data-value="normal"]')?.classList.add('active');
+    document.querySelector('[data-action="cursorSize"][data-value="normal"]')?.classList.add('active');
+    
+    // Clear saved settings
+    localStorage.removeItem('accessibilitySettings');
 }
 
 </script>
