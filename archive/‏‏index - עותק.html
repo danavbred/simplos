@@ -5875,40 +5875,6 @@ background-clip: text;
     background: rgba(244, 67, 54, 0.3) !important;
 }
 
-/* Font scaling improvements */
-.accessibility-font-scaled * {
-    font-size: calc(var(--original-font-size, 1rem) * var(--font-scale, 1));
-}
-
-:root {
-    --font-scale: 1;
-}
-
-/* Apply base font sizes to remember original values */
-body {
-    --original-font-size: 16px;
-}
-
-h1, .welcome-title {
-    --original-font-size: 2.5rem;
-}
-
-h2 {
-    --original-font-size: 2rem;
-}
-
-h3 {
-    --original-font-size: 1.5rem;
-}
-
-p, div, span {
-    --original-font-size: 1rem;
-}
-
-button, .main-button, .start-button {
-    --original-font-size: 1rem;
-}
-
 /* Helper classes that will be applied by JavaScript */
 body.high-contrast {
     --primary-dark: #000000;
@@ -6357,6 +6323,8 @@ body.dark-theme {
     width: 100%;
   }
 }
+
+
 
 </style>
 </head>
@@ -7708,25 +7676,26 @@ document.addEventListener('DOMContentLoaded', async () => {
        initializeParticles(welcomeScreen);
        
        // Mobile fullscreen handling
-       // Mobile fullscreen handling
-if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-    // Initialize fullscreen prompt
-    setupMobileFullscreen();
-    
-    // Try on various user interactions
-    document.addEventListener('touchstart', requestFullscreenMode, { once: true });
-    document.addEventListener('click', requestFullscreenMode);
-    
-    // Try orientation lock, but don't worry if it fails
-    try {
-        if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock('portrait')
-                .catch(err => console.log('Failed to lock orientation:', err));
-        }
-    } catch (err) {
-        console.log('Orientation API not supported');
-    }
-}
+       if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+           // Request on first touch
+           document.addEventListener('touchstart', function onFirstTouch() {
+               requestFullscreenMode();
+               document.removeEventListener('touchstart', onFirstTouch);
+           }, { once: true });
+           
+           // Request when clicking any button
+           document.addEventListener('click', function(e) {
+               if (e.target.tagName === 'BUTTON') {
+                   requestFullscreenMode();
+               }
+           });
+           
+           // Screen orientation handling
+           if (screen.orientation) {
+               screen.orientation.lock('portrait')
+                   .catch(err => console.log('Failed to lock orientation:', err));
+           }
+       }
 
        // OTP input handling
        const otpInput = document.getElementById('otpInput');
@@ -7775,36 +7744,6 @@ function showJoinModal(otp = '') {
         }
     }
 }
-
-function setupFullscreenHandlers() {
-    // Check fullscreen on page visibility change (tab switch, app resume)
-    document.addEventListener('visibilitychange', function() {
-        if (!document.hidden && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-            requestFullscreenMode();
-        }
-    });
-    
-    // Check fullscreen on orientation change
-    window.addEventListener('orientationchange', function() {
-        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-            setTimeout(requestFullscreenMode, 300); // Slight delay to let orientation change complete
-        }
-    });
-    
-    // Check fullscreen on resize (may indicate exiting fullscreen)
-    window.addEventListener('resize', function() {
-        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && 
-            !document.fullscreenElement && 
-            !document.webkitFullscreenElement && 
-            !document.mozFullScreenElement && 
-            !document.msFullscreenElement) {
-            setupMobileFullscreen(); // Re-show the fullscreen button
-        }
-    });
-}
-
-// Call this in the DOMContentLoaded event
-setupFullscreenHandlers();
 
 async function handleSignup() {
     const email = document.getElementById('signupEmail').value;
@@ -15082,98 +15021,14 @@ function requestFullscreenMode() {
     
     if (!isMobile) return; // Only proceed for mobile devices
     
-    // Check if already in fullscreen
-    if (document.fullscreenElement || 
-        document.webkitFullscreenElement || 
-        document.mozFullScreenElement || 
-        document.msFullscreenElement) {
-        return; // Already in fullscreen
-    }
-    
     // Try different fullscreen methods
-    try {
-        if (root.requestFullscreen) {
-            root.requestFullscreen();
-        } else if (root.webkitRequestFullscreen) {
-            root.webkitRequestFullscreen();
-        } else if (root.mozRequestFullScreen) {
-            root.mozRequestFullScreen();
-        } else if (root.msRequestFullscreen) {
-            root.msRequestFullscreen();
-        }
-    } catch (err) {
-        console.log('Fullscreen request failed, will try again on next interaction:', err);
+    if (root.requestFullscreen) {
+        root.requestFullscreen().catch(err => console.log('Fullscreen request failed:', err));
+    } else if (root.webkitRequestFullscreen) {
+        root.webkitRequestFullscreen().catch(err => console.log('Fullscreen request failed:', err));
+    } else if (root.msRequestFullscreen) {
+        root.msRequestFullscreen().catch(err => console.log('Fullscreen request failed:', err));
     }
-}
-
-function setupMobileFullscreen() {
-    // Only for mobile devices
-    if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return;
-    
-    // Create a fullscreen button that appears for mobile users
-    const fullscreenButton = document.createElement('button');
-    fullscreenButton.className = 'fullscreen-prompt-button';
-    fullscreenButton.innerHTML = 'Tap for Fullscreen';
-    fullscreenButton.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        padding: 1rem 2rem;
-        background: var(--accent);
-        color: var(--text);
-        border: none;
-        border-radius: 25px;
-        font-size: 1.2rem;
-        font-weight: bold;
-        z-index: 10000;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        animation: pulse 1.5s infinite;
-    `;
-    
-    // Add style for animation
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes pulse {
-            0%, 100% { transform: translate(-50%, -50%) scale(1); }
-            50% { transform: translate(-50%, -50%) scale(1.1); }
-        }
-    `;
-    document.head.appendChild(style);
-    
-    // Only show if not already in fullscreen
-    if (!document.fullscreenElement && 
-        !document.webkitFullscreenElement && 
-        !document.mozFullScreenElement && 
-        !document.msFullscreenElement) {
-        document.body.appendChild(fullscreenButton);
-    }
-    
-    // Use this button for explicit user interaction
-    fullscreenButton.addEventListener('click', function() {
-        requestFullscreenMode();
-        this.remove(); // Remove the button after click
-        
-        // Also try orientation lock after user gesture
-        try {
-            if (screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('portrait')
-                    .catch(err => console.log('Orientation lock failed after user gesture:', err));
-            }
-        } catch (err) {
-            console.log('Orientation API not supported:', err);
-        }
-    });
-    
-    // Attach to all interactive elements
-    const allInteractiveElements = document.querySelectorAll('button, a, input, .main-button, .start-button');
-    allInteractiveElements.forEach(element => {
-        const originalClick = element.onclick;
-        element.onclick = function(e) {
-            requestFullscreenMode();
-            if (originalClick) originalClick.call(this, e);
-        };
-    });
 }
 
 function generateQRCode(otp) {
@@ -17707,19 +17562,14 @@ function loadAccessibilitySettings() {
             body.className = settings.classNames;
         }
         
+        // Apply font size
+        if (settings.fontSize) {
+            body.style.fontSize = settings.fontSize;
+        }
+        
         // Apply font scale
         if (settings.fontScale) {
-            const scale = parseFloat(settings.fontScale);
-            body.style.setProperty('--font-scale', scale);
-            body.classList.add('accessibility-font-scaled');
-            
-            // Apply to body directly as well
-            body.style.fontSize = `calc(1rem * ${scale})`;
-            
-            // Apply to common text elements
-            setTimeout(() => {
-                applyAccessibilitySetting('fontSize', 'custom', scale);
-            }, 100);
+            body.style.setProperty('--font-scale', settings.fontScale);
         }
         
         // Mark active buttons
