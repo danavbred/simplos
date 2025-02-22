@@ -10010,14 +10010,14 @@ async function handleAnswer(isCorrect, fromPerk = false) {
        
         // Use setTimeout for consistent timing and to prevent rapid subsequent calls
         setTimeout(() => {
-            if (currentGame.currentIndex < currentGame.words.length) {
-                startTimer(currentGame.words.length - currentGame.currentIndex);
-                loadNextQuestion();
-                updatePerkButtons();
-            } else {
-                handleLevelCompletion();
-            }
-        }, 333);
+        if (currentGame.currentIndex < currentGame.words.length) {
+            startTimer(currentGame.words.length - currentGame.currentIndex);
+            loadNextQuestion();
+            updatePerkButtons();
+        } else {
+            handleLevelCompletion(); // This now routes to handleCustomLevelCompletion if needed
+        }
+    }, 333);
 
     } catch (error) {
         console.error('Unexpected error in handleAnswer:', error);
@@ -10243,6 +10243,13 @@ function startCustomListPractice(listId) {
 
 function handleLevelCompletion() {
     clearTimer();
+    
+    // CHECK IF THIS IS A CUSTOM PRACTICE SESSION
+    if (currentGame.isCustomPractice) {
+        handleCustomLevelCompletion();
+        return;
+    }
+    
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     console.log(`Completing level: ${levelKey}`);
 
@@ -11681,7 +11688,7 @@ function startCustomLevel(levelId) {
         isHebrewToEnglish: levelData.isTest ? Math.random() < 0.5 : false,
         mixed: levelData.isTest,
         speedChallenge: false,
-        isCustomPractice: true,
+        isCustomPractice: true,  // Critical flag for routing logic
         startingCoins: gameState.coins,
         startingPerks: { ...gameState.perks },
         timeBonus: 0,
@@ -12536,67 +12543,189 @@ function showUnregisteredWarning(callback) {
     // Mark that the warning has been shown
     window.unregisteredWarningShown = true;
 
-    const prompt = document.createElement('div');
-    prompt.className = 'upgrade-prompt';
-    prompt.innerHTML = `
-        <div class="upgrade-prompt-content">
-            <h2>Save Your Progress!</h2>
-            <p>Create a free account to save your progress and unlock more content!</p>
-            <div class="upgrade-prompt-buttons">
-                <button class="start-button signup-now">Sign Up</button>
-                <button class="start-button secondary">Continue Playing</button>
+    // Create full-screen signup page
+    const fullscreenPrompt = document.createElement('div');
+    fullscreenPrompt.className = 'fullscreen-signup-page';
+    fullscreenPrompt.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: var(--gradient);
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 2rem;
+        animation: fadeIn 0.3s ease-in-out;
+    `;
+
+    // Create content container
+    fullscreenPrompt.innerHTML = `
+        <div class="signup-header" style="width: 100%; display: flex; justify-content: flex-start; margin-bottom: 2rem;">
+            <button class="skip-signup-button" style="
+                background: rgba(255,255,255,0.15);
+                border: none;
+                color: var(--text);
+                padding: 0.75rem 1.5rem;
+                border-radius: 50px;
+                font-size: 0.9rem;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            ">
+                Skip
+            </button>
+        </div>
+        
+        <div class="signup-content" style="
+            text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            max-width: 600px;
+            width: 100%;
+        ">
+            <h2 style="
+                font-size: 2rem;
+                color: var(--gold);
+                margin-bottom: 1.5rem;
+                animation: floatAnimation 3s ease-in-out infinite;
+            ">Save Your Progress!</h2>
+            
+            <p style="
+                font-size: 1.2rem;
+                line-height: 1.6;
+                margin-bottom: 2rem;
+                color: var(--text);
+            ">Create a free account to track your vocabulary progress, earn rewards, and unlock more advanced content</p>
+            
+            <div class="features-list" style="
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+                margin-bottom: 3rem;
+                text-align: left;
+            ">
+                <div class="feature-item" style="
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                ">
+                    <i class="fas fa-check-circle" style="color: var(--gold); font-size: 1.5rem;"></i>
+                    <span>Track your learning progress</span>
+                </div>
+                <div class="feature-item" style="
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                ">
+                    <i class="fas fa-check-circle" style="color: var(--gold); font-size: 1.5rem;"></i>
+                    <span>Practice custom word lists</span>
+                </div>
+                <div class="feature-item" style="
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                ">
+                    <i class="fas fa-check-circle" style="color: var(--gold); font-size: 1.5rem;"></i>
+                    <span>Earn coins for premium content</span>
+                </div>
             </div>
+        </div>
+        
+        <div class="signup-footer" style="
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            padding-bottom: 2rem;
+        ">
+            <button class="signup-now-button" style="
+                background: var(--gold);
+                color: var(--primary-dark);
+                border: none;
+                padding: 1.25rem 3rem;
+                border-radius: 50px;
+                font-size: 1.2rem;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                box-shadow: 0 10px 20px rgba(255, 215, 0, 0.2);
+                animation: pulseAnimation 1.5s infinite ease-in-out;
+            ">
+                Sign Up Now
+            </button>
         </div>
     `;
 
-    document.body.appendChild(prompt);
+    // Add to body
+    document.body.appendChild(fullscreenPrompt);
     
-    // Use requestAnimationFrame to ensure smooth animation
-    requestAnimationFrame(() => {
-        prompt.classList.add('show');
-    });
-
-    function hidePrompt(continueCallback) {
-        prompt.classList.remove('show');
-        setTimeout(() => {
-            document.body.removeChild(prompt);
-            if (continueCallback) continueCallback();
-        }, 300);
-    }
-
-    prompt.querySelector('.signup-now').onclick = () => {
-    hidePrompt(() => {
-        // First make sure we're on welcome screen
-        showScreen('welcome-screen');
+    // Add animations CSS
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
         
-        // Then show auth modal
-        const authModal = document.getElementById('authModal');
-        if (authModal) {
-            authModal.classList.add('show');
-            
-            // Switch to signup form
-            const signupForm = document.getElementById('signupForm');
-            const loginForm = document.getElementById('loginForm');
-            if (signupForm && loginForm) {
-                signupForm.classList.remove('hidden');
-                loginForm.classList.add('hidden');
-            }
-            
-            // Add highlight animation
-            const authContainer = document.querySelector('.auth-container');
-            if (authContainer) {
-                authContainer.classList.add('highlight');
-                setTimeout(() => {
-                    authContainer.classList.remove('highlight');
-                }, 5000);
-            }
+        @keyframes floatAnimation {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        @keyframes pulseAnimation {
+            0%, 100% { transform: scale(1); box-shadow: 0 10px 20px rgba(255, 215, 0, 0.2); }
+            50% { transform: scale(1.05); box-shadow: 0 10px 30px rgba(255, 215, 0, 0.4); }
+        }
+    `;
+    document.head.appendChild(styleElement);
+
+    // Add event listeners
+    const skipButton = fullscreenPrompt.querySelector('.skip-signup-button');
+    const signupButton = fullscreenPrompt.querySelector('.signup-now-button');
+    
+    skipButton.addEventListener('click', function() {
+        // Remove the prompt
+        document.body.removeChild(fullscreenPrompt);
+        if (styleElement.parentNode) {
+            styleElement.parentNode.removeChild(styleElement);
+        }
+        
+        // Execute callback to continue game
+        if (callback) {
+            callback();
         }
     });
-};
-
-    prompt.querySelector('.secondary').onclick = () => {
-        hidePrompt(callback);
-    };
+    
+    signupButton.addEventListener('click', function() {
+        // Remove the prompt
+        document.body.removeChild(fullscreenPrompt);
+        if (styleElement.parentNode) {
+            styleElement.parentNode.removeChild(styleElement);
+        }
+        
+        // First, make sure we're on welcome screen since auth modal works best there
+        showScreen('welcome-screen');
+        
+        // Show the auth modal with signup form
+        setTimeout(function() {
+            const authModal = document.getElementById('authModal');
+            if (authModal) {
+                authModal.classList.add('show');
+                
+                // Switch to signup form
+                const signupForm = document.getElementById('signupForm');
+                const loginForm = document.getElementById('loginForm');
+                if (signupForm && loginForm) {
+                    signupForm.classList.remove('hidden');
+                    loginForm.classList.add('hidden');
+                }
+            }
+        }, 100); // Short delay to ensure welcome screen is visible first
+    });
 }
 
 function handleCustomPracticeCompletion() {
@@ -17601,7 +17730,8 @@ function closePersonalVictory() {
     }
 }
 
-async function startCustomListPractice(listId) {
+// UPDATE this function
+function startCustomListPractice(listId) {
     // Find the list
     const list = CustomListsManager.lists.find(l => l.id === listId);
     if (!list) {
@@ -17634,29 +17764,34 @@ function handleCustomLevelCompletion() {
     clearTimer();
 
     if (completedPerfectly) {
-        // Add level to completed levels
-        customGameState.completedLevels.add(customGameState.currentLevel);
-        
         // Award bonus coins
         const bonusCoins = currentGame.firstAttempt ? 5 : 3;
-        gameState.coins += bonusCoins;
-        pulseCoins(bonusCoins);
-        updateAllCoinDisplays();
-        
-        // Update custom game state
-        customGameState.wordsCompleted += currentGame.words.length;
-        
-        // Determine next level
-        const nextLevel = customGameState.currentLevel + 1;
-        
-        // Check if this was the final level
-        if (currentGame.isFinalLevel) {
-            // Completed all levels
-            showCustomCompletionScreen();
-        } else {
-            // Continue to next level after delay
-            setTimeout(() => startCustomLevel(nextLevel), 1500);
-        }
+        CoinsManager.updateCoins(bonusCoins).then(() => {
+            pulseCoins(bonusCoins);
+            
+            // Update custom game state
+            customGameState.wordsCompleted += currentGame.words.length;
+            customGameState.completedLevels.add(customGameState.currentLevel);
+            
+            // Determine next level
+            const nextLevel = customGameState.currentLevel + 1;
+            
+            // Show particles for perfect completion
+            const questionScreen = document.getElementById('question-screen');
+            const rect = questionScreen.getBoundingClientRect();
+            createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
+            
+            // Check if this was the final level or if there are more words
+            const nextLevelData = customGameState.getWordsForLevel(nextLevel);
+            
+            if (!nextLevelData || nextLevelData.words.length === 0 || currentGame.isFinalLevel) {
+                // Completed all levels
+                setTimeout(() => showCustomCompletionScreen(), 1500);
+            } else {
+                // Continue to next level after delay
+                setTimeout(() => startCustomLevel(nextLevel), 1500);
+            }
+        });
     } else {
         // Retry level
         setTimeout(() => startCustomLevel(customGameState.currentLevel), 1500);
