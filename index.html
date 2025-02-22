@@ -6398,7 +6398,12 @@ body.dark-theme {
             <a href="#" class="nav-link" onclick="showPricesScreen(); return false;">
                 <i class="fas fa-dollar-sign"></i> Prices
             </a>
-            <a href="about.html" class="nav-link" target="_blank"><i class="fas fa-info-circle"></i> About </a>
+            <a href="#" class="nav-link" onclick="showRightsAndPolicies(); return false;">
+                <i class="fas fa-balance-scale"></i> Rights & Policies
+            </a>
+            <a href="#" class="nav-link" onclick="showAboutPage(); return false;">
+                <i class="fas fa-info-circle"></i> About
+            </a>
             <a href="#" class="nav-link" onclick="showContactUs(); return false;">
                 <i class="fas fa-envelope"></i> Contact Us
             </a>
@@ -17810,33 +17815,44 @@ const CustomListsManager = {
     },
     
     saveToLocalStorage(list) {
-        try {
-            // For new lists or lists with tempId
-            const newList = {
-                ...list,
-                id: list.id || Date.now(),
-                tempId: list.tempId || Date.now()
-            };
-            
-            // Find if list already exists
-            const index = this.lists.findIndex(l => 
-                l.id === list.id || 
-                (l.tempId && l.tempId === list.tempId));
-                
-            if (index !== -1) {
-                this.lists[index] = newList;
-            } else {
-                this.lists.push(newList);
-            }
-            
-            // Save all lists
-            localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
-            return newList;
-        } catch (error) {
-            console.error('Error saving list to localStorage:', error);
+    try {
+        // Check if list exists
+        if (!list) {
+            console.error("Cannot save undefined or null list");
             return null;
         }
-    },
+        
+        // For new lists or lists with tempId
+        const newList = {
+            ...list,
+            id: list.id || Date.now(),
+            tempId: list.tempId || Date.now()
+        };
+        
+        // Initialize lists array if it doesn't exist
+        if (!this.lists || !Array.isArray(this.lists)) {
+            this.lists = [];
+        }
+        
+        // Find if list already exists
+        const index = this.lists.findIndex(l => 
+            (l && l.id && newList.id && l.id === newList.id) || 
+            (l && l.tempId && newList.tempId && l.tempId === newList.tempId));
+            
+        if (index !== -1) {
+            this.lists[index] = newList;
+        } else {
+            this.lists.push(newList);
+        }
+        
+        // Save all lists
+        localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
+        return newList;
+    } catch (error) {
+        console.error('Error saving list to localStorage:', error);
+        return null;
+    }
+},
     
     async delete(listId) {
         if (currentUser) {
