@@ -1,551 +1,427 @@
 ----------------------------------------------------------------------------------------
--- 🚀 CORE EXTENSIONS
+-- 🔧 INITIALIZATION AND EXTENSIONS
 ----------------------------------------------------------------------------------------
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 ----------------------------------------------------------------------------------------
--- 🏫 BASE TABLES - SCHOOLS AND CLASSES
+-- 👤 CORE USER SYSTEM & SECURITY LOGGING
 ----------------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS schools (
+-- Signup attempts logging
+CREATE TABLE IF NOT EXISTS public.signup_attempts_log (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    name text NOT NULL,
-    subscription_status text DEFAULT 'trial' CHECK (subscription_status IN ('trial', 'active', 'expired')),
-    max_teachers integer DEFAULT 5,
-    max_students integer DEFAULT 100,
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+    email text NOT NULL,
+    ip_address text,
+    user_agent text,
+    attempted_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    success boolean DEFAULT false,
+    error_message text,
+    user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+    metadata jsonb DEFAULT '{}'
 );
 
-CREATE TABLE IF NOT EXISTS school_classes (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    school_id uuid REFERENCES schools(id),
-    teacher_id uuid REFERENCES auth.users(id),
-    name text NOT NULL,
-    grade_level integer CHECK (grade_level BETWEEN 1 AND 12),
-    invite_code text UNIQUE,
-    max_students integer DEFAULT 30,
-    status text DEFAULT 'active' CHECK (status IN ('active', 'archived', 'pending')),
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
-);
-
-CREATE TABLE IF NOT EXISTS class_enrollments (
-    class_id uuid REFERENCES school_classes(id) ON DELETE CASCADE,
-    student_id uuid REFERENCES auth.users(id),
-    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    PRIMARY KEY (class_id, student_id)
-);
-
-----------------------------------------------------------------------------------------
--- 👤 USER PROFILES AND STATS
-----------------------------------------------------------------------------------------
+-- User Profiles Table
 CREATE TABLE IF NOT EXISTS user_profiles (
-    id uuid PRIMARY KEY REFERENCES auth.users,
-    username text UNIQUE,
-    email text,
-    role text CHECK (role IN ('student', 'teacher', 'admin')) DEFAULT 'student',
-    status text DEFAULT 'free' CHECK (status IN ('free', 'pending', 'premium')),
-    payment_pending boolean DEFAULT false,
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+   username text UNIQUE NOT NULL,
+   email text NOT NULL,
+   role text CHECK (role IN ('student', 'teacher', 'admin')) DEFAULT 'student',
+   status text CHECK (status IN ('free', 'pending', 'premium')) DEFAULT 'free',
+   payment_pending boolean DEFAULT false,
+   metadata jsonb DEFAULT '{}',
+   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
 
 CREATE TABLE IF NOT EXISTS player_stats (
-    user_id uuid REFERENCES auth.users PRIMARY KEY,
-    total_levels_completed integer DEFAULT 0,
-    unique_words_practiced INTEGER DEFAULT 0,
-    last_updated timestamp with time zone DEFAULT timezone('utc'::text, now())
+   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
+   total_levels_completed integer DEFAULT 0,
+   unique_words_practiced integer DEFAULT 0,
+   last_played_at timestamp with time zone,
+   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+   last_updated timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
 
 ----------------------------------------------------------------------------------------
 -- 🎮 GAME PROGRESS
 ----------------------------------------------------------------------------------------
-DROP TRIGGER IF EXISTS update_game_progress_updated_at ON game_progress;
-DROP TRIGGER IF EXISTS on_auth_user_created_progress ON auth.users;
-DROP TRIGGER IF EXISTS sync_game_state ON game_progress;
-DROP FUNCTION IF EXISTS update_game_state() CASCADE;
-DROP FUNCTION IF EXISTS init_game_progress() CASCADE;
-DROP TABLE IF EXISTS game_progress CASCADE;
+CREATE TABLE IF NOT EXISTS game_progress (
+   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+   user_id uuid REFERENCES auth.users ON DELETE CASCADE UNIQUE,
+   stage integer NOT NULL DEFAULT 1,
+   set_number integer NOT NULL DEFAULT 1,
+   level integer NOT NULL DEFAULT 1,
+   coins integer NOT NULL DEFAULT 0,
+   total_coins integer DEFAULT 0,
+   mode_coins jsonb DEFAULT '{\"story\": 0, \"custom\": 0, \"arcade\": 0}',
+   perks jsonb NOT NULL DEFAULT '{}',
+   unlocked_sets jsonb NOT NULL DEFAULT '{\"1\": [1]}',
+   unlocked_levels jsonb NOT NULL DEFAULT '{\"1_1\": [1]}',
+   perfect_levels jsonb NOT NULL DEFAULT '[]',
+   completed_levels jsonb NOT NULL DEFAULT '[]',
+   current_progress jsonb DEFAULT '{}',
+   current_stats jsonb DEFAULT '{\"correct\": 0, \"wrong\": 0, \"streak\": 0}',
+   session_data jsonb DEFAULT '{}',
+   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
 
-CREATE TABLE game_progress (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES auth.users NOT NULL,
-    "userId" uuid GENERATED ALWAYS AS (user_id) STORED,
-    
-    -- Basic game state
-    stage integer NOT NULL DEFAULT 1,
-    set_number integer NOT NULL DEFAULT 1,
-    "setNumber" integer GENERATED ALWAYS AS (set_number) STORED,
-    level integer NOT NULL DEFAULT 1,
-    
-    -- Currency and rewards
-    coins integer NOT NULL DEFAULT 0,
-    "totalCoins" integer DEFAULT 0,
-    total_coins integer GENERATED ALWAYS AS ("totalCoins") STORED,
-    "modeCoins" jsonb DEFAULT '{"story": 0, "custom": 0, "arcade": 0}',
-    mode_coins jsonb GENERATED ALWAYS AS ("modeCoins") STORED,
-    
-    -- Game progress tracking
-    perks jsonb NOT NULL DEFAULT '{}',
-    "unlockedSets" jsonb NOT NULL DEFAULT '{}',
-    unlocked_sets jsonb GENERATED ALWAYS AS ("unlockedSets") STORED,
-    "unlockedLevels" jsonb NOT NULL DEFAULT '{}',
-    unlocked_levels jsonb GENERATED ALWAYS AS ("unlockedLevels") STORED,
-    "perfectLevels" jsonb NOT NULL DEFAULT '[]',
-    perfect_levels jsonb GENERATED ALWAYS AS ("perfectLevels") STORED,
-    "completedLevels" jsonb NOT NULL DEFAULT '[]',
-    completed_levels jsonb GENERATED ALWAYS AS ("completedLevels") STORED,
-    
-    -- Current state tracking
-    "currentStage" jsonb DEFAULT '{"stage": 1}'::jsonb,
-    current_stage jsonb GENERATED ALWAYS AS ("currentStage") STORED,
-    "currentSet" jsonb DEFAULT '{"stage": 1, "set": 1}'::jsonb,
-    current_set jsonb GENERATED ALWAYS AS ("currentSet") STORED,
-    "currentLevel" jsonb DEFAULT '{"stage": 1, "set": 1, "level": 1}'::jsonb,
-    current_level jsonb GENERATED ALWAYS AS ("currentLevel") STORED,
-    
-    -- Additional tracking
-    "currentProgress" jsonb DEFAULT '{}'::jsonb,
-    current_progress jsonb GENERATED ALWAYS AS ("currentProgress") STORED,
-    "currentStats" jsonb DEFAULT '{"correct": 0, "wrong": 0, "streak": 0}'::jsonb,
-    current_stats jsonb GENERATED ALWAYS AS ("currentStats") STORED,
-    "sessionData" jsonb DEFAULT '{}'::jsonb,
-    session_data jsonb GENERATED ALWAYS AS ("sessionData") STORED,
-    
-    -- Timestamps
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    "createdAt" timestamp with time zone GENERATED ALWAYS AS (created_at) STORED,
-    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    "updatedAt" timestamp with time zone GENERATED ALWAYS AS (updated_at) STORED
+----------------------------------------------------------------------------------------
+-- 🏫 SCHOOLS AND CLASSES
+----------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS schools (
+   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+   name text NOT NULL,
+   subscription_status text DEFAULT 'trial' CHECK (subscription_status IN ('trial', 'active', 'expired')),
+   max_teachers integer DEFAULT 5,
+   max_students integer DEFAULT 100,
+   created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS school_classes (
+   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+   school_id uuid REFERENCES schools(id) ON DELETE CASCADE,
+   teacher_id uuid REFERENCES auth.users(id),
+   name text NOT NULL,
+   grade_level integer CHECK (grade_level BETWEEN 1 AND 12),
+   invite_code text UNIQUE,
+   max_students integer DEFAULT 30,
+   status text DEFAULT 'active' CHECK (status IN ('active', 'archived', 'pending')),
+   created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+CREATE TABLE IF NOT EXISTS class_enrollments (
+   class_id uuid REFERENCES school_classes(id) ON DELETE CASCADE,
+   student_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+   joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+   PRIMARY KEY (class_id, student_id)
 );
 
 ----------------------------------------------------------------------------------------
 -- 📝 CUSTOM LISTS
 ----------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS custom_lists (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES auth.users NOT NULL,
-    name TEXT NOT NULL,
-    words TEXT[] NOT NULL,
-    translations TEXT[] NOT NULL,
-    is_shared BOOLEAN DEFAULT FALSE,
-    shared_by UUID REFERENCES auth.users,
-    shared_with UUID[],
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    last_practiced_at TIMESTAMP,
-    practice_count INTEGER DEFAULT 0,
-    status TEXT CHECK (status IN ('active', 'archived')) DEFAULT 'active',
-    min_words integer DEFAULT 6,
-    max_levels integer GENERATED ALWAYS AS (
-        CASE 
-            WHEN array_length(words, 1) >= 6 THEN 
-                CASE 
-                    WHEN array_length(words, 1) >= 12 THEN 5
-                    WHEN array_length(words, 1) >= 9 THEN 4
-                    ELSE 3
-                END
-            ELSE 0
-        END
-    ) STORED
+   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+   name TEXT NOT NULL,
+   words TEXT[] NOT NULL,
+   translations TEXT[] NOT NULL,
+   is_shared BOOLEAN DEFAULT FALSE,
+   shared_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+   shared_with UUID[],
+   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+   last_practiced_at TIMESTAMP WITH TIME ZONE,
+   practice_count INTEGER DEFAULT 0,
+   status TEXT CHECK (status IN ('active', 'archived')) DEFAULT 'active',
+   min_words integer DEFAULT 6,
+   max_levels integer GENERATED ALWAYS AS (
+       CASE 
+           WHEN array_length(words, 1) >= 6 THEN 
+               CASE 
+                   WHEN array_length(words, 1) >= 12 THEN 5
+                   WHEN array_length(words, 1) >= 9 THEN 4
+                   ELSE 3
+               END
+           ELSE 0
+       END
+   ) STORED
 );
 
 ----------------------------------------------------------------------------------------
 -- 🎮 ARCADE SYSTEM
 ----------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS arcade_events (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    teacher_id uuid REFERENCES auth.users(id),
-    moderator_id uuid REFERENCES auth.users(id),
-    otp text NOT NULL,
-    status text DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'completed', 'cancelled')),
-    word_goal integer,
-    stage_settings jsonb DEFAULT '{}',
-    game_state jsonb DEFAULT '{}',
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    ended_at timestamp with time zone
+   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+   teacher_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+   moderator_id uuid REFERENCES auth.users(id),
+   otp text NOT NULL,
+   status text DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'completed', 'cancelled')),
+   word_goal integer,
+   stage_settings jsonb DEFAULT '{}',
+   game_state jsonb DEFAULT '{}',
+   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+   ended_at timestamp with time zone
 );
 
 CREATE TABLE IF NOT EXISTS arcade_participants (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    event_id uuid REFERENCES arcade_events(id),
-    user_id uuid REFERENCES auth.users(id),
-    username text,
-    words integer DEFAULT 0,
-    coins integer DEFAULT 0,
-    status text DEFAULT 'waiting',
-    rank integer,
-    joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    UNIQUE(event_id, user_id)
+   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+   event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
+   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+   username text,
+   words integer DEFAULT 0,
+   coins integer DEFAULT 0,
+   status text DEFAULT 'waiting',
+   rank integer,
+   joined_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+   UNIQUE(event_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS arcade_completions (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES auth.users(id),
-    event_id uuid REFERENCES arcade_events(id),
-    words_completed integer NOT NULL,
-    coins_earned integer NOT NULL,
-    completion_time integer,
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+   event_id uuid REFERENCES arcade_events(id) ON DELETE CASCADE,
+   words_completed integer NOT NULL,
+   coins_earned integer NOT NULL,
+   completion_time integer,
+   created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
 
 ----------------------------------------------------------------------------------------
--- 📊 WORD PRACTICE HISTORY
+-- 📊 PRACTICE HISTORY
 ----------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS word_practice_history (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES auth.users NOT NULL,
-    word text NOT NULL,
-    practice_count integer DEFAULT 1,
-    game_mode text CHECK (game_mode IN ('story', 'custom', 'arcade')),
-    last_practiced_at timestamp with time zone DEFAULT NOW(),
-    coins_earned integer DEFAULT 0,
-    created_at timestamp with time zone DEFAULT NOW()
+   id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+   word text NOT NULL,
+   practice_count integer DEFAULT 1,
+   game_mode text CHECK (game_mode IN ('story', 'custom', 'arcade')),
+   last_practiced_at timestamp with time zone DEFAULT NOW(),
+   coins_earned integer DEFAULT 0,
+   created_at timestamp with time zone DEFAULT NOW()
 );
 
 ----------------------------------------------------------------------------------------
--- 🔄 FUNCTIONS AND TRIGGERS
+-- 🔄 FUNCTIONS
 ----------------------------------------------------------------------------------------
--- Handle new user creation
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.generate_unique_username(base_username text, user_email text)
+RETURNS text AS $$
+DECLARE
+   safe_username text;
+   counter integer := 0;
 BEGIN
-    INSERT INTO public.user_profiles (
-        id,
-        username,
-        email,
-        role,
-        status
-    ) VALUES (
-        NEW.id,
-        COALESCE(
-            NEW.raw_user_meta_data->>'username', 
-            split_part(NEW.email, '@', 1)
-        ),
-        NEW.email,
-        'student',
-        'free'
-    );
-    RETURN NEW;
-EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Error in handle_new_user: %', SQLERRM;
-    RETURN NEW;
+   -- Sanitize username
+   safe_username := LOWER(REGEXP_REPLACE(
+       COALESCE(base_username, split_part(user_email, '@', 1)), 
+       '[^a-z0-9_]', '', 'g'
+   ));
+
+   -- Truncate to 30 characters
+   safe_username := SUBSTRING(safe_username FROM 1 FOR 30);
+
+   -- Ensure minimum length
+   IF LENGTH(safe_username) < 3 THEN
+      safe_username := safe_username || '_' || 
+         LOWER(SUBSTRING(MD5(user_email || NOW()::text) FROM 1 FOR 5));
+   END IF;
+
+   -- Unique username generation loop
+   WHILE EXISTS (SELECT 1 FROM public.user_profiles WHERE username = safe_username) LOOP
+      counter := counter + 1;
+      safe_username := SUBSTRING(safe_username FROM 1 FOR 25) || '_' || counter;
+      
+      -- Prevent infinite loop
+      IF counter > 100 THEN
+         RAISE EXCEPTION 'Cannot generate unique username';
+      END IF;
+   END LOOP;
+
+   RETURN safe_username;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Initialize player stats
-CREATE OR REPLACE FUNCTION init_player_stats()
+CREATE OR REPLACE FUNCTION public.create_new_user_profile()
 RETURNS TRIGGER AS $$
+DECLARE
+   safe_username text;
 BEGIN
-    INSERT INTO player_stats (user_id, total_levels_completed, unique_words_practiced)
-    VALUES (NEW.id, 0, 0)
-    ON CONFLICT (user_id) DO NOTHING;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+   -- Generate unique username
+   safe_username := public.generate_unique_username(
+       NEW.raw_user_meta_data->>'username', 
+       NEW.email
+   );
+   
+   -- Create user profile with robust error handling
+   BEGIN
+      INSERT INTO public.user_profiles (
+         id,
+         username,
+         email,
+         role,
+         status,
+         metadata
+      ) VALUES (
+         NEW.id,
+         safe_username,
+         NEW.email,
+         'student',
+         'free',
+         jsonb_build_object(
+            'signup_date', CURRENT_TIMESTAMP,
+            'email_confirmed', false,
+            'original_email', NEW.email,
+            'original_username', NEW.raw_user_meta_data->>'username'
+         )
+      );
 
--- Game Progress Functions
-CREATE OR REPLACE FUNCTION update_game_state()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Update all current state tracking
-    NEW."currentStage" = jsonb_build_object(
-        'stage', NEW.stage
-    );
-    
-    NEW."currentSet" = jsonb_build_object(
-        'stage', NEW.stage,
-        'set', NEW.set_number
-    );
-    
-    NEW."currentLevel" = jsonb_build_object(
-        'stage', NEW.stage,
-        'set', NEW.set_number,
-        'level', NEW.level
-    );
-    
-    -- Update sessionData
-    NEW."sessionData" = jsonb_build_object(
-        'lastUpdated', extract(epoch from now()),
-        'currentStage', NEW."currentStage",
-        'currentSet', NEW."currentSet",
-        'currentLevel', NEW."currentLevel"
-    );
+      -- Create player stats
+      INSERT INTO public.player_stats (
+         user_id,
+         total_levels_completed,
+         unique_words_practiced
+      ) VALUES (
+         NEW.id,
+         0,
+         0
+      );
 
-    -- Ensure defaults exist
-    IF NEW."currentProgress" IS NULL THEN
-        NEW."currentProgress" = '{}'::jsonb;
-    END IF;
+      -- Create initial game progress
+      INSERT INTO public.game_progress (
+         user_id,
+         stage,
+         set_number,
+         level
+      ) VALUES (
+         NEW.id,
+         1,
+         1,
+         1
+      );
 
-    IF NEW."currentStats" IS NULL THEN
-        NEW."currentStats" = '{"correct": 0, "wrong": 0, "streak": 0}'::jsonb;
-    END IF;
-
-    -- Update timestamp
-    NEW.updated_at = timezone('utc'::text, now());
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Initialize game progress
-CREATE OR REPLACE FUNCTION init_game_progress()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO game_progress (
-        user_id,
-        stage,
-        set_number,
-        level,
-        "completedLevels",
-        "unlockedSets",
-        "unlockedLevels",
-        "perfectLevels"
-    )
-    VALUES (
-        NEW.id,
-        1,
-        1,
-        1,
-        '[]',
-        '{}',
-        '{}',
-        '[]'
-    )
-    ON CONFLICT (user_id) DO NOTHING;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Update arcade statistics
-CREATE OR REPLACE FUNCTION update_arcade_statistics()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Update player_stats
-    UPDATE player_stats 
-    SET 
-        unique_words_practiced = unique_words_practiced + NEW.words_completed,
-        last_updated = timezone('utc'::text, now())
-    WHERE user_id = NEW.user_id;
-    
-    -- Update game_progress
-    UPDATE game_progress 
-    SET 
-        coins = coins + NEW.coins_earned,
-        "modeCoins" = jsonb_set(
-            "modeCoins", 
-            '{arcade}', 
-            to_jsonb(COALESCE(("modeCoins"->>'arcade')::integer, 0) + NEW.coins_earned)
-        )
-    WHERE user_id = NEW.user_id;
-    
-    RETURN NEW;
+      RETURN NEW;
+   EXCEPTION 
+      WHEN unique_violation THEN
+         RAISE NOTICE 'Duplicate username or conflict: %', SQLERRM;
+         RETURN NULL;
+      WHEN OTHERS THEN
+         RAISE NOTICE 'Unexpected error in user creation: % %', SQLERRM, SQLSTATE;
+         RETURN NULL;
+   END;
+EXCEPTION 
+   WHEN OTHERS THEN
+      RAISE NOTICE 'Catastrophic error in user creation: % %', SQLERRM, SQLSTATE;
+      RETURN NULL;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ----------------------------------------------------------------------------------------
 -- 🔒 TRIGGERS
 ----------------------------------------------------------------------------------------
-CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_new_user();
-
-CREATE TRIGGER on_auth_user_created_stats
-    AFTER INSERT ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION init_player_stats();
-
-CREATE TRIGGER on_auth_user_created_progress
-    AFTER INSERT ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION init_game_progress();
-
-CREATE TRIGGER sync_game_state
-    BEFORE INSERT OR UPDATE ON game_progress
-    FOR EACH ROW
-    EXECUTE FUNCTION update_game_state();
-
-CREATE TRIGGER on_arcade_completion
-    AFTER INSERT ON arcade_completions
-    FOR EACH ROW
-    EXECUTE FUNCTION update_arcade_statistics();
+CREATE OR REPLACE TRIGGER on_auth_user_created
+   AFTER INSERT ON auth.users
+   FOR EACH ROW
+   EXECUTE FUNCTION public.create_new_user_profile();
 
 ----------------------------------------------------------------------------------------
 -- 📑 INDICES
 ----------------------------------------------------------------------------------------
-CREATE UNIQUE INDEX IF NOT EXISTS word_practice_user_word 
-    ON word_practice_history(user_id, word);
-CREATE UNIQUE INDEX IF NOT EXISTS unique_user_game_progress 
-    ON game_progress(user_id);
-CREATE INDEX IF NOT EXISTS idx_arcade_events_otp 
-    ON arcade_events(otp);
-CREATE INDEX IF NOT EXISTS idx_arcade_events_status 
-    ON arcade_events(status);
-CREATE INDEX IF NOT EXISTS idx_arcade_participants_event 
-    ON arcade_participants(event_id);
-CREATE INDEX IF NOT EXISTS idx_arcade_completions_user 
-    ON arcade_completions(user_id);
-CREATE INDEX IF NOT EXISTS idx_arcade_completions_event 
-    ON arcade_completions(event_id);
-CREATE INDEX IF NOT EXISTS idx_player_stats_user 
-    ON player_stats(user_id);
-CREATE INDEX IF NOT EXISTS idx_player_stats_levels 
-    ON player_stats(total_levels_completed DESC);
-
--- Game Progress Specific Indices
-CREATE INDEX idx_game_progress_user_id ON game_progress(user_id);
-CREATE INDEX idx_game_progress_userid ON game_progress("userId");
-CREATE INDEX idx_game_progress_coins ON game_progress(coins);
-CREATE INDEX idx_game_progress_total_coins ON game_progress("totalCoins");
-CREATE INDEX idx_game_progress_completed_levels ON game_progress("completedLevels");
-CREATE INDEX idx_game_progress_unlocked_sets ON game_progress("unlockedSets");
-CREATE INDEX idx_game_progress_unlocked_levels ON game_progress("unlockedLevels");
-CREATE INDEX idx_game_progress_perfect_levels ON game_progress("perfectLevels");
-CREATE INDEX idx_game_progress_current_level ON game_progress("currentLevel");
-CREATE INDEX idx_game_progress_current_stage ON game_progress("currentStage");
-CREATE INDEX idx_game_progress_current_set ON game_progress("currentSet");
-CREATE INDEX idx_game_progress_current_progress ON game_progress("currentProgress");
-CREATE INDEX idx_game_progress_current_stats ON game_progress("currentStats");
+CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_status ON user_profiles(status);
+CREATE INDEX IF NOT EXISTS idx_player_stats_user ON player_stats(user_id);
+CREATE INDEX IF NOT EXISTS idx_game_progress_user ON game_progress(user_id);
+CREATE INDEX IF NOT EXISTS idx_game_progress_stage ON game_progress(stage);
+CREATE INDEX IF NOT EXISTS idx_custom_lists_user ON custom_lists(user_id);
+CREATE INDEX IF NOT EXISTS idx_arcade_events_teacher ON arcade_events(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_arcade_events_status ON arcade_events(status);
+CREATE INDEX IF NOT EXISTS idx_arcade_participants_event ON arcade_participants(event_id);
+CREATE INDEX IF NOT EXISTS idx_word_practice_user ON word_practice_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_signup_attempts_email ON signup_attempts_log(email);
+CREATE INDEX IF NOT EXISTS idx_signup_attempts_ip ON signup_attempts_log(ip_address);
+CREATE INDEX IF NOT EXISTS idx_signup_attempts_user ON signup_attempts_log(user_id);
 
 ----------------------------------------------------------------------------------------
--- 🔐 ROW LEVEL SECURITY (RLS)
+-- 🔐 ROW LEVEL SECURITY
 ----------------------------------------------------------------------------------------
 -- Enable RLS on all tables
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE player_stats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE game_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
 ALTER TABLE school_classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE class_enrollments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE game_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE custom_lists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE arcade_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE arcade_completions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE word_practice_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE player_stats ENABLE ROW LEVEL SECURITY;
+ALTER TABLE signup_attempts_log ENABLE ROW LEVEL SECURITY;
 
--- Game Progress Policies
-CREATE POLICY "Users can view own game progress"
-    ON game_progress FOR SELECT
-    USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own game progress"
-    ON game_progress FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own game progress"
-    ON game_progress FOR UPDATE
-    USING (auth.uid() = user_id);
-
--- User Profile Policies
-CREATE POLICY "Users can view own profile"
-    ON user_profiles FOR SELECT
-    USING (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile"
-    ON user_profiles FOR UPDATE
-    USING (auth.uid() = id);
-
--- Custom Lists Policies
-CREATE POLICY "Users can view own and shared lists"
-    ON custom_lists FOR SELECT
+-- Signup Attempts Log Policies
+CREATE POLICY "Admins can view all signup attempts"
+    ON public.signup_attempts_log
+    FOR SELECT
     USING (
-        auth.uid() = user_id OR 
-        auth.uid() = ANY(shared_with) OR 
-        is_shared = true
+        (SELECT role FROM user_profiles WHERE id = auth.uid()) = 'admin'
     );
 
-CREATE POLICY "Users can create own lists"
-    ON custom_lists FOR INSERT
-    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can view their own signup attempts"
+    ON public.signup_attempts_log
+    FOR SELECT
+    USING (user_id = auth.uid());
 
-CREATE POLICY "Users can update own lists"
-    ON custom_lists FOR UPDATE
-    USING (auth.uid() = user_id);
+CREATE POLICY "Allow insert during signup"
+    ON public.signup_attempts_log
+    FOR INSERT
+    WITH CHECK (true);
 
-CREATE POLICY "Users can delete own lists"
-    ON custom_lists FOR DELETE
-    USING (auth.uid() = user_id);
+-- User Profiles
+CREATE POLICY "Public profiles are viewable by everyone" 
+   ON user_profiles FOR SELECT 
+   USING (true);
 
--- School Class Policies
-CREATE POLICY "Teachers can manage their classes"
-    ON school_classes FOR ALL
-    USING (auth.uid() = teacher_id);
+CREATE POLICY "Users can update own profile" 
+   ON user_profiles FOR UPDATE 
+   USING (auth.uid() = id);
 
-CREATE POLICY "Students can view their enrolled classes"
-    ON school_classes FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM class_enrollments 
-            WHERE class_enrollments.class_id = school_classes.id 
-            AND class_enrollments.student_id = auth.uid()
-        )
-    );
+-- Game Progress
+CREATE POLICY "Users can view own game progress" 
+   ON game_progress FOR SELECT 
+   USING (auth.uid() = user_id);
 
--- Class Enrollment Policies
-CREATE POLICY "Teachers can manage enrollments"
-    ON class_enrollments FOR ALL
-    USING (
-        EXISTS (
-            SELECT 1 FROM school_classes 
-            WHERE school_classes.id = class_enrollments.class_id 
-            AND school_classes.teacher_id = auth.uid()
-        )
-    );
+CREATE POLICY "Users can update own game progress" 
+   ON game_progress FOR UPDATE 
+   USING (auth.uid() = user_id);
 
-CREATE POLICY "Students can view own enrollments"
-    ON class_enrollments FOR SELECT
-    USING (auth.uid() = student_id);
+-- Custom Lists
+CREATE POLICY "Users can view own and shared lists" 
+   ON custom_lists FOR SELECT 
+   USING (
+       auth.uid() = user_id OR 
+       auth.uid() = ANY(shared_with) OR 
+       is_shared = true
+   );
 
--- Arcade Policies
-CREATE POLICY "Teachers can manage arcade events"
-    ON arcade_events FOR ALL
-    USING (auth.uid() = teacher_id OR auth.uid() = moderator_id);
+CREATE POLICY "Users can manage own lists" 
+   ON custom_lists FOR ALL 
+   USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can view active arcade events"
-    ON arcade_events FOR SELECT
-    USING (status IN ('waiting', 'active'));
+-- Arcade System
+CREATE POLICY "Anyone can view active arcade events" 
+   ON arcade_events FOR SELECT 
+   USING (status IN ('waiting', 'active'));
 
-CREATE POLICY "Users can join arcade events"
-    ON arcade_participants FOR INSERT
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM arcade_events 
-            WHERE arcade_events.id = event_id 
-            AND status IN ('waiting', 'active')
-        )
-    );
+CREATE POLICY "Teachers can manage arcade events" 
+   ON arcade_events FOR ALL 
+   USING (auth.uid() = teacher_id);
+
+CREATE POLICY "Players can join active events" 
+   ON arcade_participants FOR INSERT 
+   WITH CHECK (EXISTS (
+       SELECT 1 FROM arcade_events 
+       WHERE arcade_events.id = event_id 
+       AND status IN ('waiting', 'active')
+   ));
 
 ----------------------------------------------------------------------------------------
 -- 🔑 GRANTS
 ----------------------------------------------------------------------------------------
--- Grant access to authenticated users
-GRANT ALL ON game_progress TO authenticated;
-GRANT ALL ON custom_lists TO authenticated;
-GRANT ALL ON arcade_events TO authenticated;
-GRANT ALL ON arcade_participants TO authenticated;
-GRANT ALL ON arcade_completions TO authenticated;
-GRANT ALL ON word_practice_history TO authenticated;
-GRANT ALL ON player_stats TO authenticated;
-GRANT SELECT ON user_profiles TO authenticated;
-GRANT SELECT, UPDATE ON school_classes TO authenticated;
-GRANT ALL ON class_enrollments TO authenticated;
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT USAGE ON SCHEMA public TO anon;
 
-----------------------------------------------------------------------------------------
--- 🔄 INITIAL DATA
-----------------------------------------------------------------------------------------
--- Initialize existing user game progress if needed
-INSERT INTO game_progress (
-    user_id,
-    stage,
-    set_number,
-    level,
-    "completedLevels"
-)
-VALUES (
-    '9c2d1b65-9419-41f0-9133-8d77da3f92bc',
-    1,
-    1,
-    1,
-    '[]'
-)
-ON CONFLICT (user_id) 
-DO UPDATE SET
-    "completedLevels" = EXCLUDED."completedLevels",
-    updated_at = timezone('utc'::text, now());
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO anon;
+
+-- Specific grants for signup_attempts_log
+GRANT INSERT ON TABLE public.signup_attempts_log TO anon;
+GRANT SELECT ON TABLE public.signup_attempts_log TO authenticated;
+GRANT UPDATE ON TABLE public.signup_attempts_log TO authenticated;
+
+-- Grant execute on functions
+GRANT EXECUTE ON FUNCTION public.generate_unique_username TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_new_user_profile TO authenticated;
+
+-- Revoke sensitive operations from public
+REVOKE ALL ON TABLE public.signup_attempts_log FROM public;
