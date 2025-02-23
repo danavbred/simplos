@@ -8097,20 +8097,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+async function loadUserCoins() {
+    if (!currentUser) {
+        return parseInt(localStorage.getItem('simploxCustomCoins') || '0');
+    }
+
+    try {
+        const response = await supabaseClient
+            .from('game_progress')
+            .select('*')  // Changed from just 'coins'
+            .eq('user_id', currentUser.id)
+            .single();
+
+        if (response.error) throw response.error;
+        return response.data?.coins || 0;
+    } catch (err) {
+        console.error('Error loading coins:', err);
+        return 0;
+    }
+}
+
 async function loadUserGameProgress(userId) {
     try {
-        let progressData;
-        
-        // First try to get existing progress
-        const { data: existingData, error: fetchError } = await supabaseClient
+        let userData;
+        const { data, error } = await supabaseClient
             .from('game_progress')
             .select('*')
             .eq('user_id', userId)
             .single();
 
-        if (fetchError) {
-            // If no record exists, create initial progress
-            if (fetchError.code === 'PGRST116') {
+        if (error) {
+            if (error.code === 'PGRST116') {
+                // No record found, create initial game progress
                 const initialProgress = {
                     user_id: userId,
                     stage: 1,
@@ -8118,15 +8136,15 @@ async function loadUserGameProgress(userId) {
                     level: 1,
                     coins: 0,
                     perks: {},
-                    unlocked_sets: { "1": [1] },
-                    unlocked_levels: { "1_1": [1] },
+                    unlocked_sets: { '1': [1] },
+                    unlocked_levels: { '1_1': [1] },
                     perfect_levels: [],
                     completed_levels: []
                 };
 
                 const { data: newData, error: insertError } = await supabaseClient
                     .from('game_progress')
-                    .upsert([initialProgress])
+                    .insert([initialProgress])
                     .select()
                     .single();
 
@@ -8134,63 +8152,47 @@ async function loadUserGameProgress(userId) {
                     console.error('Error creating initial game progress:', insertError);
                     return;
                 }
-                progressData = newData;
+                userData = newData;
             } else {
-                console.error('Error loading game progress:', fetchError);
-                return;
+                throw error;
             }
         } else {
-            progressData = existingData;
+            userData = data;
         }
 
-        // Debug log the loaded data
-        console.log('Loaded game progress:', progressData);
+        // Update game state
+        if (userData) {
+            gameState.currentStage = userData.stage;
+            gameState.currentSet = userData.set_number;
+            gameState.currentLevel = userData.level || 1;
+            gameState.coins = userData.coins;
+            gameState.perks = userData.perks;
 
-        // Update game state with loaded/created progress
-        if (progressData) {
-            gameState.currentStage = progressData.stage;
-            gameState.currentSet = progressData.set_number;
-            gameState.currentLevel = progressData.level || 1;
-            gameState.coins = progressData.coins;
-            gameState.perks = progressData.perks;
-            
-            // Convert array to Set for unlocked sets
+            // Handle unlocked sets
             gameState.unlockedSets = {};
-            if (progressData.unlocked_sets) {
-                Object.entries(progressData.unlocked_sets).forEach(([stageId, sets]) => {
-                    gameState.unlockedSets[stageId] = new Set(sets);
+            if (userData.unlocked_sets) {
+                Object.entries(userData.unlocked_sets).forEach(([stage, sets]) => {
+                    gameState.unlockedSets[stage] = new Set(sets);
                 });
             }
-            
-            // Convert array to Set for unlocked levels
+
+            // Handle unlocked levels
             gameState.unlockedLevels = {};
-            if (progressData.unlocked_levels) {
-                Object.entries(progressData.unlocked_levels).forEach(([setKey, levels]) => {
-                    gameState.unlockedLevels[setKey] = new Set(levels);
+            if (userData.unlocked_levels) {
+                Object.entries(userData.unlocked_levels).forEach(([key, levels]) => {
+                    gameState.unlockedLevels[key] = new Set(levels);
                 });
             }
-            
-            // Convert arrays to Sets for completed and perfect levels
-            gameState.perfectLevels = new Set(progressData.perfect_levels || []);
-            gameState.completedLevels = new Set(progressData.completed_levels || []);
+
+            gameState.perfectLevels = new Set(userData.perfect_levels || []);
+            gameState.completedLevels = new Set(userData.completed_levels || []);
         }
 
-        // After loading progress, ensure default unlocks are in place
         setupDefaultUnlocks();
-        
-        // Log the final game state after loading
-        console.log('Game state after loading progress:', {
-            currentStage: gameState.currentStage,
-            currentSet: gameState.currentSet,
-            currentLevel: gameState.currentLevel,
-            unlockedSets: gameState.unlockedSets,
-            unlockedLevels: gameState.unlockedLevels
-        });
-
         updateAllCoinDisplays();
 
-    } catch (e) {
-        console.error('Unexpected error in loadUserGameProgress:', e);
+    } catch (err) {
+        console.error('Unexpected error in loadUserGameProgress:', err);
     }
 }
 
@@ -8962,100 +8964,89 @@ function animateCoinsChange(element, startValue, endValue) {
 }
 
 
-function updatePlayerProgress(payload) {
-    const existingPlayerIndex = currentArcadeSession.participants.findIndex(
-        p => p.username === payload.username
-    );
+function updatePlayerProgress(playerData) {
+    // Find player's index in participants array
+    const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === playerData.username);
     
-    // Store old positions and values for animation
-    const oldPositions = {};
-    const oldValues = {};
+    // Get current positions for animation reference
+    const currentPositions = {};
+    const currentStats = {};
     document.querySelectorAll('.leaderboard-entry').forEach(entry => {
         const username = entry.querySelector('[data-username]').dataset.username;
-        oldPositions[username] = entry.getBoundingClientRect();
+        currentPositions[username] = entry.getBoundingClientRect();
         
-        const wordsElement = entry.querySelector('[data-words]');
-        const coinsElement = entry.querySelector('[data-coins]');
-        
-        if (wordsElement) oldValues[username] = {
-            words: parseInt(wordsElement.textContent),
-            coins: parseInt(coinsElement.textContent)
-        };
-    });
-    
-    if (existingPlayerIndex !== -1) {
-        currentArcadeSession.participants[existingPlayerIndex] = {
-            ...currentArcadeSession.participants[existingPlayerIndex],
-            ...payload
-        };
-    } else {
-        currentArcadeSession.participants.push({
-            username: payload.username,
-            wordsCompleted: payload.wordsCompleted || 0,
-            coins: payload.coins || 0
-        });
-    }
-    
-    // Sort and create new entries
-    const sortedPlayers = [...currentArcadeSession.participants]
-        .sort((a, b) => {
-            if (b.wordsCompleted !== a.wordsCompleted) {
-                return b.wordsCompleted - a.wordsCompleted;
-            }
-            return b.coins - a.coins;
-        });
-    
-    const entries = sortedPlayers.map((player, index) => `
-        <div class="leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}"
-             data-rank="${index + 1}">
-            <div>${index + 1}</div>
-            <div data-username="${player.username}">${player.username}</div>
-            <div data-words="${player.wordsCompleted}">${player.wordsCompleted || 0}</div>
-            <div data-coins="${player.coins}">${player.coins || 0}</div>
-        </div>
-    `).join('');
-    
-    const leaderboard = document.getElementById('arcade-leaderboard');
-    leaderboard.innerHTML = leaderboard.querySelector('.leaderboard-header').outerHTML + entries;
-
-    // Apply animations
-    const newEntries = leaderboard.querySelectorAll('.leaderboard-entry');
-    newEntries.forEach(entry => {
-        const username = entry.querySelector('[data-username]').dataset.username;
-        if (oldPositions[username]) {
-            const oldPos = oldPositions[username];
-            const newPos = entry.getBoundingClientRect();
-            const diff = oldPos.top - newPos.top;
-            
-            if (diff > 0) {
-                entry.classList.add('moving-up');
-            } else if (diff < 0) {
-                entry.classList.add('moving-down');
-            }
-            
-            // Animate words and coins if values changed
-            if (oldValues[username]) {
-                const wordsElement = entry.querySelector('[data-words]');
-                const coinsElement = entry.querySelector('[data-coins]');
-                
-                animateCoinsChange(
-                    wordsElement, 
-                    oldValues[username].words, 
-                    parseInt(wordsElement.textContent)
-                );
-                
-                animateCoinsChange(
-                    coinsElement, 
-                    oldValues[username].coins, 
-                    parseInt(coinsElement.textContent)
-                );
-            }
-            
-            entry.addEventListener('animationend', () => {
-                entry.classList.remove('moving-up', 'moving-down');
-            }, { once: true });
+        const wordsEl = entry.querySelector('[data-words]');
+        const coinsEl = entry.querySelector('[data-coins]');
+        if (wordsEl && coinsEl) {
+            currentStats[username] = {
+                words: parseInt(wordsEl.textContent),
+                coins: parseInt(coinsEl.textContent)
+            };
         }
     });
+
+    // Update or add player data
+    if (playerIndex === -1) {
+        currentArcadeSession.participants.push({
+            username: playerData.username,
+            wordsCompleted: playerData.wordsCompleted || 0,
+            coins: playerData.coins || 0
+        });
+    } else {
+        currentArcadeSession.participants[playerIndex] = {
+            ...currentArcadeSession.participants[playerIndex],
+            ...playerData
+        };
+    }
+
+    // Sort and generate leaderboard HTML
+    const sortedParticipants = [...currentArcadeSession.participants].sort((a, b) => 
+        b.wordsCompleted !== a.wordsCompleted ? 
+        b.wordsCompleted - a.wordsCompleted : 
+        b.coins - a.coins
+    );
+
+    const leaderboardHTML = `
+        <div class="leaderboard-header">
+            <div>Rank</div>
+            <div>Player</div>
+            <div>Words</div>
+            <div>Coins</div>
+        </div>
+        ${sortedParticipants.map((player, index) => 
+            player.username ? `
+                <div class="leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}" data-rank="${index + 1}">
+                    <div>${index + 1}</div>
+                    <div data-username="${player.username}" class="player-name">
+                        ${player.username}
+                        ${!player.wordsCompleted ? `
+                            <div class="player-status-waiting">
+                                <span class="status-text" style="color: ${getRandomShineColor()}">${getRandomReadyPhrase()}</span>
+                            </div>
+                            <div class="waiting-indicator">
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div data-words="${player.wordsCompleted || 0}">${player.wordsCompleted || 0}</div>
+                    <div data-coins="${player.coins || 0}">${player.coins || 0}</div>
+                </div>
+            ` : ''
+        ).join('')}
+    `;
+
+    const leaderboard = document.getElementById('arcade-leaderboard');
+    if (leaderboard) {
+        leaderboard.innerHTML = leaderboardHTML;
+    }
+
+    // Update player count
+    const playerCount = document.getElementById('player-count');
+    if (playerCount) {
+        playerCount.textContent = currentArcadeSession.participants.length;
+    }
 }
 
 function handleTimeUp() {
@@ -11269,51 +11260,80 @@ function toggleAuthMode() {
     signupForm.classList.toggle('hidden');
 }
 
-async function shareListWithUser(listId, recipientId) {
+async function shareListWithUser(listId, targetUserId) {
     try {
         console.group('Share List Diagnostics');
         console.log('List ID:', listId);
-        console.log('Recipient ID:', recipientId);
-        
-        // Get fresh list data from CustomListsManager
-        const list = CustomListsManager.lists.find(l => l.id === listId);
-        if (!list) {
-            console.error('List not found in CustomListsManager');
-            // Try to reload lists before giving up
-            await CustomListsManager.loadFromSupabase();
-            const refreshedList = CustomListsManager.lists.find(l => l.id === listId);
-            if (!refreshedList) {
-                throw new Error('List not found');
-            }
-            console.log('List found after reload:', refreshedList);
-            return await CustomListsManager.share(listId, recipientId);
+        console.log('Target User ID:', targetUserId);
+
+        // First get the original list
+        const { data: originalList, error: fetchError } = await supabaseClient
+            .from('custom_lists')
+            .select('*')
+            .eq('id', listId)
+            .single();
+
+        if (fetchError) throw fetchError;
+
+        // Prepare new shared list
+        const sharedListData = {
+            name: `${originalList.name} (Shared by ${currentUser.user_metadata?.username || 'User'})`,
+            words: originalList.words || [],
+            translations: originalList.translations || [],
+            user_id: currentUser.id, // Keep original owner
+            is_shared: true,
+            shared_with: [targetUserId],
+            shared_by: currentUser.id
+        };
+
+        // Insert new shared list
+        const { data: newSharedList, error: insertError } = await supabaseClient
+            .from('custom_lists')
+            .insert([sharedListData])
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
+
+        // Update local state to include the newly shared list
+        if (CustomListsManager && CustomListsManager.lists) {
+            CustomListsManager.lists.push({
+                ...newSharedList,
+                isShared: true
+            });
         }
 
-        return await CustomListsManager.share(listId, recipientId);
-    } catch (error) {
-        console.error('Share error:', error);
-        throw error;
+        console.log('List shared successfully:', newSharedList);
+        return true;
+
+    } catch (err) {
+        console.error('Share error:', err);
+        throw err;
     } finally {
         console.groupEnd();
     }
 }
 
 function updateLocalSharedLists(sharedList) {
-    // Add the shared list to the recipient's local lists
-    if (currentUser) {
-        customPracticeLists.lists.push({
-            id: sharedList.local_id,
-            supabaseId: sharedList.id,
-            name: sharedList.name,
-            words: sharedList.words,
-            translations: sharedList.translations,
-            is_shared: true,
-            shared_by: sharedList.shared_by
-        });
-        
-        // Save to local storage or sync
-        saveCustomLists();
+    if (!currentUser || !CustomListsManager || !CustomListsManager.lists) return;
+
+    const newList = {
+        ...sharedList,
+        isShared: true,
+        words: sharedList.words || [],
+        translations: sharedList.translations || []
+    };
+
+    // Update or add to local lists
+    const existingIndex = CustomListsManager.lists.findIndex(l => l.id === sharedList.id);
+    if (existingIndex !== -1) {
+        CustomListsManager.lists[existingIndex] = newList;
+    } else {
+        CustomListsManager.lists.push(newList);
     }
+
+    // Save to localStorage for persistence
+    localStorage.setItem('simploxCustomLists', JSON.stringify(CustomListsManager.lists));
 }
 
 function showSuccessToast(message) {
@@ -12251,46 +12271,34 @@ function skipUpgrade() {
 }
 
 function updateUserStatusDisplay(status) {
-    const userProfileSection = document.querySelector('.user-profile-section');
-    const statusBadge = document.getElementById('userTierText');
+    const profileSection = document.querySelector('.user-profile-section');
+    const tierText = document.getElementById('userTierText');
     
-    if (!userProfileSection || !statusBadge) {
-        console.warn('User profile elements not found');
-        return;
-    }
-    
-    // Clear existing classes
-    statusBadge.className = 'status-badge';
-    
-    if (!currentUser) {
-        statusBadge.classList.add('unregistered');
-        statusBadge.textContent = 'Unregistered';
-        userProfileSection.style.display = 'none';
-    } else {
-        userProfileSection.style.display = 'block';
-        
+    if (!profileSection || !tierText) return;
+
+    if (currentUser) {
+        profileSection.style.display = 'block';
+        tierText.className = 'status-badge';
+
         switch(status) {
-            case 'free':
-                statusBadge.classList.add('trial');
-                statusBadge.textContent = 'Trial Account';
+            case 'premium':
+                tierText.classList.add('premium');
+                tierText.textContent = 'Premium';
                 break;
             case 'pending':
-                statusBadge.classList.add('pending');
-                statusBadge.textContent = 'Premium Pending';
+                tierText.classList.add('pending');
+                tierText.textContent = 'Premium Pending';
                 break;
-            case 'premium':
-                statusBadge.classList.add('premium');
-                statusBadge.textContent = 'Premium';
-                break;
+            case 'free':
             default:
-                statusBadge.classList.add('trial');
-                statusBadge.textContent = 'Trial Account';
+                tierText.classList.add('trial');
+                tierText.textContent = 'Trial Account';
+                break;
         }
-    }
-    
-    // Update stats if available
-    if (currentUser) {
-        updateUserStats();
+    } else {
+        tierText.classList.add('unregistered');
+        tierText.textContent = 'Unregistered';
+        profileSection.style.display = 'none';
     }
 }
 
@@ -13468,31 +13476,27 @@ async function startArcadeGame() {
    // Mark session start time
    currentArcadeSession.startTime = Date.now();
    
-   // Reset game state with additional properties
    currentGame = {
-       currentIndex: 0,
-       correctStreak: 0,
-       wrongStreak: 0,
-       words: currentArcadeSession.wordPool || [],
-       wordsCompleted: 0,
-       coins: initialCoins,
-       lastBroadcast: Date.now(),
-       initialCoinsLoaded: true,
-       playerUsername: playerUsername
-   };
+        currentIndex: 0,
+        correctStreak: 0,
+        wrongStreak: 0,
+        words: currentArcadeSession.wordPool.map(w => w.word) || [],
+        translations: currentArcadeSession.wordPool.map(w => w.translation) || [],
+        wordsCompleted: 0,
+        coins: initialCoins,
+        lastBroadcast: Date.now(),
+        initialCoinsLoaded: true,
+        playerUsername: playerName,
+        isHebrewToEnglish: Math.random() < 0.5,
+        mixed: true
+    };
    
    // Guard against empty word pool for late joiners
-   if (!currentGame.words || currentGame.words.length === 0) {
-       console.error('Empty word pool detected. Trying to fetch from currentArcadeSession');
-       if (currentArcadeSession.wordPool && currentArcadeSession.wordPool.length > 0) {
-           currentGame.words = currentArcadeSession.wordPool;
-       } else {
-           // Show error and return to welcome screen
-           showErrorToast('Failed to join game: No words available');
-           showScreen('welcome-screen');
-           return;
-       }
-   }
+   if (!currentGame.words.length || !currentGame.translations.length) {
+        console.error('Invalid word pool');
+        showNotification('Error starting game: No words available', 'error');
+        return;
+    }
 
    // Broadcast player initialization BEFORE first question
    try {
@@ -13894,99 +13898,130 @@ function exitArcade() {
     document.querySelector('.completion-overlay')?.remove();
 }
 
-// Add to handleArcadeAnswer function
-function handleArcadeAnswer(correct, skipAnimation = false) {
-  const now = Date.now();
-  
-  // Add debugging logs
-  console.log(`Player answering: ${correct ? 'CORRECT' : 'WRONG'}, skipAnimation: ${skipAnimation}`);
-  console.log(`Current game state: index ${currentGame.currentIndex}/${currentGame.words.length}, streak: ${currentGame.correctStreak}`);
-  
-  if (now - (currentGame.lastAnswerTime || 0) < 1000) {
-    console.warn("Answer too quickly. Waiting at least 1 second between answers.");
-    return;
-  }
-  
-  currentGame.lastAnswerTime = now;
-  
-  try {
-    if (correct) {
-      // Handle correct answer logic
-      if (!skipAnimation) {
-        // Award points logic
-      }
-      
-      currentGame.wordsCompleted++;
-      currentGame.correctStreak++;
-      currentGame.wrongStreak = 0;
-      
-      // Log progress
-      console.log(`Correct answer! Progress: ${currentGame.wordsCompleted}/${currentArcadeSession.wordGoal}`);
-    } else {
-      // Handle wrong answer logic
-      currentGame.firstAttempt = false;
-      currentGame.streakBonus = false;
-      currentGame.wrongStreak++;
-      
-      // Log errors
-      console.log(`Wrong answer. Wrong streak: ${currentGame.wrongStreak}`);
+function handleArcadeAnswer(isCorrect, skipAnimation = false) {
+    const now = Date.now();
+    
+    if (!currentGame || !currentGame.words || !currentGame.translations) {
+        console.error('Invalid game state');
+        return;
+    }
+
+    console.log(`Player answering: ${isCorrect ? 'CORRECT' : 'WRONG'}, skipAnimation: ${skipAnimation}`);
+    console.log(`Current game state: index ${currentGame.currentIndex}/${currentGame.words.length}, streak: ${currentGame.correctStreak}`);
+
+    // Prevent rapid-fire answers
+    if (now - (currentGame.lastAnswerTime || 0) < 1000) {
+        console.warn('Answer too quickly. Waiting at least 1 second between answers.');
+        return;
     }
     
-    // Find correct answer
-    const correctAnswer = currentGame.isHebrewToEnglish 
-      ? currentGame.words[currentGame.currentIndex]?.word 
-      : currentGame.words[currentGame.currentIndex]?.translation;
-    
-    if (!correctAnswer) {
-      console.error(`Cannot find correct answer at index ${currentGame.currentIndex}`, currentGame.words);
+    try {
+        if (isCorrect) {
+            currentGame.wordsCompleted++;
+            currentGame.correctStreak++;
+            currentGame.wrongStreak = 0;
+            console.log(`Correct answer! Progress: ${currentGame.wordsCompleted}/${currentArcadeSession.wordGoal}`);
+
+            if (!skipAnimation) {
+                let coinsEarned = 0;
+                const timeBonus = awardTimeBonus();
+                if (timeBonus > 0) {
+                    coinsEarned += timeBonus;
+                    pulseCoins(timeBonus);
+                }
+
+                if (currentGame.firstAttempt) {
+                    coinsEarned += 3;
+                    pulseCoins(3);
+                } else {
+                    coinsEarned += 1;
+                    pulseCoins(1);
+                }
+
+                currentGame.coins += coinsEarned;
+            }
+        } else {
+            currentGame.firstAttempt = false;
+            currentGame.streakBonus = false;
+            currentGame.wrongStreak++;
+            console.log(`Wrong answer. Wrong streak: ${currentGame.wrongStreak}`);
+
+            if (currentGame.currentIndex > 0) {
+                currentGame.progressLost++;
+                currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
+            }
+
+            if (currentGame.wrongStreak >= 3) {
+                return showGameOverOverlay();
+            }
+        }
+
+        // Find correct answer
+        const correctAnswer = currentGame.isHebrewToEnglish ? 
+            currentGame.words[currentGame.currentIndex] : 
+            currentGame.translations[currentGame.currentIndex];
+
+        if (!correctAnswer) {
+            console.error(`Cannot find correct answer at index ${currentGame.currentIndex}`, currentGame.words);
+        }
+
+        // Update button styles
+        document.querySelectorAll('.buttons button').forEach(button => {
+            if (button.textContent === correctAnswer) {
+                button.classList.add('correct');
+            } else if (!isCorrect && button === event.target) {
+                button.classList.add('wrong');
+            }
+        });
+
+        // Update coin displays
+        document.querySelectorAll('.coin-count').forEach(display => {
+            display.textContent = currentGame.coins;
+        });
+
+        // Increment index if correct
+        if (isCorrect) {
+            currentGame.currentIndex++;
+        }
+
+        // Update progress
+        updateProgressCircle();
+
+        // Send progress update
+        const username = currentArcadeSession.playerName || 
+            currentUser?.user_metadata?.username || 
+            getRandomSimploName();
+
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'progress_update',
+            payload: {
+                username: username,
+                wordsCompleted: currentGame.wordsCompleted,
+                coins: currentGame.coins,
+                timestamp: Date.now()
+            }
+        });
+
+        // Save progress
+        saveProgress();
+
+        // Load next question after delay
+        setTimeout(() => {
+            if (currentGame.currentIndex < currentGame.words.length) {
+                console.log(`Loading next question: ${currentGame.currentIndex + 1}/${currentGame.words.length}`);
+                loadNextQuestion();
+                updatePerkButtons();
+            } else {
+                console.log('Player completed all questions');
+                handlePlayerCompletedGoal(username);
+            }
+        }, 333);
+
+    } catch (error) {
+        console.error('Unexpected error in handleArcadeAnswer:', error);
+        loadNextQuestion();
     }
-    
-    // Add button highlighting
-    document.querySelectorAll('.buttons button').forEach(button => {
-      if (button.textContent === correctAnswer) {
-        button.classList.add('correct');
-      } else if (!correct && button === event.target) {
-        button.classList.add('wrong');
-      }
-    });
-    
-    // Progress to next question
-    if (correct) {
-      currentGame.currentIndex++;
-    }
-    
-    // Update UI
-    updateArcadeProgress();
-    
-    // Report progress to the server
-    const username = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
-    window.arcadeChannel.send({
-      type: "broadcast",
-      event: "progress_update",
-      payload: {
-        username: username,
-        wordsCompleted: currentGame.wordsCompleted,
-        coins: currentGame.coins || 0,
-        timestamp: Date.now()
-      }
-    });
-    
-    // Load next question with slight delay
-    setTimeout(() => {
-      if (currentGame.currentIndex < currentGame.words.length) {
-        console.log(`Loading next question: ${currentGame.currentIndex + 1}/${currentGame.words.length}`);
-        loadNextArcadeQuestion();
-      } else {
-        console.log('Player completed all questions');
-        handlePlayerCompletedGoal(username);
-      }
-    }, 500);
-    
-  } catch (error) {
-    console.error("Unexpected error in handleArcadeAnswer:", error);
-    // Try to recover by loading next question
-    loadNextArcadeQuestion();
-  }
 }
 
 function checkGameEnd() {
@@ -17816,40 +17851,37 @@ const CustomListsManager = {
     
     saveToLocalStorage(list) {
     try {
-        // Check if list exists
         if (!list) {
-            console.error("Cannot save undefined or null list");
+            console.warn('Attempted to save undefined list');
             return null;
         }
-        
-        // For new lists or lists with tempId
-        const newList = {
+
+        // Make sure lists array exists
+        if (!this.lists || !Array.isArray(this.lists)) {
+            this.lists = [];
+        }
+
+        const savedList = {
             ...list,
             id: list.id || Date.now(),
             tempId: list.tempId || Date.now()
         };
-        
-        // Initialize lists array if it doesn't exist
-        if (!this.lists || !Array.isArray(this.lists)) {
-            this.lists = [];
-        }
-        
-        // Find if list already exists
-        const index = this.lists.findIndex(l => 
-            (l && l.id && newList.id && l.id === newList.id) || 
-            (l && l.tempId && newList.tempId && l.tempId === newList.tempId));
-            
-        if (index !== -1) {
-            this.lists[index] = newList;
+
+        const existingIndex = this.lists.findIndex(l => 
+            l && l.id && savedList.id && l.id === savedList.id ||
+            l && l.tempId && savedList.tempId && l.tempId === savedList.tempId
+        );
+
+        if (existingIndex !== -1) {
+            this.lists[existingIndex] = savedList;
         } else {
-            this.lists.push(newList);
+            this.lists.push(savedList);
         }
-        
-        // Save all lists
+
         localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
-        return newList;
-    } catch (error) {
-        console.error('Error saving list to localStorage:', error);
+        return savedList;
+    } catch (err) {
+        console.error('Error saving list to localStorage:', err);
         return null;
     }
 },
@@ -18573,102 +18605,100 @@ function addNewWord() {
     }
 }
 
+// REPLACE - saveCurrentList function 
 async function saveCurrentList() {
     const listNameInput = document.getElementById('custom-list-name');
     const wordList = document.getElementById('word-translation-list');
-    
+
     if (!wordList) {
         showNotification('Word list container not found', 'error');
         return;
     }
-    
-    // Get current list name
-    const name = listNameInput.value.trim() || 
+
+    // Get list name or generate default
+    const listName = listNameInput.value.trim() || 
         (CustomListsManager.currentList ? 
             CustomListsManager.currentList.name : 
             `List ${CustomListsManager.lists.length + 1}`);
-            
+
+    // Collect words and translations
     const words = [];
     const translations = [];
-    
-    const items = wordList.querySelectorAll('.word-translation-item');
-    items.forEach(item => {
+
+    wordList.querySelectorAll('.word-translation-item').forEach(item => {
         const word = item.querySelector('.source-word').textContent.trim();
         const translation = item.querySelector('.target-word').value.trim();
-        
+
         if (word && translation) {
             words.push(word);
             translations.push(translation);
         }
     });
-    
-    // Validate word count
+
+    // Validate content
     if (words.length === 0) {
         showNotification('Please add at least one word', 'error');
         return;
     }
-    
-    // Validate word count limit
+
+    // Check limits
     const limits = CustomListsManager.getListLimits();
     if (words.length > limits.maxWords) {
         showNotification(`You can only create lists with up to ${limits.maxWords} words`, 'error');
         return;
     }
-    
-    let listToSave;
-    const isEditing = CustomListsManager.currentList !== null;
-    
-    // Skip the list count check if we're editing an existing list
-    if (!isEditing && !CustomListsManager.canCreateMoreLists()) {
+
+    // Determine if updating existing or creating new
+    const isUpdating = CustomListsManager.currentList !== null;
+
+    // Check if can create new list
+    if (!isUpdating && !CustomListsManager.canCreateMoreLists()) {
         showNotification(`You can only create ${CustomListsManager.getListLimits().maxLists} custom lists`, 'error');
         return;
     }
-    
-    if (isEditing) {
-        // Updating existing list
-        listToSave = {
+
+    // Prepare list data
+    let listData;
+    if (isUpdating) {
+        listData = {
             ...CustomListsManager.currentList,
-            name,
-            words,
-            translations
+            name: listName,
+            words: words,
+            translations: translations
         };
     } else {
-        // Creating new list 
-        listToSave = {
-            tempId: Date.now(),  // Temporary ID until saved to Supabase
-            name,
-            words,
-            translations
+        listData = {
+            tempId: Date.now(),
+            name: listName,
+            words: words,
+            translations: translations
         };
     }
-    
+
     // Save the list
-    const savedList = await CustomListsManager.save(listToSave);
-    
-    if (savedList) {
-        // Clear form
-        listNameInput.value = '';
-        wordList.innerHTML = '';
-        document.getElementById('translation-results').style.display = 'none';
-        
-        // Reset current list
-        CustomListsManager.currentList = null;
-        
-        // Force immediate reload of lists from appropriate source
-        if (currentUser) {
-            await CustomListsManager.loadFromSupabase();
-        } else {
-            CustomListsManager.loadFromLocalStorage();
-        }
-        
-        showNotification('List saved successfully', 'success');
-        
-        // Show screen after data refresh
-        showScreen('custom-practice-screen');
-        updateListsDisplay();
-    } else {
+    const savedList = await CustomListsManager.save(listData);
+    if (!savedList) {
         showNotification('Failed to save list', 'error');
+        return;
     }
+
+    // Clear the form
+    listNameInput.value = '';
+    wordList.innerHTML = '';
+    document.getElementById('translation-results').style.display = 'none';
+    CustomListsManager.currentList = null;
+
+    // Reload lists based on user status
+    if (currentUser) {
+        await CustomListsManager.loadFromSupabase();
+    } else {
+        CustomListsManager.loadFromLocalStorage();
+    }
+
+    // Show success notification and update display
+    showNotification('List saved successfully', 'success');
+    showScreen('custom-practice-screen');
+    updateListsDisplay();
 }
 
 function processCustomWords() {
@@ -19204,9 +19234,8 @@ function confirmDeleteList(listId) {
 }
 
 function showShareModal(listId) {
-    // Create modal HTML
-    const modal = document.createElement('div');
-    modal.innerHTML = `
+    const modalHtml = document.createElement('div');
+    modalHtml.innerHTML = `
         <div class="modal-backdrop" onclick="closeShareModal()"></div>
         <div class="share-modal">
             <h3 class="share-modal-header">Share List</h3>
@@ -19214,70 +19243,61 @@ function showShareModal(listId) {
             <button class="main-button modal-close" onclick="closeShareModal()">Cancel</button>
         </div>
     `;
-    document.body.appendChild(modal);
+    document.body.appendChild(modalHtml);
 
-    // Fetch users directly from user_profiles
+    // Fetch only non-premium users
     supabaseClient
         .from('user_profiles')
-        .select('id, username')
+        .select('id, username, status')
         .neq('id', currentUser.id)
-        .then(({ data, error }) => {
+        .then(({ data: users, error }) => {
             if (error) {
                 console.error('Error fetching users:', error);
                 return;
             }
-            
-            console.log('Users data:', data);
-            
-            const availableUsers = data || [];
-            const usersList = modal.querySelector('.users-list');
-            usersList.innerHTML = '';
 
-            if (availableUsers.length === 0) {
-                usersList.innerHTML = `<div class="user-item"><span>No other users available</span></div>`;
-                return;
-            }
+            const usersList = users || [];
+            const usersListEl = modalHtml.querySelector('.users-list');
 
-            usersList.innerHTML = availableUsers.map(user => `
-                <div class="user-item">
-                    <span>${user.username || 'Unnamed User'}</span>
-                    <button class="main-button small-button share-with-user-btn" data-id="${user.id}">
-                        <i class="fas fa-share-alt"></i> Share
-                    </button>
-                </div>
-            `).join('');
-            
-            // Add click handlers to all share buttons
-            const shareButtons = usersList.querySelectorAll('.share-with-user-btn');
-            shareButtons.forEach(button => {
-                button.addEventListener('click', async () => {
-                    const recipientId = button.getAttribute('data-id');
-                    
-                    // Disable button and show loading state
-                    button.disabled = true;
-                    const originalText = button.innerHTML;
-                    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
-                    
-                    try {
-                        const result = await CustomListsManager.share(listId, recipientId);
-                        if (result) {
+            if (usersListEl) {
+                if (usersList.length === 0) {
+                    usersListEl.innerHTML = '<div class="user-item"><span>No other users available</span></div>';
+                    return;
+                }
+
+                usersListEl.innerHTML = usersList
+                    .map(user => `
+                        <div class="user-item">
+                            <span>${user.username || 'Unnamed User'}</span>
+                            <button class="main-button small-button share-with-user-btn" 
+                                    data-id="${user.id}">
+                                <i class="fas fa-share-alt"></i> Share
+                            </button>
+                        </div>
+                    `)
+                    .join('');
+
+                // Add click handlers
+                usersListEl.querySelectorAll('.share-with-user-btn').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const targetUserId = btn.getAttribute('data-id');
+                        btn.disabled = true;
+                        const originalContent = btn.innerHTML;
+                        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
+
+                        try {
+                            await shareListWithUser(listId, targetUserId);
                             showNotification('List shared successfully!', 'success');
                             closeShareModal();
-                        } else {
+                        } catch (err) {
+                            console.error('Error in share handler:', err);
                             showNotification('Failed to share list', 'error');
-                            // Reset button
-                            button.disabled = false;
-                            button.innerHTML = originalText;
+                            btn.disabled = false;
+                            btn.innerHTML = originalContent;
                         }
-                    } catch (error) {
-                        console.error('Error in share handler:', error);
-                        showNotification('Error sharing list', 'error');
-                        // Reset button
-                        button.disabled = false;
-                        button.innerHTML = originalText;
-                    }
+                    });
                 });
-            });
+            }
         });
 }
 
@@ -21921,77 +21941,63 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function loadNextQuestion() {
-    if (currentGame.currentIndex >= currentGame.words.length) {
-        if (currentGame.isCustomPractice) {
-            handleCustomLevelCompletion();
-        } else {
-            handleLevelCompletion();
-        }
+    if (!currentGame || !currentGame.words || currentGame.currentIndex >= currentGame.words.length) {
         return;
     }
 
     const questionWord = document.getElementById('question-word');
     const buttonsContainer = document.getElementById('buttons');
-    
+
     if (!questionWord || !buttonsContainer) {
-        console.error("Question UI elements not found");
+        console.error('Question UI elements not found');
         return;
     }
-    
-    // Clear buttons container
+
     buttonsContainer.innerHTML = '';
-    
-    // Determine which language to show
-    const showHebrewPrompt = currentGame.mixed ? (Math.random() < 0.5) : currentGame.isHebrewToEnglish;
-    const index = currentGame.currentIndex;
-    
-    // Get the word to show as the question
-    const wordToShow = showHebrewPrompt ? 
-        currentGame.translations[index] : 
-        currentGame.words[index];
-    
-    // Set the question word
-    questionWord.textContent = wordToShow;
-    
-    // Get the correct answer
-    const correctAnswer = showHebrewPrompt ? 
-        currentGame.words[index] : 
-        currentGame.translations[index];
-    
-    // Create a set of possible answers including the correct one
-    const answerSet = new Set([correctAnswer]);
-    const possibleAnswers = showHebrewPrompt ? currentGame.words : currentGame.translations;
-    
-    // Add random wrong answers to fill our options
-    while (answerSet.size < 3) {
-        const randomAnswer = possibleAnswers[Math.floor(Math.random() * possibleAnswers.length)];
-        if (randomAnswer !== correctAnswer) {
-            answerSet.add(randomAnswer);
+
+    // Get current word and translation
+    const currentWordIndex = currentGame.currentIndex;
+    const currentWord = currentGame.words[currentWordIndex];
+    const currentTranslation = currentGame.translations[currentWordIndex];
+
+    if (!currentWord || !currentTranslation) {
+        console.error('Missing word or translation at index:', currentWordIndex);
+        return;
+    }
+
+    console.log(`Loading question: ${currentGame.currentIndex + 1}/${currentGame.words.length}`, 
+        { word: currentWord, translation: currentTranslation });
+
+    const isHebrewToEnglish = currentGame.mixed ? Math.random() < 0.5 : currentGame.isHebrewToEnglish;
+    currentGame.isHebrewToEnglish = isHebrewToEnglish;
+
+    // Set question word
+    questionWord.textContent = isHebrewToEnglish ? currentTranslation : currentWord;
+
+    // Generate answer choices
+    const correctAnswer = isHebrewToEnglish ? currentWord : currentTranslation;
+    const answers = new Set([correctAnswer]);
+
+    // Generate distractors
+    const possibleAnswers = isHebrewToEnglish ? currentGame.words : currentGame.translations;
+    while (answers.size < 3 && answers.size < possibleAnswers.length) {
+        const randomIndex = Math.floor(Math.random() * possibleAnswers.length);
+        if (randomIndex !== currentWordIndex) {
+            answers.add(possibleAnswers[randomIndex]);
         }
     }
-    
-    // Convert to array and shuffle
-    const answersArray = Array.from(answerSet).sort(() => Math.random() - 0.5);
-    
-    // Create the buttons
-    answersArray.forEach(answer => {
-        const button = document.createElement('button');
-        button.textContent = answer;
-        
-        if (currentGame.isCustomPractice) {
-            button.onclick = () => handleCustomPracticeAnswer(answer === correctAnswer);
-        } else {
-            button.onclick = () => handleAnswer(answer === correctAnswer);
-        }
-        
-        buttonsContainer.appendChild(button);
-    });
-    
-    // Set the timer for this question
+
+    // Create buttons
+    Array.from(answers)
+        .sort(() => Math.random() - 0.5)
+        .forEach(answer => {
+            const button = document.createElement('button');
+            button.textContent = answer;
+            button.onclick = () => handleArcadeAnswer(answer === correctAnswer);
+            buttonsContainer.appendChild(button);
+        });
+
     currentGame.questionStartTime = Date.now();
-    
-    // Update progress circle
-    updateProgressCircle();
 }
 
 function addSmoothTransitionStyles() {
@@ -22600,102 +22606,111 @@ function startArcade() {
   }
 }
 
-// Modify showArcadeModal function to initialize everything correctly
 async function showArcadeModal() {
-  const modal = document.getElementById("arcade-modal");
-  const teacherView = document.getElementById("teacher-view");
-  const playerView = document.getElementById("player-view");
-  const arcadeUsername = document.getElementById("arcadeUsername");
-  const inputGroup = arcadeUsername ? arcadeUsername.closest('.input-group') : null;
+    const arcadeModal = document.getElementById('arcade-modal');
+    const teacherView = document.getElementById('teacher-view');
+    const playerView = document.getElementById('player-view');
+    const usernameInput = document.getElementById('arcadeUsername');
+    const inputGroup = usernameInput?.closest('.input-group');
 
-  try {
-    if (currentUser) {
-      const { data } = await supabaseClient
-        .from("user_profiles")
-        .select("role")
-        .eq("id", currentUser.id)
-        .single();
+    try {
+        if (currentUser) {
+            const { isTeacher, isPremium } = await checkUserPermissions();
 
-      if (data?.role === 'teacher') {
-        const otp = Math.floor(1000 + Math.random() * 9000).toString();
-        currentArcadeSession.otp = otp;
-        currentArcadeSession.teacherId = currentUser.id;
-        currentArcadeSession.participants = [];
-        currentArcadeSession.isInitialized = false;
-        
-        // Reset selected custom lists
-        selectedCustomLists = [];
+            if (isTeacher) {
+                // Teacher view logic
+                const otp = Math.floor(1000 + Math.random() * 9000).toString();
+                currentArcadeSession.otp = otp;
+                currentArcadeSession.teacherId = currentUser.id;
+                currentArcadeSession.participants = [];
+                currentArcadeSession.isInitialized = false;
+                selectedCustomLists = [];
 
-        window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`, {
-          config: {
-            broadcast: {
-              self: true
+                window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`, {
+                    config: { broadcast: { self: true } }
+                });
+
+                // Setup teacher view
+                teacherView.style.display = 'block';
+                playerView.style.display = 'none';
+                generateQRCode(otp);
+                document.getElementById('otp').textContent = otp;
+                initializeWordGoalSlider();
+                await loadTeacherCustomLists();
+                
+                await window.arcadeChannel.subscribe();
+            } else {
+                // Student view logic
+                teacherView.style.display = 'none';
+                playerView.style.display = 'block';
+                
+                if (usernameInput && inputGroup) {
+                    const username = currentUser.user_metadata?.username || currentUser.email.split('@')[0];
+                    usernameInput.value = username;
+                    usernameInput.readOnly = true;
+                    usernameInput.style.display = 'none';
+
+                    const usernameDisplay = document.createElement('div');
+                    usernameDisplay.className = 'username-display';
+                    usernameDisplay.textContent = `Joining as: ${username}`;
+                    inputGroup.insertBefore(usernameDisplay, usernameInput);
+                }
             }
-          }
-        });
-
-        window.arcadeChannel.on("broadcast", { event: "player_join" }, (({ payload }) => {
-          console.log("Player join event received:", payload);
-          if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
-            currentArcadeSession.participants.push({
-              username: payload.username,
-              wordsCompleted: 0,
-              coins: 0
-            });
-            document.getElementById("player-count").textContent = currentArcadeSession.participants.length;
+        } else {
+            // Guest view logic
+            teacherView.style.display = 'none';
+            playerView.style.display = 'block';
             
-            const leaderboardEl = document.getElementById('arcade-leaderboard');
-            if (leaderboardEl && leaderboardEl.offsetParent !== null) {
-              updateAllPlayersProgress();
+            if (usernameInput) {
+                usernameInput.readOnly = false;
+                usernameInput.style.display = 'block';
+                const usernameDisplay = inputGroup?.querySelector('.username-display');
+                if (usernameDisplay) usernameDisplay.remove();
             }
-          }
-        })).subscribe();
-
-        // Generate QR code
-        const baseUrl = window.location.origin + window.location.pathname;
-        generateQRCode(otp);
-        
-        document.getElementById("otp").textContent = otp;
-        teacherView.style.display = "block";
-        playerView.style.display = "none";
-        
-        // Initialize the word goal slider and load custom lists
-        initializeWordGoalSlider();
-        await loadTeacherCustomLists();
-      } else {
-        teacherView.style.display = "none";
-        playerView.style.display = "block";
-        
-        if (arcadeUsername && inputGroup) {
-          const username = currentUser.user_metadata?.username || currentUser.email.split('@')[0];
-          arcadeUsername.value = username;
-          arcadeUsername.readOnly = true;
-          arcadeUsername.style.display = "none";
-          
-          const displayElement = document.createElement('div');
-          displayElement.className = "username-display";
-          displayElement.textContent = `Joining as: ${username}`;
-          inputGroup.insertBefore(displayElement, arcadeUsername);
         }
-      }
-    } else {
-      teacherView.style.display = "none";
-      playerView.style.display = "block";
-      
-      if (arcadeUsername) {
-        arcadeUsername.readOnly = false;
-        arcadeUsername.style.display = "block";
-        
-        const displayElement = inputGroup?.querySelector('.username-display');
-        if (displayElement) displayElement.remove();
-      }
+
+        arcadeModal.style.display = 'block';
+    } catch (err) {
+        console.error('Arcade setup error:', err);
+        alert('Failed to initialize arcade');
+    }
+}
+
+async function checkUserPermissions() {
+    if (!currentUser) return { isTeacher: false, isPremium: false };
+    
+    try {
+        const { data: profile, error } = await supabaseClient
+            .from('user_profiles')
+            .select('role, status')
+            .eq('id', currentUser.id)
+            .single();
+
+        if (error) throw error;
+
+        return {
+            isTeacher: profile?.role === 'teacher',
+            isPremium: profile?.status === 'premium'
+        };
+    } catch (err) {
+        console.error('Error checking user permissions:', err);
+        return { isTeacher: false, isPremium: false };
+    }
+}
+
+function safeListSave(list) {
+    if (!list) {
+        console.warn('Attempted to save undefined list');
+        return null;
     }
 
-    modal.style.display = "block";
-  } catch (error) {
-    console.error("Arcade setup error:", error);
-    alert("Failed to initialize arcade");
-  }
+    // Ensure CustomListsManager exists and has required methods
+    if (!window.CustomListsManager) {
+        console.warn('CustomListsManager not initialized');
+        return null;
+    }
+
+    return CustomListsManager.saveToLocalStorage(list);
 }
 
 </script>
