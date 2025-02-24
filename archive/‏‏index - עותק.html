@@ -7385,12 +7385,49 @@ const GameCache = {
 
 const gameInit = {
     async init() {
+        console.log("Game initialization starting");
+        
+        // First check for existing session
         await checkExistingSession();
-        initializeGame();
+        
+        if (currentUser) {
+            console.log("User is logged in, checking database schema");
+            // Check and fix database schema
+            const schemaOk = await ensureCorrectSchema();
+            
+            if (schemaOk) {
+                // Load progress from database
+                console.log("Schema is OK, loading progress from database");
+                await loadUserGameProgress(currentUser.id);
+            } else {
+                console.log("Schema issues detected, loading from localStorage and initializing defaults");
+                // Initialize from localStorage or defaults
+                initializeGame();
+            }
+        } else {
+            console.log("No user logged in, initializing local game state");
+            // Initialize default game state
+            initializeGame();
+        }
+        
+        // Update UI elements
         updatePerkButtons();
-        const welcomeScreen = document.getElementById('welcome-screen');
-        initializeParticles(welcomeScreen);
+        initializeParticles(document.getElementById("welcome-screen"));
+        
+        // Load custom lists
         await loadCustomLists();
+        
+        // Set up auto-save
+        setupAutoSave();
+        
+        // Log the final game state
+        console.log("Game initialization complete. Game state:", {
+            currentStage: gameState.currentStage,
+            currentSet: gameState.currentSet, 
+            currentLevel: gameState.currentLevel,
+            unlockedSets: Object.keys(gameState.unlockedSets || {}),
+            unlockedLevels: Object.keys(gameState.unlockedLevels || {})
+        });
     }
 };
 
@@ -7409,6 +7446,8 @@ const supabaseClient = createClient(
         detectSessionInUrl: true
     }
 );
+
+
 
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -7766,98 +7805,198 @@ function showJoinModal(otp = '') {
     }
 }
 
-// Auth UI functions
-// Modify the existing authentication functions
-
 async function handleSignup() {
-    const email = document.getElementById('signupEmail').value;
-    const username = document.getElementById('signupUsername').value;
-    const password = document.getElementById('signupPassword').value;
+    const email = document.getElementById("signupEmail").value;
+    const username = document.getElementById("signupUsername").value;
+    const password = document.getElementById("signupPassword").value;
 
-    if (!email || !username || !password) {
-        alert('All fields are required');
-        return;
-    }
-
-    try {
-        // Step 1: Sign up with Supabase Auth
-        const { data: authData, error: authError } = await supabaseClient.auth.signUp({
-            email,
-            password,
-            options: {
-                data: { 
-                    username: username,
-                    full_name: username
-                }
-            }
-        });
-
-        if (authError) throw authError;
-
-        // Step 2: Upsert user profile
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .upsert({
-                id: authData.user.id,
-                username: username,
+    if (email && username && password) {
+        try {
+            const { data: signupData, error: signupError } = await supabaseClient.auth.signUp({
                 email: email,
-                status: 'free',
-                role: 'student'
-            }, {
-                onConflict: 'id'
+                password: password,
+                options: {
+                    data: {
+                        username: username,
+                        full_name: username
+                    }
+                }
             });
 
-        if (profileError) {
-            console.error('Profile upsert error:', profileError);
-        }
+            if (signupError) throw signupError;
 
-        // Step 3: Initialize game progress
-        const { error: progressError } = await supabaseClient
-            .from('game_progress')
-            .upsert({
-                user_id: authData.user.id,
+            // Update user profile first
+            const { error: profileError } = await supabaseClient.from("user_profiles").upsert({
+                id: signupData.user.id,
+                username: username,
+                email: email,
+                status: "free",
+                role: "student"
+            }, { onConflict: 'id' });
+
+            if (profileError) console.error("Profile upsert error:", profileError);
+
+            // Initialize game progress with only the most basic fields
+            const initialProgress = {
+                user_id: signupData.user.id,
                 stage: 1,
                 set_number: 1,
                 level: 1,
-                coins: 0,
-                perks: {},
-                unlocked_sets: { "1": [1] },
-                unlocked_levels: { "1_1": [1] },
-                perfect_levels: [],
-                completed_levels: []
-            }, {
-                onConflict: 'user_id'
+                coins: 0
+            };
+
+            // Use insert instead of upsert to avoid schema issues
+            const { error: progressError } = await supabaseClient
+                .from("game_progress")
+                .insert([initialProgress]);
+            
+            if (progressError) {
+                console.error("Progress initialization error:", progressError);
+                // Continue anyway
+            }
+
+            // Now sign in
+            const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
+                email: email,
+                password: password
             });
 
-        if (progressError) {
-            console.error('Progress initialization error:', progressError);
+            if (signInError) throw signInError;
+
+            hideAuthModal();
+            currentUser = signInData.user;
+            
+            // Initialize default game state
+            gameState.currentStage = 1;
+            gameState.currentSet = 1;
+            gameState.currentLevel = 1;
+            gameState.coins = 0;
+            gameState.perks = {};
+            gameState.unlockedSets = { "1": new Set([1]) };
+            gameState.unlockedLevels = { "1_1": new Set([1]) };
+            gameState.perfectLevels = new Set();
+            gameState.completedLevels = new Set();
+            
+            updateAuthUI();
+            showScreen("welcome-screen");
+            
+        } catch (error) {
+            console.error("Detailed signup error:", error);
+            if (error.message && error.message.includes("duplicate key")) {
+                alert("This username or email is already taken. Please try another.");
+            } else {
+                alert("Signup error: " + error.message);
+            }
         }
+    } else {
+        alert("All fields are required");
+    }
+}
 
-        // Step 4: Auto-login
-        const { data: loginData, error: loginError } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-        });
+async function updateUserCoins(amount) {
+    // Update local game state
+    const previousCoins = gameState.coins;
+    gameState.coins += amount;
+    
+    // Update UI
+    updateAllCoinDisplays();
+    updatePerkButtons();
+    
+    // Save to database if logged in
+    if (currentUser) {
+        try {
+            const { error } = await supabaseClient
+                .from("game_progress")
+                .update({ coins: gameState.coins })
+                .eq("user_id", currentUser.id);
+                
+            if (error) {
+                console.error("Failed to update coins in database:", error);
+                // Revert local change if database save fails
+                gameState.coins = previousCoins;
+                updateAllCoinDisplays();
+                updatePerkButtons();
+                return false;
+            }
+        } catch (err) {
+            console.error("Error updating coins:", err);
+            // Revert local change
+            gameState.coins = previousCoins;
+            updateAllCoinDisplays();
+            updatePerkButtons();
+            return false;
+        }
+    }
+    
+    // Also save to localStorage
+    const progressData = JSON.parse(localStorage.getItem("simploxProgress") || "{}");
+    progressData.coins = gameState.coins;
+    localStorage.setItem("simploxProgress", JSON.stringify(progressData));
+    
+    return true;
+}
 
-        if (loginError) throw loginError;
-
-        // Hide auth modal first
-        hideAuthModal();
-
-        // Update current user and UI
-        currentUser = loginData.user;
-        updateAuthUI();
+// Add this function to handle database schema upgrade
+async function checkAndFixDatabaseSchema() {
+    if (!currentUser) return false;
+    
+    try {
+        // First check the schema
+        const { data, error } = await supabaseClient
+            .from("game_progress")
+            .select("*")
+            .eq("user_id", currentUser.id)
+            .single();
+            
+        if (error) {
+            console.error("Error checking database schema:", error);
+            return false;
+        }
         
-        // Show welcome screen
-        showScreen('welcome-screen');
-
-    } catch (error) {
-        console.error('Detailed signup error:', error);
-        if (error.message.includes('duplicate key')) {
-            alert('This username or email is already taken. Please try another.');
-        } else {
-            alert('Signup error: ' + error.message);
+        // Check if we need to add the missing columns
+        const missingCompletedLevels = !('completed_levels' in data);
+        const missingPerfectLevels = !('perfect_levels' in data);
+        
+        if (!missingCompletedLevels && !missingPerfectLevels) {
+            console.log("Database schema is up to date");
+            return true;
         }
+        
+        console.log("Adding missing columns to database schema");
+        
+        // Create a migration update with the minimal required fields
+        const updateData = {
+            user_id: currentUser.id,
+            stage: data.stage || 1,
+            set_number: data.set_number || 1,
+            level: data.level || 1
+        };
+        
+        // Try to preserve existing data
+        if ('coins' in data) updateData.coins = data.coins || 0;
+        if ('unlocked_sets' in data) updateData.unlocked_sets = data.unlocked_sets || {};
+        if ('unlocked_levels' in data) updateData.unlocked_levels = data.unlocked_levels || {};
+        
+        // Add the missing columns with default values
+        if (missingCompletedLevels) updateData.completed_levels = [];
+        if (missingPerfectLevels) updateData.perfect_levels = [];
+        
+        // Update the record
+        const { error: updateError } = await supabaseClient
+            .from("game_progress")
+            .update(updateData)
+            .eq("user_id", currentUser.id);
+            
+        if (updateError) {
+            console.error("Failed to update database schema:", updateError);
+            return false;
+        }
+        
+        console.log("Database schema successfully updated");
+        return true;
+    } catch (err) {
+        console.error("Error fixing database schema:", err);
+        return false;
     }
 }
 
@@ -7964,33 +8103,96 @@ async function handleLogin() {
 }
 
 function initializeGame() {
-    const saved = localStorage.getItem('simploxProgress');
+    console.log("Initializing game state");
     
-    if (saved) {
-        const parsedSaved = JSON.parse(saved);
-        gameState.currentStage = parsedSaved.currentStage || 1;
-        gameState.currentSet = parsedSaved.currentSet || 1;
-        gameState.currentLevel = parsedSaved.currentLevel || 1;
-        gameState.coins = parsedSaved.coins || 0;
-                
-        if (parsedSaved.unlockedSets) {
-            gameState.unlockedSets = Object.fromEntries(
-                Object.entries(parsedSaved.unlockedSets).map(([k, v]) => [k, new Set(v)])
-            );
+    // Default initial values
+    gameState.currentStage = 1;
+    gameState.currentSet = 1;
+    gameState.currentLevel = 1;
+    gameState.coins = 0;
+    gameState.perks = {};
+    gameState.unlockedSets = {};
+    gameState.unlockedLevels = {};
+    gameState.perfectLevels = new Set();
+    gameState.completedLevels = new Set();
+    
+    // Check localStorage for saved progress (for guest users or as backup)
+    const savedProgress = localStorage.getItem("simploxProgress");
+    if (savedProgress) {
+        try {
+            console.log("Found saved progress in localStorage");
+            const progress = JSON.parse(savedProgress);
+            
+            // Load basic game state
+            if (progress.stage) gameState.currentStage = progress.stage;
+            if (progress.set_number) gameState.currentSet = progress.set_number;
+            if (progress.level) gameState.currentLevel = progress.level;
+            if (progress.coins) gameState.coins = progress.coins;
+            if (progress.perks) gameState.perks = progress.perks;
+            
+            // Load unlocked sets
+            if (progress.unlocked_sets) {
+                Object.entries(progress.unlocked_sets).forEach(([stage, sets]) => {
+                    gameState.unlockedSets[stage] = new Set(Array.isArray(sets) ? sets : []);
+                });
+            }
+            
+            // Load unlocked levels
+            if (progress.unlocked_levels) {
+                Object.entries(progress.unlocked_levels).forEach(([setKey, levels]) => {
+                    gameState.unlockedLevels[setKey] = new Set(Array.isArray(levels) ? levels : []);
+                });
+            }
+            
+            // Load perfect and completed levels
+            if (progress.perfect_levels) {
+                gameState.perfectLevels = new Set(progress.perfect_levels);
+            }
+            
+            if (progress.completed_levels) {
+                gameState.completedLevels = new Set(progress.completed_levels);
+            }
+            
+            console.log("Loaded progress from localStorage:", {
+                currentStage: gameState.currentStage,
+                currentSet: gameState.currentSet,
+                currentLevel: gameState.currentLevel
+            });
+        } catch (e) {
+            console.error("Error parsing saved progress:", e);
         }
-        if (parsedSaved.unlockedLevels) {
-            gameState.unlockedLevels = Object.fromEntries(
-                Object.entries(parsedSaved.unlockedLevels).map(([k, v]) => [k, new Set(v)])
-            );
-        }
-        gameState.perfectLevels = new Set(parsedSaved.perfectLevels || []);
-        gameState.completedLevels = new Set(parsedSaved.completedLevels || []);
-    } else {
-        setupDefaultUnlocks();
     }
-
+    
+    // Check for game context which has precedence for the current level
+    const savedContext = localStorage.getItem("gameContext");
+    if (savedContext) {
+        try {
+            const context = JSON.parse(savedContext);
+            const timeSinceContext = Date.now() - (context.timestamp || 0);
+            
+            // Only use context if it's less than 24 hours old
+            if (timeSinceContext < 24 * 60 * 60 * 1000) {
+                console.log("Found recent game context, updating current location:", context);
+                if (context.stage) gameState.currentStage = context.stage;
+                if (context.set) gameState.currentSet = context.set;
+                if (context.level) gameState.currentLevel = context.level;
+            }
+        } catch (e) {
+            console.error("Error parsing saved context:", e);
+        }
+    }
+    
+    // Ensure we have default unlocks regardless
+    setupDefaultUnlocks();
+    
     updateAllCoinDisplays();
     updatePerkButtons();
+    
+    console.log("Game initialized with state:", {
+        currentStage: gameState.currentStage,
+        currentSet: gameState.currentSet,
+        currentLevel: gameState.currentLevel
+    });
 }
 
 function setupDefaultUnlocks() {
@@ -8098,99 +8300,154 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function loadUserGameProgress(userId) {
+    console.log("Loading game progress for user:", userId);
+    
     try {
-        let progressData;
+        // Set up default values
+        gameState.currentStage = 1;
+        gameState.currentSet = 1;
+        gameState.currentLevel = 1;
+        gameState.coins = 0;
+        gameState.perks = {};
+        gameState.unlockedSets = { "1": new Set([1]) };
+        gameState.unlockedLevels = { "1_1": new Set([1]) };
+        gameState.perfectLevels = new Set();
+        gameState.completedLevels = new Set();
         
-        // First try to get existing progress
-        const { data: existingData, error: fetchError } = await supabaseClient
-            .from('game_progress')
-            .select('*')
-            .eq('user_id', userId)
+        // First try to load from localStorage (this includes extended fields)
+        const localProgress = localStorage.getItem("simploxProgress");
+        if (localProgress) {
+            try {
+                const parsedProgress = JSON.parse(localProgress);
+                console.log("Found progress in localStorage:", parsedProgress);
+                
+                // Load basic fields
+                if (parsedProgress.stage) gameState.currentStage = parsedProgress.stage;
+                if (parsedProgress.set_number) gameState.currentSet = parsedProgress.set_number;
+                if (parsedProgress.level) gameState.currentLevel = parsedProgress.level;
+                if (parsedProgress.coins) gameState.coins = parsedProgress.coins;
+                if (parsedProgress.perks) gameState.perks = parsedProgress.perks;
+                
+                // Load unlocked sets
+                if (parsedProgress.unlocked_sets) {
+                    gameState.unlockedSets = {};
+                    Object.entries(parsedProgress.unlocked_sets).forEach(([stage, sets]) => {
+                        gameState.unlockedSets[stage] = new Set(sets);
+                    });
+                }
+                
+                // Load unlocked levels
+                if (parsedProgress.unlocked_levels) {
+                    gameState.unlockedLevels = {};
+                    Object.entries(parsedProgress.unlocked_levels).forEach(([setKey, levels]) => {
+                        gameState.unlockedLevels[setKey] = new Set(levels);
+                    });
+                }
+                
+                // Load completed and perfect levels
+                if (parsedProgress.perfect_levels) {
+                    gameState.perfectLevels = new Set(parsedProgress.perfect_levels);
+                }
+                
+                if (parsedProgress.completed_levels) {
+                    gameState.completedLevels = new Set(parsedProgress.completed_levels);
+                }
+            } catch (e) {
+                console.error("Error parsing localStorage progress:", e);
+            }
+        }
+        
+        // Then try to load from database (this might not include all fields)
+        const { data, error } = await supabaseClient
+            .from("game_progress")
+            .select("*")
+            .eq("user_id", userId)
             .single();
-
-        if (fetchError) {
-            // If no record exists, create initial progress
-            if (fetchError.code === 'PGRST116') {
+            
+        if (error) {
+            if (error.code === "PGRST116") {
+                console.log("No progress record found, creating initial progress");
+                
+                // Create a new record with minimal fields
                 const initialProgress = {
                     user_id: userId,
-                    stage: 1,
-                    set_number: 1,
-                    level: 1,
-                    coins: 0,
-                    perks: {},
-                    unlocked_sets: { "1": [1] },
-                    unlocked_levels: { "1_1": [1] },
-                    perfect_levels: [],
-                    completed_levels: []
+                    stage: gameState.currentStage,
+                    set_number: gameState.currentSet,
+                    level: gameState.currentLevel,
+                    coins: gameState.coins
                 };
-
-                const { data: newData, error: insertError } = await supabaseClient
-                    .from('game_progress')
-                    .upsert([initialProgress])
-                    .select()
-                    .single();
-
+                
+                const { error: insertError } = await supabaseClient
+                    .from("game_progress")
+                    .insert([initialProgress]);
+                    
                 if (insertError) {
-                    console.error('Error creating initial game progress:', insertError);
-                    return;
+                    console.error("Error creating initial game progress:", insertError);
                 }
-                progressData = newData;
             } else {
-                console.error('Error loading game progress:', fetchError);
-                return;
+                console.error("Error loading game progress:", error);
             }
-        } else {
-            progressData = existingData;
+        } else if (data) {
+            // We found database data - prioritize this for core fields
+            console.log("Game progress loaded from database:", data);
+            
+            // Core fields - always use database values if present
+            gameState.currentStage = data.stage || gameState.currentStage;
+            gameState.currentSet = data.set_number || gameState.currentSet;
+            gameState.currentLevel = data.level || gameState.currentLevel;
+            gameState.coins = data.coins || gameState.coins;
+            
+            // Extended fields - only use if present in database
+            try {
+                // Perks
+                if (data.perks && Object.keys(data.perks).length > 0) {
+                    gameState.perks = data.perks;
+                }
+                
+                // Unlocked sets
+                if (data.unlocked_sets && Object.keys(data.unlocked_sets).length > 0) {
+                    gameState.unlockedSets = {};
+                    Object.entries(data.unlocked_sets).forEach(([stage, sets]) => {
+                        gameState.unlockedSets[stage] = new Set(sets);
+                    });
+                }
+                
+                // Unlocked levels
+                if (data.unlocked_levels && Object.keys(data.unlocked_levels).length > 0) {
+                    gameState.unlockedLevels = {};
+                    Object.entries(data.unlocked_levels).forEach(([setKey, levels]) => {
+                        gameState.unlockedLevels[setKey] = new Set(levels);
+                    });
+                }
+                
+                // Perfect levels
+                if (data.perfect_levels && data.perfect_levels.length > 0) {
+                    gameState.perfectLevels = new Set(data.perfect_levels);
+                }
+                
+                // Completed levels
+                if (data.completed_levels && data.completed_levels.length > 0) {
+                    gameState.completedLevels = new Set(data.completed_levels);
+                }
+            } catch (e) {
+                console.error("Error loading extended fields from database:", e);
+            }
         }
-
-        // Debug log the loaded data
-        console.log('Loaded game progress:', progressData);
-
-        // Update game state with loaded/created progress
-        if (progressData) {
-            gameState.currentStage = progressData.stage;
-            gameState.currentSet = progressData.set_number;
-            gameState.currentLevel = progressData.level || 1;
-            gameState.coins = progressData.coins;
-            gameState.perks = progressData.perks;
-            
-            // Convert array to Set for unlocked sets
-            gameState.unlockedSets = {};
-            if (progressData.unlocked_sets) {
-                Object.entries(progressData.unlocked_sets).forEach(([stageId, sets]) => {
-                    gameState.unlockedSets[stageId] = new Set(sets);
-                });
-            }
-            
-            // Convert array to Set for unlocked levels
-            gameState.unlockedLevels = {};
-            if (progressData.unlocked_levels) {
-                Object.entries(progressData.unlocked_levels).forEach(([setKey, levels]) => {
-                    gameState.unlockedLevels[setKey] = new Set(levels);
-                });
-            }
-            
-            // Convert arrays to Sets for completed and perfect levels
-            gameState.perfectLevels = new Set(progressData.perfect_levels || []);
-            gameState.completedLevels = new Set(progressData.completed_levels || []);
-        }
-
-        // After loading progress, ensure default unlocks are in place
+        
+        // Always setup default unlocks to ensure valid state
         setupDefaultUnlocks();
         
-        // Log the final game state after loading
-        console.log('Game state after loading progress:', {
+        console.log("Game state after loading progress:", {
             currentStage: gameState.currentStage,
             currentSet: gameState.currentSet,
-            currentLevel: gameState.currentLevel,
-            unlockedSets: gameState.unlockedSets,
-            unlockedLevels: gameState.unlockedLevels
+            currentLevel: gameState.currentLevel
         });
-
+        
         updateAllCoinDisplays();
-
-    } catch (e) {
-        console.error('Unexpected error in loadUserGameProgress:', e);
+        return true;
+    } catch (err) {
+        console.error("Unexpected error in loadUserGameProgress:", err);
+        return false;
     }
 }
 
@@ -8290,37 +8547,181 @@ function clearCustomPracticeUI() {
 }
 
 function saveProgress() {
-    // Ensure currentUser is always defined, even for unregistered users
-    const userId = currentUser ? currentUser.id : 'guest';
-
-    // For guest users, save to localStorage
-    const progressToSave = {
-        currentStage: gameState.currentStage || 1,
-        currentSet: gameState.currentSet || 1,
-        currentLevel: gameState.currentLevel || 1,
-        unlockedSets: Object.fromEntries(
-            Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
-        ),
-        unlockedLevels: Object.fromEntries(
-            Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
-        ),
-        perfectLevels: Array.from(gameState.perfectLevels),
-        completedLevels: Array.from(gameState.completedLevels),
+    console.log("Saving game progress");
+    
+    if (!gameState.currentStage) {
+        console.log("No game state to save");
+        return;
+    }
+    
+    // Format the data for storage
+    const progressData = {
+        stage: gameState.currentStage || 1,
+        set_number: gameState.currentSet || 1,
+        level: gameState.currentLevel || 1,
         coins: gameState.coins || 0
-        };
-
+    };
+    
+    // Prepare the extended data that might be affected by schema cache
+    const extendedData = {
+        perks: gameState.perks || {},
+        unlocked_sets: Object.fromEntries(
+            Object.entries(gameState.unlockedSets || {}).map(([stage, sets]) => 
+                [stage, Array.from(sets || [])]
+            )
+        ),
+        unlocked_levels: Object.fromEntries(
+            Object.entries(gameState.unlockedLevels || {}).map(([setKey, levels]) => 
+                [setKey, Array.from(levels || [])]
+            )
+        ),
+        perfect_levels: Array.from(gameState.perfectLevels || []),
+        completed_levels: Array.from(gameState.completedLevels || [])
+    };
+    
+    // Save full data to localStorage for backup
+    localStorage.setItem("simploxProgress", JSON.stringify({
+        ...progressData,
+        ...extendedData
+    }));
+    
+    // Save current context for resuming
+    const contextData = {
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: gameState.currentLevel,
+        timestamp: Date.now()
+    };
+    localStorage.setItem("gameContext", JSON.stringify(contextData));
+    
+    // If user is logged in, save to database
     if (currentUser) {
-        // Save to Supabase for logged-in users
+        console.log("Saving progress to Supabase for user:", currentUser.id);
+        
+        // First try to save just the core fields - this should always work
         supabaseClient
-            .from('game_progress')
-            .update(progressToSave)
-            .eq('user_id', currentUser.id)
-            .then(({ error }) => {
-                if (error) console.error('Error saving game progress:', error);
+            .from("game_progress")
+            .upsert({
+                user_id: currentUser.id,
+                ...progressData
+            })
+            .then(({ error: coreError }) => {
+                if (coreError) {
+                    console.error("Error saving core progress:", coreError);
+                } else {
+                    console.log("Core progress saved successfully");
+                    
+                    // Now try to save each extended field individually
+                    // This way if one field fails due to schema issues, others might still work
+                    const saveExtendedField = (fieldName, fieldValue) => {
+                        const updateData = { [fieldName]: fieldValue };
+                        
+                        supabaseClient
+                            .from("game_progress")
+                            .update(updateData)
+                            .eq("user_id", currentUser.id)
+                            .then(({ error }) => {
+                                if (error) {
+                                    console.warn(`Error saving ${fieldName}:`, error);
+                                } else {
+                                    console.log(`${fieldName} saved successfully`);
+                                }
+                            });
+                    };
+                    
+                    // Try each field separately
+                    Object.entries(extendedData).forEach(([field, value]) => {
+                        saveExtendedField(field, value);
+                    });
+                }
             });
-    } else {
-        // Save to localStorage for guest users
-        localStorage.setItem('simploxProgress', JSON.stringify(progressToSave));
+    }
+}
+
+async function ensureCorrectSchema() {
+    if (!currentUser) return false;
+    
+    console.log("Checking database schema for user:", currentUser.id);
+    
+    try {
+        // First check if the user has a game_progress record
+        const { data, error } = await supabaseClient
+            .from("game_progress")
+            .select("*")
+            .eq("user_id", currentUser.id)
+            .single();
+            
+        if (error) {
+            if (error.code === "PGRST116") {
+                // Record doesn't exist, create it
+                console.log("Creating game progress record for user");
+                
+                const initialData = {
+                    user_id: currentUser.id,
+                    stage: 1,
+                    set_number: 1,
+                    level: 1,
+                    coins: 0,
+                    perks: {},
+                    unlocked_sets: { "1": [1] },
+                    unlocked_levels: { "1_1": [1] },
+                    perfect_levels: [],
+                    completed_levels: []
+                };
+                
+                const { error: insertError } = await supabaseClient
+                    .from("game_progress")
+                    .insert([initialData]);
+                    
+                if (insertError) {
+                    console.error("Error creating game progress record:", insertError);
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            console.error("Error checking game progress record:", error);
+            return false;
+        }
+        
+        // Check if we need to add missing data
+        let needsUpdate = false;
+        const updateData = { ...data };
+        
+        // Check each required field
+        const requiredFields = [
+            { name: 'unlocked_sets', defaultValue: { "1": [1] } },
+            { name: 'unlocked_levels', defaultValue: { "1_1": [1] } },
+            { name: 'perfect_levels', defaultValue: [] },
+            { name: 'completed_levels', defaultValue: [] }
+        ];
+        
+        for (const field of requiredFields) {
+            if (!(field.name in data) || data[field.name] === null) {
+                updateData[field.name] = field.defaultValue;
+                needsUpdate = true;
+                console.log(`Field "${field.name}" missing, will add it`);
+            }
+        }
+        
+        if (needsUpdate) {
+            console.log("Updating record with missing fields");
+            const { error: updateError } = await supabaseClient
+                .from("game_progress")
+                .update(updateData)
+                .eq("user_id", currentUser.id);
+                
+            if (updateError) {
+                console.error("Error updating game progress record:", updateError);
+                return false;
+            }
+        }
+        
+        return true;
+    } catch (err) {
+        console.error("Unexpected error in ensureCorrectSchema:", err);
+        return false;
     }
 }
 
@@ -9492,87 +9893,130 @@ function generateAnswerChoices(correctAnswer, vocabulary) {
     return Array.from(choices).sort(() => Math.random() - 0.5);
 }
 
-function startLevel(levelId) {
-    // Save current game context at the start of each level
-    gameState.currentLevel = levelId;
+function startLevel(e) {
+    gameState.currentLevel = e;
+    
+    // Save game context for resuming later
     const gameContext = {
         stage: gameState.currentStage,
         set: gameState.currentSet,
-        level: levelId,
+        level: e,
         timestamp: Date.now()
     };
-    console.log('Setting game context at level start:', gameContext);
-    localStorage.setItem('gameContext', JSON.stringify(gameContext));
-  
-    // Reset stats tracking
+    console.log("Setting game context at level start:", gameContext);
+    localStorage.setItem("gameContext", JSON.stringify(gameContext));
+    
+    // Reset game state for new level
     currentGame.wrongStreak = 0;
     currentGame.correctAnswers = 0;
     currentGame.levelStartTime = Date.now();
     currentGame.firstAttempt = true;
     currentGame.streakBonus = true;
-
-    // Update perk buttons
     updatePerkButtons();
-
-    // Toggle perks and powerups containers
-    const perksContainer = document.querySelector('.perks-container');
-    const powerupsContainer = document.querySelector('.powerups-container');    
-    perksContainer.style.display = 'flex';
-    powerupsContainer.style.display = 'none';
-
-    // Ensure coin display is initialized
-    const coinDisplay = document.querySelector('.coin-count');
-    if (coinDisplay) {
-        coinDisplay.textContent = gameState.coins || 0;
+    
+    // Debug unlockedLevels state
+    console.log("Current unlocked levels:", gameState.unlockedLevels);
+    const currentSetKey = `${gameState.currentStage}_${gameState.currentSet}`;
+    console.log(`Current set key: ${currentSetKey}, unlocked levels in set:`, 
+                 gameState.unlockedLevels[currentSetKey] ? 
+                 Array.from(gameState.unlockedLevels[currentSetKey]) : 'none');
+    
+    // Show proper UI elements
+    const perksContainer = document.querySelector(".perks-container");
+    const powerupsContainer = document.querySelector(".powerups-container");
+    perksContainer.style.display = "flex";
+    powerupsContainer.style.display = "none";
+    
+    const coinCount = document.querySelector(".coin-count");
+    if (coinCount) {
+        coinCount.textContent = gameState.coins || 0;
     }
-
-    // Ensure containers are visible
-    const coinsContainer = document.querySelector('.coins-container');
+    
+    const coinsContainer = document.querySelector(".coins-container");
     if (coinsContainer) {
-        coinsContainer.style.display = 'flex';
+        coinsContainer.style.display = "flex";
     }
-
-    // Ensure progress circle is visible
-    const progressCircle = document.querySelector('.progress-circle');
+    
+    const progressCircle = document.querySelector(".progress-circle");
     if (progressCircle) {
-        progressCircle.style.display = 'flex';
+        progressCircle.style.display = "flex";
     }
-
-    // Ensure current game state values
+    
+    // Ensure stage, set, and level are set
     gameState.currentStage = gameState.currentStage || 1;
     gameState.currentSet = gameState.currentSet || 1;
-    gameState.currentLevel = levelId;
-
-    // Debug data for progression tracking
-    console.log(`Starting level: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${levelId}`);
-    console.log('Current unlocked levels:', gameState.unlockedLevels);
-    console.log('Current completed levels:', gameState.completedLevels);
-
-    // Define trigger levels
-    const triggerLevels = [2, 7, 11, 15, 20];
+    gameState.currentLevel = e;
     
-    // Check user status
-    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    console.log(`Starting level: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${e}`);
     
-    // Check for upgrade prompt
-    if (triggerLevels.includes(levelId) && userStatus !== 'premium') {
-        const continueLevelId = levelId;
-        
+    // Premium level check
+    const userStatus = currentUser ? currentUser.status : "unregistered";
+    
+    if ([2, 7, 11, 15, 20].includes(e) && userStatus !== "premium") {
+        const targetLevel = e;
         if (!currentUser) {
-            showUnregisteredWarning(() => {
-                proceedWithLevel(continueLevelId);
+            return void showUnregisteredWarning(() => {
+                proceedWithLevel(targetLevel);
             });
-            return;
-        } else if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
-            showUpgradePrompt(() => {
-                proceedWithLevel(continueLevelId);
+        }
+        if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
+            return void showUpgradePrompt(() => {
+                proceedWithLevel(targetLevel);
             });
-            return;
         }
     }
+    
+    proceedWithLevel(e);
+}
 
-    // Proceed with level start
-    proceedWithLevel(levelId);
+function findFurthestProgression() {
+    console.log("Finding furthest progression");
+    
+    // First check if there's a saved game context
+    const savedContext = localStorage.getItem("gameContext");
+    if (savedContext) {
+        try {
+            const context = JSON.parse(savedContext);
+            if (context.stage && context.set && context.level) {
+                console.log("Found saved game context:", context);
+                return {
+                    stage: context.stage,
+                    set: context.set,
+                    level: context.level
+                };
+            }
+        } catch (e) {
+            console.error("Error parsing saved game context:", e);
+        }
+    }
+    
+    console.log("Current game state:", {
+        currentStage: gameState.currentStage,
+        currentSet: gameState.currentSet,
+        currentLevel: gameState.currentLevel,
+        unlockedSets: Object.fromEntries(Object.entries(gameState.unlockedSets || {}).map(([k, v]) => [k, Array.from(v || [])])),
+        unlockedLevels: Object.fromEntries(Object.entries(gameState.unlockedLevels || {}).map(([k, v]) => [k, Array.from(v || [])])),
+        perfectLevels: Array.from(gameState.perfectLevels || []),
+        completedLevels: Array.from(gameState.completedLevels || [])
+    });
+    
+    // If we have current stage and level information, use that directly
+    if (gameState.currentStage && gameState.currentSet && gameState.currentLevel) {
+        console.log(`Using current game state: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${gameState.currentLevel}`);
+        return {
+            stage: gameState.currentStage,
+            set: gameState.currentSet,
+            level: gameState.currentLevel
+        };
+    }
+    
+    // If that doesn't work, fall back to stage 1, set 1, level 1
+    console.log("No progression found, defaulting to beginning");
+    return {
+        stage: 1,
+        set: 1,
+        level: 1
+    };
 }
 
 function proceedWithLevel(levelId) {
@@ -10244,119 +10688,79 @@ function startCustomListPractice(listId) {
 function handleLevelCompletion() {
     clearTimer();
     
-    // CHECK IF THIS IS A CUSTOM PRACTICE SESSION
-    if (currentGame.isCustomPractice) {
-        handleCustomLevelCompletion();
-        return;
-    }
+    if (currentGame.isCustomPractice) 
+        return void handleCustomLevelCompletion();
     
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     console.log(`Completing level: ${levelKey}`);
+    
+    // Check if this level was previously completed
+    const wasCompleted = gameState.perfectLevels.has(levelKey) || gameState.completedLevels.has(levelKey);
+    console.log(`Level was previously completed: ${wasCompleted}`);
 
-    const isLevelCompleted = gameState.perfectLevels.has(levelKey) || gameState.completedLevels.has(levelKey);
-    console.log(`Level was previously completed: ${isLevelCompleted}`);
-
-    const isPerfectRun = !isLevelCompleted && 
-                        currentGame.streakBonus && 
-                        currentGame.correctAnswers === currentGame.words.length;
-
-    if (isPerfectRun) {
-        const finalCoins = gameState.coins;
-        const bonusAmount = 5;
-        
-        CoinsManager.updateCoins(bonusAmount).then(() => {
-            gameState.perfectLevels.add(levelKey);
-            gameState.completedLevels.add(levelKey);
+    // Check if this is a perfect completion
+    const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
+    
+    if (!wasCompleted && isPerfect) {
+        const perfectBonus = 5;
+        CoinsManager.updateCoins(perfectBonus).then(() => {
+            updateLevelProgress(
+                gameState.currentStage, 
+                gameState.currentSet, 
+                gameState.currentLevel, 
+                true,  // isCompleted 
+                true   // isPerfect
+            );
             
-            const questionScreen = document.getElementById('question-screen');
-            const rect = questionScreen.getBoundingClientRect();
-            createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
+            const questionScreen = document.getElementById("question-screen").getBoundingClientRect();
+            createParticles(questionScreen.left + questionScreen.width / 2, questionScreen.top + questionScreen.height / 2);
         });
-    } else if (!isLevelCompleted) {
+    } else if (!wasCompleted) {
         // Mark as completed even if not perfect
-        gameState.completedLevels.add(levelKey);
+        updateLevelProgress(
+            gameState.currentStage, 
+            gameState.currentSet, 
+            gameState.currentLevel, 
+            true,   // isCompleted
+            false   // isPerfect
+        );
     }
-
+    
+    // Celebrate completion
     pulseCoins(5);
     updatePerkButtons();
-
-    const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
-    const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
-    const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
-    const userStatus = currentUser ? currentUser.status : 'unregistered';
-
-    // Mark current level as completed
-    if (!gameState.unlockedLevels[`${gameState.currentStage}_${gameState.currentSet}`]) {
-        gameState.unlockedLevels[`${gameState.currentStage}_${gameState.currentSet}`] = new Set();
-    }
-    gameState.unlockedLevels[`${gameState.currentStage}_${gameState.currentSet}`].add(gameState.currentLevel);
     
-    // Unlock next level if not last in set
+    // Handle progression to next level
+    const currentStage = gameStructure.stages[gameState.currentStage - 1];
+    const isLastLevelInSet = gameState.currentLevel === currentStage.levelsPerSet;
+    const isLastSetInStage = gameState.currentSet === currentStage.numSets;
+    const userStatus = currentUser ? currentUser.status : "unregistered";
+    
     if (!isLastLevelInSet) {
-        gameState.unlockedLevels[`${gameState.currentStage}_${gameState.currentSet}`].add(gameState.currentLevel + 1);
-        saveProgress();
-        setTimeout(() => startLevel(gameState.currentLevel + 1), 1500);
-        return;
+        // Continue to next level in current set
+        setTimeout(() => {
+            gameState.currentLevel++;
+            startLevel(gameState.currentLevel);
+        }, 1500);
+    } else if (isLastLevelInSet && !isLastSetInStage && (userStatus === "premium" || gameState.currentStage === 1)) {
+        // Move to first level of next set
+        setTimeout(() => {
+            gameState.currentSet++;
+            gameState.currentLevel = 1;
+            startLevel(1);
+        }, 1500);
+    } else if (isLastLevelInSet && isLastSetInStage && userStatus === "premium" && gameState.currentStage < 5) {
+        // Move to first level of first set of next stage
+        setTimeout(() => {
+            gameState.currentStage++;
+            gameState.currentSet = 1;
+            gameState.currentLevel = 1;
+            startLevel(1);
+        }, 1500);
+    } else {
+        // Return to stage selection
+        setTimeout(() => showScreen("stage-cascade-screen"), 1500);
     }
-    
-    // Handle set completion
-    if (isLastLevelInSet) {
-        // Unlock next set for premium users or stage 1
-        if ((!isLastSetInStage && userStatus === 'premium') || gameState.currentStage === 1) {
-            // Unlock next set
-            if (!gameState.unlockedSets[gameState.currentStage]) {
-                gameState.unlockedSets[gameState.currentStage] = new Set();
-            }
-            gameState.unlockedSets[gameState.currentStage].add(gameState.currentSet + 1);
-            
-            // Initialize first level of next set
-            const nextSetKey = `${gameState.currentStage}_${gameState.currentSet + 1}`;
-            if (!gameState.unlockedLevels[nextSetKey]) {
-                gameState.unlockedLevels[nextSetKey] = new Set([1]);
-            }
-            
-            // Progress to next set
-            saveProgress();
-            setTimeout(() => {
-                gameState.currentSet++;
-                startLevel(1);
-            }, 1500);
-        }
-        // Handle last set in stage
-        else if (isLastSetInStage && userStatus === 'premium' && gameState.currentStage < 5) {
-            // Progress to next stage
-            if (!gameState.unlockedSets[gameState.currentStage + 1]) {
-                gameState.unlockedSets[gameState.currentStage + 1] = new Set([1]);
-            }
-            const newSetKey = `${gameState.currentStage + 1}_1`;
-            if (!gameState.unlockedLevels[newSetKey]) {
-                gameState.unlockedLevels[newSetKey] = new Set([1]);
-            }
-            
-            saveProgress();
-            setTimeout(() => {
-                gameState.currentStage++;
-                gameState.currentSet = 1;
-                startLevel(1);
-            }, 1500);
-        }
-        // Handle all other cases (non-premium or completed all)
-        else {
-            // For non-premium users who completed a set, show upgrade prompt
-            if (!isLastSetInStage && userStatus !== 'premium') {
-                saveProgress();
-                setTimeout(() => showUpgradePrompt(), 1500);
-            } else {
-                // Return to stage selection
-                saveProgress();
-                setTimeout(() => showScreen('stage-cascade-screen'), 1500);
-            }
-        }
-    }
-
-    saveProgress();
-    updateAllCoinDisplays();
-    updatePerkButtons();
 }
 
 function handleProgression(levelKey) {
@@ -10745,13 +11149,13 @@ function showStagesFromMenu() {
 }
 
 function findFurthestProgression() {
-    // First check for any in-progress level saved in game context
-    const savedContext = localStorage.getItem('gameContext');
+    // Check for saved game context first
+    const savedContext = localStorage.getItem("gameContext");
     if (savedContext) {
         try {
             const context = JSON.parse(savedContext);
             if (context.stage && context.set && context.level) {
-                console.log('Resuming from saved context:', context);
+                console.log("Resuming from saved context:", context);
                 return {
                     stage: context.stage,
                     set: context.set,
@@ -10759,20 +11163,26 @@ function findFurthestProgression() {
                 };
             }
         } catch (e) {
-            console.error('Error parsing saved context:', e);
+            console.error("Error parsing saved context:", e);
         }
     }
+
+    // Check for preferred stage
+    const preferredStage = parseInt(localStorage.getItem("preferredStage"));
     
-    // Check if the user has a preferred stage from their first login
-    const preferredStage = parseInt(localStorage.getItem('preferredStage'));
-    
-    // Track the furthest level found
-    let furthestProgress = null;
-    let maxProgress = -1;
-    
-    // Function to check if a level is a valid next level
-    const isValidNextLevel = (stage, set, level) => {
-        // Get the levelKey
+    // Debug logging
+    console.log("Finding furthest progression");
+    console.log("Current unlocked sets:", gameState.unlockedSets);
+    console.log("Current unlocked levels:", gameState.unlockedLevels);
+    console.log("Completed levels:", Array.from(gameState.completedLevels));
+    console.log("Perfect levels:", Array.from(gameState.perfectLevels));
+
+    // We'll track the furthest level found
+    let furthestLevel = null;
+    let highestRank = -1;
+
+    // Helper to check if a level is unlocked but not completed
+    const isUnlockedNotCompleted = (stage, set, level) => {
         const levelKey = `${stage}_${set}_${level}`;
         const setKey = `${stage}_${set}`;
         
@@ -10785,94 +11195,207 @@ function findFurthestProgression() {
                               
         return isUnlocked && isNotCompleted;
     };
-    
-    // Calculate a progress score to determine furthest level
-    // Higher stage = higher score, within stage higher set = higher score, etc.
-    const calculateProgressScore = (stage, set, level) => {
-        return (stage * 10000) + (set * 100) + level;
+
+    // Helper to calculate a rank score for a level (higher = further progression)
+    const calculateRank = (stage, set, level) => {
+        return 10000 * stage + 100 * set + level;
     };
-    
-    // Prioritize the user's preferred stage if set
+
+    // First check preferred stage if set
     if (preferredStage && preferredStage >= 1 && preferredStage <= 5) {
-        // First check incomplete levels in this stage
+        console.log(`Checking preferred stage: ${preferredStage}`);
+        
+        // Go through all possible sets in this stage
         for (let set = 1; set <= gameStructure.stages[preferredStage-1].numSets; set++) {
             const setKey = `${preferredStage}_${set}`;
+            
+            // Skip if no unlocked levels for this set
             if (!gameState.unlockedLevels[setKey]) continue;
             
-            const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a); // Descending
+            // Sort levels in descending order (highest first)
+            const levels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a);
             
-            for (let level of unlockedLevels) {
-                if (isValidNextLevel(preferredStage, set, level)) {
-                    const progress = calculateProgressScore(preferredStage, set, level);
-                    if (progress > maxProgress) {
-                        maxProgress = progress;
-                        furthestProgress = { stage: preferredStage, set, level };
+            console.log(`Checking set ${setKey}, unlocked levels:`, levels);
+            
+            // Check each level for this set
+            for (let level of levels) {
+                if (isUnlockedNotCompleted(preferredStage, set, level)) {
+                    const rank = calculateRank(preferredStage, set, level);
+                    if (rank > highestRank) {
+                        highestRank = rank;
+                        furthestLevel = {
+                            stage: preferredStage,
+                            set: set,
+                            level: level
+                        };
+                        console.log(`Found candidate in preferred stage: ${preferredStage}-${set}-${level}`);
                     }
                 }
             }
         }
     }
-    
-    // If we didn't find any valid level in the preferred stage,
-    // or if no preferred stage was set, check all stages
-    if (!furthestProgress) {
+
+    // If we didn't find a level in the preferred stage, check all stages
+    if (!furthestLevel) {
+        // Check each stage
         for (let stage = 1; stage <= 5; stage++) {
+            // Skip if no unlocked sets for this stage
             if (!gameState.unlockedSets[stage]) continue;
             
-            const unlockedSets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => b - a); // Descending
+            // Get all unlocked sets for this stage, sorted in descending order
+            const sets = Array.from(gameState.unlockedSets[stage]).sort((a, b) => b - a);
             
-            for (let set of unlockedSets) {
+            for (let set of sets) {
                 const setKey = `${stage}_${set}`;
+                
+                // Skip if no unlocked levels for this set
                 if (!gameState.unlockedLevels[setKey]) continue;
                 
-                const unlockedLevels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a); // Descending
+                // Get all unlocked levels for this set, sorted in descending order
+                const levels = Array.from(gameState.unlockedLevels[setKey]).sort((a, b) => b - a);
                 
-                for (let level of unlockedLevels) {
-                    if (isValidNextLevel(stage, set, level)) {
-                        const progress = calculateProgressScore(stage, set, level);
-                        if (progress > maxProgress) {
-                            maxProgress = progress;
-                            furthestProgress = { stage, set, level };
+                for (let level of levels) {
+                    if (isUnlockedNotCompleted(stage, set, level)) {
+                        const rank = calculateRank(stage, set, level);
+                        if (rank > highestRank) {
+                            highestRank = rank;
+                            furthestLevel = {
+                                stage: stage,
+                                set: set,
+                                level: level
+                            };
+                            console.log(`Found candidate: ${stage}-${set}-${level}`);
                         }
                     }
                 }
             }
         }
     }
-    
-    // If still no progress found, default to stage 1, set 1, level 1
-    // Or to the preferred stage's first level if set
-    if (!furthestProgress) {
-        if (preferredStage && preferredStage >= 1 && preferredStage <= 5) {
-            return { stage: preferredStage, set: 1, level: 1 };
-        } else {
-            return { stage: 1, set: 1, level: 1 };
-        }
+
+    // If we found a furthest level, return it
+    if (furthestLevel) {
+        console.log("Found furthest progress:", furthestLevel);
+        return furthestLevel;
     }
-    
-    console.log('Found furthest progress:', furthestProgress);
-    return furthestProgress;
+
+    // If no furthest level found but preferred stage is set, return that stage's first level
+    if (preferredStage && preferredStage >= 1 && preferredStage <= 5) {
+        return {
+            stage: preferredStage,
+            set: 1,
+            level: 1
+        };
+    }
+
+    // Default to the very beginning
+    return {
+        stage: 1,
+        set: 1,
+        level: 1
+    };
 }
 
 function startGame() {
-    // First check if this is a first-time player (no progress saved)
-    const isFirstTimePlayer = !hasExistingProgress();
+    console.log("Starting game");
     
-    if (isFirstTimePlayer) {
+    if (!hasExistingProgress()) {
+        console.log("No existing progress found, showing grade selector");
         showGradeLevelSelector();
         return;
     }
     
-    // For returning players, find the furthest progression
-    const furthestPoint = findFurthestProgression();
-    console.log('Furthest Progression:', furthestPoint); // Diagnostic log
+    // Check for saved game context first
+    const savedContext = localStorage.getItem("gameContext");
+    if (savedContext) {
+        try {
+            const context = JSON.parse(savedContext);
+            if (context.stage && context.set && context.level) {
+                console.log("Found saved game context:", context);
+                
+                // Use context data for current level
+                gameState.currentStage = context.stage;
+                gameState.currentSet = context.set;
+                gameState.currentLevel = context.level;
+                
+                startLevel(gameState.currentLevel);
+                return;
+            }
+        } catch (e) {
+            console.error("Error parsing game context:", e);
+        }
+    }
     
-    // Set current stage and set
-    gameState.currentStage = furthestPoint.stage;
-    gameState.currentSet = furthestPoint.set;
+    // If no context, use current game state
+    console.log("Using current game state:", {
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: gameState.currentLevel
+    });
     
-    // Start the specific level
-    startLevel(furthestPoint.level);
+    startLevel(gameState.currentLevel);
+}
+
+function updateLevelProgress(stage, set, level, isCompleted, isPerfect) {
+    // Update in-memory game state
+    const levelKey = `${stage}_${set}_${level}`;
+    
+    if (isPerfect) {
+        gameState.perfectLevels.add(levelKey);
+        gameState.completedLevels.add(levelKey); // Perfect implies completed
+    } else if (isCompleted) {
+        gameState.completedLevels.add(levelKey);
+    }
+    
+    // Make sure we have a Set to store unlocked levels for this set
+    const currentSetKey = `${stage}_${set}`;
+    if (!gameState.unlockedLevels[currentSetKey]) {
+        gameState.unlockedLevels[currentSetKey] = new Set();
+    }
+    
+    // Current level is now completed and unlocked
+    gameState.unlockedLevels[currentSetKey].add(level);
+    
+    // Always unlock the next level in current set if not the last level
+    const nextLevel = level + 1;
+    const isLastLevel = level === gameStructure.stages[stage-1].levelsPerSet;
+    
+    if (!isLastLevel) {
+        gameState.unlockedLevels[currentSetKey].add(nextLevel);
+        console.log(`Unlocked next level: ${nextLevel} in set ${currentSetKey}`);
+    }
+    
+    // Update localStorage immediately
+    const progressData = JSON.parse(localStorage.getItem("simploxProgress") || "{}");
+    
+    // Initialize arrays if they don't exist
+    if (!progressData.perfect_levels) progressData.perfect_levels = [];
+    if (!progressData.completed_levels) progressData.completed_levels = [];
+    
+    // Update the levels
+    if (isPerfect && !progressData.perfect_levels.includes(levelKey)) {
+        progressData.perfect_levels.push(levelKey);
+    }
+    
+    if ((isCompleted || isPerfect) && !progressData.completed_levels.includes(levelKey)) {
+        progressData.completed_levels.push(levelKey);
+    }
+    
+    // Update unlocked levels
+    if (!progressData.unlocked_levels) progressData.unlocked_levels = {};
+    if (!progressData.unlocked_levels[currentSetKey]) progressData.unlocked_levels[currentSetKey] = [];
+    
+    if (!progressData.unlocked_levels[currentSetKey].includes(level)) {
+        progressData.unlocked_levels[currentSetKey].push(level);
+    }
+    
+    if (!isLastLevel && !progressData.unlocked_levels[currentSetKey].includes(nextLevel)) {
+        progressData.unlocked_levels[currentSetKey].push(nextLevel);
+    }
+    
+    localStorage.setItem("simploxProgress", JSON.stringify(progressData));
+    
+    // Now save to database (safely)
+    saveProgress();
 }
 
 function showLevelIntro(levelId, setupCallback) {
@@ -13542,48 +14065,106 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
 }
 
 async function checkExistingSession() {
+    console.log("Checking for existing user session");
+    
     try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         
         if (session) {
+            console.log("Found existing session for user:", session.user.id);
             currentUser = session.user;
             
-            // Get initial status
-            const { data: profile } = await supabaseClient
-                .from('user_profiles')
-                .select('status')
-                .eq('id', currentUser.id)
+            // Fetch user profile data
+            const { data: profileData } = await supabaseClient
+                .from("user_profiles")
+                .select("status")
+                .eq("id", currentUser.id)
                 .single();
                 
-            if (profile) {
-                currentUser.status = profile.status; // Store status in user object
-                updateUserStatusDisplay(profile.status);
+            if (profileData) {
+                currentUser.status = profileData.status;
+                updateUserStatusDisplay(profileData.status);
             }
             
-            // Initialize real-time updates and periodic check
+            // Initialize status check
             initializeStatusCheck();
             
-            await Promise.all([
-                loadUserGameProgress(currentUser.id),
-                loadCustomLists()
-            ]);
+            // Update UI
             updateAuthUI();
-            updateGuestPlayButton(); // Add this line
+            updateGuestPlayButton();
+            
+            return true;
         } else {
-            // Explicitly reset user and UI
+            console.log("No active session found");
             currentUser = null;
             updateAuthUI();
             updateUserStatusDisplay(null);
-            updateGuestPlayButton(); // Add this line
+            updateGuestPlayButton();
+            return false;
         }
     } catch (error) {
-        console.error('Session check error:', error);
+        console.error("Session check error:", error);
         currentUser = null;
         updateAuthUI();
         updateUserStatusDisplay(null);
-        updateGuestPlayButton(); // Add this line
+        updateGuestPlayButton();
+        return false;
     }
 }
+
+// Add at the document.addEventListener("DOMContentLoaded", ...) section
+document.addEventListener("DOMContentLoaded", function() {
+    console.log("DOM fully loaded, initializing game");
+    
+    // Initialize game with explicit progression saving/loading
+    gameInit.init().then(() => {
+        console.log("Game initialization completed");
+        
+        // Check for saved context on startup
+        const savedContext = localStorage.getItem("gameContext");
+        if (savedContext && !window.location.hash) {
+            try {
+                const context = JSON.parse(savedContext);
+                const timeSinceContext = Date.now() - (context.timestamp || 0);
+                
+                // Only use context if it's less than 24 hours old
+                if (timeSinceContext < 24 * 60 * 60 * 1000) {
+                    console.log("Found recent game context, updating game state:", context);
+                    gameState.currentStage = context.stage || gameState.currentStage;
+                    gameState.currentSet = context.set || gameState.currentSet;
+                    gameState.currentLevel = context.level || gameState.currentLevel;
+                }
+            } catch (e) {
+                console.error("Error parsing saved context:", e);
+            }
+        }
+    });
+});
+
+function setupAutoSave() {
+    // Auto-save progress every 30 seconds
+    const autoSaveInterval = setInterval(() => {
+        if (gameState.currentStage && gameState.currentSet && gameState.currentLevel) {
+            console.log("Auto-saving game progress");
+            saveProgress();
+        }
+    }, 30000);
+    
+    // Save progress when the window is about to unload
+    window.addEventListener("beforeunload", () => {
+        if (gameState.currentStage && gameState.currentSet && gameState.currentLevel) {
+            console.log("Saving progress before page unload");
+            saveProgress();
+        }
+    });
+    
+    return autoSaveInterval;
+}
+
+// Call this function at initialization
+document.addEventListener("DOMContentLoaded", function() {
+    setupAutoSave();
+});
 
 function showPremiumCelebration() {
     // Create the celebration overlay
@@ -18413,19 +18994,32 @@ function populateSetsGrid(stageId) {
     }
 }
 
-function isSetCompleted(stageId, setId) {
-    const setKey = `${stageId}_${setId}`;
-    const levelCount = gameStructure.stages[stageId - 1].levelsPerSet;
+function isSetCompleted(e, t) {
+    const stages = gameStructure.stages;
+    if (!stages || !stages[e-1]) {
+        console.warn(`Invalid stage ${e} in isSetCompleted`);
+        return false;
+    }
+    
+    const levelsPerSet = stages[e-1].levelsPerSet;
     let completedCount = 0;
     
-    for (let level = 1; level <= levelCount; level++) {
-        const levelKey = `${stageId}_${setId}_${level}`;
-        if (gameState.completedLevels.has(levelKey) || gameState.perfectLevels.has(levelKey)) {
+    console.log(`Checking if set ${e}-${t} is completed. Total levels: ${levelsPerSet}`);
+    
+    for (let i = 1; i <= levelsPerSet; i++) {
+        const levelKey = `${e}_${t}_${i}`;
+        const isCompleted = gameState.completedLevels.has(levelKey) || gameState.perfectLevels.has(levelKey);
+        
+        if (isCompleted) {
             completedCount++;
+            console.log(`Level ${levelKey} is completed`);
         }
     }
     
-    return completedCount === levelCount;
+    const result = completedCount === levelsPerSet;
+    console.log(`Set ${e}-${t} completion check: ${completedCount}/${levelsPerSet} = ${result}`);
+    
+    return result;
 }
 
 function addStageToggleListeners() {
@@ -18701,45 +19295,134 @@ function setupDefaultUnlocks() {
 }
 
 function saveProgress() {
-    // Ensure currentUser is always defined, even for unregistered users
-    const userId = currentUser ? currentUser.id : 'guest';
-
-    // For guest users, save to localStorage
-    const progressToSave = {
-        currentStage: gameState.currentStage || 1,
-        currentSet: gameState.currentSet || 1,
-        currentLevel: gameState.currentLevel || 1,
-        unlockedSets: Object.fromEntries(
-            Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
-        ),
-        unlockedLevels: Object.fromEntries(
-            Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
-        ),
-        perfectLevels: Array.from(gameState.perfectLevels),
-        completedLevels: Array.from(gameState.completedLevels),
+    console.log("Saving game progress");
+    
+    // Format the data for storage
+    const progressData = {
+        stage: gameState.currentStage || 1,
+        set_number: gameState.currentSet || 1,
+        level: gameState.currentLevel || 1,
         coins: gameState.coins || 0,
         perks: gameState.perks || {}
     };
+    
+    // Add unlocked_sets with proper format
+    if (gameState.unlockedSets) {
+        progressData.unlocked_sets = {};
+        Object.entries(gameState.unlockedSets).forEach(([stage, sets]) => {
+            progressData.unlocked_sets[stage] = Array.from(sets || []);
+        });
+    }
+    
+    // Add unlocked_levels with proper format
+    if (gameState.unlockedLevels) {
+        progressData.unlocked_levels = {};
+        Object.entries(gameState.unlockedLevels).forEach(([setKey, levels]) => {
+            progressData.unlocked_levels[setKey] = Array.from(levels || []);
+        });
+    }
+    
+    // Add completed and perfect levels - ONLY if the database schema supports them
+    if (gameState.completedLevels && gameState.completedLevels.size > 0) {
+        progressData.completed_levels = Array.from(gameState.completedLevels);
+    }
+    
+    if (gameState.perfectLevels && gameState.perfectLevels.size > 0) {
+        progressData.perfect_levels = Array.from(gameState.perfectLevels);
+    }
+    
+    console.log("Progress data to save:", progressData);
 
     if (currentUser) {
-        // Save to Supabase for logged-in users
-        console.log('Saving progress to Supabase:', progressToSave);
+        console.log("Saving progress to Supabase for user:", currentUser.id);
+        
+        // First check if the schema is compatible
         supabaseClient
-            .from('game_progress')
-            .update(progressToSave)
-            .eq('user_id', currentUser.id)
+            .from("game_progress")
+            .select("*")
+            .eq("user_id", currentUser.id)
+            .single()
             .then(({ data, error }) => {
                 if (error) {
-                    console.error('Error saving game progress:', error);
-                } else {
-                    console.log('Progress saved successfully');
+                    console.error("Error checking progress schema:", error);
+                    // Fallback to localStorage
+                    saveProgressToLocalStorage(progressData);
+                    return;
                 }
+                
+                // Check if database has completed_levels column
+                const hasCompletedLevels = 'completed_levels' in data;
+                const hasPerfectLevels = 'perfect_levels' in data;
+                
+                // Remove fields that don't exist in the schema
+                if (!hasCompletedLevels) {
+                    delete progressData.completed_levels;
+                    console.warn("Database schema missing completed_levels column, removing from save data");
+                }
+                
+                if (!hasPerfectLevels) {
+                    delete progressData.perfect_levels;
+                    console.warn("Database schema missing perfect_levels column, removing from save data");
+                }
+                
+                // Now save with the adjusted data
+                supabaseClient
+                    .from("game_progress")
+                    .update(progressData)
+                    .eq("user_id", currentUser.id)
+                    .then(({ data, error }) => {
+                        if (error) {
+                            console.error("Failed to save to database, using localStorage:", error);
+                            saveProgressToLocalStorage(progressData);
+                        } else {
+                            console.log("Progress successfully saved to database");
+                            // Also save to localStorage as backup
+                            saveProgressToLocalStorage(progressData);
+                        }
+                    });
             });
     } else {
-        // Save to localStorage for guest users
-        console.log('Saving progress to localStorage:', progressToSave);
-        localStorage.setItem('simploxProgress', JSON.stringify(progressToSave));
+        // Store progress in localStorage for guests
+        console.log("Saving progress to localStorage (guest user)");
+        saveProgressToLocalStorage(progressData);
     }
+    
+    // Save current context for resuming
+    const contextData = {
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: gameState.currentLevel,
+        timestamp: Date.now()
+    };
+    
+    localStorage.setItem("gameContext", JSON.stringify(contextData));
+    console.log("Game context saved:", contextData);
+}
+
+// Helper function to save to localStorage
+function saveProgressToLocalStorage(progressData) {
+    localStorage.setItem("simploxProgress", JSON.stringify(progressData));
+}
+
+function debugGameProgress() {
+    console.group("Game Progress Debug");
+    console.log("Current Stage:", gameState.currentStage);
+    console.log("Current Set:", gameState.currentSet);
+    console.log("Current Level:", gameState.currentLevel);
+    
+    console.log("Unlocked Sets:");
+    Object.entries(gameState.unlockedSets).forEach(([stage, sets]) => {
+        console.log(`Stage ${stage}:`, Array.from(sets).sort((a, b) => a - b));
+    });
+    
+    console.log("Unlocked Levels:");
+    Object.entries(gameState.unlockedLevels).forEach(([setKey, levels]) => {
+        console.log(`Set ${setKey}:`, Array.from(levels).sort((a, b) => a - b));
+    });
+    
+    console.log("Completed Levels:", Array.from(gameState.completedLevels).sort());
+    console.log("Perfect Levels:", Array.from(gameState.perfectLevels).sort());
+    console.groupEnd();
 }
 
 // Add to existing performance-related functions
