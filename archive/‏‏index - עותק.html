@@ -6656,6 +6656,8 @@ body.dark-theme {
 
 <script>
     
+
+    
    
     document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.querySelector('.logout-button');
@@ -6900,28 +6902,45 @@ const CustomListsManager = {
     },
     
     async share(listId, recipientId) {
-        if (!currentUser) return false;
+    if (!currentUser) return false;
+    
+    try {
+        // Convert listId to string to ensure comparison works
+        const stringListId = String(listId);
         
-        try {
-            const list = this.lists.find(l => l.id === listId);
-            if (!list) return false;
-            
-            const result = await supabaseClient.rpc('insert_shared_list', {
-                p_user_id: recipientId,
-                p_name: `${list.name} (Shared by ${currentUser.user_metadata?.username || 'User'})`,
-                p_words: list.words || [],
-                p_translations: list.translations || [],
-                p_is_shared: true,
-                p_local_id: Date.now(),
-                p_shared_with: [recipientId],
-                p_shared_by: currentUser.id
-            });
-            
-            return !result.error;
-        } catch (error) {
-            console.error('Error sharing list:', error);
+        // Find the list by ID
+        const list = this.lists.find(list => String(list.id) === stringListId);
+        
+        if (!list) {
+            console.error("List not found for sharing:", stringListId);
             return false;
         }
+        
+        console.log("Sharing list:", list.name);
+        
+        // Use supabase RPC function to share the list
+        const { data, error } = await supabaseClient.rpc("insert_shared_list", {
+            p_user_id: recipientId,
+            p_name: `${list.name} (Shared by ${currentUser.user_metadata?.username || "User"})`,
+            p_words: list.words || [],
+            p_translations: list.translations || [],
+            p_is_shared: true,
+            p_local_id: Date.now(),
+            p_shared_with: [recipientId],
+            p_shared_by: currentUser.id
+        });
+        
+        if (error) {
+            console.error("Error sharing list via RPC:", error);
+            return false;
+        }
+        
+        console.log("List shared successfully:", data);
+        return true;
+    } catch (error) {
+        console.error("Error in share method:", error);
+        return false;
+    }
     },
     
     getListLimits() {
@@ -7233,78 +7252,77 @@ const WordsManager = {
     
     initialize() {
         this.displayElements.clear();
-        document.querySelectorAll('#totalWords').forEach(display => {
-            this.displayElements.add(display);
+        document.querySelectorAll('#totalWords').forEach(element => {
+            this.displayElements.add(element);
         });
     },
     
     async loadUserWords() {
-        if (!currentUser) return 0;
-
+        if (!currentUser) {
+            return 0;
+        }
+        
         try {
             const { data, error } = await supabaseClient
                 .from('player_stats')
                 .select('unique_words_practiced')
                 .eq('user_id', currentUser.id)
                 .single();
-
+                
             if (error) throw error;
+            
             return data?.unique_words_practiced || 0;
         } catch (error) {
-            console.error('Error loading words:', error);
+            console.error("Error loading words:", error);
             return 0;
         }
     },
-
-    async updateWords(amount) {
+    
+    async updateWords(increment) {
         try {
-            // Get current total
-            const oldTotal = parseInt(document.getElementById('totalWords').textContent) || 0;
-            const newTotal = oldTotal + amount;
-
-            // Animate all displays
-            this.displayElements.forEach(display => {
-                let currentValue = oldTotal;
-                const duration = 1000;
+            const currentTotal = parseInt(document.getElementById('totalWords').textContent) || 0;
+            const newTotal = currentTotal + increment;
+            
+            // Animate the word count change
+            this.displayElements.forEach(element => {
+                let count = currentTotal;
                 const startTime = performance.now();
                 
-                function animate(currentTime) {
+                requestAnimationFrame(function updateCount(currentTime) {
                     const elapsed = currentTime - startTime;
-                    const progress = Math.min(elapsed / duration, 1);
+                    const progress = Math.min(elapsed / 1000, 1);
                     
-                    currentValue = oldTotal + (newTotal - oldTotal) * progress;
-                    display.textContent = Math.round(currentValue);
+                    count = currentTotal + (newTotal - currentTotal) * progress;
+                    element.textContent = Math.round(count);
                     
                     if (progress < 1) {
-                        requestAnimationFrame(animate);
+                        requestAnimationFrame(updateCount);
                     } else {
-                        display.textContent = newTotal;
+                        element.textContent = newTotal;
                     }
-                }
-                
-                requestAnimationFrame(animate);
+                });
             });
-
-            // Save to database if user is logged in
-            if (currentUser) {
+            
+            // Only update the database for authenticated premium users
+            if (currentUser && currentUser.status === 'premium') {
                 const { error } = await supabaseClient
                     .from('player_stats')
                     .update({ unique_words_practiced: newTotal })
                     .eq('user_id', currentUser.id);
-
+                    
                 if (error) throw error;
             }
-
+            
             return true;
         } catch (error) {
-            console.error('Failed to update words:', error);
+            console.error("Failed to update words:", error);
             return false;
         }
     },
-
+    
     updateDisplays(value) {
-        this.displayElements.forEach(display => {
-            display.textContent = value;
+        this.displayElements.forEach(element => {
+            element.textContent = value;
         });
     }
 };
@@ -10230,7 +10248,6 @@ function updateNavigationIcons(screenId) {
     }
 }
 
-// Visual Updates
 function updateProgressCircle() {
     const circle = document.querySelector('.progress-circle .progress');
     const progressCircle = document.querySelector('.progress-circle');
@@ -10281,21 +10298,6 @@ function updateProgressCircle() {
     }
 }
 
-function showCompletionEffect(progressCircle) {
-    // Add completion class to trigger animations
-    progressCircle.classList.add('completed');
-    
-    // Create a ripple effect
-    const ripple = document.createElement('div');
-    ripple.className = 'completion-ripple';
-    progressCircle.appendChild(ripple);
-    
-    // Remove completion animations after 2 seconds
-    setTimeout(() => {
-        progressCircle.classList.remove('completed');
-        ripple.remove();
-    }, 2000);
-}
 
 function loadNextQuestion() {
     if (currentGame.currentIndex >= currentGame.words.length) {
@@ -10380,6 +10382,12 @@ async function handleAnswer(isCorrect, fromPerk = false) {
     };
 
     try {
+        // Immediately update progress circle
+        if (isCorrect) {
+            currentGame.currentIndex++;
+            updateProgressCircle();
+        }
+
         // Rest of the existing answer handling logic
         if (!isCorrect) {
             currentGame.firstAttempt = false;
@@ -10444,24 +10452,19 @@ async function handleAnswer(isCorrect, fromPerk = false) {
                 btn.classList.add('wrong');
             }
         });
-
-        if (isCorrect) {
-            currentGame.currentIndex++;
-        }
         
-        updateProgressCircle();
         saveProgress();
        
-        // Use setTimeout for consistent timing and to prevent rapid subsequent calls
+        // Use setTimeout for next question, but make it quicker
         setTimeout(() => {
-        if (currentGame.currentIndex < currentGame.words.length) {
-            startTimer(currentGame.words.length - currentGame.currentIndex);
-            loadNextQuestion();
-            updatePerkButtons();
-        } else {
-            handleLevelCompletion(); // This now routes to handleCustomLevelCompletion if needed
-        }
-    }, 333);
+            if (currentGame.currentIndex < currentGame.words.length) {
+                startTimer(currentGame.words.length - currentGame.currentIndex);
+                loadNextQuestion();
+                updatePerkButtons();
+            } else {
+                handleLevelCompletion();
+            }
+        }, 200); // Reduced from 333 to 200
 
     } catch (error) {
         console.error('Unexpected error in handleAnswer:', error);
@@ -12702,34 +12705,6 @@ function toggleAuthMode() {
     signupForm.classList.toggle('hidden');
 }
 
-async function shareListWithUser(listId, recipientId) {
-    try {
-        console.group('Share List Diagnostics');
-        console.log('List ID:', listId);
-        console.log('Recipient ID:', recipientId);
-        
-        // Get fresh list data from CustomListsManager
-        const list = CustomListsManager.lists.find(l => l.id === listId);
-        if (!list) {
-            console.error('List not found in CustomListsManager');
-            // Try to reload lists before giving up
-            await CustomListsManager.loadFromSupabase();
-            const refreshedList = CustomListsManager.lists.find(l => l.id === listId);
-            if (!refreshedList) {
-                throw new Error('List not found');
-            }
-            console.log('List found after reload:', refreshedList);
-            return await CustomListsManager.share(listId, recipientId);
-        }
-
-        return await CustomListsManager.share(listId, recipientId);
-    } catch (error) {
-        console.error('Share error:', error);
-        throw error;
-    } finally {
-        console.groupEnd();
-    }
-}
 
 function updateLocalSharedLists(sharedList) {
     // Add the shared list to the recipient's local lists
@@ -12746,6 +12721,105 @@ function updateLocalSharedLists(sharedList) {
         
         // Save to local storage or sync
         saveCustomLists();
+    }
+}
+
+// ADD this fallback function to try alternative sharing approaches
+async function debugShareList(listId, recipientId) {
+    try {
+        console.log("Debug share function called with:", { listId, recipientId });
+        
+        // Find the list
+        const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
+        if (!list) {
+            console.error("List not found for debug sharing");
+            return false;
+        }
+        
+        // Try direct table access with minimal fields
+        const { data, error } = await supabaseClient
+            .from('custom_lists')
+            .insert({
+                user_id: recipientId,
+                name: "Shared list", 
+                words: ["test"],
+                translations: ["test"],
+                is_shared: true
+            });
+            
+        if (error) {
+            console.error("Debug share error:", error);
+            
+            // Check what tables are available
+            const { data: tables, error: tablesError } = await supabaseClient
+                .from('information_schema.tables')
+                .select('table_name')
+                .eq('table_schema', 'public');
+                
+            if (tablesError) {
+                console.error("Error fetching tables:", tablesError);
+            } else {
+                console.log("Available tables:", tables);
+            }
+            
+            return false;
+        }
+        
+        console.log("Debug share success:", data);
+        return true;
+    } catch (error) {
+        console.error("Debug share exception:", error);
+        return false;
+    }
+}
+
+async function shareListWithUser(listId, recipientId) {
+    try {
+        console.log("Sharing list:", listId, "with user:", recipientId);
+        
+        if (!currentUser) {
+            console.error("No current user - cannot share list");
+            return false;
+        }
+        
+        // Find the list in CustomListsManager
+        const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
+        
+        if (!list) {
+            console.error("List not found for sharing:", listId);
+            return false;
+        }
+        
+        console.log("Found list to share:", list.name);
+        
+        // Direct insert into custom_lists table
+        const { data, error } = await supabaseClient
+            .from('custom_lists')
+            .insert({
+                user_id: recipientId,
+                name: `${list.name} (Shared by ${currentUser.user_metadata?.username || "User"})`,
+                words: list.words || [],
+                translations: list.translations || [],
+                is_shared: true,
+                shared_with: [recipientId],
+                shared_by: currentUser.id,
+                created_at: new Date().toISOString(),
+                status: 'active'
+            });
+        
+        if (error) {
+            console.error("Error sharing list:", error);
+            return false;
+        }
+        
+        console.log("List shared successfully");
+        showNotification("List shared successfully!", "success");
+        closeShareModal();
+        return true;
+    } catch (error) {
+        console.error("Error in shareListWithUser:", error);
+        showNotification("Error sharing list", "error");
+        return false;
     }
 }
 
@@ -12800,83 +12874,88 @@ async function loadSharedLists() {
     }));
 }
 
+// REPLACE the showShareModal function
 function showShareModal(listId) {
-    // Create modal HTML
+    console.log("Opening share modal for list:", listId);
+    
+    // Remove any existing modals
+    const existingModal = document.querySelector('.share-modal');
+    const existingBackdrop = document.querySelector('.modal-backdrop');
+    if (existingModal) existingModal.remove();
+    if (existingBackdrop) existingBackdrop.remove();
+    
+    // Create modal backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop';
+    backdrop.onclick = closeShareModal;
+    document.body.appendChild(backdrop);
+    
+    // Create share modal
     const modal = document.createElement('div');
+    modal.className = 'share-modal';
     modal.innerHTML = `
-        <div class="modal-backdrop" onclick="closeShareModal()"></div>
-        <div class="share-modal">
-            <h3 class="share-modal-header">Share List</h3>
-            <div class="users-list">Loading users...</div>
-            <button class="main-button modal-close" onclick="closeShareModal()">Cancel</button>
-        </div>
+        <h3 class="share-modal-header">Share List</h3>
+        <div class="users-list">Loading users...</div>
+        <button class="start-button modal-close" onclick="closeShareModal()">Cancel</button>
     `;
     document.body.appendChild(modal);
-
-    // Fetch users directly from user_profiles
-    supabaseClient
-        .from('user_profiles')
-        .select('id, username')
-        .neq('id', currentUser.id)
+    
+    // Now we know the modal and users-list are in the DOM
+    const usersList = modal.querySelector('.users-list');
+    
+    // Fetch users
+    supabaseClient.from("user_profiles")
+        .select("id, username")
+        .neq("id", currentUser.id)
         .then(({ data, error }) => {
             if (error) {
-                console.error('Error fetching users:', error);
+                console.error("Error fetching users:", error);
+                usersList.innerHTML = '<div class="user-item"><span>Error loading users</span></div>';
                 return;
             }
             
-            console.log('Users data:', data);
-            
-            const availableUsers = data || [];
-            const usersList = modal.querySelector('.users-list');
-            usersList.innerHTML = '';
-
-            if (availableUsers.length === 0) {
-                usersList.innerHTML = `<div class="user-item"><span>No other users available</span></div>`;
+            if (!data || data.length === 0) {
+                usersList.innerHTML = '<div class="user-item"><span>No other users available</span></div>';
                 return;
             }
-
-            usersList.innerHTML = availableUsers.map(user => `
+            
+            usersList.innerHTML = data.map(user => `
                 <div class="user-item">
-                    <span>${user.username || 'Unnamed User'}</span>
-                    <button class="main-button small-button share-with-user-btn" data-id="${user.id}">
+                    <span>${user.username || "Unnamed User"}</span>
+                    <button class="start-button share-with-user-btn" data-user-id="${user.id}">
                         <i class="fas fa-share-alt"></i> Share
                     </button>
                 </div>
-            `).join('');
+            `).join("");
             
-            // Add click handlers to all share buttons
-            const shareButtons = usersList.querySelectorAll('.share-with-user-btn');
-            shareButtons.forEach(button => {
-                button.addEventListener('click', async () => {
-                    const recipientId = button.getAttribute('data-id');
+            // Add click handlers to share buttons
+            modal.querySelectorAll('.share-with-user-btn').forEach(btn => {
+                btn.onclick = async () => {
+                    const userId = btn.getAttribute('data-user-id');
+                    btn.disabled = true;
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
                     
-                    // Disable button and show loading state
-                    button.disabled = true;
-                    const originalText = button.innerHTML;
-                    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
+                    const success = await shareListWithUser(listId, userId);
                     
-                    try {
-                        const result = await shareListWithUser(listId, recipientId);
-                        if (result) {
-                            showNotification('List shared successfully!', 'success');
-                            closeShareModal();
-                        } else {
-                            showNotification('Failed to share list', 'error');
-                            // Reset button
-                            button.disabled = false;
-                            button.innerHTML = originalText;
-                        }
-                    } catch (error) {
-                        console.error('Error in share handler:', error);
-                        showNotification('Error sharing list', 'error');
-                        // Reset button
-                        button.disabled = false;
-                        button.innerHTML = originalText;
+                    if (!success) {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
                     }
-                });
+                };
             });
         });
 }
+
+// ADD this function to close the share modal
+function closeShareModal() {
+    const modal = document.querySelector('.share-modal');
+    const backdrop = document.querySelector('.modal-backdrop');
+    
+    if (modal) modal.remove();
+    if (backdrop) backdrop.remove();
+}
+
 
 function handleProgressionAfterCompletion(isLevelCompleted) {
     if (!isLevelCompleted && currentGame.streakBonus) {
@@ -14017,50 +14096,42 @@ function cleanupLeaderboard() {
 }
 
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
-    if (!currentUser) return;
+    if (currentUser && "premium" === currentUser.status) {
+        try {
+            // Get current player stats
+            const { data: currentStats, error: statsError } = 
+                await supabaseClient.from("player_stats")
+                    .select("*")
+                    .eq("user_id", currentUser.id)
+                    .single();
 
-    console.log('Updating stats:', {
-        levelTime,
-        mistakes,
-        currentStreak,
-        words: currentGame.words.length
-    });
+            if (statsError && statsError.code !== "PGRST116") throw statsError;
 
-    try {
-        const { data: currentStats, error: fetchError } = await supabaseClient
-            .from('player_stats')
-            .select('*')
-            .eq('user_id', currentUser.id)
-            .single();
+            // Calculate unique words (remove duplicates)
+            const uniqueWords = [...new Set(currentGame.words)];
+            const wordsToAdd = uniqueWords.length;
 
-        if (fetchError && fetchError.code !== 'PGRST116') {
-            throw fetchError;
+            // Prepare update object
+            const statsUpdate = {
+                user_id: currentUser.id,
+                total_levels_completed: (currentStats?.total_levels_completed || 0) + 1,
+                unique_words_practiced: (currentStats?.unique_words_practiced || 0) + wordsToAdd,
+                last_updated: new Date().toISOString()
+            };
+
+            // Update database
+            const { error: upsertError } = 
+                await supabaseClient.from("player_stats")
+                    .upsert(statsUpdate, { onConflict: "user_id", returning: "minimal" });
+
+            if (upsertError) throw upsertError;
+
+            // Immediately update UI
+            await WordsManager.updateWords(wordsToAdd);
+
+        } catch (error) {
+            console.error("Error updating player stats:", error);
         }
-
-        const updateData = {
-            user_id: currentUser.id,
-            total_levels_completed: ((currentStats?.total_levels_completed || 0) + 1),
-            unique_words_practiced: currentStats?.unique_words_practiced 
-                ? currentStats.unique_words_practiced + currentGame.words.length
-                : currentGame.words.length,
-            last_updated: new Date().toISOString()
-        };
-
-        console.log('Sending update with data:', updateData);
-
-        const { error: updateError } = await supabaseClient
-            .from('player_stats')
-            .upsert(updateData, {
-                onConflict: 'user_id',
-                returning: 'minimal' // For faster response
-            });
-
-        if (updateError) throw updateError;
-
-        console.log('Stats update successful');
-
-    } catch (error) {
-        console.error('Error updating player stats:', error);
     }
 }
 
@@ -15550,66 +15621,74 @@ function exitArcade() {
     document.querySelector('.completion-overlay')?.remove();
 }
 
-function handleArcadeAnswer(isCorrect) {
-    const now = Date.now();
-    const lastAnswerTime = currentGame.lastAnswerTime || 0;
+async function handleArcadeAnswer(isCorrect) {
+    const currentTime = Date.now();
     
-    // Enforce 1-second cooldown between answers
-    if (now - lastAnswerTime < 1000) {
+    if (currentTime - (currentGame.lastAnswerTime || 0) < 1000) {
         return;
     }
     
-    currentGame.lastAnswerTime = now;
+    currentGame.lastAnswerTime = currentTime;
     
     const playerUsername = currentArcadeSession.playerName || 
-        (currentUser?.user_metadata?.username || getRandomSimploName());
+        currentUser?.user_metadata?.username || 
+        getRandomSimploName();
     
     if (isCorrect) {
         currentGame.wordsCompleted++;
         currentGame.correctStreak++;
         currentGame.wrongStreak = 0;
         
-        // Award coins with streak bonus
-        let coinsEarned = 5;
-        if (currentGame.correctStreak >= 3) {
-            coinsEarned += 5;
-        }
-        
-        CoinsManager.updateCoins(coinsEarned).then(() => {
-            // Broadcast progress with updated coins
-            if (window.arcadeChannel) {
-                window.arcadeChannel.send({
-                    type: 'broadcast',
-                    event: 'progress_update',
-                    payload: {
-                        username: playerUsername,
-                        wordsCompleted: currentGame.wordsCompleted,
-                        coins: gameState.coins,
-                        timestamp: Date.now()
-                    }
-                });
+        // Track the encountered word for premium users
+        if (currentUser && currentUser.status === 'premium') {
+            const currentWordIndex = Math.floor(Math.random() * currentGame.words.length);
+            const word = currentGame.words[currentWordIndex];
+            const wordToTrack = word.word || word; // Handle different data formats
+            
+            await trackWordEncounter(wordToTrack, "arcade");
+        } else {
+            // Original coin logic for non-premium users
+            let coinReward = 5;
+            if (currentGame.correctStreak >= 3) {
+                coinReward += 5;
             }
-        });
+            
+            // Update coins via CoinsManager
+            CoinsManager.updateCoins(coinReward).then(() => {
+                // Broadcast progress update to other players
+                if (window.arcadeChannel) {
+                    window.arcadeChannel.send({
+                        type: 'broadcast',
+                        event: 'progress_update',
+                        payload: {
+                            username: playerUsername,
+                            wordsCompleted: currentGame.wordsCompleted,
+                            coins: gameState.coins,
+                            timestamp: Date.now()
+                        }
+                    });
+                }
+            });
+        }
         
         updateArcadeProgress();
         
-        // Check if player reached word goal
+        // Check if player completed the word goal
         if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
             handlePlayerCompletedGoal(playerUsername);
         }
-        
     } else {
+        // Incorrect answer logic - remains mostly unchanged
         currentGame.wrongStreak++;
         currentGame.correctStreak = 0;
         
-        // Lose coins with streak penalty
-        let coinsLost = 2;
+        let coinPenalty = 2;
         if (currentGame.wrongStreak >= 3) {
-            coinsLost += 3;
+            coinPenalty += 3;
         }
         
-        CoinsManager.updateCoins(-coinsLost).then(() => {
-            // Broadcast progress with updated coins
+        CoinsManager.updateCoins(-coinPenalty).then(() => {
+            // Broadcast update with reduced coins
             if (window.arcadeChannel) {
                 window.arcadeChannel.send({
                     type: 'broadcast',
@@ -15625,6 +15704,7 @@ function handleArcadeAnswer(isCorrect) {
         });
     }
     
+    // Continue with loading the next question
     loadNextArcadeQuestion();
 }
 
@@ -19797,6 +19877,99 @@ function resetAllAccessibilitySettings() {
     
     // Clear saved settings
     localStorage.removeItem('accessibilitySettings');
+}
+
+async function trackWordEncounter(word, gameMode) {
+    if (!currentUser || currentUser.status !== 'premium') return;
+    
+    try {
+        // Get the current player stats
+        const { data: playerStats, error: fetchError } = await supabaseClient
+            .from('player_stats')
+            .select('unique_words_practiced, words_history')
+            .eq('user_id', currentUser.id)
+            .single();
+            
+        if (fetchError) {
+            console.error('Error fetching player stats:', fetchError);
+            return;
+        }
+        
+        // Initialize words_history if it doesn't exist
+        const wordsHistory = playerStats.words_history || {};
+        let coinReward = 3; // Default coin reward
+        let isNewWord = false;
+        
+        // Check if this word exists in history
+        if (!wordsHistory[word]) {
+            // New word - first time encounter
+            isNewWord = true;
+            wordsHistory[word] = {
+                practice_count: 1,
+                coins_earned: coinReward,
+                last_practiced_at: new Date().toISOString(),
+                game_modes: [gameMode]
+            };
+            
+            // Update the total unique words count
+            const newUniqueWords = (playerStats.unique_words_practiced || 0) + 1;
+            
+            // Update player stats with new word
+            const { error: updateError } = await supabaseClient
+                .from('player_stats')
+                .update({
+                    unique_words_practiced: newUniqueWords,
+                    words_history: wordsHistory
+                })
+                .eq('user_id', currentUser.id);
+                
+            if (updateError) {
+                console.error('Error updating player stats:', updateError);
+                return;
+            }
+            
+            // Update the UI display
+            WordsManager.updateDisplays(newUniqueWords);
+        } else {
+            // Word already exists in history
+            const wordData = wordsHistory[word];
+            const practiceCount = wordData.practice_count + 1;
+            
+            // Determine coin reward based on practice count
+            coinReward = practiceCount <= 5 ? 3 : 1;
+            
+            // Update the word data
+            wordsHistory[word] = {
+                ...wordData,
+                practice_count: practiceCount,
+                coins_earned: (wordData.coins_earned || 0) + coinReward,
+                last_practiced_at: new Date().toISOString(),
+                game_modes: [...new Set([...(wordData.game_modes || []), gameMode])]
+            };
+            
+            // Update player stats with updated word history
+            const { error: updateError } = await supabaseClient
+                .from('player_stats')
+                .update({
+                    words_history: wordsHistory
+                })
+                .eq('user_id', currentUser.id);
+                
+            if (updateError) {
+                console.error('Error updating player stats:', updateError);
+                return;
+            }
+        }
+        
+        // Award coins to the user
+        if (coinReward > 0) {
+            await CoinsManager.updateCoins(coinReward);
+        }
+        
+        return { isNewWord, coinReward };
+    } catch (error) {
+        console.error('Error in trackWordEncounter:', error);
+    }
 }
 
 </script>

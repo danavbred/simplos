@@ -6656,7 +6656,6 @@ body.dark-theme {
 
 <script>
     
-
     
    
     document.addEventListener('DOMContentLoaded', () => {
@@ -10293,9 +10292,6 @@ function updateProgressCircle() {
     
     circle.style.stroke = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     
-    if (progress >= 1) {
-        showCompletionEffect(progressCircle);
-    }
 }
 
 
@@ -14096,50 +14092,42 @@ function cleanupLeaderboard() {
 }
 
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
-    if (!currentUser) return;
+    if (currentUser && "premium" === currentUser.status) {
+        try {
+            // Get current player stats
+            const { data: currentStats, error: statsError } = 
+                await supabaseClient.from("player_stats")
+                    .select("*")
+                    .eq("user_id", currentUser.id)
+                    .single();
 
-    console.log('Updating stats:', {
-        levelTime,
-        mistakes,
-        currentStreak,
-        words: currentGame.words.length
-    });
+            if (statsError && statsError.code !== "PGRST116") throw statsError;
 
-    try {
-        const { data: currentStats, error: fetchError } = await supabaseClient
-            .from('player_stats')
-            .select('*')
-            .eq('user_id', currentUser.id)
-            .single();
+            // Calculate unique words (remove duplicates)
+            const uniqueWords = [...new Set(currentGame.words)];
+            const wordsToAdd = uniqueWords.length;
 
-        if (fetchError && fetchError.code !== 'PGRST116') {
-            throw fetchError;
+            // Prepare update object
+            const statsUpdate = {
+                user_id: currentUser.id,
+                total_levels_completed: (currentStats?.total_levels_completed || 0) + 1,
+                unique_words_practiced: (currentStats?.unique_words_practiced || 0) + wordsToAdd,
+                last_updated: new Date().toISOString()
+            };
+
+            // Update database
+            const { error: upsertError } = 
+                await supabaseClient.from("player_stats")
+                    .upsert(statsUpdate, { onConflict: "user_id", returning: "minimal" });
+
+            if (upsertError) throw upsertError;
+
+            // Immediately update UI
+            await WordsManager.updateWords(wordsToAdd);
+
+        } catch (error) {
+            console.error("Error updating player stats:", error);
         }
-
-        const updateData = {
-            user_id: currentUser.id,
-            total_levels_completed: ((currentStats?.total_levels_completed || 0) + 1),
-            unique_words_practiced: currentStats?.unique_words_practiced 
-                ? currentStats.unique_words_practiced + currentGame.words.length
-                : currentGame.words.length,
-            last_updated: new Date().toISOString()
-        };
-
-        console.log('Sending update with data:', updateData);
-
-        const { error: updateError } = await supabaseClient
-            .from('player_stats')
-            .upsert(updateData, {
-                onConflict: 'user_id',
-                returning: 'minimal' // For faster response
-            });
-
-        if (updateError) throw updateError;
-
-        console.log('Stats update successful');
-
-    } catch (error) {
-        console.error('Error updating player stats:', error);
     }
 }
 
