@@ -6656,6 +6656,8 @@ body.dark-theme {
 
 <script>
     
+
+    
    
     document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.querySelector('.logout-button');
@@ -10246,7 +10248,6 @@ function updateNavigationIcons(screenId) {
     }
 }
 
-// Visual Updates
 function updateProgressCircle() {
     const circle = document.querySelector('.progress-circle .progress');
     const progressCircle = document.querySelector('.progress-circle');
@@ -10297,21 +10298,6 @@ function updateProgressCircle() {
     }
 }
 
-function showCompletionEffect(progressCircle) {
-    // Add completion class to trigger animations
-    progressCircle.classList.add('completed');
-    
-    // Create a ripple effect
-    const ripple = document.createElement('div');
-    ripple.className = 'completion-ripple';
-    progressCircle.appendChild(ripple);
-    
-    // Remove completion animations after 2 seconds
-    setTimeout(() => {
-        progressCircle.classList.remove('completed');
-        ripple.remove();
-    }, 2000);
-}
 
 function loadNextQuestion() {
     if (currentGame.currentIndex >= currentGame.words.length) {
@@ -10364,98 +10350,46 @@ function loadNextQuestion() {
         });
 }
 
-async function handleAnswer(isCorrect, isSkip = false) {
-    const currentTime = Date.now();
+async function handleAnswer(isCorrect, fromPerk = false) {
+    const now = Date.now();
+    const lastAnswerTime = currentGame.lastAnswerTime || 0;
     
-    if (currentTime - (currentGame.lastAnswerTime || 0) < 1000) {
-        console.warn("Answer too quickly. Please wait a moment.");
+    // Enforce a cooldown between answers to prevent rapid clicking
+    if (now - lastAnswerTime < 1000) {
+        console.warn('Answer too quickly. Please wait a moment.');
         return;
     }
     
+    // Safety checks
     if (!currentGame || 
         !currentGame.words || 
         currentGame.words.length === 0 || 
-        currentGame.currentIndex >= currentGame.words.length) {
-        console.error("Invalid game state or index");
+        currentGame.currentIndex >= currentGame.words.length
+    ) {
+        console.error('Invalid game state or index');
         return;
     }
-    
-    currentGame.lastAnswerTime = currentTime;
-    currentGame.perks = currentGame.perks || { clue: 0, skip: 0, timeFreeze: 0, reveal: 0 };
-    
+
+    // Update last answer time to prevent rapid subsequent clicks
+    currentGame.lastAnswerTime = now;
+
+    // Ensure perks exist with default values
+    currentGame.perks = currentGame.perks || {
+        clue: 0,
+        skip: 0,
+        timeFreeze: 0,
+        reveal: 0
+    };
+
     try {
+        // Immediately update progress circle
         if (isCorrect) {
-            let coinsGained = 0;
-            
-            // Track the word for premium users
-            const wordToTrack = currentGame.isHebrewToEnglish ? 
-                currentGame.words[currentGame.currentIndex] : 
-                currentGame.translations[currentGame.currentIndex];
-                
-            const gameMode = currentGame.isCustomPractice ? "custom" : "story";
-            
-            // Premium users get word tracking and special coin reward logic
-            // Non-premium users get the original coin logic
-            if (currentUser && currentUser.status === 'premium') {
-                const trackResult = await trackWordEncounter(wordToTrack, gameMode);
-                
-                // If we tracked the word, it already handled the coin reward
-                if (trackResult) {
-                    coinsGained = trackResult.coinReward;
-                } else {
-                    // If tracking fails or user isn't premium, use original coin logic
-                    if (!isSkip) {
-                        const timeBonus = awardTimeBonus();
-                        if (timeBonus > 0) {
-                            coinsGained += timeBonus;
-                            pulseCoins(timeBonus);
-                        }
-                        
-                        if (currentGame.firstAttempt) {
-                            coinsGained += 3;
-                            pulseCoins(3);
-                        } else {
-                            coinsGained += 1;
-                            pulseCoins(1);
-                        }
-                        
-                        try {
-                            await CoinsManager.updateCoins(coinsGained);
-                            updatePerkButtons();
-                        } catch (error) {
-                            console.error("Error updating total coins:", error);
-                        }
-                    }
-                }
-            } else {
-                // Non-premium users use original coin logic
-                if (!isSkip) {
-                    const timeBonus = awardTimeBonus();
-                    if (timeBonus > 0) {
-                        coinsGained += timeBonus;
-                        pulseCoins(timeBonus);
-                    }
-                    
-                    if (currentGame.firstAttempt) {
-                        coinsGained += 3;
-                        pulseCoins(3);
-                    } else {
-                        coinsGained += 1;
-                        pulseCoins(1);
-                    }
-                    
-                    try {
-                        await CoinsManager.updateCoins(coinsGained);
-                        updatePerkButtons();
-                    } catch (error) {
-                        console.error("Error updating total coins:", error);
-                    }
-                }
-            }
-            
-            currentGame.correctAnswers++;
-        } else {
-            // Incorrect answer logic - remains unchanged
+            currentGame.currentIndex++;
+            updateProgressCircle();
+        }
+
+        // Rest of the existing answer handling logic
+        if (!isCorrect) {
             currentGame.firstAttempt = false;
             currentGame.streakBonus = false;
             currentGame.wrongStreak++;
@@ -10464,53 +10398,77 @@ async function handleAnswer(isCorrect, isSkip = false) {
                 await CoinsManager.updateCoins(-3);
                 updatePerkButtons();
             } catch (error) {
-                console.error("Error updating coins:", error);
+                console.error('Error updating coins:', error);
             }
-            
+
+            // Move progress bar backwards
             if (currentGame.currentIndex > 0) {
                 currentGame.progressLost++;
                 currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
             }
-            
+
+            // Check for game over condition
             if (currentGame.wrongStreak >= 3) {
                 showGameOverOverlay();
                 return;
             }
+        } else if (isCorrect && !fromPerk) {
+            let totalCoinsEarned = 0;
+
+            // Award time bonus
+            const timeBonus = awardTimeBonus();
+            if (timeBonus > 0) {
+                totalCoinsEarned += timeBonus;
+                pulseCoins(timeBonus);
+            }
+
+            // Award coins based on first attempt
+            if (currentGame.firstAttempt) {
+                totalCoinsEarned += 3;
+                pulseCoins(3);
+            } else {
+                totalCoinsEarned += 1;
+                pulseCoins(1);
+            }
+
+            try {
+                await CoinsManager.updateCoins(totalCoinsEarned);
+                updatePerkButtons();
+            } catch (error) {
+                console.error('Error updating total coins:', error);
+            }
+            
+            currentGame.correctAnswers++;
         }
 
-        // The rest of the function remains the same...
         const correctAnswer = currentGame.isHebrewToEnglish ? 
             currentGame.words[currentGame.currentIndex] : 
             currentGame.translations[currentGame.currentIndex];
-            
-        document.querySelectorAll('.buttons button').forEach(button => {
-            if (button.textContent === correctAnswer) {
-                button.classList.add('correct');
-            } else if (!isCorrect && button.textContent === event.target.textContent) {
-                button.classList.add('wrong');
+
+        document.querySelectorAll('.buttons button').forEach(btn => {
+            if (btn.textContent === correctAnswer) {
+                btn.classList.add('correct');
+            } else if (!isCorrect && btn.textContent === event.target.textContent) {
+                btn.classList.add('wrong');
             }
         });
         
-        if (isCorrect) {
-            currentGame.currentIndex++;
-        }
-        
-        updateProgressCircle();
         saveProgress();
-        
+       
+        // Use setTimeout for next question, but make it quicker
         setTimeout(() => {
             if (currentGame.currentIndex < currentGame.words.length) {
-                if (!isSkip) {
-                    startTimer(currentGame.words.length - currentGame.currentIndex);
-                }
+                startTimer(currentGame.words.length - currentGame.currentIndex);
                 loadNextQuestion();
                 updatePerkButtons();
             } else {
                 handleLevelCompletion();
             }
-        }, 333);
+        }, 200); // Reduced from 333 to 200
+
     } catch (error) {
-        console.error("Unexpected error in handleAnswer:", error);
+        console.error('Unexpected error in handleAnswer:', error);
+        // Provide a fallback to prevent complete game breakdown
         loadNextQuestion();
     }
 }
