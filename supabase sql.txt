@@ -1,17 +1,260 @@
-----------------------------------------------------------------------------------------
--- 🔄 CONSOLIDATED DATABASE SETUP (2025-02-23 08:40:19)
--- Author: danavbred
-----------------------------------------------------------------------------------------
-BEGIN;
+-- ADD this SQL query to verify table structure:
+SELECT 
+    table_name, 
+    column_name, 
+    data_type, 
+    is_nullable
+FROM 
+    information_schema.columns
+WHERE 
+    table_name = 'custom_lists'
+ORDER BY 
+    ordinal_position;
 
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- Check existing policies:
+SELECT * FROM pg_policies WHERE tablename = 'custom_lists';
+
+-- Check permissions:
+SELECT 
+    grantee, privilege_type 
+FROM 
+    information_schema.role_table_grants 
+WHERE 
+    table_name = 'custom_lists';
+
+-- REPLACE custom_lists policies:
+DROP POLICY IF EXISTS "Users can view own and shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can insert own lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can update own lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can delete own lists" ON custom_lists;
+
+-- Create new policies
+CREATE POLICY "Users can view own and shared lists"
+ON custom_lists FOR SELECT
+USING (
+    auth.uid() = user_id OR
+    auth.uid() = ANY(COALESCE(shared_with, ARRAY[]::uuid[]))
+);
+
+CREATE POLICY "Users can insert own lists"
+ON custom_lists FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own lists"
+ON custom_lists FOR UPDATE
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own lists"
+ON custom_lists FOR DELETE
+USING (auth.uid() = user_id);
+
+-- Grant necessary permissions
+GRANT ALL ON custom_lists TO authenticated;
+
+CREATE OR REPLACE FUNCTION init_player_stats()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO player_stats (user_id, total_levels_completed, unique_words_practiced)
+    VALUES (NEW.id, 0, 0)
+    ON CONFLICT (user_id) DO NOTHING;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created_stats
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION init_player_stats();
+
+CREATE TABLE IF NOT EXISTS game_progress (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    stage integer NOT NULL DEFAULT 1,
+    set_number integer NOT NULL DEFAULT 1,
+    level integer NOT NULL DEFAULT 1,
+    coins integer NOT NULL DEFAULT 0,
+    perks jsonb NOT NULL DEFAULT '{}',
+    unlocked_sets jsonb NOT NULL DEFAULT '{}',
+    unlocked_levels jsonb NOT NULL DEFAULT '{}',
+    perfect_levels jsonb NOT NULL DEFAULT '[]',
+    completed_levels jsonb NOT NULL DEFAULT '[]',
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+
+-- Enable Row Level Security
+ALTER TABLE game_progress ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own game progress" 
+ON game_progress FOR ALL 
+USING (auth.uid() = user_id);
+
+CREATE UNIQUE INDEX unique_user_game_progress ON game_progress (user_id);
+
+ALTER TABLE game_progress 
+ADD COLUMN total_coins integer DEFAULT 0,
+ADD COLUMN mode_coins jsonb DEFAULT '{"story": 0, "custom": 0, "arcade": 0}';
+
+
+-- Drop existing table if needed (be careful in production)
+-- DROP TABLE IF EXISTS custom_lists CASCADE;
+
+CREATE TABLE IF NOT EXISTS custom_lists (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES auth.users NOT NULL,
+    name TEXT NOT NULL,
+    words TEXT[] NOT NULL,
+    translations TEXT[] NOT NULL,
+    is_shared BOOLEAN DEFAULT FALSE,
+    shared_by UUID REFERENCES auth.users,
+    shared_with UUID[],
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_practiced_at TIMESTAMP,
+    practice_count INTEGER DEFAULT 0,
+    status TEXT CHECK (status IN ('active', 'archived')) DEFAULT 'active'
+);
+
+-- Enable Row Level Security
+ALTER TABLE custom_lists ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies
+DROP POLICY IF EXISTS "Users can view own and shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can insert shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can update own and shared lists" ON custom_lists;
+DROP POLICY IF EXISTS "Users can delete own lists" ON custom_lists;
+
+-- Policy for viewing lists
+CREATE POLICY "Users can view own and shared lists" ON custom_lists
+FOR SELECT 
+USING (
+    auth.uid() = user_id OR             -- Own lists
+    auth.uid() = ANY(shared_with) OR    -- Lists shared directly with user
+    (is_shared = true AND shared_by != auth.uid())  -- Explicitly shared lists
+);
+
+-- Policy for inserting lists
+CREATE POLICY "Users can insert shared lists" ON custom_lists
+FOR INSERT 
+WITH CHECK (
+    auth.uid() = user_id OR             -- User can insert their own lists
+    (
+        is_shared = true AND 
+        shared_by = auth.uid() AND       -- Sharer must be current user
+        array_length(shared_with, 1) > 0 -- At least one recipient
+    )
+);
+
+-- Policy for updating lists
+CREATE POLICY "Users can update own and shared lists" ON custom_lists
+FOR UPDATE 
+USING (
+    auth.uid() = user_id OR             -- Own lists
+    auth.uid() = ANY(shared_with)       -- Lists shared with current user
+);
+
+-- Policy for deleting lists
+CREATE POLICY "Users can delete own lists" ON custom_lists
+FOR DELETE 
+USING (
+    auth.uid() = user_id                -- Only list owner can delete
+);
+
+-- Grant permissions to authenticated users
+GRANT ALL ON custom_lists TO authenticated;
+
+-- Add at the end of CUSTOM LISTS section
+CREATE OR REPLACE FUNCTION insert_shared_list(
+    p_user_id uuid,
+    p_name text,
+    p_words text[],
+    p_translations text[],
+    p_is_shared boolean,
+    p_local_id bigint,
+    p_shared_with uuid[],
+    p_shared_by uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_list_id uuid;
+BEGIN
+    INSERT INTO custom_lists (
+        user_id,
+        name,
+        words,
+        translations,
+        is_shared,
+        local_id,
+        shared_with,
+        shared_by
+    ) VALUES (
+        p_user_id,
+        p_name,
+        p_words,
+        p_translations,
+        p_is_shared,
+        p_local_id,
+        p_shared_with,
+        p_shared_by
+    )
+    RETURNING id INTO v_list_id;
+    
+    RETURN v_list_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION insert_shared_list TO authenticated;
+
+ALTER TABLE custom_lists 
+ADD COLUMN min_words integer DEFAULT 6,
+ADD COLUMN max_levels integer GENERATED ALWAYS AS (
+    CASE 
+        WHEN array_length(words, 1) >= 6 THEN 
+            CASE 
+                WHEN array_length(words, 1) >= 12 THEN 5
+                WHEN array_length(words, 1) >= 9 THEN 4
+                ELSE 3
+            END
+        ELSE 0
+    END
+) STORED;
+
+
+-- ADD TO SUPABASE SQL:
+CREATE TABLE IF NOT EXISTS word_practice_history (
+    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id uuid REFERENCES auth.users NOT NULL,
+    word text NOT NULL,
+    practice_count integer DEFAULT 1,
+    game_mode text CHECK (game_mode IN ('story', 'custom', 'arcade')),
+    last_practiced_at timestamp with time zone DEFAULT NOW(),
+    coins_earned integer DEFAULT 0,
+    created_at timestamp with time zone DEFAULT NOW()
+);
+
+-- Add unique constraint for user-word pairs
+CREATE UNIQUE INDEX word_practice_user_word 
+ON word_practice_history(user_id, word);
+
+-- Enable RLS
+ALTER TABLE word_practice_history ENABLE ROW LEVEL SECURITY;
+
+-- Create policies
+CREATE POLICY "Users can manage their word history"
+ON word_practice_history
+FOR ALL
+USING (auth.uid() = user_id);
+
+GRANT ALL ON word_practice_history TO authenticated;
+
 
 ----------------------------------------------------------------------------------------
--- 1. BASE TABLES
+-- 🎮 ARCADE EVENTS - MINIMAL VERSION
 ----------------------------------------------------------------------------------------
+DROP TABLE IF EXISTS arcade_events CASCADE;
+DROP TABLE IF EXISTS arcade_participants CASCADE;
 
--- Arcade Events
 CREATE TABLE IF NOT EXISTS arcade_events (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     teacher_id uuid,
@@ -26,7 +269,31 @@ CREATE TABLE IF NOT EXISTS arcade_participants (
     coins integer DEFAULT 0
 );
 
--- Schools and Classes
+ALTER TABLE arcade_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE arcade_participants ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all" ON arcade_events FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow all" ON arcade_participants FOR ALL TO authenticated USING (true);
+
+GRANT ALL ON arcade_events TO authenticated;
+GRANT ALL ON arcade_participants TO authenticated;
+
+-- Add to ARCADE EVENTS section
+ALTER TABLE arcade_events ADD COLUMN IF NOT EXISTS game_state jsonb DEFAULT '{}';
+ALTER TABLE arcade_events ADD COLUMN IF NOT EXISTS status text DEFAULT 'waiting';
+
+-- Add index for faster OTP lookups
+CREATE INDEX IF NOT EXISTS idx_arcade_events_otp ON arcade_events(otp);
+
+
+----------------------------------------------------------------------------------------
+-- 🏫 BASE TABLES - RUN THIS FIRST
+----------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS schools CASCADE;
+DROP TABLE IF EXISTS school_classes CASCADE;
+DROP TABLE IF EXISTS class_enrollments CASCADE;
+
 CREATE TABLE IF NOT EXISTS schools (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     name text NOT NULL,
@@ -36,15 +303,13 @@ CREATE TABLE IF NOT EXISTS schools (
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
 
-CREATE TABLE IF NOT EXISTS school_classes (
+CREATE TABLE IF NOT EXISTS public.school_classes (
     id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
     school_id uuid REFERENCES schools(id),
     teacher_id uuid REFERENCES auth.users(id),
     name text NOT NULL,
     grade_level integer CHECK (grade_level BETWEEN 1 AND 12),
     invite_code text UNIQUE,
-    max_students integer DEFAULT 30,
-    status text DEFAULT 'active' CHECK (status IN ('active', 'archived', 'pending')),
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
 
@@ -55,109 +320,184 @@ CREATE TABLE IF NOT EXISTS class_enrollments (
     PRIMARY KEY (class_id, student_id)
 );
 
--- User Profiles
-CREATE TABLE IF NOT EXISTS user_profiles (
+----------------------------------------------------------------------------------------
+-- 🛡️ BASE POLICIES - RUN THIS SECOND
+----------------------------------------------------------------------------------------
+
+-- School policies
+ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Teachers can view schools"
+ON schools
+FOR SELECT
+USING (true);  -- Simplified to allow all authenticated users to view schools
+
+CREATE POLICY "Admin can manage schools"
+ON schools
+FOR ALL
+USING (
+    auth.uid() IN (
+        SELECT id FROM user_profiles 
+        WHERE role = 'admin'
+    )
+);
+
+GRANT ALL ON schools TO authenticated;
+
+-- School Classes policies
+ALTER TABLE school_classes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Teachers can manage their classes"
+ON school_classes
+FOR ALL
+USING (auth.uid() = teacher_id);
+
+CREATE POLICY "Students can view enrolled classes"
+ON school_classes
+FOR SELECT
+USING (id IN (
+    SELECT class_id 
+    FROM class_enrollments 
+    WHERE student_id = auth.uid()
+));
+
+GRANT ALL ON school_classes TO authenticated;
+
+-- Class Enrollments policies
+ALTER TABLE class_enrollments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Teachers can view their class enrollments"
+ON class_enrollments
+FOR SELECT
+USING (
+    class_id IN (
+        SELECT id 
+        FROM school_classes 
+        WHERE teacher_id = auth.uid()
+    )
+);
+
+CREATE POLICY "Students can manage their enrollments"
+ON class_enrollments
+FOR ALL
+USING (student_id = auth.uid());
+
+GRANT ALL ON class_enrollments TO authenticated;
+
+-- Modify school_classes table
+ALTER TABLE public.school_classes 
+    ADD COLUMN max_students integer DEFAULT 30,
+    ADD COLUMN status text DEFAULT 'active' CHECK (status IN ('active', 'archived', 'pending'));
+
+----------------------------------------------------------------------------------------
+-- 🔑 USER PROFILES
+----------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_profiles (
     id uuid PRIMARY KEY REFERENCES auth.users,
     username text UNIQUE,
     email text,
     role text CHECK (role IN ('student', 'teacher', 'admin')) DEFAULT 'student',
-    status text DEFAULT 'free' CHECK (status IN ('free', 'pending', 'premium', 'trial', 'unregistered', 'restricted', 'banned')),
+    status text DEFAULT 'free' CHECK (status IN ('free', 'pending', 'premium')),
     payment_pending boolean DEFAULT false,
-    metadata jsonb DEFAULT '{}'::jsonb,
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
 
--- Game Progress
-CREATE TABLE IF NOT EXISTS game_progress (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES auth.users NOT NULL,
-    "currentStage" integer DEFAULT 1,
-    "currentSet" integer DEFAULT 1,
-    "currentLevel" integer DEFAULT 1,
-    stage integer DEFAULT 1,
-    set_number integer DEFAULT 1,
-    level integer DEFAULT 1,
-    coins integer DEFAULT 0,
-    perks jsonb DEFAULT '[]'::jsonb,
-    "completedLevels" jsonb DEFAULT '[]'::jsonb,
-    "perfectLevels" jsonb DEFAULT '[]'::jsonb,
-    "unlockedSets" jsonb DEFAULT '{\"1\": [1]}'::jsonb,
-    "unlockedLevels" jsonb DEFAULT '{\"1_1\": [1]}'::jsonb,
-    "currentStats" jsonb DEFAULT '{\"correct\": 0, \"wrong\": 0, \"streak\": 0}'::jsonb,
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    UNIQUE(user_id)
-);
+-- Trigger for automatic profile creation on user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.user_profiles (
+        id,
+        username,
+        email,
+        role,
+        status
+    ) VALUES (
+        NEW.id,
+        COALESCE(
+            NEW.raw_user_meta_data->>'username', 
+            split_part(NEW.email, '@', 1)
+        ),
+        NEW.email,
+        'student',
+        'free'
+    );
+    RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE 'Error in handle_new_user: %', SQLERRM;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Player Stats
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_new_user();
+
+----------------------------------------------------------------------------------------
+-- 🛡️ POLICIES
+----------------------------------------------------------------------------------------
+-- Drop existing policies first
+DROP POLICY IF EXISTS "Allow users to view all profiles" ON public.user_profiles;
+DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.user_profiles;
+DROP POLICY IF EXISTS "Enable update for users based on id" ON public.user_profiles;
+DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON public.user_profiles;
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.user_profiles;
+
+-- Create a completely permissive SELECT policy
+CREATE POLICY "anyone_can_view_all_profiles"
+ON public.user_profiles
+FOR SELECT
+USING (true);
+
+-- Policy for users to update their own profiles
+CREATE POLICY "users_can_update_own_profile"
+ON public.user_profiles
+FOR UPDATE
+USING (auth.uid() = id);
+
+-- Policy for inserting new profiles
+CREATE POLICY "users_can_insert_own_profile"
+ON public.user_profiles
+FOR INSERT
+WITH CHECK (auth.uid() = id);
+
+-- Make sure RLS is enabled
+ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+
+-- Grant explicit permissions
+GRANT SELECT, UPDATE, INSERT ON public.user_profiles TO authenticated;
+
+----------------------------------------------------------------------------------------
+-- 📊 STATS
+----------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS player_stats (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES auth.users NOT NULL UNIQUE,
+    user_id uuid REFERENCES auth.users PRIMARY KEY,
     total_levels_completed integer DEFAULT 0,
-    unique_words_practiced integer DEFAULT 0,
-    last_updated timestamptz DEFAULT now()
+    unique_words_practiced INTEGER DEFAULT 0,
+    last_updated timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
 
--- Custom Lists
-CREATE TABLE IF NOT EXISTS custom_lists (
-    id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id uuid REFERENCES auth.users NOT NULL,
-    name text NOT NULL,
-    words text[] DEFAULT '{}'::text[],
-    translations text[] DEFAULT '{}'::text[],
-    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-    local_id BIGINT DEFAULT 1,
-    is_shared boolean DEFAULT false,
-    shared_with uuid[] DEFAULT '{}'::uuid[],
-    shared_by uuid REFERENCES auth.users(id),
-    CONSTRAINT words_translations_length_match CHECK (array_length(words, 1) = array_length(translations, 1))
-);
-
-----------------------------------------------------------------------------------------
--- 2. INDICES
-----------------------------------------------------------------------------------------
-CREATE UNIQUE INDEX IF NOT EXISTS unique_user_game_progress ON game_progress (user_id);
+-- Indices for performance
 CREATE INDEX IF NOT EXISTS idx_player_stats_user ON player_stats(user_id);
 CREATE INDEX IF NOT EXISTS idx_player_stats_levels ON player_stats(total_levels_completed DESC);
-CREATE INDEX IF NOT EXISTS idx_custom_lists_user_id ON custom_lists(user_id);
-CREATE INDEX IF NOT EXISTS idx_custom_lists_shared_with ON custom_lists USING gin(shared_with);
-CREATE INDEX IF NOT EXISTS idx_custom_lists_is_shared ON custom_lists(is_shared) WHERE is_shared = true;
 
-----------------------------------------------------------------------------------------
--- 3. VIEWS
-----------------------------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.user_game_progress AS
-SELECT 
-    user_id,
-    "currentStage",
-    "currentSet",
-    "currentLevel",
-    stage,
-    set_number,
-    level,
-    coins,
-    perks,
-    "completedLevels",
-    "perfectLevels",
-    "unlockedSets",
-    "unlockedLevels",
-    "currentStats",
-    created_at
-FROM game_progress
-WHERE user_id = auth.uid();
+-- Enable Row Level Security
+ALTER TABLE player_stats ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE VIEW public.user_game_coins AS
-SELECT user_id, coins
-FROM game_progress
-WHERE user_id = auth.uid();
+CREATE POLICY "Users can read any player stats" 
+    ON player_stats FOR SELECT 
+    USING (true);
 
-CREATE OR REPLACE VIEW public.user_stats AS
-SELECT 
-    user_id,
-    unique_words_practiced,
-    total_levels_completed
-FROM player_stats
-WHERE user_id = auth.uid();
+CREATE POLICY "Users can update their own stats" 
+    ON player_stats FOR UPDATE 
+    USING (auth.uid() = user_id);
 
+CREATE POLICY "Users can insert their own stats" 
+    ON player_stats FOR INSERT 
+    WITH CHECK (auth.uid() = user_id);
+
+-- Leaderboard View
 CREATE OR REPLACE VIEW player_leaderboard AS
 WITH user_rankings AS (
     SELECT 
@@ -180,196 +520,8 @@ SELECT
 FROM user_rankings
 ORDER BY player_rank ASC;
 
-CREATE OR REPLACE VIEW public.current_user_status AS
-SELECT 
-    auth.uid() as user_id,
-    COALESCE(
-        (SELECT status FROM public.user_profiles WHERE id = auth.uid()),
-        'free'
-    ) as status;
+-- Grant permissions for leaderboard
+GRANT SELECT ON player_leaderboard TO authenticated;
+GRANT ALL ON player_stats TO authenticated;
 
-CREATE OR REPLACE VIEW public.current_user_stats AS
-SELECT 
-    auth.uid() as user_id,
-    COALESCE(
-        (SELECT unique_words_practiced FROM public.player_stats WHERE user_id = auth.uid()),
-        0
-    ) as unique_words_practiced;
 
-CREATE OR REPLACE VIEW public.user_custom_lists AS
-SELECT *
-FROM custom_lists
-WHERE 
-    user_id = auth.uid() OR 
-    auth.uid() = ANY(shared_with) OR 
-    (is_shared = true AND shared_by != auth.uid());
-
-----------------------------------------------------------------------------------------
--- 4. ROLES AND PERMISSIONS
-----------------------------------------------------------------------------------------
-DO
-$do$
-BEGIN
-   IF NOT EXISTS (
-      SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authenticated'
-   ) THEN
-      CREATE ROLE authenticated;
-   END IF;
-   
-   IF NOT EXISTS (
-      SELECT FROM pg_catalog.pg_roles WHERE rolname = 'anon'
-   ) THEN
-      CREATE ROLE anon;
-   END IF;
-END
-$do$;
-
--- Grant base permissions
-GRANT USAGE ON SCHEMA public TO authenticated;
-GRANT USAGE ON SCHEMA public TO anon;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-
-----------------------------------------------------------------------------------------
--- 5. ROW LEVEL SECURITY
-----------------------------------------------------------------------------------------
-DO $$
-DECLARE
-    t text;
-BEGIN
-    -- Enable RLS on all tables
-    FOR t IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public')
-    LOOP
-        EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
-    END LOOP;
-END $$;
-
--- Drop existing policies (if any) and create new ones
-DO $$
-BEGIN
-    -- Game Progress
-    DROP POLICY IF EXISTS "Users can manage own game progress" ON game_progress;
-    CREATE POLICY "Users can manage own game progress" ON game_progress
-        FOR ALL TO authenticated
-        USING (auth.uid() = user_id)
-        WITH CHECK (auth.uid() = user_id);
-
-    -- Player Stats
-    DROP POLICY IF EXISTS "Users can manage own stats" ON player_stats;
-    CREATE POLICY "Users can manage own stats" ON player_stats
-        FOR ALL TO authenticated
-        USING (auth.uid() = user_id)
-        WITH CHECK (auth.uid() = user_id);
-
-    -- Custom Lists
-    DROP POLICY IF EXISTS "Users can view own and shared lists" ON custom_lists;
-    DROP POLICY IF EXISTS "Users can manage own lists" ON custom_lists;
-    
-    CREATE POLICY "Users can view own and shared lists" ON custom_lists
-        FOR SELECT TO authenticated
-        USING (
-            user_id = auth.uid() OR 
-            auth.uid() = ANY(shared_with) OR 
-            (is_shared = true AND shared_by != auth.uid())
-        );
-
-    CREATE POLICY "Users can manage own lists" ON custom_lists
-        FOR ALL TO authenticated
-        USING (user_id = auth.uid())
-        WITH CHECK (user_id = auth.uid());
-
-    -- Other tables
-    DROP POLICY IF EXISTS "Allow authenticated access" ON arcade_events;
-    CREATE POLICY "Allow authenticated access" ON arcade_events FOR ALL TO authenticated USING (true);
-    
-    DROP POLICY IF EXISTS "Allow authenticated access" ON arcade_participants;
-    CREATE POLICY "Allow authenticated access" ON arcade_participants FOR ALL TO authenticated USING (true);
-
-    DROP POLICY IF EXISTS "Users can view all profiles" ON user_profiles;
-    CREATE POLICY "Users can view all profiles" ON user_profiles FOR SELECT TO authenticated USING (true);
-    
-    DROP POLICY IF EXISTS "Users can update own profile" ON user_profiles;
-    CREATE POLICY "Users can update own profile" ON user_profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
-END $$;
-
-----------------------------------------------------------------------------------------
--- 6. TRIGGERS
-----------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER 
-SECURITY DEFINER 
-SET search_path = public
-AS $$
-BEGIN
-    -- Create user profile
-    INSERT INTO user_profiles (
-        id,
-        username,
-        email,
-        role,
-        status,
-        metadata
-    ) VALUES (
-        NEW.id,
-        COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
-        NEW.email,
-        COALESCE(NEW.raw_user_meta_data->>'role', 'student'),
-        'free',
-        jsonb_build_object(
-            'registration_date', NOW(),
-            'email_confirmed', NEW.email_confirmed_at IS NOT NULL,
-            'last_sign_in', NEW.last_sign_in_at
-        )
-    );
-
-    -- Create initial data for new user
-    INSERT INTO game_progress (user_id) VALUES (NEW.id);
-    INSERT INTO player_stats (user_id) VALUES (NEW.id);
-    
-    INSERT INTO custom_lists (
-        user_id,
-        name,
-        words,
-        translations,
-        local_id,
-        is_shared
-    ) VALUES (
-        NEW.id,
-        'My First List',
-        '{}'::text[],
-        '{}'::text[],
-        1,
-        false
-    );
-
-    RETURN NEW;
-EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Error in handle_new_user: % %', SQLERRM, SQLSTATE;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-    AFTER INSERT ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_new_user();
-
-----------------------------------------------------------------------------------------
--- 7. FINAL SETUP
-----------------------------------------------------------------------------------------
--- Reset default privileges
-ALTER DEFAULT PRIVILEGES IN SCHEMA public 
-    GRANT ALL ON TABLES TO authenticated;
-
-ALTER DEFAULT PRIVILEGES IN SCHEMA public 
-    GRANT ALL ON SEQUENCES TO authenticated;
-
-ALTER DEFAULT PRIVILEGES IN SCHEMA public 
-    GRANT SELECT ON TABLES TO anon;
-
--- Force schema cache reload
-NOTIFY pgrst, 'reload schema';
-
-COMMIT;
