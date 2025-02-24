@@ -13141,28 +13141,33 @@ async function initializeArcade() {
     try {
         const initButton = document.querySelector('.initialize-button');
         const endButton = document.querySelector('.end-arcade-button');
-        
+
         initButton.style.display = 'none';
         endButton.classList.add('visible');
-        
-        // Update session state
+
+        // Mark the arcade session as active
         currentArcadeSession.state = 'active';
-        currentArcadeSession.isInitialized = true; // Mark as initialized
-        
-        // Initialize all players with 0 words and their starting coins
-        currentArcadeSession.participants = currentArcadeSession.participants.map(player => ({
-            ...player,
-            wordsCompleted: 0,
-            coins: player.coins || 0
-        }));
-        
-        // Update moderator UI immediately
+        currentArcadeSession.isInitialized = true;
+
+        // Ensure the latest player coin values are fetched correctly
+        await Promise.all(
+            currentArcadeSession.participants.map(async player => {
+                const coins = await getCurrentCoinsForArcade(player.username);
+                player.coins = coins !== null ? coins : 0;  // Ensure correct coin count
+                player.wordsCompleted = 0;
+
+                // Update leaderboard display directly at start
+                updateArcadeCoins(player.username, currentArcadeSession.eventId);
+            })
+        );
+
+        // Update the UI after initializing players
         updateAllPlayersProgress();
-        
-        // Start moderator inactivity monitoring
+
+        // Start monitoring moderator inactivity
         initializeModeratorInactivityTimer();
-        
-        // Signal all participants to start
+
+        // Notify all players that the game has started
         await window.arcadeChannel.send({
             type: 'broadcast',
             event: 'game_playing',
@@ -13179,6 +13184,8 @@ async function initializeArcade() {
         alert('Failed to start game');
     }
 }
+
+
 
 function showModeratorScreen() {
     // Hide all screens
@@ -13771,33 +13778,47 @@ async function startArcadeGame() {
     window.arcadeIntervals = [];
 }
 
-async function updateArcadeCoins(amount) {
-    const oldCoins = currentGame.coins;
-    currentGame.coins += amount;
+async function updateArcadeCoins(playerName, eventId) {
+    try {
+        // Fetch the current coin count for the player from the database
+        const { data: participant, error } = await supabase
+            .from('arcade_participants')
+            .select('coins, words_completed')
+            .eq('player_name', playerName)
+            .eq('event_id', eventId)
+            .single();
 
-    // For registered users, update their game_progress
-    if (currentUser) {
-        try {
-            const { error } = await supabaseClient
-                .from('game_progress')
-                .update({ coins: currentGame.coins })
-                .eq('user_id', currentUser.id);
+        if (error) throw error;
 
-            if (error) throw error;
-        } catch (error) {
-            console.error('Failed to update coins in database:', error);
-            currentGame.coins = oldCoins; // Rollback on error
+        // If the player is found, update all UI displays
+        if (participant) {
+            const coinDisplays = document.querySelectorAll('[data-coins]');
+
+            // Update each coin display element
+            coinDisplays.forEach(display => {
+                display.textContent = participant.coins;
+            });
+
+            // Ensure the side panel also updates correctly
+            const sidePanelCoins = document.querySelector('.side-panel [data-coins]');
+            if (sidePanelCoins) {
+                sidePanelCoins.textContent = participant.coins;
+            }
+
+            // Update the game state to reflect the new coin count
+            gameState.coins = participant.coins;
+
+            return participant.coins;
+        } else {
+            console.warn(`Player ${playerName} not found in arcade participants.`);
+            return null;
         }
+    } catch (error) {
+        console.error('Error updating arcade coins:', error);
+        return null;
     }
-
-    // Update displays with animation
-    const displays = document.querySelectorAll('.coin-count');
-    displays.forEach(display => {
-        animateCoinsChange(display, oldCoins, currentGame.coins);
-    });
-
-    return currentGame.coins;
 }
+
 
 async function getCurrentCoinsForArcade() {
     if (!currentUser) {
