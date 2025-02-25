@@ -17341,112 +17341,60 @@ async function convertListToArcade(listId) {
 }
 
 function initializeBossLevel() {
-  console.log("Initializing boss level");
-  
-  // Reset boss health restoration flags
-  currentGame.bossFirstHealthRestored = false;
-  currentGame.bossSecondHealthRestored = false;
-  
-  // Apply boss styles immediately
-  applyBossLevelStyles();
-  
-  // Disable perks during boss fight
-  document.querySelectorAll('.perk-button').forEach(button => {
-    if (button) {
-      button.disabled = true;
-      button.style.opacity = '0.3';
-      
-      // Add disabled overlay
-      const overlay = document.createElement('div');
-      overlay.className = 'perk-disabled';
-      overlay.innerHTML = '❌';
-      overlay.style.position = 'absolute';
-      overlay.style.top = '50%';
-      overlay.style.left = '50%';
-      overlay.style.transform = 'translate(-50%, -50%)';
-      overlay.style.fontSize = '1.5em';
-      overlay.style.color = 'red';
-      overlay.style.pointerEvents = 'none';
-      button.style.position = 'relative';
-      button.appendChild(overlay);
+    console.log("Initializing boss level");
+    
+    // Create boss timer
+    const { container: timerContainer, display: timerDisplay } = createBossTimer();
+    document.getElementById('question-screen').appendChild(timerContainer);
+    
+    currentGame.bossFirstHealthRestored = false;
+    currentGame.bossSecondHealthRestored = false;
+    
+    applyBossLevelStyles();
+    
+    document.querySelectorAll(".perk-button").forEach((e) => {
+        if (e) {
+            e.disabled = true;
+            e.style.opacity = "0.3";
+            
+            const disabledOverlay = document.createElement("div");
+            disabledOverlay.className = "perk-disabled";
+            disabledOverlay.innerHTML = "❌";
+            disabledOverlay.style.cssText = `
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 1.5em;
+                color: red;
+                pointer-events: none;
+            `;
+            
+            e.style.position = 'relative';
+            e.appendChild(disabledOverlay);
+        }
+    });
+    
+    const progressCircle = document.querySelector(".progress-circle");
+    if (progressCircle) {
+        const progressElement = progressCircle.querySelector(".progress");
+        if (progressElement) {
+            progressElement.style.stroke = "#4CAF50";
+        }
     }
-  });
-  
-  // Initialize the health bar
-  const progressCircle = document.querySelector('.progress-circle');
-  if (progressCircle) {
-    const progress = progressCircle.querySelector('.progress');
-    if (progress) {
-      // Start with full health - bright green
-      progress.style.stroke = '#4CAF50';
-    }
-  }
-  
-  // Apply styles again after a short delay to ensure they take effect
-  setTimeout(applyBossLevelStyles, 100);
-  setTimeout(applyBossLevelStyles, 500);
-  
-  console.log("Boss level initialization complete");
+    
+    // Set timer update logic in startTimer
+    currentGame.updateBossTimer = (timeRemaining) => {
+        const timerDisplay = document.querySelector('#boss-timer div');
+        updateBossTimer(timerDisplay, timeRemaining);
+    };
+    
+    setTimeout(applyBossLevelStyles, 100);
+    setTimeout(applyBossLevelStyles, 500);
+    
+    console.log("Boss level initialization complete");
 }
 
-function createBossRainingLetters() {
-  const questionScreen = document.getElementById('question-screen');
-  if (!questionScreen) return;
-  
-  // Clear any existing interval
-  if (window.rainingLettersInterval) {
-    clearInterval(window.rainingLettersInterval);
-  }
-  
-  const letters = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ",..."אבגדהוזחטיכלמנסעפצקרשת"];
-  
-  // Add style for raining letters
-  const rainStyle = document.createElement('style');
-  rainStyle.innerHTML = `
-    .raining-letter {
-      position: absolute;
-      color: rgba(255, 0, 0, 0.3);
-      font-size: 16px;
-      animation: letterRain linear forwards;
-      z-index: 1;
-    }
-    @keyframes letterRain {
-      0% { transform: translateY(-20px); opacity: 0; }
-      10% { opacity: 0.7; }
-      90% { opacity: 0.7; }
-      100% { transform: translateY(100vh); opacity: 0; }
-    }
-  `;
-  document.head.appendChild(rainStyle);
-  
-  // Start creating letters
-  window.rainingLettersInterval = setInterval(() => {
-    // Create 1-3 letters each interval
-    const count = Math.floor(Math.random() * 3) + 1;
-    
-    for (let i = 0; i < count; i++) {
-      const letter = document.createElement('div');
-      letter.className = 'raining-letter';
-      letter.textContent = letters[Math.floor(Math.random() * letters.length)];
-      
-      // Random position and speed
-      const left = Math.random() * questionScreen.clientWidth;
-      const duration = 5 + Math.random() * 5; // 5-10 seconds
-      
-      letter.style.left = `${left}px`;
-      letter.style.animationDuration = `${duration}s`;
-      
-      questionScreen.appendChild(letter);
-      
-      // Remove letter after animation completes
-      setTimeout(() => {
-        if (letter.parentNode === questionScreen) {
-          questionScreen.removeChild(letter);
-        }
-      }, duration * 1000);
-    }
-  }, 300);
-}
 
 function replaceCoinWithBossOrb() {
   const coinsContainer = document.querySelector('.coins-container');
@@ -17763,13 +17711,28 @@ function updateBossHealthBar() {
   const remainingWords = Math.max(0, totalWords - currentIndex);
   const remainingPercentage = remainingWords / totalWords;
   
-  console.log(`Boss health: ${remainingPercentage.toFixed(2) * 100}% (${remainingWords}/${totalWords})`);
+  console.log(`Boss health: ${(remainingPercentage * 100).toFixed(2)}% (${remainingWords}/${totalWords})`);
   
   // Calculate the circumference
   const circumference = 2 * Math.PI * 54;
   
   // Update the stroke dash offset (reverse of normal progress)
   progress.style.strokeDashoffset = circumference * (1 - remainingPercentage);
+  
+  // Update boss orb size
+  const bossOrb = document.querySelector('.boss-orb-inner');
+  if (bossOrb) {
+    const minSize = 5;  // Minimum size of the orb
+    const maxSize = 50; // Maximum size of the orb
+    const currentSize = Math.max(minSize, maxSize * remainingPercentage);
+    
+    bossOrb.style.width = `${currentSize}px`;
+    bossOrb.style.height = `${currentSize}px`;
+    
+    // Center the shrinking orb
+    bossOrb.style.left = `${(50 - currentSize/2)}%`;
+    bossOrb.style.top = `${(50 - currentSize/2)}%`;
+  }
   
   // Change color based on health
   if (remainingPercentage > 0.66) {
@@ -17786,8 +17749,6 @@ function updateBossHealthBar() {
       currentGame.bossFirstHealthRestored = true;
       console.log("First boss health restoration");
       
-      // Show white flash for boss
-      const bossOrb = document.querySelector('.boss-orb-inner');
       if (bossOrb) {
         // White flash
         bossOrb.style.background = 'radial-gradient(circle at 30% 30%, white, #FFEB3B)';
@@ -17818,8 +17779,6 @@ function updateBossHealthBar() {
       currentGame.bossSecondHealthRestored = true;
       console.log("Second boss health restoration");
       
-      // Show green-white flash for boss
-      const bossOrb = document.querySelector('.boss-orb-inner');
       if (bossOrb) {
         // Green-white flash
         bossOrb.style.background = 'radial-gradient(circle at 30% 30%, white, #4CAF50)';
@@ -17841,6 +17800,12 @@ function updateBossHealthBar() {
       setTimeout(() => updateBossHealthBar(), 100);
     }
   }
+
+  // Check for boss defeat
+  if (remainingPercentage <= 0) {
+    console.log("Boss defeated!");
+    showBossDefeatEffect();
+  }
 }
 
 
@@ -17857,6 +17822,9 @@ function loadNextBossQuestion() {
   
   // Apply boss styles again to ensure they're active
   setTimeout(applyBossLevelStyles, 100);
+  createLightningEffect();
+    createBossRainingLetters();
+
   
   // Get question word element
   const questionWord = document.getElementById('question-word');
@@ -21294,47 +21262,6 @@ function showBossHitEffect(randomColor = false) {
   }, 300);
 }
 
-function showBossDefeatEffect() {
-  // Stop raining letters
-  if (window.rainingLettersInterval) {
-    clearInterval(window.rainingLettersInterval);
-  }
-  
-  // Change background back to blue
-  const questionScreen = document.querySelector('.question-screen');
-  if (questionScreen) {
-    questionScreen.style.background = 'linear-gradient(135deg, var(--secondary), var(--primary-dark))';
-    questionScreen.style.animation = 'none';
-  }
-  
-  // Boss incineration effect
-  const bossOrb = document.querySelector('.boss-orb-inner');
-  if (bossOrb) {
-    // Create incineration effect
-    const incinerationEffect = document.createElement('div');
-    incinerationEffect.className = 'incineration-effect';
-    bossOrb.appendChild(incinerationEffect);
-    
-    // Start defeat animation
-    bossOrb.classList.add('boss-defeated');
-    
-    // Remove boss orb after animation
-    setTimeout(() => {
-      const coinsContainer = document.querySelector('.coins-container');
-      if (coinsContainer) {
-        coinsContainer.innerHTML = '';
-      }
-    }, 2000);
-  }
-  
-  // Award 100 coins after a short delay
-  setTimeout(async () => {
-    await CoinsManager.updateCoins(100);
-    
-    // Show victory notification
-    showBossVictoryScreen();
-  }, 2500);
-}
 
 function showBossVictoryScreen() {
   // Create boss victory screen
@@ -21476,7 +21403,6 @@ function applyBossLevelStyles() {
       @keyframes pulseOrb {
         0%, 100% { transform: scale(1); filter: brightness(1); }
         50% { transform: scale(1.3); filter: brightness(1.4); }
-        100% { transform: scale(1); filter: brightness(1); }
       }
       
       @keyframes pulseWord {
@@ -21553,6 +21479,288 @@ function handleBossAnswer(correct) {
   }
 }
 
+// Boss Level Visual and Interaction Enhancements
+
+function createBossTimer() {
+    const timerContainer = document.createElement('div');
+    timerContainer.id = 'boss-timer';
+    timerContainer.style.cssText = `
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        justify-content: center;
+        z-index: 10;
+    `;
+    
+    const timerDisplay = document.createElement('div');
+    timerDisplay.style.cssText = `
+        background-color: rgba(255, 215, 0, 0.8);
+        color: #000;
+        font-family: 'Digital', monospace;
+        font-size: 2rem;
+        padding: 5px 10px;
+        border-radius: 5px;
+        letter-spacing: 3px;
+    `;
+    
+    timerContainer.appendChild(timerDisplay);
+    return { container: timerContainer, display: timerDisplay };
+}
+
+function updateBossTimer(timerDisplay, timeRemaining) {
+    if (timerDisplay) {
+        const minutes = Math.floor(timeRemaining / 60);
+        const seconds = timeRemaining % 60;
+        timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+}
+
+function createLightningEffect() {
+    const lightningContainer = document.createElement('div');
+    lightningContainer.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        z-index: 1000;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.1s ease;
+    `;
+    document.body.appendChild(lightningContainer);
+
+    const flickerCount = Math.floor(Math.random() * 3) + 1;
+    let delay = 0;
+
+    for (let i = 0; i < flickerCount; i++) {
+        setTimeout(() => {
+            lightningContainer.style.opacity = '1';
+            setTimeout(() => {
+                lightningContainer.style.opacity = '0';
+            }, 50);
+        }, delay);
+        delay += 200;
+    }
+
+    setTimeout(() => {
+        document.body.removeChild(lightningContainer);
+    }, delay + 500);
+}
+
+function createBossRainingLetters() {
+    const questionScreen = document.getElementById('question-screen');
+    if (!questionScreen) return;
+
+    // Clear any existing intervals
+    if (window.rainingLettersInterval) {
+        clearInterval(window.rainingLettersInterval);
+    }
+
+    const letters = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', ...'אבגדהוזחטיכלמנסעפצקרשת'];
+    const screenWidth = questionScreen.clientWidth;
+
+    window.rainingLettersInterval = setInterval(() => {
+        const particleCount = Math.floor(Math.random() * 3) + 1;
+        
+        for (let i = 0; i < particleCount; i++) {
+            const letter = document.createElement('div');
+            letter.className = 'boss-raining-letter';
+            letter.textContent = letters[Math.floor(Math.random() * letters.length)];
+            
+            letter.style.cssText = `
+                position: absolute;
+                top: -20px;
+                left: ${Math.random() * screenWidth}px;
+                color: rgba(255, 0, 0, 0.4);
+                font-size: 16px;
+                animation: boss-letter-rain 5s linear forwards;
+                z-index: 1;
+                text-shadow: 0 0 5px rgba(255, 0, 0, 0.3);
+            `;
+
+            questionScreen.appendChild(letter);
+
+            // Remove letter after animation
+            setTimeout(() => {
+                if (letter.parentNode === questionScreen) {
+                    questionScreen.removeChild(letter);
+                }
+            }, 5000);
+        }
+    }, 300);
+}
+
+function stopBossRainingLetters() {
+    if (window.rainingLettersInterval) {
+        clearInterval(window.rainingLettersInterval);
+        window.rainingLettersInterval = null;
+    }
+}
+
+function createBossStyleSheet() {
+    const styleSheet = document.createElement('style');
+    styleSheet.id = 'boss-level-styles';
+    styleSheet.textContent = `
+        @keyframes boss-letter-rain {
+            0% { 
+                transform: translateY(-20px);
+                opacity: 0.6;
+            }
+            100% { 
+                transform: translateY(100vh);
+                opacity: 0;
+            }
+        }
+
+        @keyframes boss-shrink {
+            0% { transform: scale(1); }
+            100% { transform: scale(0.01); }
+        }
+
+        @keyframes fade-to-blue {
+            0% { background: linear-gradient(135deg, #800000, #3a0000); }
+            100% { background: linear-gradient(135deg, #00c6ff, #0072ff); }
+        }
+    `;
+    document.head.appendChild(styleSheet);
+}
+
+function showModernBossVictoryScreen() {
+    const victoryOverlay = document.createElement('div');
+    victoryOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        opacity: 0;
+        transition: opacity 0.5s ease;
+    `;
+
+    const victoryContent = document.createElement('div');
+    victoryContent.style.cssText = `
+        background: linear-gradient(135deg, #00c6ff, #0072ff);
+        padding: 2rem;
+        border-radius: 20px;
+        text-align: center;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    `;
+
+    victoryContent.innerHTML = `
+        <h2 style="color: white; font-size: 2.5rem; margin-bottom: 1rem;">🏆 Boss Defeated!</h2>
+        <div class="victory-stats" style="display: flex; justify-content: space-around; margin: 1.5rem 0; color: white;">
+            <div>
+                <div style="font-size: 1.2rem; opacity: 0.7;">Words Learned</div>
+                <div style="font-size: 2rem; font-weight: bold;">${currentGame.words.length}</div>
+            </div>
+            <div>
+                <div style="font-size: 1.2rem; opacity: 0.7;">Coins Earned</div>
+                <div style="font-size: 2rem; font-weight: bold;">100</div>
+            </div>
+        </div>
+        <div style="display: flex; justify-content: center; gap: 1rem;">
+            <button class="continue-btn" style="
+                background: #4CAF50; 
+                color: white; 
+                border: none; 
+                padding: 1rem 2rem; 
+                border-radius: 50px; 
+                font-size: 1rem; 
+                cursor: pointer;
+                transition: transform 0.3s ease;
+            ">Continue to Next Set</button>
+            <button class="home-btn" style="
+                background: rgba(255,255,255,0.2); 
+                color: white; 
+                border: 2px solid white; 
+                padding: 1rem 2rem; 
+                border-radius: 50px; 
+                font-size: 1rem; 
+                cursor: pointer;
+                transition: transform 0.3s ease;
+            ">Return Home</button>
+        </div>
+    `;
+
+    const continueBtn = victoryContent.querySelector('.continue-btn');
+    const homeBtn = victoryContent.querySelector('.home-btn');
+
+    [continueBtn, homeBtn].forEach(btn => {
+        btn.addEventListener('mouseenter', () => {
+            btn.style.transform = 'scale(1.05)';
+        });
+        btn.addEventListener('mouseleave', () => {
+            btn.style.transform = 'scale(1)';
+        });
+    });
+
+    continueBtn.addEventListener('click', () => {
+        victoryOverlay.style.opacity = '0';
+        setTimeout(() => {
+            victoryOverlay.remove();
+            unlockNextSet();
+            const nextSet = gameState.currentSet + 1;
+            gameState.currentSet = nextSet;
+            gameState.currentLevel = 1;
+            startLevel(1);
+        }, 500);
+    });
+
+    homeBtn.addEventListener('click', () => {
+        victoryOverlay.style.opacity = '0';
+        setTimeout(() => {
+            victoryOverlay.remove();
+            unlockNextSet();
+            showScreen('welcome-screen');
+        }, 500);
+    });
+
+    victoryOverlay.appendChild(victoryContent);
+    document.body.appendChild(victoryOverlay);
+
+    // Trigger fade-in
+    requestAnimationFrame(() => {
+        victoryOverlay.style.opacity = '1';
+    });
+}
+
+
+function showBossDefeatEffect() {
+    const questionScreen = document.querySelector('.question-screen');
+    const bossOrb = document.querySelector('.boss-orb-inner');
+
+    if (bossOrb) {
+        // Shrink boss to a tiny dot
+        bossOrb.style.animation = 'boss-shrink 1s forwards';
+    }
+
+    if (questionScreen) {
+        // Fade background to blue
+        questionScreen.style.animation = 'fade-to-blue 5s ease-in-out forwards';
+    }
+
+    // Stop raining letters
+    stopBossRainingLetters();
+
+    // Delayed victory screen
+    setTimeout(() => {
+        showModernBossVictoryScreen();
+    }, 2000);
+}
+
+// Initialize boss-specific styles
+createBossStyleSheet();
 
 
 </script>
