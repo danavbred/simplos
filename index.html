@@ -10560,8 +10560,8 @@ async function handleAnswer(isCorrect, isSkip = false) {
           console.log("Boss defeated!");
           CoinsManager.updateCoins(100).then(() => {
             // Show victory message
-            showBossVictoryScreen();
-          });
+            showBossDefeatEffect();
+        });
           
           return;
         }
@@ -10686,6 +10686,11 @@ async function handleAnswer(isCorrect, isSkip = false) {
       showScreen("welcome-screen");
     }
   }
+}
+
+function showBossVictoryScreen() {
+  console.log("Boss victory screen function called - redirecting to new implementation");
+  showBossDefeatEffect();
 }
 
 function addAdminTestingButton() {
@@ -10944,10 +10949,9 @@ function handleLevelCompletion() {
   
   // Restore from boss level if applicable
   if (currentGame.isBossLevel) {
-    restoreFromBossLevel();
-    
-    // For boss level, show victory and award 100 coins
-    CoinsManager.updateCoins(100).then(() => {
+  restoreFromBossLevel();
+  CoinsManager.updateCoins(100).then(() => {
+    showBossDefeatEffect();
       // Show victory message
       const victoryMessage = document.createElement('div');
       victoryMessage.className = 'boss-victory-message';
@@ -17859,25 +17863,30 @@ function loadNextBossQuestion() {
 }
 
 function restoreFromBossLevel() {
-  const questionScreen = document.getElementById('question-screen');
+  const questionScreen = document.getElementById("question-screen");
   if (questionScreen) {
-    questionScreen.style.removeProperty('background');
-    questionScreen.style.removeProperty('animation');
+    // First remove any inline styles
+    questionScreen.removeAttribute("style");
+    
+    // Then apply default styles
+    questionScreen.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
   }
-  
-  const questionWord = document.getElementById('question-word');
+
+  const questionWord = document.getElementById("question-word");
   if (questionWord) {
-    questionWord.style.removeProperty('color');
-    questionWord.style.removeProperty('text-shadow');
-    questionWord.style.removeProperty('animation');
+    questionWord.removeAttribute("style");
   }
-  
-  // Restore original coins container if saved
+
   if (window.originalCoinsHTML) {
-    const coinsContainer = document.querySelector('.coins-container');
+    const coinsContainer = document.querySelector(".coins-container");
     if (coinsContainer) {
       coinsContainer.innerHTML = window.originalCoinsHTML;
     }
+  }
+  
+  // Stop any boss-specific effects
+  if (typeof stopBossRainingLetters === 'function') {
+    stopBossRainingLetters();
   }
 }
 
@@ -21263,138 +21272,20 @@ function showBossHitEffect(randomColor = false) {
 }
 
 
-function showBossVictoryScreen() {
-  // Create boss victory screen
-  const victoryScreen = document.createElement('div');
-  victoryScreen.className = 'boss-victory-screen';
-  victoryScreen.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-  `;
-  
-  // Create content container
-  const victoryContent = document.createElement('div');
-  victoryContent.className = 'victory-content';
-  victoryContent.style.cssText = `
-    background: linear-gradient(135deg, #00c6ff, #0072ff);
-    padding: 2rem;
-    border-radius: 20px;
-    text-align: center;
-    box-shadow: 0 0 30px rgba(0, 198, 255, 0.5);
-    max-width: 500px;
-    width: 90%;
-  `;
-  
-  // Create content
-  victoryContent.innerHTML = `
-    <h2 style="font-size: 2rem; color: white; margin-bottom: 1rem;">You Won! Boss is Dead!</h2>
-    <p style="font-size: 1.2rem; color: rgba(255, 255, 255, 0.9); margin-bottom: 2rem;">
-      Congratulations! You've defeated the boss and earned 100 coins!
-    </p>
-    <div style="display: flex; justify-content: center; gap: 1rem;">
-      <button class="next-set-button" style="
-        padding: 1rem 2rem;
-        background: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 50px;
-        font-size: 1rem;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.3s ease;
-      ">Continue to Next Set</button>
-      <button class="home-button" style="
-        padding: 1rem 2rem;
-        background: rgba(255, 255, 255, 0.2);
-        color: white;
-        border: 2px solid white;
-        border-radius: 50px;
-        font-size: 1rem;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.3s ease;
-      ">Return Home</button>
-    </div>
-  `;
-  
-  // Add content to screen
-  victoryScreen.appendChild(victoryContent);
-  
-  // Add to body
-  document.body.appendChild(victoryScreen);
-  
-  // Add button event listeners
-  const nextSetButton = victoryContent.querySelector('.next-set-button');
-  if (nextSetButton) {
-    nextSetButton.addEventListener('click', () => {
-      // Remove victory screen
-      victoryScreen.remove();
-      
-      // Unlock next set
-      unlockNextSet();
-      
-      // Go to next set (first level)
-      const nextSet = gameState.currentSet + 1;
-      gameState.currentSet = nextSet;
-      gameState.currentLevel = 1;
-      
-      // Start the level
-      startLevel(1);
-    });
-  }
-  
-  const homeButton = victoryContent.querySelector('.home-button');
-  if (homeButton) {
-    homeButton.addEventListener('click', () => {
-      // Remove victory screen
-      victoryScreen.remove();
-      
-      // Unlock next set
-      unlockNextSet();
-      
-      // Go to welcome screen
-      showScreen('welcome-screen');
-    });
-  }
-  
-  // Style hover effects
-  const buttons = victoryContent.querySelectorAll('button');
-  buttons.forEach(btn => {
-    btn.addEventListener('mouseover', () => {
-      btn.style.transform = 'translateY(-5px)';
-      btn.style.boxShadow = '0 5px 15px rgba(0, 0, 0, 0.2)';
-    });
-    
-    btn.addEventListener('mouseout', () => {
-      btn.style.transform = '';
-      btn.style.boxShadow = '';
-    });
-  });
-}
-
 function applyBossLevelStyles() {
   console.log("Forcefully applying boss level styles");
   
-  // Force red background
-  const questionScreen = document.getElementById('question-screen');
+  const questionScreen = document.getElementById("question-screen");
   if (questionScreen) {
-    questionScreen.style.setProperty('background', 'linear-gradient(135deg, #800000, #3a0000)', 'important');
-    questionScreen.style.setProperty('animation', 'pulseBg 4s infinite', 'important');
+    questionScreen.style.setProperty("background", "linear-gradient(135deg, #800000, #3a0000)", "important");
+    questionScreen.style.setProperty("animation", "pulseBg 4s infinite", "important");
   }
   
-  // Add style for animations if not already present
-  if (!document.getElementById('boss-animations')) {
-    const style = document.createElement('style');
-    style.id = 'boss-animations';
-    style.textContent = `
+  // Add boss animations stylesheet if not already present
+  if (!document.getElementById("boss-animations")) {
+    const styleElem = document.createElement("style");
+    styleElem.id = "boss-animations";
+    styleElem.textContent = `
       @keyframes pulseBg {
         0%, 100% { filter: brightness(1); }
         50% { filter: brightness(1.2); }
@@ -21410,21 +21301,20 @@ function applyBossLevelStyles() {
         50% { transform: scale(1.05); }
       }
     `;
-    document.head.appendChild(style);
+    document.head.appendChild(styleElem);
   }
   
   // Style the question word
-  const questionWord = document.getElementById('question-word');
+  const questionWord = document.getElementById("question-word");
   if (questionWord) {
-    questionWord.style.setProperty('color', '#ff3333', 'important');
-    questionWord.style.setProperty('text-shadow', '0 0 10px rgba(255, 0, 0, 0.5)', 'important');
-    questionWord.style.setProperty('animation', 'pulseWord 2s infinite', 'important');
+    questionWord.style.setProperty("color", "#ff3333", "important");
+    questionWord.style.setProperty("text-shadow", "0 0 10px rgba(255, 0, 0, 0.5)", "important");
+    questionWord.style.setProperty("animation", "pulseWord 2s infinite", "important");
   }
   
-  // Replace coin with boss orb
-  const coinsContainer = document.querySelector('.coins-container');
+  // Replace coins container with boss orb
+  const coinsContainer = document.querySelector(".coins-container");
   if (coinsContainer) {
-    // Save the original HTML to restore later if needed
     if (!window.originalCoinsHTML) {
       window.originalCoinsHTML = coinsContainer.innerHTML;
     }
@@ -21451,7 +21341,7 @@ function applyBossLevelStyles() {
       "></div>
     </div>
   `;
-}
+  }
 }
 
 function handleBossAnswer(correct) {
@@ -21602,31 +21492,52 @@ function stopBossRainingLetters() {
 }
 
 function createBossStyleSheet() {
-    const styleSheet = document.createElement('style');
-    styleSheet.id = 'boss-level-styles';
-    styleSheet.textContent = `
-        @keyframes boss-letter-rain {
-            0% { 
-                transform: translateY(-20px);
-                opacity: 0.6;
-            }
-            100% { 
-                transform: translateY(100vh);
-                opacity: 0;
-            }
-        }
+  const styleElem = document.createElement("style");
+  styleElem.id = "boss-level-styles";
+  styleElem.textContent = `
+    @keyframes boss-letter-rain {
+      0% { 
+        transform: translateY(-20px);
+        opacity: 0.6;
+      }
+      100% { 
+        transform: translateY(100vh);
+        opacity: 0;
+      }
+    }
 
-        @keyframes boss-shrink {
-            0% { transform: scale(1); }
-            100% { transform: scale(0.01); }
-        }
+    @keyframes boss-shrink {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.8); opacity: 0.8; }
+      100% { transform: scale(0); opacity: 0; }
+    }
 
-        @keyframes fade-to-blue {
-            0% { background: linear-gradient(135deg, #800000, #3a0000); }
-            100% { background: linear-gradient(135deg, #00c6ff, #0072ff); }
-        }
-    `;
-    document.head.appendChild(styleSheet);
+    @keyframes fade-to-blue {
+      0% { background: linear-gradient(135deg, #800000, #3a0000); }
+      20% { background: linear-gradient(135deg, #800000, #3a0000); }
+      60% { background: linear-gradient(135deg, #4a1582, #0d47a1); }
+      100% { background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%); }
+    }
+    
+    @keyframes incinerateEffect {
+      0% { transform: scale(0); opacity: 0; }
+      10% { transform: scale(0.5); opacity: 0.8; }
+      50% { transform: scale(1.5); opacity: 1; }
+      100% { transform: scale(3); opacity: 0; }
+    }
+    
+    .incineration-effect {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ff9900, #ff3300);
+      opacity: 0;
+      transform: scale(0);
+      animation: incinerateEffect 1.5s forwards;
+    }
+  `;
+  document.head.appendChild(styleElem);
 }
 
 function showModernBossVictoryScreen() {
@@ -21735,31 +21646,452 @@ function showModernBossVictoryScreen() {
     });
 }
 
-
 function showBossDefeatEffect() {
-    const questionScreen = document.querySelector('.question-screen');
-    const bossOrb = document.querySelector('.boss-orb-inner');
-
+  console.log("Starting boss defeat effect sequence");
+  
+  // 1. Start with a delay
+  setTimeout(() => {
+    const questionScreen = document.querySelector(".question-screen");
+    const bossOrb = document.querySelector(".boss-orb-inner");
+    
+    // 2. Make boss orb disintegrate
     if (bossOrb) {
-        // Shrink boss to a tiny dot
-        bossOrb.style.animation = 'boss-shrink 1s forwards';
+      console.log("Disintegrating boss orb");
+      
+      // Add explosion effect to the orb
+      const explosionEffect = document.createElement("div");
+      explosionEffect.className = "incineration-effect";
+      bossOrb.appendChild(explosionEffect);
+      
+      // Shrink the orb while exploding
+      bossOrb.style.animation = "boss-shrink 1.5s forwards";
+      
+      // After orb disintegrates, restore coin counter to its place
+      setTimeout(() => {
+        console.log("Restoring coin counter");
+        const coinsContainer = document.querySelector(".coins-container");
+        if (coinsContainer && window.originalCoinsHTML) {
+          coinsContainer.innerHTML = window.originalCoinsHTML;
+          
+          // Animate coin return
+          const coinIcon = coinsContainer.querySelector(".coin-icon");
+          const coinCount = coinsContainer.querySelector(".coin-count");
+          
+          if (coinIcon) {
+            coinIcon.style.transform = "scale(0)";
+            setTimeout(() => {
+              coinIcon.style.transition = "transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+              coinIcon.style.transform = "scale(1)";
+            }, 100);
+          }
+          
+          if (coinCount) {
+            coinCount.textContent = gameState.coins + 100; // Add the boss defeat reward
+            coinCount.style.transform = "scale(0)";
+            setTimeout(() => {
+              coinCount.style.transition = "transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
+              coinCount.style.transform = "scale(1)";
+            }, 300);
+          }
+        }
+      }, 1500);
     }
-
+    
+    // 3. Explicitly animate background with a custom element to ensure smooth transition
     if (questionScreen) {
-        // Fade background to blue
-        questionScreen.style.animation = 'fade-to-blue 5s ease-in-out forwards';
+      console.log("Starting background transition");
+      
+      // Create a full-screen overlay for the transition
+      const transitionOverlay = document.createElement("div");
+      transitionOverlay.className = "background-transition-overlay";
+      transitionOverlay.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #800000, #3a0000);
+        z-index: -1;
+        transition: background 5s ease-in-out;
+        pointer-events: none;
+      `;
+      
+      // Insert before other elements but after question screen
+      questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
+      
+      // Force a reflow
+      void transitionOverlay.offsetWidth;
+      
+      // Start transition after a small delay
+      setTimeout(() => {
+        console.log("Transitioning to purple");
+        transitionOverlay.style.background = "linear-gradient(135deg, #4a1582, #0d47a1)";
+        
+        // Complete transition to blue
+        setTimeout(() => {
+          console.log("Transitioning to normal blue");
+          transitionOverlay.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
+          
+          // Switch particles back to normal
+          if (typeof stopBossRainingLetters === 'function') {
+            stopBossRainingLetters();
+          }
+          initializeParticles(questionScreen);
+          
+          // After background transition completes, show victory notification
+          setTimeout(() => {
+            console.log("Showing victory notification");
+            showBossVictoryNotification();
+          }, 1000);
+        }, 2500);
+      }, 500);
+    } else {
+      // Fallback if question screen isn't found
+      setTimeout(() => showBossVictoryNotification(), 4000);
     }
-
-    // Stop raining letters
-    stopBossRainingLetters();
-
-    // Delayed victory screen
-    setTimeout(() => {
-        showModernBossVictoryScreen();
-    }, 2000);
+    
+  }, 2000); // Initial delay
 }
 
-// Initialize boss-specific styles
+function showBossVictoryNotification() {
+  // Add 100 coins for defeating boss
+  CoinsManager.updateCoins(100);
+  
+  // Create the victory overlay
+  const overlay = document.createElement("div");
+  overlay.className = "arcade-completion-modal";
+  
+  // Create content with improved button styling
+  overlay.innerHTML = `
+    <div class="completion-modal-content">
+      <h2 style="color: var(--gold)">Boss Defeated!</h2>
+      <p style="font-size: 1.2rem; margin: 1rem 0;">Congratulations! You've conquered this challenge!</p>
+      
+      <div class="completion-stats">
+        <div class="stat-item">
+          <i class="fas fa-skull" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
+          <span style="display: block; margin-bottom: 0.25rem;">Boss Defeated</span>
+          <strong style="font-size: 1.5rem;">✓</strong>
+        </div>
+        <div class="stat-item">
+          <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
+          <span style="display: block; margin-bottom: 0.25rem;">Bonus Coins</span>
+          <strong style="font-size: 1.5rem;">100</strong>
+        </div>
+        <div class="stat-item">
+          <i class="fas fa-unlock" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
+          <span style="display: block; margin-bottom: 0.25rem;">New Set</span>
+          <strong style="font-size: 1.5rem;">Unlocked</strong>
+        </div>
+      </div>
+      
+      <div style="display: flex; justify-content: space-around; margin-top: 2rem; gap: 1rem;">
+        <button onclick="handleBossVictoryContinue()" class="start-button" style="
+          background: var(--accent);
+          color: var(--text);
+          border: none;
+          padding: 1rem 2rem;
+          border-radius: 50px;
+          font-size: 1.1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
+        ">
+          Next Set
+        </button>
+        <button onclick="handleBossVictoryHome()" class="start-button" style="
+          background: transparent;
+          color: var(--text);
+          border: 2px solid var(--accent);
+          padding: 1rem 2rem;
+          border-radius: 50px;
+          font-size: 1.1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        ">
+          Return Home
+        </button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add("show"));
+}
+
+function handleBossVictoryContinue() {
+  console.log("Boss victory continue button clicked");
+  
+  const modal = document.querySelector(".arcade-completion-modal");
+  if (modal) {
+    modal.classList.remove("show");
+    setTimeout(() => {
+      modal.remove();
+      
+      // Get the existing transition overlay if it exists
+      const transitionOverlay = document.querySelector(".background-transition-overlay");
+      
+      // If the overlay exists, we'll use it to ensure a smooth transition
+      if (transitionOverlay) {
+        console.log("Using existing transition overlay for smooth transition");
+        
+        // Ensure the overlay has the final blue state
+        transitionOverlay.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
+        
+        // Reset the rest of the boss styles
+        resetBossStyles(true); // true = preserve the overlay
+      } else {
+        // Otherwise do a complete reset
+        resetBossStyles();
+      }
+      
+      // Unlock next set and proceed
+      unlockNextSet();
+      const nextSet = gameState.currentSet + 1;
+      gameState.currentSet = nextSet;
+      gameState.currentLevel = 1;
+      
+      // Start the next level with a delay
+      setTimeout(() => {
+        console.log("Starting next level");
+        // Remove the transition overlay right before starting the next level
+        if (transitionOverlay && transitionOverlay.parentNode) {
+          transitionOverlay.parentNode.removeChild(transitionOverlay);
+        }
+        startLevel(1);
+      }, 500);
+    }, 300);
+  }
+}
+
+function resetBossStyles(preserveOverlay = false) {
+  console.log("Resetting boss styles", preserveOverlay ? "(preserving overlay)" : "");
+  
+  // Reset question screen
+  const questionScreen = document.getElementById("question-screen");
+  if (questionScreen) {
+    // Get the transition overlay if it exists
+    const transitionOverlay = questionScreen.querySelector(".background-transition-overlay");
+    
+    // If we're preserving it, temporarily remove it
+    if (preserveOverlay && transitionOverlay) {
+      transitionOverlay.remove();
+    }
+    
+    // Clear styles from the question screen
+    questionScreen.removeAttribute("style");
+    
+    // Put the transition overlay back if we're preserving it
+    if (preserveOverlay && transitionOverlay) {
+      questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
+    }
+    
+    // If not preserving the overlay, make sure any existing ones are removed
+    if (!preserveOverlay) {
+      questionScreen.querySelectorAll(".background-transition-overlay").forEach(el => el.remove());
+      
+      // Then force the background style directly
+      setTimeout(() => {
+        questionScreen.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
+      }, 10);
+    }
+  }
+  
+  // Reset question word
+  const questionWord = document.getElementById("question-word");
+  if (questionWord) {
+    questionWord.removeAttribute("style");
+  }
+  
+  // Stop any boss-specific effects
+  if (typeof stopBossRainingLetters === 'function') {
+    stopBossRainingLetters();
+  }
+  
+  // Cancel any remaining animations except the overlay if preserving
+  const selectorToRemove = preserveOverlay ? 
+    ".incineration-effect, .boss-orb" : 
+    ".incineration-effect, .boss-orb, .background-transition-overlay";
+  
+  const existingElements = document.querySelectorAll(selectorToRemove);
+  existingElements.forEach(elem => {
+    if (elem.parentNode) {
+      elem.parentNode.removeChild(elem);
+    }
+  });
+}
+
+function handleBossVictoryHome() {
+  console.log("Boss victory home button clicked");
+  
+  const modal = document.querySelector(".arcade-completion-modal");
+  if (modal) {
+    modal.classList.remove("show");
+    setTimeout(() => {
+      modal.remove();
+      
+      // Force cleanup of boss styles
+      resetBossStyles();
+      
+      // IMPORTANT: Unlock next set and update the current set in game state
+      unlockNextSet();
+      
+      // Save the next set as the current set in the game state
+      const nextSet = gameState.currentSet + 1;
+      gameState.currentSet = nextSet;
+      gameState.currentLevel = 1;
+      
+      // Save this progress explicitly to ensure it persists
+      saveProgress();
+      
+      // Now we can safely return to welcome screen
+      showScreen("welcome-screen");
+    }, 300);
+  }
+}
+
+// ADD this function to check if the current user is the admin
+function isAdminUser() {
+  return currentUser && currentUser.email === "admin123@gmail.com";
+}
+
+// ADD this function to create the admin skip button
+function addAdminSkipButton() {
+  // Only add for admin user
+  if (!isAdminUser()) return;
+  
+  // Remove any existing admin skip button first
+  const existingButton = document.getElementById("admin-skip-10-button");
+  if (existingButton) existingButton.remove();
+  
+  // Create the admin skip button
+  const skipButton = document.createElement("button");
+  skipButton.id = "admin-skip-10-button";
+  skipButton.innerHTML = '<i class="fas fa-forward"></i> Skip 10';
+  skipButton.style.cssText = `
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    background: #9c27b0;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    z-index: 2000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    font-weight: bold;
+  `;
+  
+  // Add the click handler
+  skipButton.onclick = function() {
+    console.log("Admin skip-10 button clicked");
+    handleAdminSkip10();
+  };
+  
+  // Add the button to the question screen
+  const questionScreen = document.getElementById("question-screen");
+  if (questionScreen) {
+    questionScreen.appendChild(skipButton);
+  }
+}
+
+// ADD this function to handle the skip-10 action
+function handleAdminSkip10() {
+  // Only work for admin user
+  if (!isAdminUser()) return;
+  
+  // Check if we're in an active game
+  if (!currentGame || !currentGame.words || !currentGame.words.length) {
+    console.error("No active game found");
+    return;
+  }
+  
+  // Skip 10 questions or all remaining if less than 10 left
+  const skipCount = Math.min(10, currentGame.words.length - currentGame.currentIndex);
+  console.log(`Skipping ${skipCount} questions`);
+  
+  // If this is a boss level, handle it differently
+  if (currentGame.isBossLevel) {
+    // For boss levels, we directly set the index near the end
+    // This will trigger the boss defeat sequence on the next answer
+    currentGame.currentIndex = Math.max(0, currentGame.words.length - 1);
+    updateBossHealthBar();
+    loadNextBossQuestion();
+    showNotification(`Boss almost defeated! One more hit!`, "success");
+    return;
+  }
+  
+  // For regular levels
+  currentGame.currentIndex += skipCount;
+  
+  // If we've reached the end of the level
+  if (currentGame.currentIndex >= currentGame.words.length) {
+    handleLevelCompletion();
+    return;
+  }
+  
+  // Otherwise update progress and load the next question
+  updateProgressCircle();
+  loadNextQuestion();
+  showNotification(`Skipped ${skipCount} questions!`, "success");
+}
+
+// MODIFY addAdminTestButton function to call our new function
+function addAdminTestButton() {
+  console.log("Checking for admin user...");
+  
+  // Remove any existing button
+  const existingButton = document.getElementById("admin-test-button");
+  if (existingButton) {
+    existingButton.remove();
+  }
+  
+  console.log("Current user:", currentUser ? currentUser.email : "No user");
+  
+  // Check if the current user is admin
+  if (!currentUser || (currentUser.email !== "admin123@gmail.com" && !currentUser.email?.includes("admin123"))) {
+    console.log("Not admin user, not adding button");
+    return;
+  }
+  
+  console.log("Admin user detected, adding test buttons");
+  
+  // Add level 20 button
+  const button = document.createElement("button");
+  button.id = "admin-test-button";
+  button.textContent = "Jump to Level 20";
+  button.style.cssText = `
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: #ff5722;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    z-index: 2000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    font-weight: bold;
+  `;
+  
+  button.onclick = function() {
+    console.log("Admin button clicked, jumping to level 20");
+    gameState.currentLevel = 21;
+    startLevel(21);
+  };
+  
+  document.body.appendChild(button);
+  console.log("Admin test button added to body");
+  
+  // Now also add our skip button
+  addAdminSkipButton();
+}
+
+
 createBossStyleSheet();
 
 
