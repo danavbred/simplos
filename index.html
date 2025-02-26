@@ -21790,124 +21790,145 @@ async function loadCustomLists() {
 }
 
 /**
- * Share a list with another user
- * @param {string|number} listId - The list ID to share
- * @param {string} targetUserId - The user ID to share with
- * @returns {Promise<boolean>} - Success status
+ * Share a custom list with another user
+ * @param {string|number} listId - The ID of the list to share
+ * @param {string} targetUserId - The ID of the user to share with
+ * @returns {Promise<boolean>} - Whether the share was successful
  */
  async function shareCustomList(listId, targetUserId) {
+  console.log(`Starting share process for list ${listId} with user ${targetUserId}`);
+  
   if (!currentUser?.id) {
     showNotification("You must be logged in to share lists", "error");
     return false;
   }
-
+  
   try {
-    console.log(`Starting share process for list ${listId} with user ${targetUserId}`);
+    // Get the list data from local storage or directly from DB
+    let list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
     
-    // First, find the list to share
-    const { data: listData, error: listError } = await supabaseClient
-      .from("custom_lists")
-      .select("*")
-      .eq("id", listId)
-      .eq("user_id", currentUser.id)
-      .single();
-    
-    if (listError || !listData) {
-      console.error("Error fetching list to share:", listError);
-      return false;
-    }
-    
-    console.log("Found list to share:", listData.name);
-    
-    // Check if list is already shared with this user
-    const { data: existingShares, error: shareCheckError } = await supabaseClient
-      .from("custom_lists")
-      .select("id")
-      .eq("original_list_id", listId)
-      .eq("user_id", targetUserId);
-    
-    if (shareCheckError) {
-      console.error("Error checking existing shares:", shareCheckError);
-    } else if (existingShares?.length > 0) {
-      console.log("List already shared with this user");
-      showNotification("List already shared with this user", "info");
-      return true;
-    }
-    
-    // Create a clean copy of the list data for sharing
-    const sharedListName = `${listData.name} (Shared by ${currentUser.user_metadata?.username || 
-                                                       currentUser.email || 
-                                                       currentUser.id.substring(0, 8)})`;
-    
-    // Create a sanitized object with only the necessary fields
-    const sharedListData = {
-      name: sharedListName,
-      words: Array.isArray(listData.words) ? listData.words : [],
-      translations: Array.isArray(listData.translations) ? listData.translations : [],
-      user_id: targetUserId,
-      is_shared: true,
-      shared_by: currentUser.id,
-      original_list_id: listId,
-      created_at: new Date().toISOString()
-    };
-    
-    console.log("Prepared shared list data:", sharedListData);
-    
-    // Insert the shared list
-    const { data: insertData, error: insertError } = await supabaseClient
-      .from("custom_lists")
-      .insert([sharedListData]);
+    // If list not found locally, try fetching from DB
+    if (!list) {
+      const { data, error } = await supabaseClient
+        .from("custom_lists")
+        .select("*")
+        .eq("id", listId)
+        .single();
+        
+      if (error || !data) {
+        console.error("Error fetching list:", error);
+        return false;
+      }
       
-    if (insertError) {
-      console.error("Error sharing list:", insertError);
+      list = data;
+    }
+    
+    console.log("Found list to share:", list.name);
+    
+    // Format the shared list name
+    const displayName = currentUser.user_metadata?.name || 
+                       currentUser.user_metadata?.username || 
+                       currentUser.email || 
+                       "User";
+    const sharedListName = `${list.name} (Shared by ${displayName})`;
+    
+    // Ensure data is valid
+    const words = Array.isArray(list.words) ? list.words : [];
+    const translations = Array.isArray(list.translations) ? list.translations : [];
+    
+    // Insert the shared list directly
+    const { error } = await supabaseClient
+      .from("custom_lists")
+      .insert({
+        name: sharedListName,
+        words: words,
+        translations: translations,
+        user_id: targetUserId,
+        is_shared: true,
+        shared_by: currentUser.id
+      });
+      
+    if (error) {
+      console.error("Error sharing list:", error);
       return false;
     }
-
+    
     console.log("List shared successfully");
+    showNotification("List shared successfully!", "success");
     return true;
   } catch (error) {
     console.error("Unexpected error in shareCustomList:", error);
+    showNotification("Failed to share list", "error");
     return false;
   }
 }
 
 /**
- * Show the modal to share a list
- * @param {string|number} id - The list ID
+ * Show modal to share a list with other users
+ * @param {string|number} listId - The ID of the list to share
  */
-function showShareModal(id) {
-  console.log("Opening share modal for list:", id);
+function showShareModal(listId) {
+  console.log("Opening share modal for list:", listId);
   
-  // Remove existing modal if any
-  const existingModal = document.querySelector(".share-modal");
-  const existingBackdrop = document.querySelector(".modal-backdrop");
+  // Remove any existing modals
+  const existingModal = document.querySelector(".share-modal-container");
   if (existingModal) existingModal.remove();
-  if (existingBackdrop) existingBackdrop.remove();
   
-  // Create backdrop
-  const backdrop = document.createElement("div");
-  backdrop.className = "modal-backdrop";
-  backdrop.onclick = closeShareModal;
-  document.body.appendChild(backdrop);
+  // Create modal container with backdrop
+  const modalContainer = document.createElement("div");
+  modalContainer.className = "share-modal-container";
+  modalContainer.style.position = "fixed";
+  modalContainer.style.top = "0";
+  modalContainer.style.left = "0";
+  modalContainer.style.width = "100%";
+  modalContainer.style.height = "100%";
+  modalContainer.style.backgroundColor = "rgba(0,0,0,0.7)";
+  modalContainer.style.display = "flex";
+  modalContainer.style.justifyContent = "center";
+  modalContainer.style.alignItems = "center";
+  modalContainer.style.zIndex = "1000";
   
-  // Create modal
+  // Create actual modal content
   const modal = document.createElement("div");
   modal.className = "share-modal";
-  modal.innerHTML = `
-    <h3 class="share-modal-header">Share List</h3>
-    <div class="users-list">Loading users...</div>
-    <button class="start-button modal-close" onclick="closeShareModal()">Close</button>
-  `;
-  document.body.appendChild(modal);
+  modal.style.backgroundColor = "#1e1e2e";
+  modal.style.borderRadius = "10px";
+  modal.style.padding = "20px";
+  modal.style.maxWidth = "400px";
+  modal.style.width = "90%";
+  modal.style.maxHeight = "80vh";
+  modal.style.overflowY = "auto";
   
-  // Load users
-  const usersList = modal.querySelector(".users-list");
+  modal.innerHTML = `
+    <h3 style="text-align: center; margin-bottom: 20px; color: white;">Share List</h3>
+    <div id="share-users-list" style="margin-bottom: 15px;">Loading users...</div>
+    <button id="close-share-modal" style="width: 100%; padding: 10px; background-color: #7e3ab3; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px;">Close</button>
+  `;
+  
+  modalContainer.appendChild(modal);
+  document.body.appendChild(modalContainer);
+  
+  // Close button functionality
+  document.getElementById("close-share-modal").onclick = function() {
+    modalContainer.remove();
+  };
+  
+  // Also close when clicking backdrop, but not when clicking the modal itself
+  modalContainer.addEventListener("click", function(event) {
+    if (event.target === modalContainer) {
+      modalContainer.remove();
+    }
+  });
+  
+  // Show users
+  const usersList = document.getElementById("share-users-list");
   
   if (!currentUser) {
-    usersList.innerHTML = '<div class="user-item"><span>You must be logged in to share lists</span></div>';
+    usersList.innerHTML = '<div style="padding: 10px; color: white;">You must be logged in to share lists</div>';
     return;
   }
   
+  // Fetch users to share with
   supabaseClient
     .from("user_profiles")
     .select("id, username, email")
@@ -21915,55 +21936,85 @@ function showShareModal(id) {
     .then(({ data, error }) => {
       if (error) {
         console.error("Error fetching users:", error);
-        usersList.innerHTML = '<div class="user-item"><span>Error loading users</span></div>';
+        usersList.innerHTML = '<div style="padding: 10px; color: white;">Error loading users</div>';
         return;
       }
       
-      if (data && data.length > 0) {
-        usersList.innerHTML = data.map(user => `
-          <div class="user-item">
-            <span>${user.username || user.email || "User " + user.id.substr(0, 8)}</span>
-            <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}">
-              <i class="fas fa-share-alt"></i> Share
+      if (!data || data.length === 0) {
+        usersList.innerHTML = '<div style="padding: 10px; color: white;">No other users found</div>';
+        return;
+      }
+      
+      // Render users
+      let html = '';
+      data.forEach(user => {
+        const displayName = user.username || user.email || user.id.substring(0, 8);
+        html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); color: white;">
+            <span>${displayName}</span>
+            <button 
+              class="share-with-user-btn" 
+              data-user-id="${user.id}" 
+              style="padding: 5px 10px; background-color: #7e3ab3; color: white; border: none; border-radius: 5px; cursor: pointer;">
+              Share
             </button>
           </div>
-        `).join("");
-        
-        // Setup share buttons
-        modal.querySelectorAll(".share-with-user-btn").forEach(button => {
-          button.onclick = async () => {
-            const userId = button.getAttribute("data-user-id");
-            button.disabled = true;
-            
-            const originalHTML = button.innerHTML;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
-            
-            const success = await shareCustomList(id, userId);
-            if (!success) {
-              button.disabled = false;
-              button.innerHTML = originalHTML;
-              showNotification("Failed to share list", "error");
-            } else {
-              button.innerHTML = '<i class="fas fa-check"></i> Shared!';
-              showNotification("List shared successfully!", "success");
-            }
-          };
-        });
-      } else {
-        usersList.innerHTML = '<div class="user-item"><span>No other users found</span></div>';
-      }
+        `;
+      });
+      
+      usersList.innerHTML = html;
+      
+      // Add click handlers
+      document.querySelectorAll(".share-with-user-btn").forEach(button => {
+        button.onclick = async function() {
+          const userId = this.getAttribute("data-user-id");
+          const originalText = this.innerText;
+          
+          this.innerText = "Sharing...";
+          this.disabled = true;
+          
+          const success = await shareCustomList(listId, userId);
+          
+          if (success) {
+            this.innerText = "Shared ✓";
+            this.style.backgroundColor = "#28a745";
+          } else {
+            this.innerText = originalText;
+            this.disabled = false;
+          }
+        };
+      });
     });
 }
 
 /**
- * Close the share modal
+ * Exit the custom practice mode and return to the list screen
+ * Called when the user clicks "Continue" on the completion screen
  */
-function closeShareModal() {
-  const modal = document.querySelector(".share-modal");
-  const backdrop = document.querySelector(".modal-backdrop");
+ function exitCustomPractice() {
+  console.log("Exiting custom practice mode");
   
-  if (modal) modal.remove();
-  if (backdrop) backdrop.remove();
+  // Remove the completion overlay if it exists
+  const overlay = document.querySelector(".completion-overlay");
+  if (overlay) {
+    overlay.remove();
+  }
+  
+  // Reset custom game state
+  if (customGameState) {
+    customGameState.reset();
+  }
+  
+  // Reset current game
+  currentGame = null;
+  
+  // Return to the custom practice screen
+  showScreen("custom-practice-screen");
+  
+  // If needed, refresh the lists display
+  if (typeof refreshCustomLists === 'function') {
+    refreshCustomLists();
+  }
 }
 
 </script>
