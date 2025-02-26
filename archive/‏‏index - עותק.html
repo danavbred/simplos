@@ -7121,7 +7121,7 @@ const customGameState = {
     
     initializeFromList(list) {
         if (!list || !list.words || !list.translations) {
-            console.error('Invalid list provided to custom game:', list);
+            console.error("Invalid list provided to custom game:", list);
             return false;
         }
         
@@ -7132,20 +7132,22 @@ const customGameState = {
         this.translations = [...list.translations];
         this.startCoins = gameState.coins;
         this.currentLevel = 1;
-        
         return true;
     },
     
     getWordsForLevel(level) {
-        if (!this.words.length) return null;
+        if (!this.words.length) {
+            return null;
+        }
         
-        // Calculate max levels based on word count
-        const maxLevels = this.words.length >= 12 ? 9 : 
-                         (this.words.length >= 9 ? 6 : 3);
+        // Determine max levels based on word count
+        const maxLevels = this.words.length >= 12 ? 9 : (this.words.length >= 9 ? 6 : 3);
         
-        // Return null if requested level exceeds max
-        if (level > maxLevels) return null;
+        if (level > maxLevels) {
+            return null;
+        }
         
+        // Define level configurations
         const levelConfigs = {
             1: { start: 0, count: Math.min(3, this.words.length), isTest: false },
             2: { start: 3, count: Math.min(3, Math.max(0, this.words.length - 3)), isTest: false },
@@ -7158,13 +7160,15 @@ const customGameState = {
             9: { start: 12, count: Math.min(8, Math.max(0, this.words.length - 12)), isTest: true }
         };
         
+        // Get configuration for this level
         const config = levelConfigs[level] || levelConfigs[1];
         
-        // Skip levels with no words
+        // If there are no words for this level, try the next one
         if (config.count <= 0) {
             return this.getWordsForLevel(level + 1);
         }
         
+        // Set up level data
         this.levelData = {
             words: this.words.slice(config.start, config.start + config.count),
             translations: this.translations.slice(config.start, config.start + config.count),
@@ -10527,195 +10531,152 @@ function loadNextQuestion() {
 }
 
 async function handleAnswer(isCorrect, isSkip = false) {
-  const currentTime = Date.now();
-  
-  // Prevent rapid clicking
-  if (currentTime - (currentGame.lastAnswerTime || 0) < 1000) {
-    console.warn("Answer too quickly. Please wait a moment.");
-    return;
-  }
-  
-  // Check if we have valid game state
-  if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
-    console.error("Invalid game state or index");
-    return;
-  }
-  
-  // Update last answer time
-  currentGame.lastAnswerTime = currentTime;
-  
-  // Initialize perks if not set
-  currentGame.perks = currentGame.perks || {
-    clue: 0,
-    skip: 0,
-    timeFreeze: 0,
-    reveal: 0
-  };
-  
-  try {
-    // Handle correct answer
-    if (isCorrect) {
-      // Increment index for correct answers
-      currentGame.currentIndex++;
-      
-      // Handle different game modes
-      if (currentGame.isBossLevel) {
-        // Apply boss level specific effects
-        const bossOrb = document.querySelector('.boss-orb-inner');
-        if (bossOrb) {
-          // Random color flash effect
-          const colors = ['yellow', 'purple', 'turquoise', 'darkgreen', 'brown'];
-          const randomColor = colors[Math.floor(Math.random() * colors.length)];
-          
-          const originalBg = bossOrb.style.background;
-          bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColor}, #990000)`;
-          
-          // Add hit effect
-          bossOrb.style.transform = 'scale(1.3)';
-          bossOrb.style.filter = 'brightness(1.5)';
-          
-          setTimeout(() => {
-            bossOrb.style.transform = '';
-            bossOrb.style.filter = '';
-            bossOrb.style.background = originalBg;
-          }, 300);
-        }
-        
-        // Update boss health bar
-        updateBossHealthBar();
-        
-        // Check if boss is defeated
-        if (currentGame.currentIndex >= currentGame.words.length) {
-          // Boss defeated - show victory and reward
-          console.log("Boss defeated!");
-          CoinsManager.updateCoins(100).then(() => {
-            // Show victory message
-            showBossDefeatEffect();
-        });
-          
-          return;
-        }
-      } else {
-        // Normal level behavior
-        updateProgressCircle();
-      }
-      
-      // Award coins for correct non-skipped answers
-      if (!isSkip) {
-        let coinsEarned = 0;
-        
-        // Add time bonus
-        const timeBonus = awardTimeBonus();
-        if (timeBonus > 0) {
-          coinsEarned += timeBonus;
-          pulseCoins(timeBonus);
-        }
-        
-        // Add first attempt bonus
-        if (currentGame.firstAttempt) {
-          coinsEarned += 3;
-          pulseCoins(3);
-        } else {
-          coinsEarned += 1;
-          pulseCoins(1);
-        }
-        
-        // Update user's coins
-        try {
-          await CoinsManager.updateCoins(coinsEarned);
-          updatePerkButtons();
-        } catch (error) {
-          console.error("Error updating total coins:", error);
-        }
-        
-        // Increment correct answers counter
-        currentGame.correctAnswers++;
-      }
-    } else {
-      // Handle incorrect answer
-      currentGame.firstAttempt = false;
-      currentGame.streakBonus = false;
-      currentGame.wrongStreak++;
-      
-      // Deduct coins for wrong answers
-      try {
-        await CoinsManager.updateCoins(-3);
-        updatePerkButtons();
-      } catch (error) {
-        console.error("Error updating coins:", error);
-      }
-      
-      // Move back progress for wrong answers
-      if (currentGame.currentIndex > 0) {
-        currentGame.progressLost++;
-        currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
-        
-        // Update boss health bar if in boss level
-        if (currentGame.isBossLevel) {
-          updateBossHealthBar();
-        }
-      }
-      
-      // Show game over when too many wrong answers
-      if (currentGame.wrongStreak >= 3) {
-        showGameOverOverlay();
+    const currentTime = Date.now();
+    if (currentTime - (currentGame.lastAnswerTime || 0) < 1000) {
+        console.warn("Answer too quickly. Please wait a moment.");
         return;
-      }
     }
+
+    if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
+        console.error("Invalid game state or index");
+        return;
+    }
+
+    currentGame.lastAnswerTime = currentTime;
+    currentGame.perks = currentGame.perks || { clue: 0, skip: 0, timeFreeze: 0, reveal: 0 };
     
-    // Highlight the correct answer on buttons
-    const correctWord = currentGame.isHebrewToEnglish ? 
-      currentGame.words[currentGame.currentIndex] : 
-      currentGame.translations[currentGame.currentIndex];
-    
-    const buttons = document.querySelectorAll('.buttons button');
-    buttons.forEach(button => {
-      if (button.textContent === correctWord) {
-        button.classList.add('correct');
-      } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
-        button.classList.add('wrong');
-      }
-    });
-    
-    // Save progress
-    saveProgress();
-    
-    // Load next question or handle completion
-    setTimeout(() => {
-      if (currentGame.currentIndex < currentGame.words.length) {
-        // Start timer for next question
-        startTimer(currentGame.words.length - currentGame.currentIndex);
-        
-        // Load next question based on game mode
-        if (currentGame.isBossLevel) {
-          loadNextBossQuestion();
+    try {
+        if (isCorrect) {
+            currentGame.currentIndex++;
+            
+            if (currentGame.isBossLevel) {
+                const bossOrb = document.querySelector(".boss-orb-inner");
+                if (bossOrb) {
+                    const colors = ["yellow", "purple", "turquoise", "darkgreen", "brown"];
+                    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                    const originalBg = bossOrb.style.background;
+                    bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColor}, #990000)`;
+                    bossOrb.style.transform = "scale(1.3)";
+                    bossOrb.style.filter = "brightness(1.5)";
+                    setTimeout(() => {
+                        bossOrb.style.transform = "";
+                        bossOrb.style.filter = "";
+                        bossOrb.style.background = originalBg;
+                    }, 300);
+                }
+                
+                updateBossHealthBar();
+                
+                if (currentGame.currentIndex >= currentGame.words.length) {
+                    console.log("Boss defeated!");
+                    return void CoinsManager.updateCoins(100).then(() => {
+                        showBossDefeatEffect();
+                    });
+                }
+            } else {
+                updateProgressCircle();
+            }
+            
+            if (!isSkip) {
+                let coinReward = 0;
+                const timeBonusCoins = awardTimeBonus();
+                if (timeBonusCoins > 0) {
+                    coinReward += timeBonusCoins;
+                    pulseCoins(timeBonusCoins);
+                }
+                
+                if (currentGame.firstAttempt) {
+                    coinReward += 3;
+                    pulseCoins(3);
+                } else {
+                    coinReward += 1;
+                    pulseCoins(1);
+                }
+                
+                try {
+                    await CoinsManager.updateCoins(coinReward);
+                    updatePerkButtons();
+                } catch (error) {
+                    console.error("Error updating total coins:", error);
+                }
+                
+                currentGame.correctAnswers++;
+            }
         } else {
-          loadNextQuestion();
+            currentGame.firstAttempt = false;
+            currentGame.streakBonus = false;
+            currentGame.wrongStreak++;
+            
+            try {
+                await CoinsManager.updateCoins(-3);
+                updatePerkButtons();
+            } catch (error) {
+                console.error("Error updating coins:", error);
+            }
+            
+            if (currentGame.currentIndex > 0) {
+                currentGame.progressLost++;
+                currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
+                if (currentGame.isBossLevel) {
+                    updateBossHealthBar();
+                }
+            }
+            
+            if (currentGame.wrongStreak >= 3) {
+                return void showGameOverOverlay();
+            }
         }
         
-        // Update perk buttons
-        updatePerkButtons();
-      } else if (!currentGame.isBossLevel) {
-        // Handle regular level completion
-        handleLevelCompletion();
-      }
-    }, 500);
-    
-  } catch (error) {
-    console.error("Unexpected error in handleAnswer:", error);
-    console.error("Error details:", error.stack);
-    // Emergency fallback - try to load next question
-    try {
-      if (currentGame.currentIndex < currentGame.words.length) {
-        loadNextQuestion();
-      } else {
-        showScreen("welcome-screen");
-      }
-    } catch (e) {
-      console.error("Failed to recover from error:", e);
-      showScreen("welcome-screen");
+        const correctAnswer = currentGame.isHebrewToEnglish ? currentGame.words[currentGame.currentIndex] : currentGame.translations[currentGame.currentIndex];
+        
+        document.querySelectorAll('.buttons button').forEach(button => {
+            if (button.textContent === correctAnswer) {
+                button.classList.add('correct');
+            } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
+                button.classList.add('wrong');
+            }
+        });
+        
+        saveProgress();
+        
+        setTimeout(() => {
+            if (currentGame.currentIndex < currentGame.words.length) {
+                startTimer(currentGame.words.length - currentGame.currentIndex);
+                
+                if (currentGame.isBossLevel) {
+                    loadNextBossQuestion();
+                } else if (currentGame.isCustomPractice) {
+                    loadNextQuestion();
+                } else {
+                    loadNextQuestion();
+                }
+                
+                updatePerkButtons();
+            } else {
+                if (currentGame.isBossLevel) {
+                    // Boss level completion handled separately
+                } else if (currentGame.isCustomPractice) {
+                    handleCustomLevelCompletion();
+                } else {
+                    handleLevelCompletion();
+                }
+            }
+        }, 500);
+    } catch (error) {
+        console.error("Unexpected error in handleAnswer:", error);
+        console.error("Error details:", error.stack);
+        
+        try {
+            if (currentGame.currentIndex < currentGame.words.length) {
+                loadNextQuestion();
+            } else {
+                showScreen("welcome-screen");
+            }
+        } catch (recoveryError) {
+            console.error("Failed to recover from error:", recoveryError);
+            showScreen("welcome-screen");
+        }
     }
-  }
 }
 
 function showBossVictoryScreen() {
@@ -12658,24 +12619,19 @@ function calculateCustomLevelWords(level, practiceState) {
     };
 }
 
-function startCustomLevel(levelId) {
-    const powerupsContainer = document.querySelector('.powerups-container');
+function startCustomLevel(level) {
+    const powerupsContainer = document.querySelector(".powerups-container");
     if (powerupsContainer) {
-        powerupsContainer.style.display = 'none';
+        powerupsContainer.style.display = "none";
     }
     
-    // Get level data
-    const levelData = customGameState.getWordsForLevel(levelId);
+    const levelData = customGameState.getWordsForLevel(level);
     if (!levelData || !levelData.words.length) {
-        // No more words - user completed all levels
-        showNotification('Practice completed!', 'success');
-        showScreen('custom-practice-screen');
-        return;
+        showNotification("Practice completed!", "success");
+        return void showScreen("custom-practice-screen");
     }
     
-    customGameState.currentLevel = levelId;
-    
-    // Set up current game object for the question screen
+    customGameState.currentLevel = level;
     currentGame = {
         words: levelData.words,
         translations: levelData.translations,
@@ -12685,7 +12641,7 @@ function startCustomLevel(levelId) {
         isHebrewToEnglish: levelData.isTest ? Math.random() < 0.5 : false,
         mixed: levelData.isTest,
         speedChallenge: false,
-        isCustomPractice: true,  // Critical flag for routing logic
+        isCustomPractice: true,
         startingCoins: gameState.coins,
         startingPerks: { ...gameState.perks },
         timeBonus: 0,
@@ -12696,16 +12652,15 @@ function startCustomLevel(levelId) {
         wrongStreak: 0,
         progressLost: 0,
         customList: customGameState.currentList,
-        customLevel: levelId,
+        customLevel: level,
         isFinalLevel: levelData.isFinal
     };
     
-    // Show level intro
-    showLevelIntro(levelId, () => {
-        showScreen('question-screen');
+    showLevelIntro(level, () => {
+        showScreen("question-screen");
         updateProgressCircle();
         loadNextQuestion();
-        startTimer(currentGame.words.length * 10); // 10 seconds per word
+        startTimer(currentGame.words.length * 10);
     });
 }
 
@@ -13393,9 +13348,9 @@ function showShareModal(listId) {
             usersList.innerHTML = data.map(user => `
                 <div class="user-item">
                     <span>${user.username || "Unnamed User"}</span>
-                    <button class="start-button share-with-user-btn" data-user-id="${user.id}">
-                        <i class="fas fa-share-alt"></i> Share
-                    </button>
+                    <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}">
+    <i class="fas fa-share-alt"></i> Share
+</button>
                 </div>
             `).join("");
             
@@ -19392,46 +19347,32 @@ function startCustomListPractice(listId) {
 }
 
 function handleCustomLevelCompletion() {
-    const completedPerfectly = currentGame.streakBonus && 
-        currentGame.correctAnswers === currentGame.words.length;
-        
+    const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
+    
     clearTimer();
-
-    if (completedPerfectly) {
-        // Award bonus coins
-        const bonusCoins = currentGame.firstAttempt ? 5 : 3;
-        CoinsManager.updateCoins(bonusCoins).then(() => {
-            pulseCoins(bonusCoins);
-            
-            // Update custom game state
+    
+    if (isPerfect) {
+        const coinsReward = currentGame.firstAttempt ? 5 : 3;
+        CoinsManager.updateCoins(coinsReward).then(() => {
+            pulseCoins(coinsReward);
             customGameState.wordsCompleted += currentGame.words.length;
             customGameState.completedLevels.add(customGameState.currentLevel);
             
-            // Determine next level
             const nextLevel = customGameState.currentLevel + 1;
+            const currentScreenRect = document.getElementById("question-screen").getBoundingClientRect();
+            createParticles(currentScreenRect.left + currentScreenRect.width / 2, currentScreenRect.top + currentScreenRect.height / 2);
             
-            // Show particles for perfect completion
-            const questionScreen = document.getElementById('question-screen');
-            const rect = questionScreen.getBoundingClientRect();
-            createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
-            
-            // Check if this was the final level or if there are more words
             const nextLevelData = customGameState.getWordsForLevel(nextLevel);
-            
             if (!nextLevelData || nextLevelData.words.length === 0 || currentGame.isFinalLevel) {
-                // Completed all levels
                 setTimeout(() => showCustomCompletionScreen(), 1500);
             } else {
-                // Continue to next level after delay
                 setTimeout(() => startCustomLevel(nextLevel), 1500);
             }
         });
     } else {
-        // Retry level
         setTimeout(() => startCustomLevel(customGameState.currentLevel), 1500);
     }
     
-    // Save progress
     saveProgress();
 }
 

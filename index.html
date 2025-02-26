@@ -6789,392 +6789,7 @@ const ParticleSystem = {
     }
 };
 
-const CustomListsManager = {
-    lists: [],
-    
-    async initialize() {
-        // Always try to load lists, regardless of user status
-        try {
-            if (currentUser) {
-                await this.loadFromSupabase();
-            } else {
-                this.loadFromLocalStorage();
-            }
-            
-            // Ensure lists are populated
-            if (!this.lists || this.lists.length === 0) {
-                console.log('No lists found, initializing empty array');
-                this.lists = [];
-            }
-        } catch (error) {
-            console.error('Custom Lists Initialization Error:', error);
-            this.lists = [];
-        }
-    },
-    
-    async loadFromSupabase() {
-        try {
-            const { data, error } = await supabaseClient
-                .from('custom_lists')
-                .select('*')
-                .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
-                
-            if (error) throw error;
-            
-            this.lists = data.map(item => ({
-                id: item.id,
-                name: item.name,
-                words: item.words || [],
-                translations: item.translations || [], 
-                isShared: item.is_shared,
-                sharedBy: item.shared_by,
-                userId: item.user_id,
-                createdAt: item.created_at
-            }));
-        } catch (error) {
-            console.error('Error loading lists from Supabase:', error);
-            this.lists = [];
-        }
-    },
-    
-    loadFromLocalStorage() {
-        try {
-            const savedLists = localStorage.getItem('simploxCustomLists');
-            this.lists = savedLists ? JSON.parse(savedLists) : [];
-            console.log('Loaded lists from localStorage:', this.lists.length);
-        } catch (error) {
-            console.error('Error loading lists from localStorage:', error);
-            this.lists = [];
-        }
-    },
-    
-    async save(list) {
-        if (!list) return null;
-        
-        if (currentUser) {
-            return await this.saveToSupabase(list);
-        } else {
-            return this.saveToLocalStorage(list);
-        }
-    },
-    
-    async saveToSupabase(list) {
-        try {
-            // Prepare data for Supabase
-            const listData = {
-                name: list.name,
-                words: list.words || [],
-                translations: list.translations || [],
-                user_id: currentUser.id
-            };
-            
-            // If updating existing list
-            if (list.id && typeof list.id === 'string' && list.id.length === 36) {
-                const { data, error } = await supabaseClient
-                    .from('custom_lists')
-                    .update(listData)
-                    .eq('id', list.id)
-                    .select()
-                    .single();
-                    
-                if (error) throw error;
-                return data;
-            } 
-            // Creating new list
-            else {
-                const { data, error } = await supabaseClient
-                    .from('custom_lists')
-                    .insert(listData)
-                    .select()
-                    .single();
-                    
-                if (error) throw error;
-                
-                // Update local array with the newly created list
-                const index = this.lists.findIndex(l => 
-                    l.id === list.id || 
-                    (l.tempId && l.tempId === list.tempId));
-                    
-                if (index !== -1) {
-                    this.lists[index] = {
-                        ...data,
-                        words: data.words || [],
-                        translations: data.translations || []
-                    };
-                } else {
-                    this.lists.push({
-                        ...data,
-                        words: data.words || [],
-                        translations: data.translations || []
-                    });
-                }
-                
-                return data;
-            }
-        } catch (error) {
-            console.error('Error saving list to Supabase:', error);
-            return null;
-        }
-    },
-    
-    saveToLocalStorage(list) {
-        try {
-            // For new lists or lists with tempId
-            const newList = {
-                ...list,
-                id: list.id || Date.now(),
-                tempId: list.tempId || Date.now()
-            };
-            
-            // Find if list already exists
-            const index = this.lists.findIndex(l => 
-                l.id === list.id || 
-                (l.tempId && l.tempId === list.tempId));
-                
-            if (index !== -1) {
-                this.lists[index] = newList;
-            } else {
-                this.lists.push(newList);
-            }
-            
-            // Save all lists
-            localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
-            return newList;
-        } catch (error) {
-            console.error('Error saving list to localStorage:', error);
-            return null;
-        }
-    },
-    
-    async delete(listId) {
-        if (currentUser) {
-            try {
-                // Check if this is a Supabase UUID
-                if (typeof listId === 'string' && listId.length === 36) {
-                    const { error } = await supabaseClient
-                        .from('custom_lists')
-                        .delete()
-                        .eq('id', listId);
-                        
-                    if (error) throw error;
-                }
-                
-                // Remove from local array regardless
-                this.lists = this.lists.filter(list => list.id !== listId);
-                return true;
-            } catch (error) {
-                console.error('Error deleting list from Supabase:', error);
-                return false;
-            }
-        } else {
-            // Just remove from local array and storage
-            this.lists = this.lists.filter(list => list.id !== listId);
-            localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
-            return true;
-        }
-    },
-    
-    async share(listId, recipientId) {
-    if (!currentUser) return false;
-    
-    try {
-        // Convert listId to string to ensure comparison works
-        const stringListId = String(listId);
-        
-        // Find the list by ID
-        const list = this.lists.find(list => String(list.id) === stringListId);
-        
-        if (!list) {
-            console.error("List not found for sharing:", stringListId);
-            return false;
-        }
-        
-        console.log("Sharing list:", list.name);
-        
-        // Use supabase RPC function to share the list
-        const { data, error } = await supabaseClient.rpc("insert_shared_list", {
-            p_user_id: recipientId,
-            p_name: `${list.name} (Shared by ${currentUser.user_metadata?.username || "User"})`,
-            p_words: list.words || [],
-            p_translations: list.translations || [],
-            p_is_shared: true,
-            p_local_id: Date.now(),
-            p_shared_with: [recipientId],
-            p_shared_by: currentUser.id
-        });
-        
-        if (error) {
-            console.error("Error sharing list via RPC:", error);
-            return false;
-        }
-        
-        console.log("List shared successfully:", data);
-        return true;
-    } catch (error) {
-        console.error("Error in share method:", error);
-        return false;
-    }
-    },
-    
-    getListLimits() {
-        if (!currentUser) {
-            return {
-                maxLists: 3,
-                maxWords: 10,
-                maxPlays: 5,
-                canShare: false,
-                playDisplay: '5'
-            };
-        }
-        
-        const userStatus = currentUser.status || 'free';
-        
-        switch(userStatus) {
-            case 'premium':
-                return {
-                    maxLists: 30,
-                    maxWords: 50,
-                    maxPlays: Infinity,
-                    canShare: true,
-                    playDisplay: '∞'
-                };
-            case 'pending':
-                return {
-                    maxLists: 30,
-                    maxWords: 50,
-                    maxPlays: Infinity,
-                    canShare: false,
-                    playDisplay: '∞'
-                };
-            case 'free':
-                return {
-                    maxLists: 5,
-                    maxWords: 20,
-                    maxPlays: 10,
-                    canShare: false,
-                    playDisplay: '10'
-                };
-            default:
-                return {
-                    maxLists: 3,
-                    maxWords: 10,
-                    maxPlays: 5,
-                    canShare: false,
-                    playDisplay: '5'
-                };
-        }
-    },
-    
-    canCreateMoreLists() {
-        const limits = this.getListLimits();
-        return this.lists.length < limits.maxLists;
-    },
-    
-    // ADD THIS FUNCTION to the CustomListsManager object
-    validateListForPractice(list) {
-        const MIN_WORDS_REQUIRED = 6;
-        
-        if (!list || !list.words || !list.translations) {
-            return {
-                valid: false,
-                message: 'Invalid list format'
-            };
-        }
-        
-        if (list.words.length < MIN_WORDS_REQUIRED) {
-            return {
-                valid: false,
-                message: `Lists need at least ${MIN_WORDS_REQUIRED} words to practice`
-            };
-        }
-        
-        return { valid: true };
-    }
-};
 
-const customGameState = {
-    isCustomPractice: false,
-    currentList: null,
-    currentLevel: 1,
-    levelData: null,
-    words: [],
-    translations: [],
-    wordsCompleted: 0,
-    correctStreak: 0,
-    wrongStreak: 0,
-    startCoins: 0,
-    completedLevels: new Set(),
-    
-    reset() {
-        this.isCustomPractice = false;
-        this.currentList = null;
-        this.currentLevel = 1;
-        this.levelData = null;
-        this.words = [];
-        this.translations = [];
-        this.wordsCompleted = 0;
-        this.correctStreak = 0;
-        this.wrongStreak = 0;
-        this.startCoins = 0;
-        this.completedLevels = new Set();
-    },
-    
-    initializeFromList(list) {
-        if (!list || !list.words || !list.translations) {
-            console.error('Invalid list provided to custom game:', list);
-            return false;
-        }
-        
-        this.reset();
-        this.isCustomPractice = true;
-        this.currentList = list;
-        this.words = [...list.words];
-        this.translations = [...list.translations];
-        this.startCoins = gameState.coins;
-        this.currentLevel = 1;
-        
-        return true;
-    },
-    
-    getWordsForLevel(level) {
-        if (!this.words.length) return null;
-        
-        // Calculate max levels based on word count
-        const maxLevels = this.words.length >= 12 ? 9 : 
-                         (this.words.length >= 9 ? 6 : 3);
-        
-        // Return null if requested level exceeds max
-        if (level > maxLevels) return null;
-        
-        const levelConfigs = {
-            1: { start: 0, count: Math.min(3, this.words.length), isTest: false },
-            2: { start: 3, count: Math.min(3, Math.max(0, this.words.length - 3)), isTest: false },
-            3: { start: 0, count: Math.min(6, this.words.length), isTest: true },
-            4: { start: 6, count: Math.min(3, Math.max(0, this.words.length - 6)), isTest: false },
-            5: { start: 9, count: Math.min(3, Math.max(0, this.words.length - 9)), isTest: false },
-            6: { start: 6, count: Math.min(6, Math.max(0, this.words.length - 6)), isTest: true },
-            7: { start: 12, count: Math.min(4, Math.max(0, this.words.length - 12)), isTest: false },
-            8: { start: 16, count: Math.min(4, Math.max(0, this.words.length - 16)), isTest: false },
-            9: { start: 12, count: Math.min(8, Math.max(0, this.words.length - 12)), isTest: true }
-        };
-        
-        const config = levelConfigs[level] || levelConfigs[1];
-        
-        // Skip levels with no words
-        if (config.count <= 0) {
-            return this.getWordsForLevel(level + 1);
-        }
-        
-        this.levelData = {
-            words: this.words.slice(config.start, config.start + config.count),
-            translations: this.translations.slice(config.start, config.start + config.count),
-            isTest: config.isTest,
-            isFinal: level === maxLevels
-        };
-        
-        return this.levelData;
-    }
-};
 
 const currentArcadeSessionStructure = {
     eventId: null,
@@ -8811,75 +8426,6 @@ async function ensureCorrectSchema() {
     }
 }
 
-async function saveCustomList() {
-    const listNameInput = document.getElementById('custom-list-name');
-    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
-    
-    const wordItems = document.querySelectorAll('.word-translation-item');
-    const words = [];
-    const translations = [];
-    
-    wordItems.forEach(item => {
-        const englishWord = item.querySelector('.source-word').textContent.trim();
-        const hebrewTranslation = item.querySelector('.target-word').value.trim();
-        
-        if (englishWord && hebrewTranslation) {
-            words.push(englishWord);
-            translations.push(hebrewTranslation);
-        }
-    });
-
-    const newList = {
-        id: customPracticeLists.currentList ? customPracticeLists.currentList.id : Date.now(),
-        name: name,
-        words: words,
-        translations: translations
-    };
-
-    // If we're editing an existing list, replace it
-    if (customPracticeLists.currentList) {
-        const index = customPracticeLists.lists.findIndex(l => l.id === customPracticeLists.currentList.id);
-        if (index !== -1) {
-            customPracticeLists.lists[index] = newList;
-        } else {
-            customPracticeLists.lists.push(newList);
-        }
-    } else {
-        customPracticeLists.lists.push(newList);
-    }
-    
-    // Reset current list
-    customPracticeLists.currentList = null;
-    
-    // Save to Supabase if logged in
-    if (currentUser) {
-        await saveCustomListToSupabase(newList);
-    } else {
-        // Save to localStorage for guest users
-        localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    }
-
-    // Update UI after saving
-    showCustomListsManager();
-}
-
-async function loadCustomLists() {
-    try {
-        // First, try to load from Supabase for logged-in users
-        if (currentUser) {
-            await CustomListsManager.loadFromSupabase();
-        } 
-        // If no user or Supabase load fails, load from localStorage
-        else {
-            CustomListsManager.loadFromLocalStorage();
-        }
-        
-        // Always update lists display after loading
-        updateListsDisplay();
-    } catch (error) {
-        console.error('Error loading custom lists:', error);
-    }
-}
 
 function switchAuthTab(tab) {
     const loginTab = document.querySelector('.auth-tab[onclick="switchAuthTab(\'login\')"]');
@@ -10527,195 +10073,152 @@ function loadNextQuestion() {
 }
 
 async function handleAnswer(isCorrect, isSkip = false) {
-  const currentTime = Date.now();
-  
-  // Prevent rapid clicking
-  if (currentTime - (currentGame.lastAnswerTime || 0) < 1000) {
-    console.warn("Answer too quickly. Please wait a moment.");
-    return;
-  }
-  
-  // Check if we have valid game state
-  if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
-    console.error("Invalid game state or index");
-    return;
-  }
-  
-  // Update last answer time
-  currentGame.lastAnswerTime = currentTime;
-  
-  // Initialize perks if not set
-  currentGame.perks = currentGame.perks || {
-    clue: 0,
-    skip: 0,
-    timeFreeze: 0,
-    reveal: 0
-  };
-  
-  try {
-    // Handle correct answer
-    if (isCorrect) {
-      // Increment index for correct answers
-      currentGame.currentIndex++;
-      
-      // Handle different game modes
-      if (currentGame.isBossLevel) {
-        // Apply boss level specific effects
-        const bossOrb = document.querySelector('.boss-orb-inner');
-        if (bossOrb) {
-          // Random color flash effect
-          const colors = ['yellow', 'purple', 'turquoise', 'darkgreen', 'brown'];
-          const randomColor = colors[Math.floor(Math.random() * colors.length)];
-          
-          const originalBg = bossOrb.style.background;
-          bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColor}, #990000)`;
-          
-          // Add hit effect
-          bossOrb.style.transform = 'scale(1.3)';
-          bossOrb.style.filter = 'brightness(1.5)';
-          
-          setTimeout(() => {
-            bossOrb.style.transform = '';
-            bossOrb.style.filter = '';
-            bossOrb.style.background = originalBg;
-          }, 300);
-        }
-        
-        // Update boss health bar
-        updateBossHealthBar();
-        
-        // Check if boss is defeated
-        if (currentGame.currentIndex >= currentGame.words.length) {
-          // Boss defeated - show victory and reward
-          console.log("Boss defeated!");
-          CoinsManager.updateCoins(100).then(() => {
-            // Show victory message
-            showBossDefeatEffect();
-        });
-          
-          return;
-        }
-      } else {
-        // Normal level behavior
-        updateProgressCircle();
-      }
-      
-      // Award coins for correct non-skipped answers
-      if (!isSkip) {
-        let coinsEarned = 0;
-        
-        // Add time bonus
-        const timeBonus = awardTimeBonus();
-        if (timeBonus > 0) {
-          coinsEarned += timeBonus;
-          pulseCoins(timeBonus);
-        }
-        
-        // Add first attempt bonus
-        if (currentGame.firstAttempt) {
-          coinsEarned += 3;
-          pulseCoins(3);
-        } else {
-          coinsEarned += 1;
-          pulseCoins(1);
-        }
-        
-        // Update user's coins
-        try {
-          await CoinsManager.updateCoins(coinsEarned);
-          updatePerkButtons();
-        } catch (error) {
-          console.error("Error updating total coins:", error);
-        }
-        
-        // Increment correct answers counter
-        currentGame.correctAnswers++;
-      }
-    } else {
-      // Handle incorrect answer
-      currentGame.firstAttempt = false;
-      currentGame.streakBonus = false;
-      currentGame.wrongStreak++;
-      
-      // Deduct coins for wrong answers
-      try {
-        await CoinsManager.updateCoins(-3);
-        updatePerkButtons();
-      } catch (error) {
-        console.error("Error updating coins:", error);
-      }
-      
-      // Move back progress for wrong answers
-      if (currentGame.currentIndex > 0) {
-        currentGame.progressLost++;
-        currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
-        
-        // Update boss health bar if in boss level
-        if (currentGame.isBossLevel) {
-          updateBossHealthBar();
-        }
-      }
-      
-      // Show game over when too many wrong answers
-      if (currentGame.wrongStreak >= 3) {
-        showGameOverOverlay();
+    const currentTime = Date.now();
+    if (currentTime - (currentGame.lastAnswerTime || 0) < 1000) {
+        console.warn("Answer too quickly. Please wait a moment.");
         return;
-      }
     }
+
+    if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
+        console.error("Invalid game state or index");
+        return;
+    }
+
+    currentGame.lastAnswerTime = currentTime;
+    currentGame.perks = currentGame.perks || { clue: 0, skip: 0, timeFreeze: 0, reveal: 0 };
     
-    // Highlight the correct answer on buttons
-    const correctWord = currentGame.isHebrewToEnglish ? 
-      currentGame.words[currentGame.currentIndex] : 
-      currentGame.translations[currentGame.currentIndex];
-    
-    const buttons = document.querySelectorAll('.buttons button');
-    buttons.forEach(button => {
-      if (button.textContent === correctWord) {
-        button.classList.add('correct');
-      } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
-        button.classList.add('wrong');
-      }
-    });
-    
-    // Save progress
-    saveProgress();
-    
-    // Load next question or handle completion
-    setTimeout(() => {
-      if (currentGame.currentIndex < currentGame.words.length) {
-        // Start timer for next question
-        startTimer(currentGame.words.length - currentGame.currentIndex);
-        
-        // Load next question based on game mode
-        if (currentGame.isBossLevel) {
-          loadNextBossQuestion();
+    try {
+        if (isCorrect) {
+            currentGame.currentIndex++;
+            
+            if (currentGame.isBossLevel) {
+                const bossOrb = document.querySelector(".boss-orb-inner");
+                if (bossOrb) {
+                    const colors = ["yellow", "purple", "turquoise", "darkgreen", "brown"];
+                    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                    const originalBg = bossOrb.style.background;
+                    bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColor}, #990000)`;
+                    bossOrb.style.transform = "scale(1.3)";
+                    bossOrb.style.filter = "brightness(1.5)";
+                    setTimeout(() => {
+                        bossOrb.style.transform = "";
+                        bossOrb.style.filter = "";
+                        bossOrb.style.background = originalBg;
+                    }, 300);
+                }
+                
+                updateBossHealthBar();
+                
+                if (currentGame.currentIndex >= currentGame.words.length) {
+                    console.log("Boss defeated!");
+                    return void CoinsManager.updateCoins(100).then(() => {
+                        showBossDefeatEffect();
+                    });
+                }
+            } else {
+                updateProgressCircle();
+            }
+            
+            if (!isSkip) {
+                let coinReward = 0;
+                const timeBonusCoins = awardTimeBonus();
+                if (timeBonusCoins > 0) {
+                    coinReward += timeBonusCoins;
+                    pulseCoins(timeBonusCoins);
+                }
+                
+                if (currentGame.firstAttempt) {
+                    coinReward += 3;
+                    pulseCoins(3);
+                } else {
+                    coinReward += 1;
+                    pulseCoins(1);
+                }
+                
+                try {
+                    await CoinsManager.updateCoins(coinReward);
+                    updatePerkButtons();
+                } catch (error) {
+                    console.error("Error updating total coins:", error);
+                }
+                
+                currentGame.correctAnswers++;
+            }
         } else {
-          loadNextQuestion();
+            currentGame.firstAttempt = false;
+            currentGame.streakBonus = false;
+            currentGame.wrongStreak++;
+            
+            try {
+                await CoinsManager.updateCoins(-3);
+                updatePerkButtons();
+            } catch (error) {
+                console.error("Error updating coins:", error);
+            }
+            
+            if (currentGame.currentIndex > 0) {
+                currentGame.progressLost++;
+                currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
+                if (currentGame.isBossLevel) {
+                    updateBossHealthBar();
+                }
+            }
+            
+            if (currentGame.wrongStreak >= 3) {
+                return void showGameOverOverlay();
+            }
         }
         
-        // Update perk buttons
-        updatePerkButtons();
-      } else if (!currentGame.isBossLevel) {
-        // Handle regular level completion
-        handleLevelCompletion();
-      }
-    }, 500);
-    
-  } catch (error) {
-    console.error("Unexpected error in handleAnswer:", error);
-    console.error("Error details:", error.stack);
-    // Emergency fallback - try to load next question
-    try {
-      if (currentGame.currentIndex < currentGame.words.length) {
-        loadNextQuestion();
-      } else {
-        showScreen("welcome-screen");
-      }
-    } catch (e) {
-      console.error("Failed to recover from error:", e);
-      showScreen("welcome-screen");
+        const correctAnswer = currentGame.isHebrewToEnglish ? currentGame.words[currentGame.currentIndex] : currentGame.translations[currentGame.currentIndex];
+        
+        document.querySelectorAll('.buttons button').forEach(button => {
+            if (button.textContent === correctAnswer) {
+                button.classList.add('correct');
+            } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
+                button.classList.add('wrong');
+            }
+        });
+        
+        saveProgress();
+        
+        setTimeout(() => {
+            if (currentGame.currentIndex < currentGame.words.length) {
+                startTimer(currentGame.words.length - currentGame.currentIndex);
+                
+                if (currentGame.isBossLevel) {
+                    loadNextBossQuestion();
+                } else if (currentGame.isCustomPractice) {
+                    loadNextQuestion();
+                } else {
+                    loadNextQuestion();
+                }
+                
+                updatePerkButtons();
+            } else {
+                if (currentGame.isBossLevel) {
+                    // Boss level completion handled separately
+                } else if (currentGame.isCustomPractice) {
+                    handleCustomLevelCompletion();
+                } else {
+                    handleLevelCompletion();
+                }
+            }
+        }, 500);
+    } catch (error) {
+        console.error("Unexpected error in handleAnswer:", error);
+        console.error("Error details:", error.stack);
+        
+        try {
+            if (currentGame.currentIndex < currentGame.words.length) {
+                loadNextQuestion();
+            } else {
+                showScreen("welcome-screen");
+            }
+        } catch (recoveryError) {
+            console.error("Failed to recover from error:", recoveryError);
+            showScreen("welcome-screen");
+        }
     }
-  }
 }
 
 function showBossVictoryScreen() {
@@ -10944,34 +10447,6 @@ function animateNumberChange(element, startValue, endValue) {
     requestAnimationFrame(updateFrame);
 }
 
-function startCustomListPractice(listId) {
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
-
-    updatePerkButtons();
-
-    currentGame = {
-        words: Array.isArray(list.words) ? list.words : [],
-        translations: Array.isArray(list.translations) ? list.translations : [],
-        currentIndex: 0,
-        correctAnswers: 0,
-        firstAttempt: true,
-        isCustomPractice: true,
-        startingCoins: gameState.coins,
-        startingPerks: { ...gameState.perks },
-        practiceState: {
-            currentLevel: 1,
-            words: Array.isArray(list.words) ? list.words : [],
-            translations: Array.isArray(list.translations) ? list.translations : [],
-            unlockedLevels: new Set([1]),
-            progress: {},
-            maxLevel: 10,
-            listId: listId
-        }
-    };
-
-    startCustomLevel(1, currentGame.practiceState);
-}
 
 function handleLevelCompletion() {
   // Clear timer
@@ -11986,1187 +11461,9 @@ function trackListPlay(listId) {
     return limits.maxPlays - plays;
 }
 
-function deleteWord(button) {
-    if (!button) return;
-    
-    const item = button.closest('.word-translation-item');
-    if (item) {
-        item.remove();
-    }
-}
 
-function addNewWord() {
-    const wordList = document.getElementById('word-translation-list');
-    if (!wordList) return;
-    
-    const wordItem = document.createElement('div');
-    wordItem.className = 'word-translation-item';
-    wordItem.draggable = true;
-    
-    wordItem.innerHTML = `
-        <div class="drag-handle">
-            <i class="fas fa-grip-vertical"></i>
-        </div>
-        <span class="source-word" contenteditable="true"></span>
-        <input type="text" class="target-word" placeholder="Hebrew translation">
-        <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-    `;
-    
-    const newItem = wordList.appendChild(wordItem);
-    
-    // Initialize drag functionality for the new item
-    initializeDragAndDrop(newItem);
-    
-    // Focus on the new source word field
-    const sourceWord = newItem.querySelector('.source-word');
-    sourceWord.focus();
-    
-    // Check if this is the first item
-    if (wordList.children.length === 1) {
-        // If this is the first item, initialize the drag functionality for the list
-        makeWordListDraggable();
-    }
-}
 
-function initializeDragAndDrop(item) {
-    if (!item) return;
-    
-    // Remove existing listeners to prevent duplicates
-    const newItem = item.cloneNode(true);
-    if (item.parentNode) {
-        item.parentNode.replaceChild(newItem, item);
-    }
-    item = newItem;
-    
-    // Set draggable attribute
-    item.setAttribute('draggable', 'true');
-    
-    // Add event listeners
-    item.addEventListener('dragstart', (e) => {
-        e.stopPropagation();
-        item.classList.add('dragging');
-        e.dataTransfer.setData('text/plain', ''); // Firefox compatibility
-    });
-    
-    item.addEventListener('dragend', (e) => {
-        e.stopPropagation();
-        item.classList.remove('dragging');
-    });
-    
-    // Re-attach delete button functionality
-    const deleteBtn = item.querySelector('.delete-word-btn');
-    if (deleteBtn) {
-        deleteBtn.onclick = () => deleteWord(deleteBtn);
-    }
-    
-    return item;
-}
 
-function makeWordListDraggable(listId) {
-    const wordList = document.getElementById('word-translation-list');
-    if (!wordList) return;
-    
-    wordList.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const draggingItem = wordList.querySelector('.dragging');
-        if (!draggingItem) return;
-        
-        const afterElement = getDragAfterElement(wordList, e.clientY);
-        if (afterElement) {
-            wordList.insertBefore(draggingItem, afterElement);
-        } else {
-            wordList.appendChild(draggingItem);
-        }
-    });
-
-    const items = wordList.querySelectorAll('.word-translation-item');
-    items.forEach(item => initializeDragAndDrop(item));
-}
-
-function createWordItem(word, translation) {
-    const item = document.createElement('div');
-    item.className = 'word-translation-item';
-    item.draggable = true;
-    
-    item.innerHTML = `
-        <div class="drag-handle">
-            <i class="fas fa-grip-vertical"></i>
-        </div>
-        <span class="source-word" contenteditable="true">${word}</span>
-        <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
-        <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-    `;
-    
-    return item;
-}
-
-function createWordTranslationItem(word = '', translation = '', isEditable = false) {
-    const wordList = document.getElementById('word-translation-list');
-    const wordItem = document.createElement('div');
-    wordItem.className = 'word-translation-item';
-    wordItem.draggable = true;
-    wordItem.innerHTML = `
-        <div class="drag-handle">
-            <i class="fas fa-grip-vertical"></i>
-        </div>
-        <span class="source-word ${isEditable ? 'editable' : ''}" 
-              contenteditable="${isEditable}">${word}</span>
-        <input 
-            type="text" 
-            class="target-word ${isEditable ? 'editable' : ''}"
-            value="${translation}" 
-            data-original="${translation}"
-            ${isEditable ? '' : 'readonly'}
-            placeholder="Hebrew translation"
-        >
-        <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-    `;
-    wordList.appendChild(wordItem);
-}
-
-async function saveCustomListToSupabase(list) {
-    if (!currentUser || !list) return;
-
-    try {
-        const { data, error } = await supabaseClient
-            .from('custom_lists')
-            .upsert({
-                user_id: currentUser.id,
-                name: list.name,
-                words: list.words,
-                translations: list.translations,
-                status: list.status || currentUser.status
-            }, { onConflict: 'id' });
-
-        if (error) throw error;
-    } catch (error) {
-        console.error('Error saving list to Supabase:', error);
-        showNotification('Failed to save list', 'error');
-    }
-}
-
-
-function saveCustomLists() {
-    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    
-    if (currentUser) {
-        // Also save to Supabase for logged-in users
-        customPracticeLists.lists.forEach(list => {
-            saveCustomListToSupabase(list);
-        });
-    }
-}
-
-function processCustomWords() {
-    const wordInput = document.getElementById('custom-word-input');
-    const translationResults = document.getElementById('translation-results');
-    const wordList = document.getElementById('word-translation-list');
-    const limits = getUserListLimits();
-    const rawInput = wordInput.value.trim();
-    
-    if (!rawInput) {
-        showNotification('Please enter at least one word.', 'error');
-        return;
-    }
-
-    // Parse input based on format
-    let words = rawInput.includes(',') ?
-        rawInput.split(',').map(word => word.trim()) :
-        rawInput.split(/\s+/).filter(word => word.length > 0);
-
-    // Handle phrase entries properly
-    words = words.map(word => word.includes(' ') ? [word] : word.split(/\s+/)).flat();
-
-    // Apply limits
-    const maxWords = currentUser ? limits.maxWords : 10;
-    if (words.length > maxWords) {
-        showNotification(`Maximum ${maxWords} words allowed.`, 'error');
-        words = words.slice(0, maxWords);
-    }
-
-    // Clear and prepare container
-    wordList.innerHTML = '';
-    translationResults.style.display = 'block';
-
-    // Process and create word items
-    words.forEach(word => {
-        const foundTranslation = findTranslation(word);
-        const wordItem = createWordItem(word, foundTranslation);
-        wordList.appendChild(wordItem);
-        initializeDragAndDrop(wordItem);
-    });
-
-    makeWordListDraggable();
-}
-
-function findTranslation(word) {
-    for (const set in vocabularySets) {
-        const index = vocabularySets[set].words.indexOf(word.toLowerCase());
-        if (index !== -1) return vocabularySets[set].translations[index];
-    }
-    return '';
-}
-
-function makeWordListDraggable() {
-    const wordList = document.getElementById('word-translation-list');
-    if (!wordList) return;
-    
-    // Remove existing listeners to prevent duplicates
-    const oldWordList = wordList.cloneNode(true);
-    wordList.parentNode.replaceChild(oldWordList, wordList);
-    
-    // Get the fresh reference
-    const freshWordList = document.getElementById('word-translation-list');
-    
-    // Add dragover event listener to the container
-    freshWordList.addEventListener('dragover', e => {
-        e.preventDefault();
-        const draggable = freshWordList.querySelector('.dragging');
-        if (!draggable) return;
-        
-        const afterElement = getDragAfterElement(freshWordList, e.clientY);
-        if (afterElement) {
-            freshWordList.insertBefore(draggable, afterElement);
-        } else {
-            freshWordList.appendChild(draggable);
-        }
-    });
-
-    freshWordList.addEventListener('drop', e => {
-        e.preventDefault();
-        const draggingElement = document.querySelector('.dragging');
-        if (draggingElement) {
-            draggingElement.style.opacity = '1';
-            draggingElement.classList.remove('dragging');
-        }
-    });
-
-    // Initialize drag events for all items
-    const items = freshWordList.querySelectorAll('.word-translation-item');
-    items.forEach(item => initializeDragAndDrop(item));
-}
-
-function setupWordListKeyNavigation() {
-    const container = document.getElementById('word-translation-list');
-    if (!container) return;
-    
-    container.addEventListener('keydown', (e) => {
-        const currentItem = document.activeElement.closest('.word-translation-item');
-        if (!currentItem) return;
-        
-        let targetElement;
-        
-        switch(e.key) {
-            case 'ArrowUp':
-                e.preventDefault();
-                targetElement = currentItem.previousElementSibling?.querySelector('.source-word');
-                break;
-            case 'ArrowDown':
-                e.preventDefault();
-                targetElement = currentItem.nextElementSibling?.querySelector('.source-word');
-                break;
-            case 'ArrowRight':
-                e.preventDefault();
-                targetElement = currentItem.querySelector('.target-word');
-                break;
-            case 'ArrowLeft':
-                e.preventDefault();
-                targetElement = currentItem.querySelector('.source-word');
-                break;
-        }
-        
-        if (targetElement) {
-            targetElement.focus();
-        }
-    });
-}
-
-// Call this when word list is populated
-setupWordListKeyNavigation();
-
-function editCustomList(listId) {
-    // Find the list
-    const list = CustomListsManager.lists.find(l => l.id === listId);
-    if (!list) {
-        showNotification('List not found', 'error');
-        return;
-    }
-   
-    // Switch to custom practice screen
-    showScreen('custom-practice-screen');
-   
-    // Set the list name
-    const listNameInput = document.getElementById('custom-list-name');
-    listNameInput.value = list.name;
-   
-    // Show translations section
-    const translationResults = document.getElementById('translation-results');
-    const editWordList = document.getElementById('word-translation-list');
-   
-    // Clear previous translations
-    editWordList.innerHTML = '';
-   
-    // Create translation items for each word
-    (list.words || []).forEach((word, index) => {
-        const translation = list.translations?.[index] || '';
-        const wordItem = document.createElement('div');
-        wordItem.className = 'word-translation-item';
-        wordItem.draggable = true;
-       
-        wordItem.innerHTML = `
-            <div class="drag-handle">
-                <i class="fas fa-grip-vertical"></i>
-            </div>
-            <span class="source-word" contenteditable="true">${word}</span>
-            <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
-            <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-        `;
-       
-        editWordList.appendChild(wordItem);
-        // Initialize drag functionality for this item
-        initializeDragAndDrop(wordItem);
-    });
-   
-    translationResults.style.display = 'block';
-   
-    // Store the current list for later saving
-    customPracticeLists.currentList = list;
-   
-    // Initialize drag functionality for the whole list
-    makeWordListDraggable();
-}
-
-function saveCurrentList() {
-    // Check if editing an existing list
-    const existingList = customPracticeLists.currentList;
-    
-    const listNameInput = document.getElementById('custom-list-name');
-    const wordList = document.getElementById('word-translation-list');
-    
-    // Get current list name
-    const name = listNameInput.value.trim() || (existingList ? existingList.name : `List ${customPracticeLists.lists.length + 1}`);
-    const words = [];
-    const translations = [];
-    
-    const items = wordList.querySelectorAll('.word-translation-item');
-    items.forEach(item => {
-        const word = item.querySelector('.source-word').textContent.trim();
-        const translation = item.querySelector('.target-word').value.trim();
-        
-        if (word && translation) {
-            words.push(word);
-            translations.push(translation);
-        }
-    });
-
-    if (existingList) {
-        // Update existing list
-        const index = customPracticeLists.lists.findIndex(l => l.id === existingList.id);
-        if (index !== -1) {
-            customPracticeLists.lists[index] = {
-                ...existingList,
-                name: name,
-                words: words,
-                translations: translations
-            };
-        }
-        customPracticeLists.currentList = null;
-    } else {
-        // Create new list with limit check
-        if (!canCreateMoreLists()) {
-            showNotification('Maximum lists limit reached', 'error');
-            return;
-        }
-        customPracticeLists.lists.push({
-            id: Date.now(),
-            name: name,
-            words: words,
-            translations: translations
-        });
-    }
-    
-    saveCustomLists();
-    showCustomListsManager();
-}
-
-
-function canCreateMoreLists() {
-    const limits = getUserListLimits();
-    return customPracticeLists.lists.length < limits.maxLists;
-}
-
-function saveCurrentList() {
-    if (!canCreateMoreLists()) {
-        alert(`You can only create ${getUserListLimits().maxLists} custom lists.`);
-        return;
-    }
-
-    const listNameInput = document.getElementById('custom-list-name');
-    const wordInput = document.getElementById('custom-word-input');
-    const wordList = document.getElementById('word-translation-list');
-    const translationResults = document.getElementById('translation-results');
-    
-    const name = listNameInput.value.trim() || `List ${customPracticeLists.lists.length + 1}`;
-    const words = [];
-    const translations = [];
-    
-    const items = wordList.querySelectorAll('.word-translation-item');
-    items.forEach(item => {
-        const word = item.querySelector('.source-word').textContent.trim();
-        const translation = item.querySelector('.target-word').value.trim();
-        
-        if (word && translation) {
-            words.push(word);
-            translations.push(translation);
-        }
-    });
-
-    const limits = getUserListLimits();
-    if (words.length > limits.maxWords) {
-        alert(`You can only create lists with up to ${limits.maxWords} words.`);
-        return;
-    }
-
-    const newList = {
-        id: Date.now(),
-        name: name,
-        words: words,
-        translations: translations
-    };
-
-    customPracticeLists.lists.push(newList);
-    
-    // Save to localStorage for guest users
-    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    
-    // Clear form
-    listNameInput.value = '';
-    wordInput.value = '';
-    wordList.innerHTML = '';
-    translationResults.style.display = 'none';
-    
-    showCustomListsManager();
-}
-
-function updateListsDisplay() {
-   const container = document.getElementById('custom-lists-container');
-   if (!container) {
-       console.error('Custom lists container not found');
-       return;
-   }
-   
-   const limits = CustomListsManager.getListLimits();
-   const userStatus = currentUser?.status || 'unregistered';
-   const MIN_WORDS = 6;
-   
-   // Clear container
-   container.innerHTML = '';
-   
-   // Check if we have lists to display
-   if (!CustomListsManager.lists || !Array.isArray(CustomListsManager.lists) || CustomListsManager.lists.length === 0) {
-       container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
-       return;
-   }
-   
-   // Create and add each list item
-   CustomListsManager.lists.forEach(list => {
-       if (!list || !list.id) return; // Skip invalid list entries
-       
-       // Update list with max levels info
-       const enhancedList = updateCustomListSchema(list);
-       const wordCount = enhancedList.words?.length || 0;
-       const hasEnoughWords = wordCount >= MIN_WORDS;
-       
-       // Create list item container
-       const listItem = document.createElement('div');
-       listItem.className = `custom-list-item collapsed ${list.isShared ? 'shared-list' : ''}`;
-       listItem.dataset.listId = list.id;
-       
-       // Create list item content
-       listItem.innerHTML = `
-           <div class="list-actions">
-               <button class="main-button practice-button" ${!hasEnoughWords ? 'disabled' : ''}>
-                   ${hasEnoughWords ? 'Practice' : `Need ${MIN_WORDS - wordCount} more`}
-               </button>
-               <button class="main-button edit-button">Edit</button>
-               <button class="main-button delete-button">Delete</button>
-               ${userStatus === 'premium' ? `
-                   <button class="main-button share-button">
-                       <i class="fas fa-share-alt"></i> Share
-                   </button>
-               ` : ''}
-           </div>
-           <div class="list-header">
-               <h3>${list.name || 'Unnamed List'}</h3>
-               <div class="list-summary">
-                   <span class="word-count ${!hasEnoughWords ? 'insufficient' : ''}">${wordCount} words</span>
-                   ${!hasEnoughWords ? `<span class="warning-text">(Minimum ${MIN_WORDS} needed)</span>` : ''}
-                   <span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>
-                   ${enhancedList.max_levels > 0 ? `<span class="level-info">Supports ${enhancedList.max_levels} levels</span>` : ''}
-                   <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0,5).join(', ') : ''}${list.words && list.words.length > 5 ? '...' : ''}</p>
-               </div>
-           </div>
-       `;
-       
-       // Add item to container
-       container.appendChild(listItem);
-       
-       // Set up event listeners for buttons
-       const practiceButton = listItem.querySelector('.practice-button');
-       if (practiceButton) {
-           if (hasEnoughWords) {
-               practiceButton.onclick = function() {
-                   startCustomListPractice(list.id);
-               };
-           } else {
-               practiceButton.style.opacity = '0.6';
-               practiceButton.style.cursor = 'not-allowed';
-           }
-       }
-       
-       const editButton = listItem.querySelector('.edit-button');
-       if (editButton) {
-           editButton.onclick = function() {
-               console.log('Edit button clicked for list:', list.id);
-               editCustomList(list.id);
-           };
-       }
-       
-       const deleteButton = listItem.querySelector('.delete-button');
-       if (deleteButton) {
-           deleteButton.onclick = function() {
-               console.log('Delete button clicked for list:', list.id);
-               deleteCustomList(list.id);
-           };
-       }
-       
-       const shareButton = listItem.querySelector('.share-button');
-       if (shareButton) {
-           shareButton.onclick = function() {
-               showShareModal(list.id);
-           };
-       }
-       
-       const header = listItem.querySelector('.list-header');
-       if (header) {
-           header.onclick = function() {
-               toggleListCollapse(list.id);
-           };
-       }
-   });
-
-   // Add some custom CSS for the warning style
-   const styleEl = document.getElementById('custom-list-styles');
-   if (!styleEl) {
-       const newStyle = document.createElement('style');
-       newStyle.id = 'custom-list-styles';
-       newStyle.textContent = `
-           .word-count.insufficient {
-               color: #ff6b6b;
-               font-weight: bold;
-           }
-           .warning-text {
-               color: #ff6b6b;
-               font-size: 0.85rem;
-               margin-left: 0.5rem;
-           }
-           .level-info {
-               color: var(--accent);
-               font-size: 0.85rem;
-               margin-left: 0.5rem;
-           }
-           .practice-button[disabled] {
-               opacity: 0.6;
-               cursor: not-allowed;
-           }
-       `;
-       document.head.appendChild(newStyle);
-   }
-}
-
-function startCustomListPractice(listId) {
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
-
-    // Get play count for this list
-    const playCountKey = `listPlays_${listId}`;
-    let playsUsed = parseInt(localStorage.getItem(playCountKey) || '0');
-    
-    // Check play limits
-    const limits = getUserListLimits();
-    if (playsUsed >= limits.maxPlays) {
-        deleteCustomList(listId);
-        showCustomListsManager();
-        return;
-    }
-
-    // Increment play count
-    playsUsed++;
-    localStorage.setItem(playCountKey, playsUsed);
-
-    currentGame = {
-        words: list.words,
-        translations: list.translations,
-        currentIndex: 0,
-        correctAnswers: 0,
-        firstAttempt: true,
-        isCustomPractice: true,
-        startingCoins: gameState.coins,
-        startingPerks: { ...gameState.perks },
-        practiceState: {
-            currentLevel: 1,
-            words: list.words,
-            translations: list.translations,
-            unlockedLevels: new Set([1]),
-            progress: {},
-            maxLevel: 10,
-            listId: listId,
-            playsUsed: playsUsed  // Store current play count
-        }
-    };
-
-    startCustomLevel(1, currentGame.practiceState);
-}
-
-
-
-
-function calculateCustomLevelWords(level, practiceState) {
-    const { words, translations } = practiceState;
-    
-    const levelConfigs = {
-        1: { start: 0, count: 3, isTest: false },
-        2: { start: 3, count: 3, isTest: false },
-        3: { start: 0, count: 6, isTest: true },
-        4: { start: 6, count: 3, isTest: false },
-        5: { start: 9, count: 3, isTest: false },
-        6: { start: 6, count: 6, isTest: true },
-        7: { start: 12, count: 4, isTest: false },
-        8: { start: 16, count: 4, isTest: false },
-        9: { start: 12, count: 8, isTest: true },
-        10: { start: 0, count: 20, isTest: true, isFinal: true }
-    };
-
-    const config = levelConfigs[level];
-    if (!config) return null;
-
-    return {
-        words: words.slice(config.start, config.start + config.count),
-        translations: translations.slice(config.start, config.start + config.count),
-        isTest: config.isTest,
-        isFinal: config.isFinal
-    };
-}
-
-function startCustomLevel(levelId) {
-    const powerupsContainer = document.querySelector('.powerups-container');
-    if (powerupsContainer) {
-        powerupsContainer.style.display = 'none';
-    }
-    
-    // Get level data
-    const levelData = customGameState.getWordsForLevel(levelId);
-    if (!levelData || !levelData.words.length) {
-        // No more words - user completed all levels
-        showNotification('Practice completed!', 'success');
-        showScreen('custom-practice-screen');
-        return;
-    }
-    
-    customGameState.currentLevel = levelId;
-    
-    // Set up current game object for the question screen
-    currentGame = {
-        words: levelData.words,
-        translations: levelData.translations,
-        currentIndex: 0,
-        correctAnswers: 0,
-        firstAttempt: true,
-        isHebrewToEnglish: levelData.isTest ? Math.random() < 0.5 : false,
-        mixed: levelData.isTest,
-        speedChallenge: false,
-        isCustomPractice: true,  // Critical flag for routing logic
-        startingCoins: gameState.coins,
-        startingPerks: { ...gameState.perks },
-        timeBonus: 0,
-        initialTimeRemaining: null,
-        streakBonus: true,
-        levelStartTime: Date.now(),
-        questionStartTime: 0,
-        wrongStreak: 0,
-        progressLost: 0,
-        customList: customGameState.currentList,
-        customLevel: levelId,
-        isFinalLevel: levelData.isFinal
-    };
-    
-    // Show level intro
-    showLevelIntro(levelId, () => {
-        showScreen('question-screen');
-        updateProgressCircle();
-        loadNextQuestion();
-        startTimer(currentGame.words.length * 10); // 10 seconds per word
-    });
-}
-
-function showCustomListsManager() {
-    showScreen('custom-practice-screen');
-    
-    // Use Promise-based initialization to ensure lists are loaded
-    Promise.resolve(CustomListsManager.initialize())
-        .then(() => {
-            // Directly use CustomListsManager lists for display
-            const container = document.getElementById('custom-lists-container');
-            if (!container) return;
-            
-            const limits = getUserListLimits();
-            const userStatus = currentUser?.status || 'unregistered';
-            
-            container.innerHTML = '';
-            
-            // Check lists from CustomListsManager
-            const availableLists = CustomListsManager.lists || [];
-            
-            if (availableLists.length === 0) {
-                container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
-                return;
-            }
-
-            availableLists.forEach(list => {
-                // Get play count
-                const playCountKey = `listPlays_${list.id}`;
-                const playsUsed = parseInt(localStorage.getItem(playCountKey) || '0');
-                const playsLeft = limits.maxPlays - playsUsed;
-
-                if (playsLeft <= 0) return;
-                
-                const listItem = document.createElement('div');
-                listItem.className = `custom-list-item collapsed ${list.is_shared ? 'shared-list' : ''}`;
-                listItem.dataset.listId = list.id;
-                
-                listItem.innerHTML = `
-                    <div class="list-actions">
-                        <button class="start-button practice-button">Practice</button>
-                        <button class="edit-button" data-list-id="${list.id}">Edit</button>
-                        <button class="start-button delete-button">Delete</button>
-                        ${userStatus === 'premium' ? `
-                            <button class="share-button" onclick="showShareModal(${list.id})">
-                                <i class="fas fa-share-alt"></i> Share
-                            </button>
-                        ` : ''}
-                    </div>
-                    <div class="list-header">
-                        <h3>${list.name}</h3>
-                        <div class="list-summary">
-                            <span>${list.words?.length || 0} words</span>
-                            <span style="color: ${playsLeft <= 2 ? '#ff4444' : '#ffffff'}; margin-left: 1rem;">
-                                ${limits.playDisplay}
-                            </span>
-                            <p class="word-preview">${(list.words || []).slice(0,5).join(', ')}${(list.words?.length > 5) ? '...' : ''}</p>
-                        </div>
-                    </div>
-                `;
-
-                // Add event listeners with explicit function calls
-                const practiceButton = listItem.querySelector('.practice-button');
-                practiceButton.addEventListener('click', () => startCustomListPractice(list.id));
-
-                const editButton = listItem.querySelector('.edit-button');
-                editButton.addEventListener('click', () => {
-                    console.log('Edit button clicked for list:', list.id);
-                    editCustomList(list.id);
-                });
-
-                const deleteButton = listItem.querySelector('.delete-button');
-                deleteButton.addEventListener('click', () => {
-                    console.log('Delete button clicked for list:', list.id);
-                    deleteCustomList(list.id);
-                });
-
-                const header = listItem.querySelector('.list-header');
-                header.addEventListener('click', () => toggleListCollapse(list.id));
-
-                container.appendChild(listItem);
-            });
-        })
-        .catch(error => {
-            console.error('Failed to initialize custom lists:', error);
-            showNotification('Error loading lists', 'error');
-        });
-}
-
-function getUserListLimits() {
-    if (!currentUser) {
-        return {
-            maxLists: 3,
-            maxWords: 10,
-            maxPlays: 5,
-            canShare: false
-        };
-    }
-
-    // Get user status from Supabase
-    const userStatus = currentUser.status || 'unregistered';
-    
-    switch(userStatus) {
-        case 'free':  // Trial user
-            return {
-                maxLists: 5,
-                maxWords: 20,
-                maxPlays: 10,
-                canShare: false
-            };
-            case 'pending':  // Pending premium
-            return {
-                maxLists: 30,
-                maxWords: 50,
-                maxPlays: Infinity,
-                canShare: false,
-                playDisplay: '∞'
-            };
-        case 'premium':  // Confirmed premium
-            return {
-                maxLists: 30,
-                maxWords: 50,
-                maxPlays: Infinity,
-                canShare: true,
-                playDisplay: '∞'            };
-        default:
-            return {
-                maxLists: 3,
-                maxWords: 10,
-                maxPlays: 5,
-                canShare: false
-            };
-    }
-}
-
-function toggleListCollapse(listId) {
-    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
-    const editButton = listItem.querySelector('.edit-button');
-    
-    if (editButton.textContent === 'Save') {
-        // Don't toggle if in edit mode
-        return;
-    }
-    
-    listItem.classList.toggle('collapsed');
-}
-
-function toggleEditMode(listId) {
-    // Convert listId to number if it's a string
-    listId = typeof listId === 'string' ? parseInt(listId) : listId;
-
-    const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
-    if (!listItem) return;
-
-    const editButton = listItem.querySelector('.edit-button');
-    if (!editButton) return;
-
-    const wordList = document.getElementById(`list-${listId}`);
-    
-    if (editButton.textContent === 'Edit') {
-        editButton.textContent = 'Save';
-        listItem.classList.remove('collapsed');
-        listItem.setAttribute('data-in-edit-mode', 'true');
-        
-        const list = customPracticeLists.lists.find(l => l.id === listId);
-        if (!list) return;
-
-        wordList.innerHTML = '';
-        
-        list.words.forEach((word, index) => {
-            const wordItem = document.createElement('div');
-            wordItem.className = 'word-translation-item';
-            wordItem.draggable = true;
-            
-            wordItem.innerHTML = `
-                <div class="drag-handle">
-                    <i class="fas fa-grip-vertical"></i>
-                </div>
-                <span class="source-word" contenteditable="true">${word}</span>
-                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
-                <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-            `;
-            
-            wordList.appendChild(wordItem);
-            initializeDragAndDrop(wordItem);
-        });
-        
-        makeWordListDraggable(listId);
-    } else {
-        saveListChanges(listId, wordList, listItem);
-    }
-}
-
-function editCustomList(listId) {
-    // Find the list
-    const list = CustomListsManager.lists.find(l => l.id === listId);
-    if (!list) {
-        showNotification('List not found', 'error');
-        return;
-    }
-   
-    // Switch to custom practice screen
-    showScreen('custom-practice-screen');
-   
-    // Set the list name
-    const listNameInput = document.getElementById('custom-list-name');
-    if (listNameInput) {
-        listNameInput.value = list.name || '';
-    }
-   
-    // Get translation results container and word list
-    const translationResults = document.getElementById('translation-results');
-    const wordList = document.getElementById('word-translation-list');
-    
-    if (!wordList) {
-        console.error('Word translation list element not found');
-        return;
-    }
-   
-    // Clear previous translations
-    wordList.innerHTML = '';
-   
-    // Create translation items for each word
-    if (Array.isArray(list.words)) {
-        list.words.forEach((word, index) => {
-            const translation = list.translations && index < list.translations.length ? 
-                list.translations[index] : '';
-                
-            const wordItem = document.createElement('div');
-            wordItem.className = 'word-translation-item';
-            wordItem.draggable = true;
-           
-            wordItem.innerHTML = `
-                <div class="drag-handle">
-                    <i class="fas fa-grip-vertical"></i>
-                </div>
-                <span class="source-word" contenteditable="true">${word}</span>
-                <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
-                <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-            `;
-           
-            wordList.appendChild(wordItem);
-            
-            // Initialize drag functionality for this item
-            const deleteBtn = wordItem.querySelector('.delete-word-btn');
-            if (deleteBtn) {
-                deleteBtn.onclick = function() { deleteWord(this); };
-            }
-            
-            initializeDragAndDrop(wordItem);
-        });
-    }
-   
-    // Show the translation results section
-    if (translationResults) {
-        translationResults.style.display = 'block';
-    }
-   
-    // Store the current list for later saving
-    customPracticeLists.currentList = list;
-   
-    // Initialize drag functionality for the whole list
-    makeWordListDraggable();
-}
-
-function loadCustomList(listId) {
-    const list = customPracticeLists.lists.find(l => l.id === listId);
-    if (!list) return;
-
-    customPracticeLists.currentList = list;
-
-    // Populate word input area
-    const wordInput = document.getElementById('custom-word-input');
-    wordInput.value = list.words.join(', ');
-
-    // Populate list name
-    const listNameInput = document.getElementById('custom-list-name');
-    listNameInput.value = list.name;
-
-    // Trigger translation process to show the words
-    processCustomWords();
-
-    // Show the practice screen
-    showScreen('custom-practice-screen');
-}
-
-function deleteCustomList(listId) {
-    // Ensure listId is a number
-    listId = typeof listId === 'string' ? parseInt(listId) : listId;
-
-    // Remove from lists array
-    customPracticeLists.lists = customPracticeLists.lists.filter(l => l.id !== listId);
-    
-    // Remove play count from localStorage
-    localStorage.removeItem(`listPlays_${listId}`);
-    
-    // Update localStorage with remaining lists
-    localStorage.setItem('simploxCustomLists', JSON.stringify(customPracticeLists.lists));
-    
-    // Refresh the lists display
-    showCustomListsManager();
-}
-
-
-function addWordToList(listId) {
-    const listElement = document.getElementById(`list-${listId}`);
-    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
-    const editButton = listItem.querySelector('.edit-button');
-    
-    // Only add word if in edit mode
-    if (editButton.textContent !== 'Save') return;
-
-    const wordItem = document.createElement('div');
-    wordItem.className = 'word-translation-item';
-    wordItem.draggable = true;
-    
-    wordItem.innerHTML = `
-        <div class="drag-handle">
-            <i class="fas fa-grip-vertical"></i>
-        </div>
-        <span class="source-word" contenteditable="true"></span>
-        <input type="text" class="target-word" placeholder="Hebrew translation">
-        <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-    `;
-    
-    // Add at the top of the list
-    if (listElement.firstChild) {
-        listElement.insertBefore(wordItem, listElement.firstChild);
-    } else {
-        listElement.appendChild(wordItem);
-    }
-    
-    // Make the new item draggable
-    initializeDragAndDrop(wordItem);
-    
-    // Focus on the new word input
-    const sourceWord = wordItem.querySelector('.source-word');
-    sourceWord.focus();
-}
-
-function makeWordListDraggable(listId) {
-    const wordList = document.getElementById(`list-${listId}`);
-    if (!wordList) return;
-    
-    // Add dragover event listener to the container
-    wordList.addEventListener('dragover', e => {
-        e.preventDefault();
-        const draggable = wordList.querySelector('.dragging');
-        if (!draggable) return;
-        
-        const afterElement = getDragAfterElement(wordList, e.clientY);
-        if (afterElement) {
-            wordList.insertBefore(draggable, afterElement);
-        } else {
-            wordList.appendChild(draggable);
-        }
-    });
-
-    wordList.addEventListener('drop', e => {
-        e.preventDefault();
-        const draggingElement = document.querySelector('.dragging');
-        if (draggingElement) {
-            draggingElement.style.opacity = '1';
-            draggingElement.classList.remove('dragging');
-        }
-    });
-
-    // Initialize drag events for all items
-    const items = wordList.querySelectorAll('.word-translation-item');
-    items.forEach(item => initializeDragAndDrop(item));
-}
-
-function getDragAfterElement(container, y) {
-    if (!container) return null;
-    
-    const draggableItems = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
-    if (!draggableItems.length) return null;
-    
-    return draggableItems.reduce((closest, child) => {
-        const box = child.getBoundingClientRect();
-        const offset = y - box.top - box.height / 2;
-        
-        if (offset < 0 && offset > closest.offset) {
-            return { offset: offset, element: child };
-        } else {
-            return closest;
-        }
-    }, { offset: Number.NEGATIVE_INFINITY }).element;
-}
-
-
-function toggleEditMode(listId) {
-    const listItem = document.querySelector(`.custom-list-item:has([data-list-id="${listId}"])`);
-    const editButton = listItem.querySelector('.edit-button');
-    const wordList = document.getElementById(`list-${listId}`);
-    
-    if (editButton.textContent === 'Edit') {
-        // Enter edit mode
-        editButton.textContent = 'Save';
-        listItem.classList.remove('collapsed');
-        
-        // Load editable word list
-        const list = customPracticeLists.lists.find(l => l.id === listId);
-        wordList.innerHTML = '';
-        
-        list.words.forEach((word, index) => {
-            const wordItem = document.createElement('div');
-            wordItem.className = 'word-translation-item';
-            wordItem.draggable = true;
-            
-            wordItem.innerHTML = `
-                <div class="drag-handle">
-                    <i class="fas fa-grip-vertical"></i>
-                </div>
-                <span class="source-word" contenteditable="true">${word}</span>
-                <input type="text" class="target-word" value="${list.translations[index]}" placeholder="Hebrew translation">
-                <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-            `;
-            
-            wordList.appendChild(wordItem);
-        });
-        
-        // Initialize drag functionality
-        makeWordListDraggable(listId);
-    } else {
-        // Save changes
-        saveListChanges(listId, wordList, listItem);
-    }
-}
-
-function saveListChanges(listId, wordList, listItem) {
-    const list = customPracticeLists.lists.find(l => l.id === parseInt(listId));
-    const editButton = listItem.querySelector('.edit-button');
-    const items = wordList.querySelectorAll('.word-translation-item');
-    
-    const words = [];
-    const translations = [];
-    
-    items.forEach(item => {
-        const word = item.querySelector('.source-word').textContent.trim();
-        const translation = item.querySelector('.target-word').value.trim();
-        if (word && translation) {
-            words.push(word);
-            translations.push(translation);
-        }
-    });
-    
-    list.words = words;
-    list.translations = translations;
-    saveCustomLists();
-    
-    editButton.textContent = 'Edit';
-    listItem.removeAttribute('data-in-edit-mode');
-    listItem.classList.add('collapsed');
-    
-    const summary = listItem.querySelector('.list-summary');
-    summary.innerHTML = `
-        <span>${words.length} words</span>
-        <p class="word-preview">${words.slice(0,5).join(', ')}${words.length > 5 ? '...' : ''}</p>
-    `;
-}
 
 function toggleAuthMode() {
     const loginForm = document.getElementById('loginForm');
@@ -13393,9 +11690,9 @@ function showShareModal(listId) {
             usersList.innerHTML = data.map(user => `
                 <div class="user-item">
                     <span>${user.username || "Unnamed User"}</span>
-                    <button class="start-button share-with-user-btn" data-user-id="${user.id}">
-                        <i class="fas fa-share-alt"></i> Share
-                    </button>
+                    <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}">
+    <i class="fas fa-share-alt"></i> Share
+</button>
                 </div>
             `).join("");
             
@@ -13801,249 +12098,7 @@ function showUnregisteredWarning(callback) {
     });
 }
 
-function handleCustomPracticeCompletion() {
-    const completedPerfectly = currentGame.streakBonus && 
-        currentGame.correctAnswers === currentGame.words.length;
 
-    if (completedPerfectly) {
-        // Award coins
-        if (currentGame.firstAttempt) {
-            gameState.coins += 3;
-            pulseCoins(3);
-        } else {
-            gameState.coins += 1;
-            pulseCoins(1);
-        }
-
-        // Add completion bonus
-        gameState.coins += 5;
-        pulseCoins(5);
-        
-        updateAllCoinDisplays();
-        saveProgress();
-        
-        const nextLevel = currentGame.currentCustomLevel + 1;
-        if (nextLevel <= 10) {
-            currentGame.practiceState.unlockedLevels.add(nextLevel);
-            currentGame.practiceState.progress[currentGame.currentCustomLevel] = true;
-            
-            // Show completion curtain before next level
-            showLevelIntro(nextLevel, () => {
-                startCustomLevel(nextLevel, currentGame.practiceState);
-            });
-        } else {
-            showScreen('custom-practice-screen');
-            alert('Congratulations! Practice set completed!');
-        }
-    } else {
-        startCustomLevel(currentGame.currentCustomLevel, currentGame.practiceState);
-    }
-}
-
-async function processPayment(plan) {
-    const plans = {
-        monthly: { amount: 9.99, interval: 'month' },
-        yearly: { amount: 99.99, interval: 'year' },
-        lifetime: { amount: 299.99, interval: 'once' }
-    };
-
-    const { data, error } = await supabaseClient
-        .from('payment_requests')
-        .insert({
-            user_id: currentUser.id,
-            plan_type: plan,
-            amount: plans[plan].amount,
-            status: 'pending'
-        })
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Payment error:', error);
-        return;
-    }
-
-    showPaymentMethods(plans[plan].amount, data.id);
-}
-
-
-async function processPayment(method) {
-    const prices = {bit: 299.99, paybox: 299.99, kashkash: 299.99, bank: 299.99};
-    const referenceCode = generateReferenceCode();
-    
-    try {
-        const { data, error } = await supabaseClient
-            .from('payment_requests')
-            .insert({
-                user_id: currentUser.id,
-                payment_method: method,
-                amount: prices[method],
-                reference_code: referenceCode,
-                status: 'pending',
-                submission_time: new Date()
-            })
-            .select();
-
-        if (error) throw error;
-        showPaymentDetails(method, referenceCode);
-    } catch (error) {
-        console.error('Payment error:', error);
-    }
-}
-
-
-function showPaymentDetails(method, referenceCode) {
-   const paymentDetails = {
-       bit: { recipient: "050-1234567", label: "Phone Number" },
-       paybox: { recipient: "050-7654321", label: "Payment Link" },
-       kashkash: { recipient: "KASHKASH-123", label: "ID" },
-       bank: {
-           bank: "Leumi",
-           branch: "123",
-           account: "45678",
-           label: "Bank Details"
-       }
-   };
-
-   const details = paymentDetails[method];
-   
-   document.querySelector('.payment-container').innerHTML = `
-       <h2 class="welcome-title">Payment Details</h2>
-       <div class="payment-info">
-           <p class="reference">Reference Code: <strong>${referenceCode}</strong></p>
-           <p>Amount: ₪299.99</p>
-           ${method === 'bank' ? `
-               <p>Bank: ${details.bank}</p>
-               <p>Branch: ${details.branch}</p>
-               <p>Account: ${details.account}</p>
-           ` : `
-               <p>${details.label}: ${details.recipient}</p>
-           `}
-           <p>Please save your reference code and send payment confirmation via WhatsApp</p>
-           <button class="start-button" onclick="openWhatsApp('${referenceCode}')">
-               <i class="fab fa-whatsapp"></i> Send Via WhatsApp
-           </button>
-           <button class="back-button" onclick="showPaymentScreen()">
-               <i class="fas fa-arrow-left"></i> Back
-           </button>
-       </div>
-   `;
-}
-
-function openWhatsApp(referenceCode) {
-   const message = encodeURIComponent(
-       `Payment confirmation for reference: ${referenceCode}\n` +
-       `Email: ${currentUser.email}`
-   );
-   window.open(`https://wa.me/972545996417?text=${message}`);
-}
-
-// Admin verification interface
-function createAdminVerificationInterface() {
-    return `
-        <div class="admin-verification">
-            <h2>Payment Verification Dashboard</h2>
-            <div class="pending-payments"></div>
-        </div>
-    `;
-}
-
-// Function to load pending payments
-async function loadPendingPayments() {
-    const { data, error } = await supabaseClient
-        .from('payment_requests')
-        .select(`
-            id,
-            user_id,
-            payment_method,
-            amount,
-            reference_code,
-            created_at,
-            user_profiles (
-                username,
-                email
-            )
-        `)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        console.error('Error loading payments:', error);
-        return;
-    }
-
-    const container = document.querySelector('.pending-payments');
-    container.innerHTML = data.map(payment => `
-        <div class="payment-request" data-id="${payment.id}">
-            <div class="payment-info">
-                <p>Reference: ${payment.reference_code}</p>
-                <p>User: ${payment.user_profiles.username}</p>
-                <p>Amount: $${payment.amount}</p>
-                <p>Method: ${payment.payment_method}</p>
-                <p>Date: ${new Date(payment.created_at).toLocaleString()}</p>
-            </div>
-            <div class="verification-actions">
-                <button onclick="verifyPayment('${payment.id}', '${payment.user_id}')">
-                    Verify Payment
-                </button>
-                <button onclick="rejectPayment('${payment.id}')" class="reject">
-                    Reject
-                </button>
-            </div>
-        </div>
-    `).join('');
-}
-
-// Verify payment and upgrade user
-async function verifyPayment(paymentId, userId) {
-    const { error: updateError } = await supabaseClient
-        .from('payment_requests')
-        .update({
-            status: 'verified',
-            verification_time: new Date(),
-            admin_verified_by: currentUser.id
-        })
-        .eq('id', paymentId);
-
-    if (updateError) {
-        console.error('Error updating payment:', updateError);
-        return;
-    }
-
-    const { error: profileError } = await supabaseClient
-        .from('user_profiles')
-        .update({
-            status: 'premium',
-            payment_pending: false
-        })
-        .eq('id', userId);
-
-    if (profileError) {
-        console.error('Error updating user profile:', profileError);
-        return;
-    }
-
-    loadPendingPayments();
-}
-
-// Reject payment
-async function rejectPayment(paymentId) {
-    const { error } = await supabaseClient
-        .from('payment_requests')
-        .update({
-            status: 'rejected',
-            verification_time: new Date(),
-            admin_verified_by: currentUser.id
-        })
-        .eq('id', paymentId);
-
-    if (error) {
-        console.error('Error rejecting payment:', error);
-        return;
-    }
-
-    loadPendingPayments();
-}
 
 function toggleParentPhone() {
     const isAdult = document.getElementById('isAdult').checked;
@@ -14997,94 +13052,7 @@ function initializeWordGoalSlider() {
     });
 }
 
-function showCustomListDropdown() {
-    // Debug logs
-    console.log('Current user:', currentUser);
-    console.log('All custom lists:', customPracticeLists.lists);
-    
-    // Get teacher's lists, including both owned and shared
-    const lists = customPracticeLists.lists.filter(list => 
-        list.user_id === currentUser.id || 
-        (list.shared_with && list.shared_with.includes(currentUser.id))
-    );
-    
-    console.log('Filtered lists for teacher:', lists);
-    
-    // First load lists from Supabase
-    supabaseClient
-        .from('custom_lists')
-        .select('*')
-        .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`)
-        .then(({ data, error }) => {
-            if (error) {
-                console.error('Error fetching lists:', error);
-                return;
-            }
-            
-            console.log('Lists from database:', data);
-            
-            const availableLists = data || [];
-            showListsDropdown(availableLists);
-        });
-}
 
-function showListsDropdown(lists) {
-    // Remove any existing dropdowns
-    const existingDropdown = document.querySelector('.custom-list-dropdown');
-    if (existingDropdown) {
-        existingDropdown.remove();
-    }
-    
-    const dropdown = document.createElement('div');
-    dropdown.className = 'custom-list-dropdown';
-    
-    if (!lists || lists.length === 0) {
-        dropdown.innerHTML = `
-            <div class="list-item">
-                <span>No custom lists available</span>
-            </div>
-        `;
-    } else {
-        dropdown.innerHTML = `
-            <div class="dropdown-content">
-                ${lists.map(list => `
-                    <div class="list-item" data-id="${list.id}">
-                        <span>${list.name}</span>
-                        <span class="word-count">(${Array.isArray(list.words) ? list.words.length : 0} words)</span>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-
-    const customListsSelector = document.querySelector('.custom-lists-selector');
-    customListsSelector.appendChild(dropdown);
-
-    // Add click handlers
-    dropdown.querySelectorAll('.list-item[data-id]').forEach(item => {
-        item.onclick = (e) => {
-            e.stopPropagation();
-            const listId = item.dataset.id;
-            const list = lists.find(l => l.id == listId);
-            if (list) {
-                addSelectedList(list);
-                dropdown.remove();
-            }
-        };
-    });
-}
-
-function addSelectedList(list) {
-    const selectedLists = document.querySelector('.selected-lists');
-    const listElement = document.createElement('div');
-    listElement.className = 'selected-list';
-    listElement.dataset.id = list.id;
-    listElement.innerHTML = `
-        <span>${list.name} (${list.words.length} words)</span>
-        <button class="remove-list" onclick="this.parentElement.remove()">×</button>
-    `;
-    selectedLists.appendChild(listElement);
-}
 
 function startPlayerCounting(teacherId) {
     if (window.countInterval) clearInterval(window.countInterval);
@@ -19364,74 +17332,80 @@ function closePersonalVictory() {
     }
 }
 
-// UPDATE this function
-function startCustomListPractice(listId) {
-    // Find the list
-    const list = CustomListsManager.lists.find(l => l.id === listId);
-    if (!list) {
-        showNotification('List not found', 'error');
-        return;
-    }
-    
-    // Validate list has minimum required words
-    const validation = CustomListsManager.validateListForPractice(list);
-    if (!validation.valid) {
-        showNotification(validation.message, 'error');
-        return;
-    }
-    
-    // Initialize custom game state
-    const initialized = customGameState.initializeFromList(list);
-    if (!initialized) {
-        showNotification('Failed to initialize practice', 'error');
-        return;
-    }
-    
-    // Start first level
-    startCustomLevel(1);
-}
 
+// REPLACE: Just the handleCustomLevelCompletion function
 function handleCustomLevelCompletion() {
-    const completedPerfectly = currentGame.streakBonus && 
-        currentGame.correctAnswers === currentGame.words.length;
-        
     clearTimer();
-
-    if (completedPerfectly) {
-        // Award bonus coins
-        const bonusCoins = currentGame.firstAttempt ? 5 : 3;
-        CoinsManager.updateCoins(bonusCoins).then(() => {
-            pulseCoins(bonusCoins);
-            
-            // Update custom game state
+    
+    console.log("Custom level completion: Level " + customGameState.currentLevel);
+    console.log("Words count in list: " + customGameState.words.length);
+    
+    const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
+    
+    if (isPerfect) {
+        const bonus = currentGame.firstAttempt ? 5 : 3;
+        CoinsManager.updateCoins(bonus).then(() => {
+            pulseCoins(bonus);
             customGameState.wordsCompleted += currentGame.words.length;
             customGameState.completedLevels.add(customGameState.currentLevel);
             
-            // Determine next level
+            // Calculate max level for this list size
+            const wordCount = customGameState.words.length;
+            const maxLevel = wordCount >= 12 ? 9 : 
+                             wordCount >= 9 ? 6 : 3;
+            
+            console.log("Max level for this list: " + maxLevel);
+            console.log("Current level: " + customGameState.currentLevel);
+            
+            // CRITICAL FIX: If this is level 3 and we have 6 or fewer words, show completion
+            if (customGameState.currentLevel === 3 && wordCount <= 6) {
+                console.log("Level 3 completed with 6 or fewer words - showing completion");
+                setTimeout(() => showCustomCompletionScreen(), 1500);
+                return;
+            }
+            
+            // CRITICAL FIX: If this is level 6 and we have 7-9 words, show completion
+            if (customGameState.currentLevel === 6 && wordCount <= 9) {
+                console.log("Level 6 completed with 7-9 words - showing completion");
+                setTimeout(() => showCustomCompletionScreen(), 1500);
+                return;
+            }
+            
+            // CRITICAL FIX: If this is level 9 and we have 10+ words, show completion
+            if (customGameState.currentLevel === 9 && wordCount >= 10) {
+                console.log("Level 9 completed with 10+ words - showing completion");
+                setTimeout(() => showCustomCompletionScreen(), 1500);
+                return;
+            }
+            
+            // CRITICAL FIX: If this is the max level for any list size, show completion
+            if (customGameState.currentLevel >= maxLevel) {
+                console.log("Max level reached - showing completion");
+                setTimeout(() => showCustomCompletionScreen(), 1500);
+                return;
+            }
+            
             const nextLevel = customGameState.currentLevel + 1;
-            
-            // Show particles for perfect completion
-            const questionScreen = document.getElementById('question-screen');
-            const rect = questionScreen.getBoundingClientRect();
-            createParticles(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
-            
-            // Check if this was the final level or if there are more words
             const nextLevelData = customGameState.getWordsForLevel(nextLevel);
             
-            if (!nextLevelData || nextLevelData.words.length === 0 || currentGame.isFinalLevel) {
-                // Completed all levels
+            const screenRect = document.getElementById('question-screen').getBoundingClientRect();
+            createParticles(screenRect.left + screenRect.width / 2, screenRect.top + screenRect.height / 2);
+            
+            if (!nextLevelData || nextLevelData.words.length === 0) {
+                console.log("No valid data for next level - showing completion");
                 setTimeout(() => showCustomCompletionScreen(), 1500);
             } else {
-                // Continue to next level after delay
+                console.log("Moving to next level: " + nextLevel);
+                customGameState.currentLevel = nextLevel;
                 setTimeout(() => startCustomLevel(nextLevel), 1500);
             }
         });
     } else {
-        // Retry level
+        // If not perfect, restart the same level
+        console.log("Level not completed perfectly - restarting level " + customGameState.currentLevel);
         setTimeout(() => startCustomLevel(customGameState.currentLevel), 1500);
     }
     
-    // Save progress
     saveProgress();
 }
 
@@ -19462,17 +17436,6 @@ function showCustomCompletionScreen() {
     document.body.appendChild(overlay);
 }
 
-function exitCustomPractice() {
-    // Clean up
-    customGameState.reset();
-    
-    // Hide completion overlay
-    const overlay = document.querySelector('.completion-overlay');
-    if (overlay) overlay.remove();
-    
-    // Return to custom lists screen
-    showScreen('custom-practice-screen');
-}
 
 async function handleCustomPracticeAnswer(e, t = false) {
   if (e) {
@@ -19563,104 +17526,6 @@ async function handleCustomPracticeAnswer(e, t = false) {
       handleCustomLevelCompletion();
     }
   }, 333);
-}
-
-async function saveCurrentList() {
-    const listNameInput = document.getElementById('custom-list-name');
-    const wordList = document.getElementById('word-translation-list');
-    
-    // Get current list name
-    const name = listNameInput.value.trim() || 
-        (customPracticeLists.currentList ? 
-            customPracticeLists.currentList.name : 
-            `List ${CustomListsManager.lists.length + 1}`);
-            
-    const words = [];
-    const translations = [];
-    
-    const items = wordList.querySelectorAll('.word-translation-item');
-    items.forEach(item => {
-        const word = item.querySelector('.source-word').textContent.trim();
-        const translation = item.querySelector('.target-word').value.trim();
-        
-        if (word && translation) {
-            words.push(word);
-            translations.push(translation);
-        }
-    });
-    
-    // Validate word count limit
-    const limits = CustomListsManager.getListLimits();
-    if (words.length > limits.maxWords) {
-        showNotification(`You can only create lists with up to ${limits.maxWords} words`, 'error');
-        return;
-    }
-    
-    let listToSave;
-    const isEditing = customPracticeLists.currentList !== null;
-    
-    // Skip the list count check if we're editing an existing list
-    if (!isEditing && !CustomListsManager.canCreateMoreLists()) {
-        showNotification(`You can only create ${CustomListsManager.getListLimits().maxLists} custom lists`, 'error');
-        return;
-    }
-    
-    if (isEditing) {
-        // Updating existing list
-        listToSave = {
-            ...customPracticeLists.currentList,
-            name,
-            words,
-            translations
-        };
-    } else {
-        // Creating new list 
-        listToSave = {
-            tempId: Date.now(),  // Temporary ID until saved to Supabase
-            name,
-            words,
-            translations
-        };
-    }
-    
-    // Save the list
-    const savedList = await CustomListsManager.save(listToSave);
-    
-    if (savedList) {
-        // Clear form
-        listNameInput.value = '';
-        wordList.innerHTML = '';
-        document.getElementById('translation-results').style.display = 'none';
-        
-        // Reset current list
-        customPracticeLists.currentList = null;
-        
-        // Force immediate reload of lists from appropriate source
-        if (currentUser) {
-            await CustomListsManager.loadFromSupabase();
-        } else {
-            CustomListsManager.loadFromLocalStorage();
-        }
-        
-        showNotification('List saved successfully', 'success');
-        
-        // Show screen after data refresh
-        showScreen('custom-practice-screen');
-        updateListsDisplay();
-    } else {
-        showNotification('Failed to save list', 'error');
-    }
-}
-
-async function deleteCustomList(listId) {
-    const success = await CustomListsManager.delete(listId);
-    
-    if (success) {
-        showNotification('List deleted successfully', 'success');
-        updateListsDisplay();
-    } else {
-        showNotification('Failed to delete list', 'error');
-    }
 }
 
 function showReviveOverlay() {
@@ -20678,48 +18543,7 @@ function optimizeMobileEvents() {
     };
 }
 
-// This goes into the CustomListsManager object
-function validateListForPractice(list) {
-    const MIN_WORDS_REQUIRED = 6;
-    
-    if (!list || !list.words || !list.translations) {
-        return {
-            valid: false,
-            message: 'Invalid list format'
-        };
-    }
-    
-    if (list.words.length < MIN_WORDS_REQUIRED) {
-        return {
-            valid: false,
-            message: `Lists need at least ${MIN_WORDS_REQUIRED} words to practice`
-        };
-    }
-    
-    return { valid: true };
-}
 
-function updateCustomListSchema(list) {
-    const MIN_WORDS = 6;
-    
-    if (!list) return list;
-    
-    const wordCount = list.words?.length || 0;
-    let maxLevels = 0;
-    
-    if (wordCount >= MIN_WORDS) {
-        if (wordCount >= 12) maxLevels = 9;
-        else if (wordCount >= 9) maxLevels = 6;
-        else maxLevels = 3;
-    }
-    
-    // Create a new object rather than modifying the original
-    return {
-        ...list,
-        min_words: MIN_WORDS,
-        max_levels: maxLevels
-    };
-}
 
 // Add to the end of the <body> section after all other scripts
 // Accessibility Menu Functionality
@@ -21982,147 +19806,6 @@ function handleBossVictoryHome() {
   }
 }
 
-// ADD this function to check if the current user is the admin
-function isAdminUser() {
-  return currentUser && currentUser.email === "admin123@gmail.com";
-}
-
-// ADD this function to create the admin skip button
-function addAdminSkipButton() {
-  // Only add for admin user
-  if (!isAdminUser()) return;
-  
-  // Remove any existing admin skip button first
-  const existingButton = document.getElementById("admin-skip-10-button");
-  if (existingButton) existingButton.remove();
-  
-  // Create the admin skip button
-  const skipButton = document.createElement("button");
-  skipButton.id = "admin-skip-10-button";
-  skipButton.innerHTML = '<i class="fas fa-forward"></i> Skip 10';
-  skipButton.style.cssText = `
-    position: fixed;
-    bottom: 80px;
-    right: 20px;
-    background: #9c27b0;
-    color: white;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 5px;
-    cursor: pointer;
-    z-index: 2000;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    font-weight: bold;
-  `;
-  
-  // Add the click handler
-  skipButton.onclick = function() {
-    console.log("Admin skip-10 button clicked");
-    handleAdminSkip10();
-  };
-  
-  // Add the button to the question screen
-  const questionScreen = document.getElementById("question-screen");
-  if (questionScreen) {
-    questionScreen.appendChild(skipButton);
-  }
-}
-
-// ADD this function to handle the skip-10 action
-function handleAdminSkip10() {
-  // Only work for admin user
-  if (!isAdminUser()) return;
-  
-  // Check if we're in an active game
-  if (!currentGame || !currentGame.words || !currentGame.words.length) {
-    console.error("No active game found");
-    return;
-  }
-  
-  // Skip 10 questions or all remaining if less than 10 left
-  const skipCount = Math.min(10, currentGame.words.length - currentGame.currentIndex);
-  console.log(`Skipping ${skipCount} questions`);
-  
-  // If this is a boss level, handle it differently
-  if (currentGame.isBossLevel) {
-    // For boss levels, we directly set the index near the end
-    // This will trigger the boss defeat sequence on the next answer
-    currentGame.currentIndex = Math.max(0, currentGame.words.length - 1);
-    updateBossHealthBar();
-    loadNextBossQuestion();
-    showNotification(`Boss almost defeated! One more hit!`, "success");
-    return;
-  }
-  
-  // For regular levels
-  currentGame.currentIndex += skipCount;
-  
-  // If we've reached the end of the level
-  if (currentGame.currentIndex >= currentGame.words.length) {
-    handleLevelCompletion();
-    return;
-  }
-  
-  // Otherwise update progress and load the next question
-  updateProgressCircle();
-  loadNextQuestion();
-  showNotification(`Skipped ${skipCount} questions!`, "success");
-}
-
-// MODIFY addAdminTestButton function to call our new function
-function addAdminTestButton() {
-  console.log("Checking for admin user...");
-  
-  // Remove any existing button
-  const existingButton = document.getElementById("admin-test-button");
-  if (existingButton) {
-    existingButton.remove();
-  }
-  
-  console.log("Current user:", currentUser ? currentUser.email : "No user");
-  
-  // Check if the current user is admin
-  if (!currentUser || (currentUser.email !== "admin123@gmail.com" && !currentUser.email?.includes("admin123"))) {
-    console.log("Not admin user, not adding button");
-    return;
-  }
-  
-  console.log("Admin user detected, adding test buttons");
-  
-  // Add level 20 button
-  const button = document.createElement("button");
-  button.id = "admin-test-button";
-  button.textContent = "Jump to Level 20";
-  button.style.cssText = `
-    position: fixed;
-    top: 80px;
-    right: 20px;
-    background: #ff5722;
-    color: white;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 5px;
-    cursor: pointer;
-    z-index: 2000;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    font-weight: bold;
-  `;
-  
-  button.onclick = function() {
-    console.log("Admin button clicked, jumping to level 20");
-    gameState.currentLevel = 21;
-    startLevel(21);
-  };
-  
-  document.body.appendChild(button);
-  console.log("Admin test button added to body");
-  
-  // Now also add our skip button
-  addAdminSkipButton();
-}
-
-
-createBossStyleSheet();
 
 
 </script>
