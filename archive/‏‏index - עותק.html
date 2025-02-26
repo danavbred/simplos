@@ -149,35 +149,7 @@ body {
   margin-bottom: 1.5rem;
 }
 
-
-
-@keyframes shareGlow {
-    0% { box-shadow: 0 0 5px var(--accent); }
-    50% { box-shadow: 0 0 20px var(--accent); }
-    100% { box-shadow: 0 0 5px var(--accent); }
-}
-
-.shared-list {
-    animation: shareGlow 2s ease-in-out;
-}
-
-.shared-list {
-    border: 2px solid transparent;
-    background: linear-gradient(135deg, #00f2fe, #4facfe);
-    background-clip: padding-box;
-}
-
-.modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.5);
-    backdrop-filter: blur(5px);
-    z-index: 999;
-}
-
+/* Share modal styles */
 .share-modal {
     position: fixed;
     top: 50%;
@@ -193,40 +165,33 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
-
 .share-modal-content {
     padding: 2rem;
 }
-
 .share-modal-header {
     color: var(--gold);
     margin-bottom: 1rem;
     font-size: 1.5rem;
     text-align: center;
 }
-
 .share-modal-description {
     margin-bottom: 1.5rem;
     opacity: 0.8;
     text-align: center;
 }
-
 .users-list {
     max-height: 300px;
     overflow-y: auto;
     margin: 1rem 0;
     padding-right: 5px;
 }
-
 .users-list::-webkit-scrollbar {
     width: 5px;
 }
-
 .users-list::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
     border-radius: 5px;
 }
-
 .user-item {
     display: flex;
     align-items: center;
@@ -237,44 +202,54 @@ body {
     border-radius: 10px;
     transition: all 0.3s ease;
 }
-
 .user-item:hover {
     background: rgba(255, 255, 255, 0.15);
     transform: translateY(-2px);
 }
-
 .user-info {
     display: flex;
     align-items: center;
     gap: 0.75rem;
 }
-
 .user-info i {
-    color: var(--accent);
+    color: var(--gold);
+    opacity: 0.8;
 }
-
 .modal-close {
-    margin-top: 1rem;
+    margin-top: 1.5rem;
     width: 100%;
 }
-
 .small-button {
     padding: 0.5rem 1rem;
     font-size: 0.85rem;
     min-width: 0;
     width: auto;
 }
-
+/* Updated share button style */
+.start-button.share-with-user-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.start-button.share-with-user-btn:hover {
+    transform: translateY(-2px);
+    background: var(--accent);
+    box-shadow: 0 5px 15px rgba(30, 144, 255, 0.2);
+}
 .fade-out {
     opacity: 0;
     transition: opacity 0.3s ease;
 }
-
 @keyframes fadeIn {
     from { opacity: 0; transform: translate(-50%, -55%); }
     to { opacity: 1; transform: translate(-50%, -50%); }
 }
-
 @media (max-width: 768px) {
     .share-modal {
         width: 95%;
@@ -286,20 +261,12 @@ body {
         gap: 0.75rem;
     }
     
-    .user-item .small-button {
+    .user-item .main-button {
         width: 100%;
     }
 }
 
 
-.user-item:hover {
-    background: rgba(255,255,255,0.2);
-}
-
-.modal-close {
-    margin-top: 1rem;
-    width: 100%;
-}
 
 .upgrade-modal {
     position: fixed;
@@ -5399,107 +5366,121 @@ background-clip: text;
 }
 
 /* Resurrection Animation Styles */
-
-.resurrection-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  z-index: 2000;
-  opacity: 0;
-  transition: opacity 0.5s ease;
+.resurrection-animation {
+    position: relative;
+    width: 240px;
+    height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.resurrection-overlay.show {
-  opacity: 1;
+.resurrection-circle {
+    width: 200px;
+    height: 200px;
 }
 
-.revive-container {
-  text-align: center;
-  position: relative;
-  width: 200px;
-  height: 200px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  margin-bottom: 1rem;
+.resurrection-progress {
+    stroke: var(--gold);
+    stroke-linecap: round;
+    transform-origin: center;
+    transform: rotate(-90deg);
+    stroke-dashoffset: 339.29;
+    filter: drop-shadow(0 0 10px var(--gold));
 }
 
-.ankh-symbol {
-  position: absolute;
-  font-size: 5rem;
-  color: var(--gold);
-  z-index: 10;
-  animation: ankhPulse 2s infinite;
+.resurrection-ankh {
+    position: absolute;
+    font-size: 5rem;
+    color: var(--gold);
+    animation: resurrectGlow 2s infinite;
 }
 
-.revive-title {
-  color: var(--text);
-  font-size: 1.8rem;
-  margin-bottom: 1rem;
+@keyframes resurrectGlow {
+    0%, 100% { text-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+    50% { text-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
 }
 
-.revive-timer {
-  color: var(--gold);
-  font-size: 4rem;
-  font-weight: bold;
-  margin-bottom: 1rem;
+@keyframes particleFlow {
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+    }
+    100% {
+        transform: translate(calc(-50% + var(--end-x)), calc(-50% + var(--end-y))) scale(1);
+        opacity: 0;
+    }
 }
 
-.revive-button {
-  padding: 1rem 3rem;
-  font-size: 1.5rem;
-  background: var(--accent);
-  color: var(--text);
-  border: none;
-  border-radius: 50px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 0 20px var(--accent);
-  animation: buttonGlow 1.5s infinite;
+/* Mobile Responsive Adjustments */
+@media (max-width: 768px) {
+    .ankh-symbol {
+        font-size: 6rem;
+    }
+    
+    .revive-title {
+        font-size: 2rem;
+    }
+    
+    .revive-timer {
+        font-size: 4rem;
+    }
+    
+    .revive-button {
+        padding: 0.75rem 2rem;
+        font-size: 1.2rem;
+    }
+    
+    .resurrection-animation {
+        width: 180px;
+        height: 180px;
+    }
+    
+    .resurrection-circle {
+        width: 150px;
+        height: 150px;
+    }
+    
+    .resurrection-ankh {
+        font-size: 3.5rem;
+    }
 }
 
-.revive-button:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 0 30px var(--accent);
+@media (max-width: 480px) {
+    .ankh-symbol {
+        font-size: 5rem;
+    }
+    
+    .revive-title {
+        font-size: 1.8rem;
+    }
+    
+    .revive-timer {
+        font-size: 3.5rem;
+    }
+    
+    .revive-button {
+        padding: 0.5rem 1.5rem;
+        font-size: 1rem;
+    }
+    
+    .resurrection-animation {
+        width: 150px;
+        height: 150px;
+    }
+    
+    .resurrection-circle {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .resurrection-ankh {
+        font-size: 3rem;
+    }
 }
-
-.resurrection-progress circle {
-  transition: stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.resurrection-fill {
-  stroke: var(--gold);
-  filter: drop-shadow(0 0 5px var(--gold));
-}
-
-@keyframes ankhPulse {
-  0%, 100% {
-    transform: scale(1);
-    text-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
-  }
-  50% {
-    transform: scale(1.1);
-    text-shadow: 0 0 50px rgba(255, 215, 0, 0.8);
-  }
-}
-
-@keyframes buttonGlow {
-  0%, 100% {
-    box-shadow: 0 0 20px var(--accent);
-  }
-  50% {
-    box-shadow: 0 0 30px var(--accent);
-  }
-}
-
 
 /* Stage-Set Cascade UI Styles */
 .stages-container {
@@ -12468,95 +12449,139 @@ function saveCurrentList() {
 }
 
 function updateListsDisplay() {
-    const container = document.getElementById('custom-lists-container');
-    if (!container) return;
-    
-    const limits = CustomListsManager.getListLimits();
-    const userRole = currentUser?.role || 'unregistered';
-    
-    container.innerHTML = '';
-    
-    if (!CustomListsManager.lists || !Array.isArray(CustomListsManager.lists) || CustomListsManager.lists.length === 0) {
-        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
-        return;
-    }
-    
-    CustomListsManager.lists.forEach(list => {
-        if (!list || !list.id) return;
-        
-        const updatedList = updateCustomListSchema(list);
-        const wordCount = updatedList.words?.length || 0;
-        const hasEnoughWords = wordCount >= 6;
-        
-        const item = document.createElement('div');
-        item.className = 'custom-list-item collapsed ' + (list.isShared ? 'shared-list' : '');
-        item.dataset.listId = list.id;
-        
-        // Create actions buttons with conditionally shown share button
-        const shareButtonHtml = userRole === 'teacher' ? 
-            `<button class="main-button share-button">
-                <i class="fas fa-share-alt"></i> Share
-            </button>` : '';
-        
-        item.innerHTML = `
+   const container = document.getElementById('custom-lists-container');
+   if (!container) {
+       console.error('Custom lists container not found');
+       return;
+   }
+   
+   const limits = CustomListsManager.getListLimits();
+   const userStatus = currentUser?.status || 'unregistered';
+   const MIN_WORDS = 6;
+   
+   // Clear container
+   container.innerHTML = '';
+   
+   // Check if we have lists to display
+   if (!CustomListsManager.lists || !Array.isArray(CustomListsManager.lists) || CustomListsManager.lists.length === 0) {
+       container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
+       return;
+   }
+   
+   // Create and add each list item
+   CustomListsManager.lists.forEach(list => {
+       if (!list || !list.id) return; // Skip invalid list entries
+       
+       // Update list with max levels info
+       const enhancedList = updateCustomListSchema(list);
+       const wordCount = enhancedList.words?.length || 0;
+       const hasEnoughWords = wordCount >= MIN_WORDS;
+       
+       // Create list item container
+       const listItem = document.createElement('div');
+       listItem.className = `custom-list-item collapsed ${list.isShared ? 'shared-list' : ''}`;
+       listItem.dataset.listId = list.id;
+       
+       // Create list item content
+       listItem.innerHTML = `
            <div class="list-actions">
-               <button class="main-button practice-button" ${hasEnoughWords ? "" : "disabled"}>
-                   ${hasEnoughWords ? "Practice" : `Need ${6-wordCount} more`}
+               <button class="main-button practice-button" ${!hasEnoughWords ? 'disabled' : ''}>
+                   ${hasEnoughWords ? 'Practice' : `Need ${MIN_WORDS - wordCount} more`}
                </button>
                <button class="main-button edit-button">Edit</button>
                <button class="main-button delete-button">Delete</button>
-               ${shareButtonHtml}
+               ${userStatus === 'premium' ? `
+                   <button class="main-button share-button">
+                       <i class="fas fa-share-alt"></i> Share
+                   </button>
+               ` : ''}
            </div>
            <div class="list-header">
-               <h3>${list.name || "Unnamed List"}</h3>
+               <h3>${list.name || 'Unnamed List'}</h3>
                <div class="list-summary">
-                   <span class="word-count ${hasEnoughWords ? "" : "insufficient"}">${wordCount} words</span>
-                   ${hasEnoughWords ? "" : '<span class="warning-text">(Minimum 6 needed)</span>'}
+                   <span class="word-count ${!hasEnoughWords ? 'insufficient' : ''}">${wordCount} words</span>
+                   ${!hasEnoughWords ? `<span class="warning-text">(Minimum ${MIN_WORDS} needed)</span>` : ''}
                    <span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>
-                   ${updatedList.max_levels > 0 ? `<span class="level-info">Supports ${updatedList.max_levels} levels</span>` : ""}
-                   <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0, 5).join(", ") : ""}${list.words && list.words.length > 5 ? "..." : ""}</p>
+                   ${enhancedList.max_levels > 0 ? `<span class="level-info">Supports ${enhancedList.max_levels} levels</span>` : ''}
+                   <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0,5).join(', ') : ''}${list.words && list.words.length > 5 ? '...' : ''}</p>
                </div>
            </div>
        `;
-        
-        container.appendChild(item);
-        
-        const practiceButton = item.querySelector('.practice-button');
-        if (practiceButton) {
-            if (hasEnoughWords) {
-                practiceButton.onclick = function() { startCustomListPractice(list.id); };
-            } else {
-                practiceButton.style.opacity = "0.6";
-                practiceButton.style.cursor = "not-allowed";
-            }
-        }
-        
-        const editButton = item.querySelector('.edit-button');
-        if (editButton) {
-            editButton.onclick = function() {
-                console.log("Edit button clicked for list:", list.id);
-                editCustomList(list.id);
-            };
-        }
-        
-        const deleteButton = item.querySelector('.delete-button');
-        if (deleteButton) {
-            deleteButton.onclick = function() {
-                console.log("Delete button clicked for list:", list.id);
-                deleteCustomList(list.id);
-            };
-        }
-        
-        const shareButton = item.querySelector('.share-button');
-        if (shareButton) {
-            shareButton.onclick = function() { showShareModal(list.id); };
-        }
-        
-        const headerElement = item.querySelector('.list-header');
-        if (headerElement) {
-            headerElement.onclick = function() { toggleListCollapse(list.id); };
-        }
-    });
+       
+       // Add item to container
+       container.appendChild(listItem);
+       
+       // Set up event listeners for buttons
+       const practiceButton = listItem.querySelector('.practice-button');
+       if (practiceButton) {
+           if (hasEnoughWords) {
+               practiceButton.onclick = function() {
+                   startCustomListPractice(list.id);
+               };
+           } else {
+               practiceButton.style.opacity = '0.6';
+               practiceButton.style.cursor = 'not-allowed';
+           }
+       }
+       
+       const editButton = listItem.querySelector('.edit-button');
+       if (editButton) {
+           editButton.onclick = function() {
+               console.log('Edit button clicked for list:', list.id);
+               editCustomList(list.id);
+           };
+       }
+       
+       const deleteButton = listItem.querySelector('.delete-button');
+       if (deleteButton) {
+           deleteButton.onclick = function() {
+               console.log('Delete button clicked for list:', list.id);
+               deleteCustomList(list.id);
+           };
+       }
+       
+       const shareButton = listItem.querySelector('.share-button');
+       if (shareButton) {
+           shareButton.onclick = function() {
+               showShareModal(list.id);
+           };
+       }
+       
+       const header = listItem.querySelector('.list-header');
+       if (header) {
+           header.onclick = function() {
+               toggleListCollapse(list.id);
+           };
+       }
+   });
+
+   // Add some custom CSS for the warning style
+   const styleEl = document.getElementById('custom-list-styles');
+   if (!styleEl) {
+       const newStyle = document.createElement('style');
+       newStyle.id = 'custom-list-styles';
+       newStyle.textContent = `
+           .word-count.insufficient {
+               color: #ff6b6b;
+               font-weight: bold;
+           }
+           .warning-text {
+               color: #ff6b6b;
+               font-size: 0.85rem;
+               margin-left: 0.5rem;
+           }
+           .level-info {
+               color: var(--accent);
+               font-size: 0.85rem;
+               margin-left: 0.5rem;
+           }
+           .practice-button[disabled] {
+               opacity: 0.6;
+               cursor: not-allowed;
+           }
+       `;
+       document.head.appendChild(newStyle);
+   }
 }
 
 function startCustomListPractice(listId) {
@@ -13219,17 +13244,18 @@ async function debugShareList(listId, recipientId) {
     }
 }
 
-async function shareListWithUser(listId, userId) {
+async function shareListWithUser(listId, recipientId) {
     try {
-        if (!currentUser) return false;
-        if (currentUser.role !== 'teacher') {
-            showNotification("Only teachers can share lists", "error");
+        console.log("Sharing list:", listId, "with user:", recipientId);
+        
+        if (!currentUser) {
+            console.error("No current user - cannot share list");
             return false;
         }
         
-        console.log("Sharing list:", listId, "with user:", userId);
-        
+        // Find the list in CustomListsManager
         const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
+        
         if (!list) {
             console.error("List not found for sharing:", listId);
             return false;
@@ -13237,20 +13263,21 @@ async function shareListWithUser(listId, userId) {
         
         console.log("Found list to share:", list.name);
         
+        // Direct insert into custom_lists table
         const { data, error } = await supabaseClient
-            .from("custom_lists")
+            .from('custom_lists')
             .insert({
-                user_id: userId,
-                name: `${list.name} (Shared by ${currentUser.user_metadata?.username || "Teacher"})`,
+                user_id: recipientId,
+                name: `${list.name} (Shared by ${currentUser.user_metadata?.username || "User"})`,
                 words: list.words || [],
                 translations: list.translations || [],
                 is_shared: true,
-                shared_with: [userId],
+                shared_with: [recipientId],
                 shared_by: currentUser.id,
                 created_at: new Date().toISOString(),
                 status: 'active'
             });
-            
+        
         if (error) {
             console.error("Error sharing list:", error);
             return false;
@@ -13260,14 +13287,12 @@ async function shareListWithUser(listId, userId) {
         showNotification("List shared successfully!", "success");
         closeShareModal();
         return true;
-    } catch (e) {
-        console.error("Error in shareListWithUser:", e);
+    } catch (error) {
+        console.error("Error in shareListWithUser:", error);
         showNotification("Error sharing list", "error");
         return false;
     }
 }
-
-
 
 function showSuccessToast(message) {
     const toast = document.createElement('div');
@@ -13320,14 +13345,9 @@ async function loadSharedLists() {
     }));
 }
 
+// REPLACE the showShareModal function
 function showShareModal(listId) {
     console.log("Opening share modal for list:", listId);
-    
-    // Check if user is a teacher
-    if (currentUser?.role !== 'teacher') {
-        showNotification("Only teachers can share lists", "error");
-        return;
-    }
     
     // Remove any existing modals
     const existingModal = document.querySelector('.share-modal');
@@ -13345,21 +13365,18 @@ function showShareModal(listId) {
     const modal = document.createElement('div');
     modal.className = 'share-modal';
     modal.innerHTML = `
-        <div class="share-modal-content">
-            <h3 class="share-modal-header">Share List</h3>
-            <p class="share-modal-description">Choose students to share this list with:</p>
-            <div class="users-list">Loading students...</div>
-            <button class="main-button modal-close" onclick="closeShareModal()">Cancel</button>
-        </div>
+        <h3 class="share-modal-header">Share List</h3>
+        <div class="users-list">Loading users...</div>
+        <button class="start-button modal-close" onclick="closeShareModal()">Cancel</button>
     `;
     document.body.appendChild(modal);
     
+    // Now we know the modal and users-list are in the DOM
     const usersList = modal.querySelector('.users-list');
     
-    // Fetch users - filter to only show students
+    // Fetch users
     supabaseClient.from("user_profiles")
-        .select("id, username, role")
-        .eq("role", "student")
+        .select("id, username")
         .neq("id", currentUser.id)
         .then(({ data, error }) => {
             if (error) {
@@ -13369,57 +13386,47 @@ function showShareModal(listId) {
             }
             
             if (!data || data.length === 0) {
-                usersList.innerHTML = '<div class="user-item"><span>No students available</span></div>';
+                usersList.innerHTML = '<div class="user-item"><span>No other users available</span></div>';
                 return;
             }
             
             usersList.innerHTML = data.map(user => `
                 <div class="user-item">
-                    <div class="user-info">
-                        <i class="fas fa-user"></i>
-                        <span>${user.username || "Student"}</span>
-                    </div>
-                    <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}">
+                    <span>${user.username || "Unnamed User"}</span>
+                    <button class="start-button share-with-user-btn" data-user-id="${user.id}">
                         <i class="fas fa-share-alt"></i> Share
                     </button>
                 </div>
-            `).join('');
+            `).join("");
             
-            // Add event listeners to share buttons
-            modal.querySelectorAll('.share-with-user-btn').forEach(button => {
-                button.onclick = async () => {
-                    const userId = button.getAttribute('data-user-id');
-                    button.disabled = true;
-                    const originalContent = button.innerHTML;
-                    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
+            // Add click handlers to share buttons
+            modal.querySelectorAll('.share-with-user-btn').forEach(btn => {
+                btn.onclick = async () => {
+                    const userId = btn.getAttribute('data-user-id');
+                    btn.disabled = true;
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
                     
                     const success = await shareListWithUser(listId, userId);
-                    if (success) {
-                        button.innerHTML = '<i class="fas fa-check"></i> Shared';
-                        button.style.backgroundColor = 'var(--success)';
-                    } else {
-                        button.disabled = false;
-                        button.innerHTML = originalContent;
+                    
+                    if (!success) {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
                     }
                 };
             });
         });
 }
 
+// ADD this function to close the share modal
 function closeShareModal() {
     const modal = document.querySelector('.share-modal');
     const backdrop = document.querySelector('.modal-backdrop');
     
-    if (modal) {
-        modal.classList.add('fade-out');
-        setTimeout(() => modal.remove(), 300);
-    }
-    
-    if (backdrop) {
-        backdrop.classList.add('fade-out');
-        setTimeout(() => backdrop.remove(), 300);
-    }
+    if (modal) modal.remove();
+    if (backdrop) backdrop.remove();
 }
+
 
 function handleProgressionAfterCompletion(isLevelCompleted) {
     if (!isLevelCompleted && currentGame.streakBonus) {
@@ -19657,179 +19664,113 @@ async function deleteCustomList(listId) {
 }
 
 function showReviveOverlay() {
-  // Create a resurrection overlay
-  const overlay = document.createElement('div');
-  overlay.className = 'resurrection-overlay';
-  
-  // Find the existing progress circle and clone it
-  const originalProgressCircle = document.querySelector('.progress-circle');
-  const progressCircleClone = originalProgressCircle.cloneNode(true);
-  
-  // Create the revive content container
-  const reviveContainer = document.createElement('div');
-  reviveContainer.className = 'revive-container';
-  
-  // Add the ankh symbol
-  const ankhSymbol = document.createElement('div');
-  ankhSymbol.className = 'ankh-symbol';
-  ankhSymbol.textContent = '☥';
-  reviveContainer.appendChild(ankhSymbol);
-  
-  // Position the progress circle clone in the revive container
-  progressCircleClone.style.position = 'absolute';
-  progressCircleClone.style.top = '0';
-  progressCircleClone.style.left = '0';
-  
-  // Adjust SVG circle properties
-  const progressSVG = progressCircleClone.querySelector('svg');
-  const circles = progressCircleClone.querySelectorAll('circle');
-  
-  circles.forEach(circle => {
-    // Reset all circles
-    circle.style.transition = 'none';
-    circle.style.strokeDashoffset = '339.29'; // Reset to empty state
+    const overlay = document.createElement('div');
+    overlay.className = 'revive-overlay';
+    overlay.innerHTML = `
+        <div class="revive-content">
+            <div class="ankh-symbol">☥</div>
+            <h2 class="revive-title">Revive?</h2>
+            <div class="revive-timer">5</div>
+            <button class="revive-button">Revive</button>
+        </div>
+    `;
     
-    // Make progress circle gold for resurrection
-    if (circle.classList.contains('progress')) {
-      circle.classList.add('resurrection-fill');
-      circle.style.stroke = 'var(--gold)';
-    }
-  });
-  
-  // Remove coins container if it exists in the clone
-  const coinsContainer = progressCircleClone.querySelector('.coins-container');
-  if (coinsContainer) {
-    progressCircleClone.removeChild(coinsContainer);
-  }
-  
-  reviveContainer.appendChild(progressCircleClone);
-  overlay.appendChild(reviveContainer);
-  
-  // Add timer and button below the circle
-  const content = document.createElement('div');
-  content.className = 'revive-content';
-  
-  const title = document.createElement('h2');
-  title.className = 'revive-title';
-  title.textContent = 'Revive?';
-  
-  const timer = document.createElement('div');
-  timer.className = 'revive-timer';
-  timer.textContent = '5';
-  
-  const button = document.createElement('button');
-  button.className = 'revive-button';
-  button.textContent = 'Revive';
-  
-  content.appendChild(title);
-  content.appendChild(timer);
-  content.appendChild(button);
-  
-  overlay.appendChild(content);
-  document.body.appendChild(overlay);
-  
-  // Make the overlay visible
-  requestAnimationFrame(() => {
-    overlay.classList.add('show');
-  });
-  
-  // Set up the countdown timer
-  let timeLeft = 5;
-  const timerInterval = setInterval(() => {
-    timeLeft--;
-    timer.textContent = timeLeft;
-    if (timeLeft <= 0) {
-      clearInterval(timerInterval);
-      handleReviveTimeout();
-    }
-  }, 1000);
-  
-  // Set up button click event
-  button.onclick = () => {
-    clearInterval(timerInterval);
-    handleRevive();
-  };
-  
-  // Store interval ID in the overlay for cleanup
-  overlay.dataset.intervalId = timerInterval;
+    document.body.appendChild(overlay);
+    
+    // Fade in animation
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
+    
+    // Set up countdown
+    let seconds = 5;
+    const timerDisplay = overlay.querySelector('.revive-timer');
+    
+    const countdownInterval = setInterval(() => {
+        seconds--;
+        timerDisplay.textContent = seconds;
+        
+        if (seconds <= 0) {
+            clearInterval(countdownInterval);
+            handleReviveTimeout();
+        }
+    }, 1000);
+    
+    // Handle revive button click
+    const reviveButton = overlay.querySelector('.revive-button');
+    reviveButton.onclick = () => {
+        clearInterval(countdownInterval);
+        handleRevive();
+    };
+    
+    // Store interval for cleanup
+    overlay.dataset.intervalId = countdownInterval;
 }
 
 function handleReviveTimeout() {
-  const overlay = document.querySelector('.resurrection-overlay');
-  if (overlay) {
-    overlay.classList.remove('show');
-    setTimeout(() => {
-      overlay.remove();
-      showScreen('welcome-screen');
-    }, 500);
-  }
+    const overlay = document.querySelector('.revive-overlay');
+    
+    if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            overlay.remove();
+            showScreen('welcome-screen');
+        }, 500);
+    }
 }
 
 function handleRevive() {
-  const overlay = document.querySelector('.resurrection-overlay');
-  if (!overlay) return;
-  
-  // Get the cloned progress circle from the overlay
-  const progressCircle = overlay.querySelector('.progress-circle');
-  if (!progressCircle) return;
-  
-  // Hide the timer and button
-  const reviveContent = overlay.querySelector('.revive-content');
-  if (reviveContent) {
-    reviveContent.style.opacity = '0';
-  }
-  
-  // Change the title to indicate resurrection is happening
-  const title = document.createElement('div');
-  title.className = 'revive-title';
-  title.textContent = 'Resurrecting...';
-  title.style.opacity = '0';
-  
-  // Replace the content with just the title
-  if (reviveContent) {
-    overlay.replaceChild(title, reviveContent);
+    const overlay = document.querySelector('.revive-overlay');
     
-    // Fade the title in
-    setTimeout(() => {
-      title.style.transition = 'opacity 0.5s ease';
-      title.style.opacity = '1';
-    }, 100);
-  }
-  
-  // Get the progress circle and prepare the fill animation
-  const progressElement = progressCircle.querySelector('circle.progress');
-  
-  if (progressElement) {
-    // Start with empty circle
-    const circumference = 2 * Math.PI * 54;
-    progressElement.style.strokeDasharray = `${circumference} ${circumference}`;
-    progressElement.style.strokeDashoffset = circumference;
-    
-    // After a short delay, animate the fill
-    setTimeout(() => {
-      progressElement.style.transition = 'stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1)';
-      progressElement.style.strokeDashoffset = '0'; // Fill to 100%
-    }, 300);
-  }
-  
-  // After animation completes, close overlay and restart level
-  setTimeout(() => {
-    overlay.classList.remove('show');
-    setTimeout(() => {
-      overlay.remove();
-      
-      // Reset game state for revival
-      currentGame.wrongStreak = 0;
-      timeRemaining = currentGame.initialTimeRemaining;
-      
-      // Restart the current level
-      if (currentGame.isCustomPractice) {
-        startCustomLevel(currentGame.customLevel);
-      } else {
-        startLevel(gameState.currentLevel);
-      }
-    }, 500);
-  }, 2500);
+    if (overlay) {
+        // First change content to show resurrection animation
+        const content = overlay.querySelector('.revive-content');
+        content.innerHTML = `
+            <div class="resurrection-animation">
+                <div class="progress-circle resurrection-circle">
+                    <svg width="100%" height="100%" viewBox="0 0 120 120">
+                        <circle class="bg" cx="60" cy="60" r="54" stroke-width="8"/>
+                        <circle class="resurrection-progress" cx="60" cy="60" r="54" stroke-width="8"/>
+                    </svg>
+                    <div class="ankh-symbol resurrection-ankh">☥</div>
+                </div>
+            </div>
+        `;
+        
+        // Start resurrection animation
+        const progressCircle = overlay.querySelector('.resurrection-progress');
+        const circumference = 2 * Math.PI * 54;
+        progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+        progressCircle.style.strokeDashoffset = circumference;
+        
+        // Create light particles effect
+        createResurrectionParticles();
+        
+        // Animate progress circle filling
+        setTimeout(() => {
+            progressCircle.style.transition = 'stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1)';
+            progressCircle.style.strokeDashoffset = '0';
+        }, 100);
+        
+        // After animation completes, restart level
+        setTimeout(() => {
+            overlay.classList.remove('show');
+            setTimeout(() => {
+                overlay.remove();
+                
+                // Reset game state
+                currentGame.wrongStreak = 0;
+                timeRemaining = currentGame.initialTimeRemaining;
+                
+                // If in custom practice, handle specially
+                if (currentGame.isCustomPractice) {
+                    startCustomLevel(currentGame.customLevel);
+                } else {
+                    startLevel(gameState.currentLevel);
+                }
+            }, 500);
+        }, 2500);
+    }
 }
 
 function createResurrectionParticles() {
