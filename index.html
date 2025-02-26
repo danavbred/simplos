@@ -10022,203 +10022,204 @@ function updateProgressCircle() {
 
 
 function loadNextQuestion() {
-    if (currentGame.currentIndex >= currentGame.words.length) {
-        handleLevelCompletion();
-        return;
+  // Clear any existing classes from previous question
+  document.querySelectorAll(".buttons button").forEach(btn => {
+    btn.classList.remove("correct", "wrong");
+  });
+  
+  if (currentGame.currentIndex >= currentGame.words.length) {
+    return;
+  }
+  
+  const e = !![3, 6, 9, 10, 13, 16, 19, 20, 21].includes(gameState.currentLevel) && Math.random() < 0.5;
+  const t = currentGame.currentIndex;
+  const n = e ? currentGame.translations[t] : currentGame.words[t];
+  
+  document.getElementById("question-word").textContent = n;
+  
+  const r = e ? currentGame.words[t] : currentGame.translations[t];
+  const s = e ? currentGame.words : currentGame.translations;
+  const o = new Set([r]);
+  
+  while (o.size < 3) {
+    const e = s[Math.floor(Math.random() * s.length)];
+    if (e !== r) {
+      o.add(e);
     }
-
-    const isTestLevel = [3,6,9,10,13,16,19,20,21].includes(gameState.currentLevel);
-    const isHebrewToEnglish = isTestLevel ? Math.random() < 0.5 : false;
-    
-    // Get current word pair
-    const wordIndex = currentGame.currentIndex;
-    const questionWord = isHebrewToEnglish ? 
-        currentGame.translations[wordIndex] : 
-        currentGame.words[wordIndex];
-    
-    // Set question word
-    document.getElementById('question-word').textContent = questionWord;
-
-    // Generate answer choices including correct answer
-    const correctAnswer = isHebrewToEnglish ? 
-        currentGame.words[wordIndex] : 
-        currentGame.translations[wordIndex];
-    
-    // Get all possible answers from vocabulary
-    const allAnswers = isHebrewToEnglish ? 
-        currentGame.words : 
-        currentGame.translations;
-    
-    // Create answer choices with random wrong answers
-    const choices = new Set([correctAnswer]);
-    while(choices.size < 3) {
-        const randomIndex = Math.floor(Math.random() * allAnswers.length);
-        const randomAnswer = allAnswers[randomIndex];
-        if (randomAnswer !== correctAnswer) {
-            choices.add(randomAnswer);
-        }
-    }
-
-    // Create and shuffle buttons
-    const buttonsDiv = document.getElementById('buttons');
-    buttonsDiv.innerHTML = '';
-    Array.from(choices)
-        .sort(() => Math.random() - 0.5)
-        .forEach(choice => {
-            const button = document.createElement('button');
-            button.textContent = choice;
-            button.onclick = () => handleAnswer(choice === correctAnswer);
-            buttonsDiv.appendChild(button);
-        });
+  }
+  
+  const a = document.getElementById("buttons");
+  a.innerHTML = "";
+  
+  Array.from(o).sort(() => Math.random() - 0.5).forEach((e) => {
+    const t = document.createElement("button");
+    t.textContent = e;
+    t.onclick = () => handleAnswer(e === r);
+    a.appendChild(t);
+  });
 }
 
-async function handleAnswer(isCorrect, isSkip = false) {
-    const currentTime = Date.now();
-    if (currentTime - (currentGame.lastAnswerTime || 0) < 1000) {
-        console.warn("Answer too quickly. Please wait a moment.");
-        return;
-    }
-
-    if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
-        console.error("Invalid game state or index");
-        return;
-    }
-
-    currentGame.lastAnswerTime = currentTime;
-    currentGame.perks = currentGame.perks || { clue: 0, skip: 0, timeFreeze: 0, reveal: 0 };
-    
-    try {
-        if (isCorrect) {
-            currentGame.currentIndex++;
-            
-            if (currentGame.isBossLevel) {
-                const bossOrb = document.querySelector(".boss-orb-inner");
-                if (bossOrb) {
-                    const colors = ["yellow", "purple", "turquoise", "darkgreen", "brown"];
-                    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-                    const originalBg = bossOrb.style.background;
-                    bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColor}, #990000)`;
-                    bossOrb.style.transform = "scale(1.3)";
-                    bossOrb.style.filter = "brightness(1.5)";
-                    setTimeout(() => {
-                        bossOrb.style.transform = "";
-                        bossOrb.style.filter = "";
-                        bossOrb.style.background = originalBg;
-                    }, 300);
-                }
-                
-                updateBossHealthBar();
-                
-                if (currentGame.currentIndex >= currentGame.words.length) {
-                    console.log("Boss defeated!");
-                    return void CoinsManager.updateCoins(100).then(() => {
-                        showBossDefeatEffect();
-                    });
-                }
-            } else {
-                updateProgressCircle();
-            }
-            
-            if (!isSkip) {
-                let coinReward = 0;
-                const timeBonusCoins = awardTimeBonus();
-                if (timeBonusCoins > 0) {
-                    coinReward += timeBonusCoins;
-                    pulseCoins(timeBonusCoins);
-                }
-                
-                if (currentGame.firstAttempt) {
-                    coinReward += 3;
-                    pulseCoins(3);
-                } else {
-                    coinReward += 1;
-                    pulseCoins(1);
-                }
-                
-                try {
-                    await CoinsManager.updateCoins(coinReward);
-                    updatePerkButtons();
-                } catch (error) {
-                    console.error("Error updating total coins:", error);
-                }
-                
-                currentGame.correctAnswers++;
-            }
-        } else {
-            currentGame.firstAttempt = false;
-            currentGame.streakBonus = false;
-            currentGame.wrongStreak++;
-            
-            try {
-                await CoinsManager.updateCoins(-3);
-                updatePerkButtons();
-            } catch (error) {
-                console.error("Error updating coins:", error);
-            }
-            
-            if (currentGame.currentIndex > 0) {
-                currentGame.progressLost++;
-                currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
-                if (currentGame.isBossLevel) {
-                    updateBossHealthBar();
-                }
-            }
-            
-            if (currentGame.wrongStreak >= 3) {
-                return void showGameOverOverlay();
-            }
+function handleAnswer(e, t = false) {
+  const n = Date.now();
+  if (n - (currentGame.lastAnswerTime || 0) < 1000) {
+    console.warn("Answer too quickly. Please wait a moment.");
+    return;
+  }
+  
+  if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
+    console.error("Invalid game state or index");
+    return;
+  }
+  
+  currentGame.lastAnswerTime = n;
+  currentGame.perks = currentGame.perks || { clue: 0, skip: 0, timeFreeze: 0, reveal: 0 };
+  
+  try {
+    if (e) {
+      currentGame.currentIndex++;
+      
+      if (currentGame.isBossLevel) {
+        const e = document.querySelector(".boss-orb-inner");
+        if (e) {
+          const t = ["yellow", "purple", "turquoise", "darkgreen", "brown"];
+          const n = t[Math.floor(Math.random() * t.length)];
+          const r = e.style.background;
+          e.style.background = `radial-gradient(circle at 30% 30%, ${n}, #990000)`;
+          e.style.transform = "scale(1.3)";
+          e.style.filter = "brightness(1.5)";
+          setTimeout(() => {
+            e.style.transform = "";
+            e.style.filter = "";
+            e.style.background = r;
+          }, 300);
         }
         
-        const correctAnswer = currentGame.isHebrewToEnglish ? currentGame.words[currentGame.currentIndex] : currentGame.translations[currentGame.currentIndex];
+        if (updateBossHealthBar()) {
+          if (currentGame.currentIndex >= currentGame.words.length) {
+            console.log("Boss defeated!");
+            CoinsManager.updateCoins(100).then(() => {
+              showBossDefeatEffect();
+            });
+            return;
+          }
+        }
+      } else {
+        updateProgressCircle();
+      }
+      
+      if (!t) {
+        let e = 0;
+        const t = awardTimeBonus();
+        if (t > 0) {
+          e += t;
+          pulseCoins(t);
+        }
         
-        document.querySelectorAll('.buttons button').forEach(button => {
-            if (button.textContent === correctAnswer) {
-                button.classList.add('correct');
-            } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
-                button.classList.add('wrong');
-            }
+        if (currentGame.firstAttempt) {
+          e += 3;
+          pulseCoins(3);
+        } else {
+          e += 1;
+          pulseCoins(1);
+        }
+        
+        CoinsManager.updateCoins(e).then(() => {
+          updatePerkButtons();
+        }).catch(e => {
+          console.error("Error updating total coins:", e);
         });
         
-        saveProgress();
-        
-        setTimeout(() => {
-            if (currentGame.currentIndex < currentGame.words.length) {
-                startTimer(currentGame.words.length - currentGame.currentIndex);
-                
-                if (currentGame.isBossLevel) {
-                    loadNextBossQuestion();
-                } else if (currentGame.isCustomPractice) {
-                    loadNextQuestion();
-                } else {
-                    loadNextQuestion();
-                }
-                
-                updatePerkButtons();
-            } else {
-                if (currentGame.isBossLevel) {
-                    // Boss level completion handled separately
-                } else if (currentGame.isCustomPractice) {
-                    handleCustomLevelCompletion();
-                } else {
-                    handleLevelCompletion();
-                }
-            }
-        }, 500);
-    } catch (error) {
-        console.error("Unexpected error in handleAnswer:", error);
-        console.error("Error details:", error.stack);
-        
-        try {
-            if (currentGame.currentIndex < currentGame.words.length) {
-                loadNextQuestion();
-            } else {
-                showScreen("welcome-screen");
-            }
-        } catch (recoveryError) {
-            console.error("Failed to recover from error:", recoveryError);
-            showScreen("welcome-screen");
+        currentGame.correctAnswers++;
+      }
+    } else {
+      currentGame.firstAttempt = false;
+      currentGame.streakBonus = false;
+      currentGame.wrongStreak++;
+      
+      CoinsManager.updateCoins(-3).then(() => {
+        updatePerkButtons();
+      }).catch(e => {
+        console.error("Error updating coins:", e);
+      });
+      
+      if (currentGame.currentIndex > 0) {
+        currentGame.progressLost++;
+        currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
+        if (currentGame.isBossLevel) {
+          updateBossHealthBar();
         }
+      }
+      
+      if (currentGame.wrongStreak >= 3) {
+        showGameOverOverlay();
+        return;
+      }
     }
+    
+    // Clear previous visual indicators from all buttons
+    const allButtons = document.querySelectorAll(".buttons button");
+    
+    // Get current question's correct answer
+    const currentCorrectAnswer = currentGame.isHebrewToEnglish
+      ? currentGame.words[Math.max(0, currentGame.currentIndex - 1)]
+      : currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
+      
+    // Highlight current answer status (right or wrong)
+    allButtons.forEach((button) => {
+      if (button.textContent === currentCorrectAnswer) {
+        button.classList.add("correct");
+      } else if (!e && event && event.target && button.textContent === event.target.textContent) {
+        button.classList.add("wrong");
+      }
+    });
+    
+    saveProgress();
+    
+    // Use a promise to ensure proper timing and button state clearance
+    const transitionDelay = 500; // ms
+    
+    setTimeout(() => {
+      // Clear all button classes before loading next question
+      allButtons.forEach(btn => {
+        btn.classList.remove("correct", "wrong");
+      });
+      
+      if (currentGame.currentIndex < currentGame.words.length) {
+        startTimer(currentGame.words.length - currentGame.currentIndex);
+        
+        if (currentGame.isBossLevel) {
+          loadNextBossQuestion();
+        } else {
+          loadNextQuestion();
+        }
+        
+        updatePerkButtons();
+      } else {
+        if (!currentGame.isBossLevel) {
+          if (currentGame.isCustomPractice) {
+            handleCustomLevelCompletion();
+          } else {
+            handleLevelCompletion();
+          }
+        }
+      }
+    }, transitionDelay);
+    
+  } catch (e) {
+    console.error("Unexpected error in handleAnswer:", e);
+    console.error("Error details:", e.stack);
+    
+    try {
+      if (currentGame.currentIndex < currentGame.words.length) {
+        loadNextQuestion();
+      } else {
+        showScreen("welcome-screen");
+      }
+    } catch (e) {
+      console.error("Failed to recover from error:", e);
+      showScreen("welcome-screen");
+    }
+  }
 }
 
 function showBossVictoryScreen() {
@@ -17439,24 +17440,27 @@ function showCustomCompletionScreen() {
 
 async function handleCustomPracticeAnswer(e, t = false) {
   if (e) {
-    if (e && !t) {
-      let e = 0;
-      const t = awardTimeBonus();
-      if (t > 0) {
-        e += t;
-        pulseCoins(t);
+    // Increment index after correct answer
+    currentGame.currentIndex++;
+    
+    if (!t) {
+      let coinReward = 0;
+      const timeBonus = awardTimeBonus();
+      if (timeBonus > 0) {
+        coinReward += timeBonus;
+        pulseCoins(timeBonus);
       }
       
       if (currentGame.firstAttempt) {
-        e += 3;
+        coinReward += 3;
         pulseCoins(3);
       } else {
-        e += 1;
+        coinReward += 1;
         pulseCoins(1);
       }
       
       try {
-        await CoinsManager.updateCoins(e);
+        await CoinsManager.updateCoins(coinReward);
         updatePerkButtons();
       } catch (e) {
         console.error("Error updating total coins:", e);
@@ -17464,15 +17468,12 @@ async function handleCustomPracticeAnswer(e, t = false) {
       
       currentGame.correctAnswers++;
       
-      // Track word for premium users
-      if (currentUser && currentUser.status === 'premium') {
-        // Get the word that was just answered
-        const wordIndex = currentGame.currentIndex;
-        const wordToTrack = currentGame.isHebrewToEnglish ? 
-          currentGame.words[wordIndex] : 
-          currentGame.translations[wordIndex];
-        
-        await trackWordEncounter(wordToTrack, 'custom');
+      if (currentUser && currentUser.status === "premium") {
+        const wordIndex = currentGame.currentIndex - 1; // Since we already incremented
+        const word = currentGame.isHebrewToEnglish
+          ? currentGame.words[wordIndex]
+          : currentGame.translations[wordIndex];
+        await trackWordEncounter(word, "custom");
       }
     }
   } else {
@@ -17494,31 +17495,39 @@ async function handleCustomPracticeAnswer(e, t = false) {
     
     if (currentGame.wrongStreak >= 3) {
       showGameOverOverlay();
-      document.querySelector('.restart-button').onclick = () => {
-        document.querySelector('.failure-overlay').style.display = 'none';
+      document.querySelector(".restart-button").onclick = () => {
+        document.querySelector(".failure-overlay").style.display = "none";
         startCustomLevel(currentGame.customLevel);
-      };
+      }
       return;
     }
   }
   
-  const n = currentGame.isHebrewToEnglish ? 
-    currentGame.words[currentGame.currentIndex] : 
-    currentGame.translations[currentGame.currentIndex];
+  // Get current question's correct answer (before loading next)
+  const currentCorrectAnswer = currentGame.isHebrewToEnglish
+    ? currentGame.words[Math.max(0, currentGame.currentIndex - 1)]
+    : currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
   
-  document.querySelectorAll('.buttons button').forEach(t => {
-    if (t.textContent === n) {
-      t.classList.add('correct');
-    } else if (!e && t.textContent === event.target.textContent) {
-      t.classList.add('wrong');
+  // Highlight correct/wrong answer only for current question
+  const allButtons = document.querySelectorAll(".buttons button");
+  allButtons.forEach((button) => {
+    if (button.textContent === currentCorrectAnswer) {
+      button.classList.add("correct");
+    } else if (!e && event && event.target && button.textContent === event.target.textContent) {
+      button.classList.add("wrong");
     }
   });
   
-  e && currentGame.currentIndex++;
   updateProgressCircle();
   saveProgress();
   
+  // Wait for animation before loading next
   setTimeout(() => {
+    // Clear all button classes before loading next question
+    allButtons.forEach(btn => {
+      btn.classList.remove("correct", "wrong");
+    });
+    
     if (currentGame.currentIndex < currentGame.words.length) {
       loadNextQuestion();
       updatePerkButtons();
