@@ -19806,7 +19806,1719 @@ function handleBossVictoryHome() {
   }
 }
 
+// ADD this function to check if the current user is the admin
+function isAdminUser() {
+  return currentUser && currentUser.email === "admin123@gmail.com";
+}
 
+// ADD this function to create the admin skip button
+function addAdminSkipButton() {
+  // Only add for admin user
+  if (!isAdminUser()) return;
+  
+  // Remove any existing admin skip button first
+  const existingButton = document.getElementById("admin-skip-10-button");
+  if (existingButton) existingButton.remove();
+  
+  // Create the admin skip button
+  const skipButton = document.createElement("button");
+  skipButton.id = "admin-skip-10-button";
+  skipButton.innerHTML = '<i class="fas fa-forward"></i> Skip 10';
+  skipButton.style.cssText = `
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    background: #9c27b0;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    z-index: 2000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    font-weight: bold;
+  `;
+  
+  // Add the click handler
+  skipButton.onclick = function() {
+    console.log("Admin skip-10 button clicked");
+    handleAdminSkip10();
+  };
+  
+  // Add the button to the question screen
+  const questionScreen = document.getElementById("question-screen");
+  if (questionScreen) {
+    questionScreen.appendChild(skipButton);
+  }
+}
+
+// ADD this function to handle the skip-10 action
+function handleAdminSkip10() {
+  // Only work for admin user
+  if (!isAdminUser()) return;
+  
+  // Check if we're in an active game
+  if (!currentGame || !currentGame.words || !currentGame.words.length) {
+    console.error("No active game found");
+    return;
+  }
+  
+  // Skip 10 questions or all remaining if less than 10 left
+  const skipCount = Math.min(10, currentGame.words.length - currentGame.currentIndex);
+  console.log(`Skipping ${skipCount} questions`);
+  
+  // If this is a boss level, handle it differently
+  if (currentGame.isBossLevel) {
+    // For boss levels, we directly set the index near the end
+    // This will trigger the boss defeat sequence on the next answer
+    currentGame.currentIndex = Math.max(0, currentGame.words.length - 1);
+    updateBossHealthBar();
+    loadNextBossQuestion();
+    showNotification(`Boss almost defeated! One more hit!`, "success");
+    return;
+  }
+  
+  // For regular levels
+  currentGame.currentIndex += skipCount;
+  
+  // If we've reached the end of the level
+  if (currentGame.currentIndex >= currentGame.words.length) {
+    handleLevelCompletion();
+    return;
+  }
+  
+  // Otherwise update progress and load the next question
+  updateProgressCircle();
+  loadNextQuestion();
+  showNotification(`Skipped ${skipCount} questions!`, "success");
+}
+
+// MODIFY addAdminTestButton function to call our new function
+function addAdminTestButton() {
+  console.log("Checking for admin user...");
+  
+  // Remove any existing button
+  const existingButton = document.getElementById("admin-test-button");
+  if (existingButton) {
+    existingButton.remove();
+  }
+  
+  console.log("Current user:", currentUser ? currentUser.email : "No user");
+  
+  // Check if the current user is admin
+  if (!currentUser || (currentUser.email !== "admin123@gmail.com" && !currentUser.email?.includes("admin123"))) {
+    console.log("Not admin user, not adding button");
+    return;
+  }
+  
+  console.log("Admin user detected, adding test buttons");
+  
+  // Add level 20 button
+  const button = document.createElement("button");
+  button.id = "admin-test-button";
+  button.textContent = "Jump to Level 20";
+  button.style.cssText = `
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: #ff5722;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    z-index: 2000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    font-weight: bold;
+  `;
+  
+  button.onclick = function() {
+    console.log("Admin button clicked, jumping to level 20");
+    gameState.currentLevel = 21;
+    startLevel(21);
+  };
+  
+  document.body.appendChild(button);
+  console.log("Admin test button added to body");
+  
+  // Now also add our skip button
+  addAdminSkipButton();
+}
+
+
+createBossStyleSheet();
+
+/**
+ * CustomListsManager - Manages all custom word lists operations
+ */
+ const CustomListsManager = {
+  lists: [],
+  currentList: null,
+
+  /**
+   * Initialize the lists manager
+   */
+  async initialize() {
+    try {
+      if (currentUser) {
+        await this.loadFromSupabase();
+      } else {
+        this.loadFromLocalStorage();
+      }
+
+      if (!this.lists || this.lists.length === 0) {
+        console.log("No lists found, initializing empty array");
+        this.lists = [];
+      }
+    } catch (error) {
+      console.error("Custom Lists Initialization Error:", error);
+      this.lists = [];
+    }
+  },
+
+  /**
+   * Load lists from Supabase database
+   */
+  async loadFromSupabase() {
+    try {
+      const { data, error } = await supabaseClient
+        .from("custom_lists")
+        .select("*")
+        .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
+
+      if (error) throw error;
+
+      this.lists = data.map(list => ({
+        id: list.id,
+        name: list.name,
+        words: list.words || [],
+        translations: list.translations || [],
+        isShared: list.is_shared,
+        sharedBy: list.shared_by,
+        userId: list.user_id,
+        createdAt: list.created_at
+      }));
+    } catch (error) {
+      console.error("Error loading lists from Supabase:", error);
+      this.lists = [];
+    }
+  },
+
+  /**
+   * Load lists from local storage
+   */
+  loadFromLocalStorage() {
+    try {
+      const storedLists = localStorage.getItem("simploxCustomLists");
+      this.lists = storedLists ? JSON.parse(storedLists) : [];
+      console.log("Loaded lists from localStorage:", this.lists.length);
+    } catch (error) {
+      console.error("Error loading lists from localStorage:", error);
+      this.lists = [];
+    }
+  },
+
+  /**
+   * Save a list to storage
+   * @param {Object} list - The list to save
+   * @returns {Object|null} - The saved list or null if failed
+   */
+  async save(list) {
+    if (!list) return null;
+
+    return currentUser ? 
+      await this.saveToSupabase(list) : 
+      this.saveToLocalStorage(list);
+  },
+
+  /**
+   * Save a list to Supabase
+   * @param {Object} list - The list to save
+   * @returns {Object|null} - The saved list or null if failed
+   */
+  async saveToSupabase(list) {
+    try {
+      const listData = {
+        name: list.name,
+        words: list.words || [],
+        translations: list.translations || [],
+        user_id: currentUser.id
+      };
+
+      // Update existing list
+      if (list.id && typeof list.id === 'string' && list.id.length === 36) {
+        const { data, error } = await supabaseClient
+          .from("custom_lists")
+          .update(listData)
+          .eq("id", list.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      } 
+      // Create new list
+      else {
+        const { data, error } = await supabaseClient
+          .from("custom_lists")
+          .insert(listData)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Update lists array
+        const index = this.lists.findIndex(item => 
+          item.id === list.id || (item.tempId && item.tempId === list.tempId)
+        );
+
+        if (index !== -1) {
+          this.lists[index] = {
+            ...data,
+            words: data.words || [],
+            translations: data.translations || []
+          };
+        } else {
+          this.lists.push({
+            ...data,
+            words: data.words || [],
+            translations: data.translations || []
+          });
+        }
+
+        return data;
+      }
+    } catch (error) {
+      console.error("Error saving list to Supabase:", error);
+      return null;
+    }
+  },
+
+  /**
+   * Save a list to local storage
+   * @param {Object} list - The list to save
+   * @returns {Object|null} - The saved list or null if failed
+   */
+  saveToLocalStorage(list) {
+    try {
+      const newList = {
+        ...list,
+        id: list.id || Date.now(),
+        tempId: list.tempId || Date.now()
+      };
+
+      const index = this.lists.findIndex(item => 
+        item.id === list.id || (item.tempId && item.tempId === list.tempId)
+      );
+
+      if (index !== -1) {
+        this.lists[index] = newList;
+      } else {
+        this.lists.push(newList);
+      }
+
+      localStorage.setItem("simploxCustomLists", JSON.stringify(this.lists));
+      return newList;
+    } catch (error) {
+      console.error("Error saving list to localStorage:", error);
+      return null;
+    }
+  },
+
+  /**
+   * Delete a list
+   * @param {string|number} id - The list ID to delete
+   * @returns {boolean} - Success status
+   */
+  async delete(id) {
+    if (!currentUser) {
+      // For guest users, delete from local storage
+      this.lists = this.lists.filter(list => list.id !== id);
+      localStorage.setItem("simploxCustomLists", JSON.stringify(this.lists));
+      return true;
+    }
+
+    try {
+      // For logged in users, delete from Supabase
+      if (typeof id === 'string' && id.length === 36) {
+        const { error } = await supabaseClient
+          .from("custom_lists")
+          .delete()
+          .eq("id", id);
+
+        if (error) throw error;
+      }
+
+      this.lists = this.lists.filter(list => list.id !== id);
+      return true;
+    } catch (error) {
+      console.error("Error deleting list from Supabase:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Share a list with another user
+   * @param {string|number} listId - The list ID to share
+   * @param {string} targetUserId - The user ID to share with
+   * @returns {boolean} - Success status
+   */
+  async share(listId, targetUserId) {
+    if (!currentUser) return false;
+
+    try {
+      const listIdStr = String(listId);
+      const list = this.lists.find(list => String(list.id) === listIdStr);
+      
+      if (!list) {
+        console.error("List not found for sharing:", listIdStr);
+        return false;
+      }
+
+      console.log("Sharing list:", list.name);
+
+      const { data, error } = await supabaseClient.rpc(
+        "insert_shared_list",
+        {
+          p_user_id: targetUserId,
+          p_name: `${list.name} (Shared by ${currentUser.user_metadata?.username || "User"})`,
+          p_words: list.words || [],
+          p_translations: list.translations || [],
+          p_is_shared: true,
+          p_local_id: Date.now(),
+          p_shared_with: [targetUserId],
+          p_shared_by: currentUser.id
+        }
+      );
+
+      if (error) {
+        console.error("Error sharing list via RPC:", error);
+        return false;
+      }
+
+      console.log("List shared successfully:", data);
+      return true;
+    } catch (error) {
+      console.error("Error in share method:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Get the limits for lists based on user status
+   * @returns {Object} - Limits object
+   */
+  getListLimits() {
+    if (!currentUser) {
+      return {
+        maxLists: 3,
+        maxWords: 10,
+        maxPlays: 5,
+        canShare: false,
+        playDisplay: "5"
+      };
+    }
+
+    switch (currentUser.status || "free") {
+      case "premium":
+        return {
+          maxLists: 30,
+          maxWords: 50,
+          maxPlays: Infinity,
+          canShare: true,
+          playDisplay: "∞"
+        };
+      case "pending":
+        return {
+          maxLists: 30,
+          maxWords: 50,
+          maxPlays: Infinity,
+          canShare: false,
+          playDisplay: "∞"
+        };
+      case "free":
+        return {
+          maxLists: 5,
+          maxWords: 20,
+          maxPlays: 10,
+          canShare: false,
+          playDisplay: "10"
+        };
+      default:
+        return {
+          maxLists: 3,
+          maxWords: 10,
+          maxPlays: 5,
+          canShare: false,
+          playDisplay: "5"
+        };
+    }
+  },
+
+  /**
+   * Check if user can create more lists
+   * @returns {boolean} - True if more lists can be created
+   */
+  canCreateMoreLists() {
+    const limits = this.getListLimits();
+    return this.lists.length < limits.maxLists;
+  },
+
+  /**
+   * Validate if a list can be practiced
+   * @param {Object} list - The list to validate
+   * @returns {Object} - Validation result with valid flag and message
+   */
+  validateListForPractice: (list) => {
+    if (!list || !list.words || !list.translations) {
+      return { valid: false, message: "Invalid list format" };
+    }
+    
+    if (list.words.length < 6) {
+      return { valid: false, message: "Lists need at least 6 words to practice" };
+    }
+    
+    return { valid: true };
+  }
+};
+
+/**
+ * Custom game state for practice mode
+ */
+const customGameState = {
+  isCustomPractice: false,
+  currentList: null,
+  currentLevel: 1,
+  levelData: null,
+  words: [],
+  translations: [],
+  wordsCompleted: 0,
+  correctStreak: 0,
+  wrongStreak: 0,
+  startCoins: 0,
+  completedLevels: new Set(),
+
+  /**
+   * Reset the custom game state
+   */
+  reset() {
+    this.isCustomPractice = false;
+    this.currentList = null;
+    this.currentLevel = 1;
+    this.levelData = null;
+    this.words = [];
+    this.translations = [];
+    this.wordsCompleted = 0;
+    this.correctStreak = 0;
+    this.wrongStreak = 0;
+    this.startCoins = 0;
+    this.completedLevels = new Set();
+  },
+
+  /**
+   * Initialize custom game from a list
+   * @param {Object} list - The list to initialize from
+   * @returns {boolean} - Success status
+   */
+  initializeFromList(list) {
+    if (!list || !list.words || !list.translations) {
+      console.error("Invalid list provided to custom game:", list);
+      return false;
+    }
+
+    this.reset();
+    this.isCustomPractice = true;
+    this.currentList = list;
+    this.words = [...list.words];
+    this.translations = [...list.translations];
+    this.startCoins = gameState.coins;
+    this.currentLevel = 1;
+    return true;
+  },
+
+  /**
+   * Get words for a specific level
+   * @param {number} level - The level number
+   * @returns {Object|null} - Level data or null if invalid
+   */
+  getWordsForLevel(level) {
+    if (!this.words.length) return null;
+
+    // Determine maximum level based on word count
+    const maxLevels = this.words.length >= 12 ? 9 : 
+                      this.words.length >= 9 ? 6 : 3;
+    
+    if (level > maxLevels) return null;
+
+    // Define level structure based on word count and level number
+    const levelConfig = {
+      1: { start: 0, count: Math.min(3, this.words.length), isTest: false },
+      2: { start: 3, count: Math.min(3, Math.max(0, this.words.length - 3)), isTest: false },
+      3: { start: 0, count: Math.min(6, this.words.length), isTest: true },
+      4: { start: 6, count: Math.min(3, Math.max(0, this.words.length - 6)), isTest: false },
+      5: { start: 9, count: Math.min(3, Math.max(0, this.words.length - 9)), isTest: false },
+      6: { start: 6, count: Math.min(6, Math.max(0, this.words.length - 6)), isTest: true },
+      7: { start: 12, count: Math.min(4, Math.max(0, this.words.length - 12)), isTest: false },
+      8: { start: 16, count: Math.min(4, Math.max(0, this.words.length - 16)), isTest: false },
+      9: { start: 12, count: Math.min(8, Math.max(0, this.words.length - 12)), isTest: true }
+    };
+
+    const config = levelConfig[level] || levelConfig[1];
+    
+    // If no words available for this level, try the next one
+    if (config.count <= 0) {
+      return this.getWordsForLevel(level + 1);
+    }
+
+    this.levelData = {
+      words: this.words.slice(config.start, config.start + config.count),
+      translations: this.translations.slice(config.start, config.start + config.count),
+      isTest: config.isTest,
+      isFinal: level === maxLevels
+    };
+
+    return this.levelData;
+  }
+};
+
+/**
+ * Process custom words from input field
+ */
+function processCustomWords() {
+  const inputField = document.getElementById("custom-word-input");
+  const resultsDiv = document.getElementById("translation-results");
+  const wordList = document.getElementById("word-translation-list");
+  const limits = CustomListsManager.getListLimits();
+  
+  const inputText = inputField.value.trim();
+  if (!inputText) {
+    showNotification("Please enter at least one word.", "error");
+    return;
+  }
+  
+  // Split input by commas or newlines
+  let words = inputText.includes(',') ? 
+    inputText.split(',').map(word => word.trim()) : 
+    inputText.split(/\s+/).filter(word => word.length > 0);
+  
+  // Handle phrases (words with spaces)
+  words = words.map(word => word.includes(' ') ? [word] : word.split(/\s+/)).flat();
+  
+  // Apply word limit based on user status
+  const maxWords = currentUser ? limits.maxWords : 10;
+  if (words.length > maxWords) {
+    showNotification(`Maximum ${maxWords} words allowed.`, "error");
+    words = words.slice(0, maxWords);
+  }
+  
+  // Clear previous word list
+  wordList.innerHTML = "";
+  resultsDiv.style.display = "block";
+  
+  // Create word items with translations
+  words.forEach(word => {
+    const wordItem = createWordItem(word, findTranslation(word));
+    wordList.appendChild(wordItem);
+    initializeDragAndDrop(wordItem);
+  });
+  
+  makeWordListDraggable();
+}
+
+/**
+ * Find a translation for a given word
+ * @param {string} word - The word to translate
+ * @returns {string} - The translation or empty string
+ */
+function findTranslation(word) {
+  // Look through vocabulary sets for matching word
+  for (const setKey in vocabularySets) {
+    const index = vocabularySets[setKey].words.indexOf(word.toLowerCase());
+    if (index !== -1) {
+      return vocabularySets[setKey].translations[index];
+    }
+  }
+  return "";
+}
+
+/**
+ * Create a word item element
+ * @param {string} word - The word
+ * @param {string} translation - The translation
+ * @returns {HTMLElement} - The word item element
+ */
+function createWordItem(word, translation) {
+  const div = document.createElement("div");
+  div.className = "word-translation-item";
+  div.draggable = true;
+  div.innerHTML = `
+    <div class="drag-handle">
+      <i class="fas fa-grip-vertical"></i>
+    </div>
+    <span class="source-word" contenteditable="true">${word}</span>
+    <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
+    <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+  `;
+  return div;
+}
+
+/**
+ * Add a new word to the list
+ */
+function addNewWord() {
+  const wordList = document.getElementById("word-translation-list");
+  if (!wordList) return;
+  
+  const wordItem = document.createElement("div");
+  wordItem.className = "word-translation-item";
+  wordItem.draggable = true;
+  wordItem.innerHTML = `
+    <div class="drag-handle">
+      <i class="fas fa-grip-vertical"></i>
+    </div>
+    <span class="source-word" contenteditable="true"></span>
+    <input type="text" class="target-word" placeholder="Hebrew translation">
+    <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+  `;
+  
+  const newItem = wordList.appendChild(wordItem);
+  initializeDragAndDrop(newItem);
+  
+  if (wordList.children.length === 1) {
+    makeWordListDraggable();
+  }
+  
+  // Focus on the new word field
+  newItem.querySelector(".source-word").focus();
+}
+
+/**
+ * Delete a word from the list
+ * @param {HTMLElement} element - The button element that triggered the deletion
+ */
+function deleteWord(element) {
+  if (!element) return;
+  
+  const wordItem = element.closest(".word-translation-item");
+  if (wordItem) {
+    wordItem.remove();
+  }
+}
+
+/**
+ * Initialize drag and drop for a word item
+ * @param {HTMLElement} element - The element to make draggable
+ * @returns {HTMLElement} - The initialized element
+ */
+function initializeDragAndDrop(element) {
+  if (!element) return;
+  
+  // Clone the element to remove any existing listeners
+  const clone = element.cloneNode(true);
+  if (element.parentNode) {
+    element.parentNode.replaceChild(clone, element);
+  }
+  
+  // The element is now the clone
+  element = clone;
+  
+  element.setAttribute("draggable", "true");
+  
+  element.addEventListener("dragstart", (event) => {
+    event.stopPropagation();
+    element.classList.add("dragging");
+    event.dataTransfer.setData("text/plain", "");
+  });
+  
+  element.addEventListener("dragend", (event) => {
+    event.stopPropagation();
+    element.classList.remove("dragging");
+  });
+  
+  // Setup delete button
+  const deleteBtn = element.querySelector(".delete-word-btn");
+  if (deleteBtn) {
+    deleteBtn.onclick = () => deleteWord(deleteBtn);
+  }
+  
+  return element;
+}
+
+/**
+ * Make the word list draggable
+ */
+function makeWordListDraggable() {
+  const wordList = document.getElementById("word-translation-list");
+  if (!wordList) return;
+  
+  wordList.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    const draggingElement = wordList.querySelector(".dragging");
+    if (!draggingElement) return;
+    
+    const afterElement = getDragAfterElement(wordList, event.clientY);
+    if (afterElement) {
+      wordList.insertBefore(draggingElement, afterElement);
+    } else {
+      wordList.appendChild(draggingElement);
+    }
+  });
+  
+  // Initialize all existing items
+  wordList.querySelectorAll(".word-translation-item").forEach(item => 
+    initializeDragAndDrop(item)
+  );
+}
+
+/**
+ * Get the element to insert after when dragging
+ * @param {HTMLElement} container - The container element
+ * @param {number} y - The Y coordinate
+ * @returns {HTMLElement|null} - The element to insert after
+ */
+function getDragAfterElement(container, y) {
+  if (!container) return null;
+  
+  const draggableElements = [...container.querySelectorAll(".word-translation-item:not(.dragging)")];
+  
+  if (!draggableElements.length) return null;
+  
+  return draggableElements.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    
+    if (offset < 0 && offset > closest.offset) {
+      return { offset: offset, element: child };
+    } else {
+      return closest;
+    }
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+/**
+ * Setup keyboard navigation for word list
+ */
+function setupWordListKeyNavigation() {
+  const wordList = document.getElementById("word-translation-list");
+  if (!wordList) return;
+  
+  wordList.addEventListener("keydown", (event) => {
+    const wordItem = document.activeElement.closest(".word-translation-item");
+    if (!wordItem) return;
+    
+    let nextElement;
+    
+    switch (event.key) {
+      case "ArrowUp":
+        event.preventDefault();
+        nextElement = wordItem.previousElementSibling?.querySelector(".source-word");
+        break;
+      case "ArrowDown":
+        event.preventDefault();
+        nextElement = wordItem.nextElementSibling?.querySelector(".source-word");
+        break;
+      case "ArrowRight":
+        event.preventDefault();
+        nextElement = wordItem.querySelector(".target-word");
+        break;
+      case "ArrowLeft":
+        event.preventDefault();
+        nextElement = wordItem.querySelector(".source-word");
+        break;
+    }
+    
+    if (nextElement) nextElement.focus();
+  });
+}
+
+/**
+ * Save the current list
+ */
+async function saveCurrentList() {
+  const nameInput = document.getElementById("custom-list-name");
+  const wordList = document.getElementById("word-translation-list");
+  
+  // Get list name (use default if empty)
+  const name = nameInput.value.trim() || 
+               (CustomListsManager.currentList ? 
+                CustomListsManager.currentList.name : 
+                `List ${CustomListsManager.lists.length + 1}`);
+  
+  // Collect words and translations
+  const words = [];
+  const translations = [];
+  
+  wordList.querySelectorAll(".word-translation-item").forEach(item => {
+    const word = item.querySelector(".source-word").textContent.trim();
+    const translation = item.querySelector(".target-word").value.trim();
+    
+    if (word && translation) {
+      words.push(word);
+      translations.push(translation);
+    }
+  });
+  
+  // Check word limit
+  const limits = CustomListsManager.getListLimits();
+  if (words.length > limits.maxWords) {
+    showNotification(`You can only create lists with up to ${limits.maxWords} words`, "error");
+    return;
+  }
+  
+  // Handle list editing vs creation
+  let listToSave;
+  const isEditing = CustomListsManager.currentList !== null;
+  
+  if (!isEditing && !CustomListsManager.canCreateMoreLists()) {
+    showNotification(`Maximum lists limit reached`, "error");
+    return;
+  }
+  
+  if (isEditing) {
+    listToSave = {
+      ...CustomListsManager.currentList,
+      name: name,
+      words: words,
+      translations: translations
+    };
+  } else {
+    listToSave = {
+      tempId: Date.now(),
+      name: name,
+      words: words,
+      translations: translations
+    };
+  }
+  
+  // Save the list
+  const savedList = await CustomListsManager.save(listToSave);
+  
+  if (savedList) {
+    // Reset form
+    nameInput.value = "";
+    wordList.innerHTML = "";
+    document.getElementById("translation-results").style.display = "none";
+    CustomListsManager.currentList = null;
+    
+    // Refresh lists
+    if (currentUser) {
+      await CustomListsManager.loadFromSupabase();
+    } else {
+      CustomListsManager.loadFromLocalStorage();
+    }
+    
+    showNotification("List saved successfully", "success");
+    showScreen("custom-practice-screen");
+    updateListsDisplay();
+  } else {
+    showNotification("Failed to save list", "error");
+  }
+}
+
+/**
+ * Edit a custom list
+ * @param {string|number} id - The list ID
+ */
+function editCustomList(id) {
+  const list = CustomListsManager.lists.find(list => list.id === id);
+  if (!list) {
+    showNotification("List not found", "error");
+    return;
+  }
+  
+  showScreen("custom-practice-screen");
+  
+  const nameInput = document.getElementById("custom-list-name");
+  if (nameInput) {
+    nameInput.value = list.name || "";
+  }
+  
+  const resultsDiv = document.getElementById("translation-results");
+  const wordList = document.getElementById("word-translation-list");
+  
+  if (wordList) {
+    wordList.innerHTML = "";
+    
+    if (Array.isArray(list.words)) {
+      list.words.forEach((word, index) => {
+        const translation = list.translations && index < list.translations.length ? 
+                            list.translations[index] : "";
+        
+        const wordItem = document.createElement("div");
+        wordItem.className = "word-translation-item";
+        wordItem.draggable = true;
+        wordItem.innerHTML = `
+          <div class="drag-handle">
+            <i class="fas fa-grip-vertical"></i>
+          </div>
+          <span class="source-word" contenteditable="true">${word}</span>
+          <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
+          <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
+        `;
+        
+        wordList.appendChild(wordItem);
+        
+        const deleteBtn = wordItem.querySelector(".delete-word-btn");
+        if (deleteBtn) {
+          deleteBtn.onclick = function() { deleteWord(this); };
+        }
+        
+        initializeDragAndDrop(wordItem);
+      });
+    }
+    
+    if (resultsDiv) {
+      resultsDiv.style.display = "block";
+    }
+    
+    CustomListsManager.currentList = list;
+    makeWordListDraggable();
+  }
+}
+
+/**
+ * Delete a custom list
+ * @param {string|number} id - The list ID
+ */
+async function deleteCustomList(id) {
+  const success = await CustomListsManager.delete(id);
+  
+  if (success) {
+    showNotification("List deleted successfully", "success");
+    updateListsDisplay();
+  } else {
+    showNotification("Failed to delete list", "error");
+  }
+}
+
+/**
+ * Show the modal to share a list
+ * @param {string|number} id - The list ID
+ */
+function showShareModal(id) {
+  console.log("Opening share modal for list:", id);
+  
+  // Remove existing modal if any
+  const existingModal = document.querySelector(".share-modal");
+  const existingBackdrop = document.querySelector(".modal-backdrop");
+  if (existingModal) existingModal.remove();
+  if (existingBackdrop) existingBackdrop.remove();
+  
+  // Create backdrop
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.onclick = closeShareModal;
+  document.body.appendChild(backdrop);
+  
+  // Create modal
+  const modal = document.createElement("div");
+  modal.className = "share-modal";
+  modal.innerHTML = `
+    <h3 class="share-modal-header">Share List</h3>
+    <div class="users-list">Loading users...</div>
+    <button class="start-button modal-close" onclick="closeShareModal()">Cancel</button>
+  `;
+  document.body.appendChild(modal);
+  
+// Load users
+const usersList = modal.querySelector(".users-list");
+
+supabaseClient
+  .from("user_profiles")
+  .select("id, username")
+  .neq("id", currentUser.id)
+  .then(({ data, error }) => {
+    if (error) {
+      console.error("Error fetching users:", error);
+      usersList.innerHTML = '<div class="user-item"><span>Error loading users</span></div>';
+      return;
+    }
+    
+    if (data && data.length > 0) {
+      usersList.innerHTML = data.map(user => `
+        <div class="user-item">
+          <span>${user.username || "Unnamed User"}</span>
+          <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}">
+            <i class="fas fa-share-alt"></i> Share
+          </button>
+        </div>
+      `).join("");
+      
+      // Setup share buttons
+      modal.querySelectorAll(".share-with-user-btn").forEach(button => {
+        button.onclick = async () => {
+          const userId = button.getAttribute("data-user-id");
+          button.disabled = true;
+          
+          const originalHTML = button.innerHTML;
+          button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
+          
+          const success = await CustomListsManager.share(id, userId);
+          if (!success) {
+            button.disabled = false;
+            button.innerHTML = originalHTML;
+          } else {
+            showNotification("List shared successfully!", "success");
+            closeShareModal();
+          }
+        };
+      });
+    } else {
+      usersList.innerHTML = '<div class="user-item"><span>No users found to share with</span></div>';
+    }
+  });
+
+/**
+ * Close the share modal
+ */
+ function closeShareModal() {
+  const modal = document.querySelector(".share-modal");
+  const backdrop = document.querySelector(".modal-backdrop");
+  
+  if (modal) modal.remove();
+  if (backdrop) backdrop.remove();
+}
+
+/**
+ * Update the display of custom lists
+ */
+function updateListsDisplay() {
+  const container = document.getElementById("custom-lists-container");
+  if (!container) return;
+  
+  const limits = CustomListsManager.getListLimits();
+  const userStatus = currentUser?.status || "unregistered";
+  
+  container.innerHTML = "";
+  
+  if (!CustomListsManager.lists || !Array.isArray(CustomListsManager.lists) || CustomListsManager.lists.length === 0) {
+    container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
+    return;
+  }
+  
+  CustomListsManager.lists.forEach(list => {
+    if (!list || !list.id) return;
+    
+    const listWithSchema = updateCustomListSchema(list);
+    const wordCount = listWithSchema.words?.length || 0;
+    const hasEnoughWords = wordCount >= 6;
+    
+    const listElement = document.createElement("div");
+    listElement.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
+    listElement.dataset.listId = list.id;
+    
+    listElement.innerHTML = `
+      <div class="list-actions">
+        <button class="main-button practice-button" ${hasEnoughWords ? "" : "disabled"}>
+          ${hasEnoughWords ? "Practice" : `Need ${6 - wordCount} more`}
+        </button>
+        <button class="main-button edit-button">Edit</button>
+        <button class="main-button delete-button">Delete</button>
+        ${userStatus === "premium" ? `
+          <button class="main-button share-button">
+            <i class="fas fa-share-alt"></i> Share
+          </button>
+        ` : ""}
+      </div>
+      <div class="list-header">
+        <h3>${list.name || "Unnamed List"}</h3>
+        <div class="list-summary">
+          <span class="word-count ${hasEnoughWords ? "" : "insufficient"}">${wordCount} words</span>
+          ${hasEnoughWords ? "" : '<span class="warning-text">(Minimum 6 needed)</span>'}
+          <span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>
+          ${listWithSchema.max_levels > 0 ? `<span class="level-info">Supports ${listWithSchema.max_levels} levels</span>` : ""}
+          <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0, 5).join(", ") : ""}${list.words && list.words.length > 5 ? "..." : ""}</p>
+        </div>
+      </div>
+    `;
+    
+    container.appendChild(listElement);
+    
+    // Set up practice button
+    const practiceButton = listElement.querySelector(".practice-button");
+    if (practiceButton) {
+      if (hasEnoughWords) {
+        practiceButton.onclick = function() {
+          startCustomListPractice(list.id);
+        };
+      } else {
+        practiceButton.style.opacity = "0.6";
+        practiceButton.style.cursor = "not-allowed";
+      }
+    }
+    
+    // Set up edit button
+    const editButton = listElement.querySelector(".edit-button");
+    if (editButton) {
+      editButton.onclick = function() {
+        console.log("Edit button clicked for list:", list.id);
+        editCustomList(list.id);
+      };
+    }
+    
+    // Set up delete button
+    const deleteButton = listElement.querySelector(".delete-button");
+    if (deleteButton) {
+      deleteButton.onclick = function() {
+        console.log("Delete button clicked for list:", list.id);
+        deleteCustomList(list.id);
+      };
+    }
+    
+    // Set up share button
+    const shareButton = listElement.querySelector(".share-button");
+    if (shareButton) {
+      shareButton.onclick = function() {
+        showShareModal(list.id);
+      };
+    }
+    
+    // Set up header collapse
+    const headerElement = listElement.querySelector(".list-header");
+    if (headerElement) {
+      headerElement.onclick = function() {
+        toggleListCollapse(list.id);
+      };
+    }
+  });
+  
+  // Add CSS for styling
+  if (!document.getElementById("custom-list-styles")) {
+    const style = document.createElement("style");
+    style.id = "custom-list-styles";
+    style.textContent = `
+      .word-count.insufficient {
+        color: #ff6b6b;
+        font-weight: bold;
+      }
+      .warning-text {
+        color: #ff6b6b;
+        font-size: 0.85rem;
+        margin-left: 0.5rem;
+      }
+      .level-info {
+        color: var(--accent);
+        font-size: 0.85rem;
+        margin-left: 0.5rem;
+      }
+      .practice-button[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
+
+/**
+ * Toggle the collapse/expand state of a list
+ * @param {string|number} id - The list ID
+ */
+function toggleListCollapse(id) {
+  const listItem = document.querySelector(`.custom-list-item[data-list-id="${id}"]`);
+  listItem.classList.toggle("collapsed");
+}
+
+/**
+ * Start practicing a custom list
+ * @param {string|number} id - The list ID
+ */
+function startCustomListPractice(id) {
+  const list = CustomListsManager.lists.find(list => list.id === id);
+  if (!list) return;
+  
+  const validation = CustomListsManager.validateListForPractice(list);
+  if (!validation.valid) {
+    showNotification(validation.message, "error");
+    return;
+  }
+  
+  if (customGameState.initializeFromList(list)) {
+    startCustomLevel(1);
+  } else {
+    showNotification("Failed to initialize practice", "error");
+  }
+}
+
+/**
+ * Start a level in custom practice mode
+ * @param {number} level - The level number
+ */
+function startCustomLevel(level) {
+  // Hide powerups in custom practice
+  const powerupsContainer = document.querySelector(".powerups-container");
+  if (powerupsContainer) {
+    powerupsContainer.style.display = "none";
+  }
+  
+  // Get words for this level
+  const levelData = customGameState.getWordsForLevel(level);
+  if (!levelData || !levelData.words.length) {
+    showNotification("Practice completed!", "success");
+    showScreen("custom-practice-screen");
+    return;
+  }
+  
+  // Set up the current level
+  customGameState.currentLevel = level;
+  
+  // Initialize game state
+  currentGame = {
+    words: levelData.words,
+    translations: levelData.translations,
+    currentIndex: 0,
+    correctAnswers: 0,
+    firstAttempt: true,
+    isHebrewToEnglish: levelData.isTest ? Math.random() < 0.5 : false,
+    mixed: levelData.isTest,
+    speedChallenge: false,
+    isCustomPractice: true,
+    startingCoins: gameState.coins,
+    startingPerks: { ...gameState.perks },
+    timeBonus: 0,
+    initialTimeRemaining: null,
+    streakBonus: true,
+    levelStartTime: Date.now(),
+    questionStartTime: 0,
+    wrongStreak: 0,
+    progressLost: 0,
+    customList: customGameState.currentList,
+    customLevel: level,
+    isFinalLevel: levelData.isFinal
+  };
+  
+  // Show level intro and start the level
+  showLevelIntro(level, () => {
+    showScreen("question-screen");
+    updateProgressCircle();
+    loadNextQuestion();
+    startTimer(10 * currentGame.words.length);
+  });
+}
+
+/**
+ * Handle completion of a custom level
+ */
+function handleCustomLevelCompletion() {
+  // Clear the timer
+  clearTimer();
+  
+  // Check if level was completed successfully
+  const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
+  
+  if (isPerfect) {
+    // Award bonus coins for perfect completion
+    const coinsToAward = currentGame.firstAttempt ? 5 : 3;
+    
+    CoinsManager.updateCoins(coinsToAward).then(() => {
+      pulseCoins(coinsToAward);
+      
+      // Mark level as completed
+      customGameState.wordsCompleted += currentGame.words.length;
+      customGameState.completedLevels.add(customGameState.currentLevel);
+      
+      // Create particle effect
+      const rect = document.getElementById("question-screen").getBoundingClientRect();
+      createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      
+      // Check if this was the final level or move to next level
+      const nextLevel = customGameState.currentLevel + 1;
+      const nextLevelData = customGameState.getWordsForLevel(nextLevel);
+      
+      if (!nextLevelData || nextLevelData.words.length === 0 || currentGame.isFinalLevel) {
+        setTimeout(() => showCustomCompletionScreen(), 1500);
+      } else {
+        setTimeout(() => startCustomLevel(nextLevel), 1500);
+      }
+    });
+  } else {
+    // If not perfect, retry the level
+    setTimeout(() => startCustomLevel(customGameState.currentLevel), 1500);
+  }
+  
+  // Save progress
+  saveProgress();
+}
+
+/**
+ * Show the completion screen for custom practice
+ */
+function showCustomCompletionScreen() {
+  const overlay = document.createElement("div");
+  overlay.className = "completion-overlay";
+  
+  const coinsEarned = gameState.coins - customGameState.startCoins;
+  
+  overlay.innerHTML = `
+    <div class="completion-content">
+      <h2>Practice Complete!</h2>
+      <div class="completion-stats">
+        <div class="stat-item">
+          <i class="fas fa-book"></i>
+          <span>Words Practiced: ${customGameState.wordsCompleted}</span>
+        </div>
+        <div class="stat-item">
+          <i class="fas fa-coins"></i>
+          <span>Coins Earned: ${coinsEarned}</span>
+        </div>
+      </div>
+      <button onclick="exitCustomPractice()" class="start-button">Continue</button>
+    </div>
+  `;
+  
+  document.body.appendChild(overlay);
+}
+
+/**
+ * Exit custom practice mode and return to lists screen
+ */
+function exitCustomPractice() {
+  customGameState.reset();
+  
+  const overlay = document.querySelector(".completion-overlay");
+  if (overlay) overlay.remove();
+  
+  showScreen("custom-practice-screen");
+}
+
+/**
+ * Handle an answer in custom practice mode
+ * @param {boolean} isCorrect - Whether the answer is correct
+ * @param {boolean} isSkip - Whether this was a skip action
+ */
+async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
+  if (isCorrect) {
+    // Handle correct answer
+    currentGame.currentIndex++;
+    
+    if (isCorrect && !isSkip) {
+      let coinsToAward = 0;
+      
+      // Award time bonus
+      const timeBonus = awardTimeBonus();
+      if (timeBonus > 0) {
+        coinsToAward += timeBonus;
+        pulseCoins(timeBonus);
+      }
+      
+      // Award correctness bonus
+      if (currentGame.firstAttempt) {
+        coinsToAward += 3;
+        pulseCoins(3);
+      } else {
+        coinsToAward += 1;
+        pulseCoins(1);
+      }
+      
+      try {
+        await CoinsManager.updateCoins(coinsToAward);
+        updatePerkButtons();
+      } catch (error) {
+        console.error("Error updating total coins:", error);
+      }
+      
+      currentGame.correctAnswers++;
+      
+      // Track word for premium users
+      if (currentUser && currentUser.status === "premium") {
+        const index = currentGame.currentIndex;
+        const word = currentGame.isHebrewToEnglish ? 
+                    currentGame.words[index] : 
+                    currentGame.translations[index];
+        
+        await trackWordEncounter(word, "custom");
+      }
+    }
+  } else {
+    // Handle wrong answer
+    currentGame.firstAttempt = false;
+    currentGame.streakBonus = false;
+    currentGame.wrongStreak++;
+    
+    try {
+      await CoinsManager.updateCoins(-3);
+      updatePerkButtons();
+    } catch (error) {
+      console.error("Error updating coins:", error);
+    }
+    
+    // Move back if too many wrong answers
+    if (currentGame.currentIndex > 0) {
+      currentGame.progressLost++;
+      currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
+    }
+    
+    // Show game over screen if too many wrong answers in a row
+    if (currentGame.wrongStreak >= 3) {
+      showGameOverOverlay();
+      
+      // Set up restart button
+      document.querySelector(".restart-button").onclick = () => {
+        document.querySelector(".failure-overlay").style.display = "none";
+        startCustomLevel(currentGame.customLevel);
+      };
+      
+      return;
+    }
+  }
+  
+  // Highlight correct/incorrect answers
+  const correctWord = currentGame.isHebrewToEnglish ? 
+                     currentGame.words[currentGame.currentIndex] : 
+                     currentGame.translations[currentGame.currentIndex];
+  
+  document.querySelectorAll(".buttons button").forEach(button => {
+    if (button.textContent === correctWord) {
+      button.classList.add("correct");
+    } else if (!isCorrect && button.textContent === event.target.textContent) {
+      button.classList.add("wrong");
+    }
+  });
+  
+  // Update UI and save progress
+  updateProgressCircle();
+  saveProgress();
+  
+  // Load next question or finish level
+  setTimeout(() => {
+    if (currentGame.currentIndex < currentGame.words.length) {
+      loadNextQuestion();
+      updatePerkButtons();
+    } else {
+      handleCustomLevelCompletion();
+    }
+  }, 333);
+}
+
+/**
+ * Update schema for a custom list
+ * @param {Object} list - The list to update
+ * @returns {Object} - The updated list
+ */
+function updateCustomListSchema(list) {
+  if (!list) return list;
+  
+  const wordCount = list.words?.length || 0;
+  let maxLevels = 0;
+  
+  if (wordCount >= 6) {
+    maxLevels = wordCount >= 12 ? 9 : 
+               wordCount >= 9 ? 6 : 3;
+  }
+  
+  return {
+    ...list,
+    min_words: 6,
+    max_levels: maxLevels
+  };
+}
+
+/**
+ * Show the custom lists manager screen
+ */
+function showCustomListsManager() {
+  showScreen("custom-practice-screen");
+  
+  Promise.resolve(CustomListsManager.initialize()).then(() => {
+    const container = document.getElementById("custom-lists-container");
+    if (!container) return;
+    
+    const limits = CustomListsManager.getListLimits();
+    const userStatus = currentUser?.status || "unregistered";
+    
+    container.innerHTML = "";
+    
+    const lists = CustomListsManager.lists || [];
+    
+    if (lists.length === 0) {
+      container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
+      return;
+    }
+    
+    lists.forEach(list => {
+      const listPlaysKey = `listPlays_${list.id}`;
+      const playsUsed = parseInt(localStorage.getItem(listPlaysKey) || "0");
+      const playsLeft = limits.maxPlays - playsUsed;
+      
+      if (playsLeft <= 0) return;
+      
+      const listItem = document.createElement("div");
+      listItem.className = "custom-list-item collapsed " + (list.is_shared ? "shared-list" : "");
+      listItem.dataset.listId = list.id;
+      
+      listItem.innerHTML = `
+        <div class="list-actions">
+          <button class="start-button practice-button">Practice</button>
+          <button class="edit-button" data-list-id="${list.id}">Edit</button>
+          <button class="start-button delete-button">Delete</button>
+          ${userStatus === "premium" ? `
+            <button class="share-button" onclick="showShareModal(${list.id})">
+              <i class="fas fa-share-alt"></i> Share
+            </button>
+          ` : ""}
+        </div>
+        <div class="list-header">
+          <h3>${list.name}</h3>
+          <div class="list-summary">
+            <span>${list.words?.length || 0} words</span>
+            <span style="color: ${playsLeft <= 2 ? '#ff4444' : '#ffffff'}; margin-left: 1rem;">
+              ${limits.playDisplay}
+            </span>
+            <p class="word-preview">${(list.words || []).slice(0, 5).join(", ")}${list.words?.length > 5 ? "..." : ""}</p>
+          </div>
+        </div>
+      `;
+      
+      listItem.querySelector(".practice-button").addEventListener("click", () => 
+        startCustomListPractice(list.id)
+      );
+      
+      listItem.querySelector(".edit-button").addEventListener("click", () => {
+        console.log("Edit button clicked for list:", list.id);
+        editCustomList(list.id);
+      });
+      
+      listItem.querySelector(".delete-button").addEventListener("click", () => {
+        console.log("Delete button clicked for list:", list.id);
+        deleteCustomList(list.id);
+      });
+      
+      listItem.querySelector(".list-header").addEventListener("click", () => 
+        toggleListCollapse(list.id)
+      );
+      
+      container.appendChild(listItem);
+    });
+  }).catch(error => {
+    console.error("Failed to initialize custom lists:", error);
+    showNotification("Error loading lists", "error");
+  });
+}
+
+/**
+ * Get the user limits based on status
+ * @returns {Object} - The limits object
+ */
+function getUserListLimits() {
+  if (!currentUser) {
+    return {
+      maxLists: 3,
+      maxWords: 10,
+      maxPlays: 5,
+      canShare: false
+    };
+  }
+  
+  switch (currentUser.status || "unregistered") {
+    case "free":
+      return {
+        maxLists: 5,
+        maxWords: 20,
+        maxPlays: 10,
+        canShare: false
+      };
+    case "pending":
+      return {
+        maxLists: 30,
+        maxWords: 50,
+        maxPlays: Infinity,
+        canShare: false,
+        playDisplay: "∞"
+      };
+    case "premium":
+      return {
+        maxLists: 30,
+        maxWords: 50,
+        maxPlays: Infinity,
+        canShare: true,
+        playDisplay: "∞"
+      };
+    default:
+      return {
+        maxLists: 3,
+        maxWords: 10,
+        maxPlays: 5,
+        canShare: false
+      };
+  }
+}
+
+/**
+ * Validate if a list can be practiced
+ * @param {Object} list - The list to validate
+ * @returns {Object} - Validation result with valid flag and message
+ */
+function validateListForPractice(list) {
+  if (!list || !list.words || !list.translations) {
+    return { valid: false, message: "Invalid list format" };
+  }
+  
+  if (list.words.length < 6) {
+    return { valid: false, message: "Lists need at least 6 words to practice" };
+  }
+  
+  return { valid: true };
+}
+
+/**
+ * Track a list play and handle play limits
+ * @param {string|number} id - The list ID
+ * @returns {number|boolean} - Plays left or false if limit reached
+ */
+function trackListPlay(id) {
+  const key = `listPlays_${id}`;
+  let plays = parseInt(localStorage.getItem(key) || "0");
+  plays++;
+  
+  const limits = getUserListLimits();
+  
+  localStorage.setItem(key, plays);
+  
+  if (plays >= limits.maxPlays) {
+    deleteCustomList(id);
+    return false;
+  }
+  
+  return limits.maxPlays - plays;
+}
+
+/**
+ * Save a custom list to Supabase
+ * @param {Object} list - The list to save
+ */
+async function saveCustomListToSupabase(list) {
+  if (!currentUser || !list) return;
+  
+  try {
+    const { data, error } = await supabaseClient
+      .from("custom_lists")
+      .upsert(
+        {
+          user_id: currentUser.id,
+          name: list.name,
+          words: list.words,
+          translations: list.translations,
+          status: list.status || currentUser.status
+        },
+        { onConflict: "id" }
+      );
+    
+    if (error) throw error;
+  } catch (error) {
+    console.error("Error saving list to Supabase:", error);
+    showNotification("Failed to save list", "error");
+  }
+}
+
+async function loadCustomLists() {
+  try {
+    await CustomListsManager.initialize();
+    updateListsDisplay();
+  } catch (error) {
+    console.error("Error loading custom lists:", error);
+  }
+}
+}
 
 </script>
 </body>
