@@ -7507,91 +7507,188 @@ function showJoinModal(otp = '') {
 }
 
 async function handleSignup() {
-    const email = document.getElementById("signupEmail").value;
-    const username = document.getElementById("signupUsername").value;
-    const password = document.getElementById("signupPassword").value;
+  const email = document.getElementById("signupEmail").value;
+  const username = document.getElementById("signupUsername").value;
+  const password = document.getElementById("signupPassword").value;
 
-    if (email && username && password) {
-        try {
-            const { data: signupData, error: signupError } = await supabaseClient.auth.signUp({
-                email: email,
-                password: password,
-                options: {
-                    data: {
-                        username: username,
-                        full_name: username
-                    }
-                }
-            });
-
-            if (signupError) throw signupError;
-
-            // Update user profile first
-            const { error: profileError } = await supabaseClient.from("user_profiles").upsert({
-                id: signupData.user.id,
-                username: username,
-                email: email,
-                status: "free",
-                role: "student"
-            }, { onConflict: 'id' });
-
-            if (profileError) console.error("Profile upsert error:", profileError);
-
-            // Initialize game progress with only the most basic fields
-            const initialProgress = {
-                user_id: signupData.user.id,
-                stage: 1,
-                set_number: 1,
-                level: 1,
-                coins: 0
-            };
-
-            // Use insert instead of upsert to avoid schema issues
-            const { error: progressError } = await supabaseClient
-                .from("game_progress")
-                .insert([initialProgress]);
-            
-            if (progressError) {
-                console.error("Progress initialization error:", progressError);
-                // Continue anyway
-            }
-
-            // Now sign in
-            const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
-                email: email,
-                password: password
-            });
-
-            if (signInError) throw signInError;
-
-            hideAuthModal();
-            currentUser = signInData.user;
-            
-            // Initialize default game state
-            gameState.currentStage = 1;
-            gameState.currentSet = 1;
-            gameState.currentLevel = 1;
-            gameState.coins = 0;
-            gameState.perks = {};
-            gameState.unlockedSets = { "1": new Set([1]) };
-            gameState.unlockedLevels = { "1_1": new Set([1]) };
-            gameState.perfectLevels = new Set();
-            gameState.completedLevels = new Set();
-            
-            updateAuthUI();
-            showScreen("welcome-screen");
-            
-        } catch (error) {
-            console.error("Detailed signup error:", error);
-            if (error.message && error.message.includes("duplicate key")) {
-                alert("This username or email is already taken. Please try another.");
-            } else {
-                alert("Signup error: " + error.message);
-            }
+  if (email && username && password) {
+    try {
+      // 1. Sign up the user
+      const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+          data: {
+            username: username,
+            full_name: username
+          }
         }
-    } else {
-        alert("All fields are required");
+      });
+      
+      if (authError) throw authError;
+      
+      // 2. Create the user profile
+      const { error: profileError } = await supabaseClient
+        .from("user_profiles")
+        .upsert({
+          id: authData.user.id,
+          username: username,
+          email: email,
+          status: "free",
+          role: "student"
+        }, { onConflict: "id" });
+      
+      if (profileError) {
+        console.error("Profile upsert error:", profileError);
+      }
+      
+      // 3. Check if game progress exists and create if needed
+      const { data: existingProgress, error: progressCheckError } = await supabaseClient
+        .from("game_progress")
+        .select("user_id")
+        .eq("user_id", authData.user.id)
+        .single();
+      
+      // Only insert if record doesn't exist
+      if (progressCheckError && progressCheckError.code === "PGRST116") {
+        const gameProgressData = {
+          user_id: authData.user.id,
+          stage: 1,
+          set_number: 1,
+          level: 1,
+          coins: 0,
+          perks: {},
+          unlocked_sets: {1: [1]},
+          unlocked_levels: {"1_1": [1]},
+          perfect_levels: [],
+          completed_levels: []
+        };
+        
+        const { error: insertProgressError } = await supabaseClient
+          .from("game_progress")
+          .insert([gameProgressData]);
+        
+        if (insertProgressError && insertProgressError.code !== "23505") {
+          // Log error but continue if it's not a duplicate key error
+          console.error("Game progress initialization error:", insertProgressError);
+        }
+      }
+      
+      // 4. Check if player stats exists and create if needed
+      const { data: existingStats, error: statsCheckError } = await supabaseClient
+        .from("player_stats")
+        .select("user_id")
+        .eq("user_id", authData.user.id)
+        .single();
+      
+      // Only insert if record doesn't exist
+      if (statsCheckError && statsCheckError.code === "PGRST116") {
+        const playerStatsData = {
+          user_id: authData.user.id,
+          total_levels_completed: 0,
+          unique_words_practiced: 0
+        };
+        
+        const { error: insertStatsError } = await supabaseClient
+          .from("player_stats")
+          .insert([playerStatsData]);
+        
+        if (insertStatsError && insertStatsError.code !== "23505") {
+          // Log error but continue if it's not a duplicate key error
+          console.error("Player stats initialization error:", insertStatsError);
+        }
+      }
+      
+      // 5. Sign in the user
+      const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+      
+      if (signInError) throw signInError;
+      
+      // 6. Update the UI and game state
+      hideAuthModal();
+      currentUser = signInData.user;
+      gameState.currentStage = 1;
+      gameState.currentSet = 1;
+      gameState.currentLevel = 1;
+      gameState.coins = 0;
+      gameState.perks = {};
+      gameState.unlockedSets = {1: new Set([1])};
+      gameState.unlockedLevels = {"1_1": new Set([1])};
+      gameState.perfectLevels = new Set;
+      gameState.completedLevels = new Set;
+      updateAuthUI();
+      showScreen("welcome-screen");
+      
+    } catch (error) {
+      console.error("Detailed signup error:", error);
+      if (error.message && error.message.includes("duplicate key")) {
+        alert("This username or email is already taken. Please try another.");
+      } else {
+        alert("Signup error: " + error.message);
+      }
     }
+  } else {
+    alert("All fields are required");
+  }
+}
+
+// Add this helper function to safely upsert records
+async function safeUpsertRecord(table, data, keyField = 'user_id') {
+  try {
+    // First check if the record exists
+    const { data: existingData, error: checkError } = await supabaseClient
+      .from(table)
+      .select(keyField)
+      .eq(keyField, data[keyField])
+      .single();
+    
+    if (checkError && checkError.code === "PGRST116") {
+      // Record doesn't exist, try to insert it
+      const { error: insertError } = await supabaseClient
+        .from(table)
+        .insert([data]);
+      
+      if (insertError) {
+        // If insert fails with a duplicate key error, try to update instead
+        if (insertError.code === "23505") {
+          const { error: updateError } = await supabaseClient
+            .from(table)
+            .update(data)
+            .eq(keyField, data[keyField]);
+          
+          if (updateError) {
+            console.error(`Error updating ${table}:`, updateError);
+            return false;
+          }
+        } else {
+          console.error(`Error inserting into ${table}:`, insertError);
+          return false;
+        }
+      }
+    } else if (!checkError) {
+      // Record exists, update it
+      const { error: updateError } = await supabaseClient
+        .from(table)
+        .update(data)
+        .eq(keyField, data[keyField]);
+      
+      if (updateError) {
+        console.error(`Error updating ${table}:`, updateError);
+        return false;
+      }
+    } else {
+      console.error(`Error checking ${table}:`, checkError);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(`Unexpected error in safeUpsertRecord for ${table}:`, error);
+    return false;
+  }
 }
 
 async function updateUserCoins(amount) {
@@ -22054,6 +22151,71 @@ function generateAnswerOptions(correctAnswer) {
     buttonsContainer.appendChild(button);
   });
 }
+
+async function ensureUserInitialization(userId) {
+  try {
+    console.log("Ensuring proper user initialization for:", userId);
+    
+    // Check if player_stats exists
+    const { data: statsData, error: statsError } = await supabaseClient
+      .from("player_stats")
+      .select("user_id")
+      .eq("user_id", userId)
+      .single();
+    
+    // If player_stats doesn't exist, create it
+    if (statsError && statsError.code === "PGRST116") {
+      console.log("Creating player_stats record for user");
+      const { error: createStatsError } = await supabaseClient
+        .from("player_stats")
+        .insert([{
+          user_id: userId,
+          total_levels_completed: 0,
+          unique_words_practiced: 0
+        }]);
+      
+      if (createStatsError) {
+        console.error("Error creating player_stats:", createStatsError);
+      }
+    }
+    
+    // Check if game_progress exists
+    const { data: progressData, error: progressError } = await supabaseClient
+      .from("game_progress")
+      .select("user_id")
+      .eq("user_id", userId)
+      .single();
+    
+    // If game_progress doesn't exist, create it
+    if (progressError && progressError.code === "PGRST116") {
+      console.log("Creating game_progress record for user");
+      const { error: createProgressError } = await supabaseClient
+        .from("game_progress")
+        .insert([{
+          user_id: userId,
+          stage: 1,
+          set_number: 1,
+          level: 1,
+          coins: 0,
+          perks: {},
+          unlocked_sets: {1: [1]},
+          unlocked_levels: {"1_1": [1]},
+          perfect_levels: [],
+          completed_levels: []
+        }]);
+      
+      if (createProgressError) {
+        console.error("Error creating game_progress:", createProgressError);
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error in ensureUserInitialization:", error);
+    return false;
+  }
+}
+
 
 </script>
 </body>
