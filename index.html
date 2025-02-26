@@ -21789,6 +21789,183 @@ async function loadCustomLists() {
   }
 }
 
+/**
+ * Share a list with another user
+ * @param {string|number} listId - The list ID to share
+ * @param {string} targetUserId - The user ID to share with
+ * @returns {Promise<boolean>} - Success status
+ */
+ async function shareCustomList(listId, targetUserId) {
+  if (!currentUser?.id) {
+    showNotification("You must be logged in to share lists", "error");
+    return false;
+  }
+
+  try {
+    console.log(`Starting share process for list ${listId} with user ${targetUserId}`);
+    
+    // First, find the list to share
+    const { data: listData, error: listError } = await supabaseClient
+      .from("custom_lists")
+      .select("*")
+      .eq("id", listId)
+      .eq("user_id", currentUser.id)
+      .single();
+    
+    if (listError || !listData) {
+      console.error("Error fetching list to share:", listError);
+      return false;
+    }
+    
+    console.log("Found list to share:", listData.name);
+    
+    // Check if list is already shared with this user
+    const { data: existingShares, error: shareCheckError } = await supabaseClient
+      .from("custom_lists")
+      .select("id")
+      .eq("original_list_id", listId)
+      .eq("user_id", targetUserId);
+    
+    if (shareCheckError) {
+      console.error("Error checking existing shares:", shareCheckError);
+    } else if (existingShares?.length > 0) {
+      console.log("List already shared with this user");
+      showNotification("List already shared with this user", "info");
+      return true;
+    }
+    
+    // Create a clean copy of the list data for sharing
+    const sharedListName = `${listData.name} (Shared by ${currentUser.user_metadata?.username || 
+                                                       currentUser.email || 
+                                                       currentUser.id.substring(0, 8)})`;
+    
+    // Create a sanitized object with only the necessary fields
+    const sharedListData = {
+      name: sharedListName,
+      words: Array.isArray(listData.words) ? listData.words : [],
+      translations: Array.isArray(listData.translations) ? listData.translations : [],
+      user_id: targetUserId,
+      is_shared: true,
+      shared_by: currentUser.id,
+      original_list_id: listId,
+      created_at: new Date().toISOString()
+    };
+    
+    console.log("Prepared shared list data:", sharedListData);
+    
+    // Insert the shared list
+    const { data: insertData, error: insertError } = await supabaseClient
+      .from("custom_lists")
+      .insert([sharedListData]);
+      
+    if (insertError) {
+      console.error("Error sharing list:", insertError);
+      return false;
+    }
+
+    console.log("List shared successfully");
+    return true;
+  } catch (error) {
+    console.error("Unexpected error in shareCustomList:", error);
+    return false;
+  }
+}
+
+/**
+ * Show the modal to share a list
+ * @param {string|number} id - The list ID
+ */
+function showShareModal(id) {
+  console.log("Opening share modal for list:", id);
+  
+  // Remove existing modal if any
+  const existingModal = document.querySelector(".share-modal");
+  const existingBackdrop = document.querySelector(".modal-backdrop");
+  if (existingModal) existingModal.remove();
+  if (existingBackdrop) existingBackdrop.remove();
+  
+  // Create backdrop
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.onclick = closeShareModal;
+  document.body.appendChild(backdrop);
+  
+  // Create modal
+  const modal = document.createElement("div");
+  modal.className = "share-modal";
+  modal.innerHTML = `
+    <h3 class="share-modal-header">Share List</h3>
+    <div class="users-list">Loading users...</div>
+    <button class="start-button modal-close" onclick="closeShareModal()">Close</button>
+  `;
+  document.body.appendChild(modal);
+  
+  // Load users
+  const usersList = modal.querySelector(".users-list");
+  
+  if (!currentUser) {
+    usersList.innerHTML = '<div class="user-item"><span>You must be logged in to share lists</span></div>';
+    return;
+  }
+  
+  supabaseClient
+    .from("user_profiles")
+    .select("id, username, email")
+    .neq("id", currentUser.id)
+    .then(({ data, error }) => {
+      if (error) {
+        console.error("Error fetching users:", error);
+        usersList.innerHTML = '<div class="user-item"><span>Error loading users</span></div>';
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        usersList.innerHTML = data.map(user => `
+          <div class="user-item">
+            <span>${user.username || user.email || "User " + user.id.substr(0, 8)}</span>
+            <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}">
+              <i class="fas fa-share-alt"></i> Share
+            </button>
+          </div>
+        `).join("");
+        
+        // Setup share buttons
+        modal.querySelectorAll(".share-with-user-btn").forEach(button => {
+          button.onclick = async () => {
+            const userId = button.getAttribute("data-user-id");
+            button.disabled = true;
+            
+            const originalHTML = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
+            
+            const success = await shareCustomList(id, userId);
+            if (!success) {
+              button.disabled = false;
+              button.innerHTML = originalHTML;
+              showNotification("Failed to share list", "error");
+            } else {
+              button.innerHTML = '<i class="fas fa-check"></i> Shared!';
+              showNotification("List shared successfully!", "success");
+            }
+          };
+        });
+      } else {
+        usersList.innerHTML = '<div class="user-item"><span>No other users found</span></div>';
+      }
+    });
+}
+
+/**
+ * Close the share modal
+ */
+function closeShareModal() {
+  const modal = document.querySelector(".share-modal");
+  const backdrop = document.querySelector(".modal-backdrop");
+  
+  if (modal) modal.remove();
+  if (backdrop) backdrop.remove();
+}
+
 </script>
 </body>
 </html>
