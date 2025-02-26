@@ -10191,15 +10191,34 @@ function handleAnswer(e, t = false) {
           }, 300);
         }
         
-        if (updateBossHealthBar()) {
-          if (currentGame.currentIndex >= currentGame.words.length) {
-            console.log("Boss defeated!");
-            CoinsManager.updateCoins(100).then(() => {
-              showBossDefeatEffect();
-            });
-            return;
-          }
-        }
+        // Check if this was the final boss hit
+      // Check if this was the final boss hit
+if (currentGame.currentIndex >= currentGame.words.length) {
+  console.log("Boss defeated - final hit!");
+  currentGame.bossDefeated = true; // Mark boss as defeated
+  clearTimer(); // Clear the timer
+  
+  // Force health bar to zero
+  const progressCircle = document.querySelector('.progress-circle');
+  if (progressCircle) {
+    const progress = progressCircle.querySelector('.progress');
+    if (progress) {
+      const circumference = 2 * Math.PI * 54;
+      progress.style.strokeDashoffset = circumference; // Set to full circumference (empty)
+    }
+  }
+  
+  // Direct call to defeat sequence with forced update
+  showBossDefeatEffect();
+  CoinsManager.updateCoins(100).then(() => {
+    updateAllCoinDisplays(); // Update coin display explicitly
+  });
+  
+  return; // Exit function early
+}
+        
+        // Otherwise just update the health bar
+        updateBossHealthBar();
       } else {
         updateProgressCircle();
       }
@@ -10222,6 +10241,7 @@ function handleAnswer(e, t = false) {
         
         CoinsManager.updateCoins(e).then(() => {
           updatePerkButtons();
+          updateAllCoinDisplays(); // Added to ensure coin display updates
         }).catch(e => {
           console.error("Error updating total coins:", e);
         });
@@ -10235,6 +10255,7 @@ function handleAnswer(e, t = false) {
       
       CoinsManager.updateCoins(-3).then(() => {
         updatePerkButtons();
+        updateAllCoinDisplays(); // Added to ensure coin display updates
       }).catch(e => {
         console.error("Error updating coins:", e);
       });
@@ -10281,18 +10302,19 @@ function handleAnswer(e, t = false) {
         btn.classList.remove("correct", "wrong");
       });
       
-      if (currentGame.currentIndex < currentGame.words.length) {
-        startTimer(currentGame.words.length - currentGame.currentIndex);
-        
-        if (currentGame.isBossLevel) {
-          loadNextBossQuestion();
-        } else {
-          loadNextQuestion();
-        }
-        
-        updatePerkButtons();
-      } else {
-        if (!currentGame.isBossLevel) {
+      // Check if game is still valid (not a defeated boss)
+      if (currentGame && (!currentGame.bossDefeated || !currentGame.isBossLevel)) {
+        if (currentGame.currentIndex < currentGame.words.length) {
+          startTimer(currentGame.words.length - currentGame.currentIndex);
+          
+          if (currentGame.isBossLevel) {
+            loadNextBossQuestion();
+          } else {
+            loadNextQuestion();
+          }
+          
+          updatePerkButtons();
+        } else if (!currentGame.isBossLevel) {
           if (currentGame.isCustomPractice) {
             handleCustomLevelCompletion();
           } else {
@@ -10307,7 +10329,7 @@ function handleAnswer(e, t = false) {
     console.error("Error details:", e.stack);
     
     try {
-      if (currentGame.currentIndex < currentGame.words.length) {
+      if (currentGame && currentGame.currentIndex < currentGame.words.length && !currentGame.bossDefeated) {
         loadNextQuestion();
       } else {
         showScreen("welcome-screen");
@@ -15789,20 +15811,20 @@ function addBossLevelStyles() {
 
 function updateBossHealthBar() {
   // Only update if we're in boss level
-  if (!currentGame.isBossLevel) return;
+  if (!currentGame.isBossLevel) return false;
   
   console.log("Updating boss health bar");
 
   const progressCircle = document.querySelector('.progress-circle');
   if (!progressCircle) {
     console.error("Progress circle not found");
-    return;
+    return false;
   }
   
   const progress = progressCircle.querySelector('.progress');
   if (!progress) {
     console.error("Progress element not found");
-    return;
+    return false;
   }
   
   // Calculate health values
@@ -15901,13 +15923,15 @@ function updateBossHealthBar() {
     }
   }
 
-  // Check for boss defeat
-  if (remainingPercentage <= 0) {
-    console.log("Boss defeated!");
-    showBossDefeatEffect();
+  // Only trigger defeat effect here if not already marked as defeated
+  if (remainingPercentage <= 0 && !currentGame.bossDefeated) {
+    console.log("Boss defeated via health bar check!");
+    currentGame.bossDefeated = true;
+    return true;
   }
+  
+  return false;
 }
-
 
 function startBossLevel() {
     showLevelIntro(21, () => {
@@ -19714,15 +19738,12 @@ function showBossDefeatEffect() {
 }
 
 function showBossVictoryNotification() {
-  // Add 100 coins for defeating boss
   CoinsManager.updateCoins(100);
+  updateAllCoinDisplays(); // Add this to update coin display immediately
   
-  // Create the victory overlay
-  const overlay = document.createElement("div");
-  overlay.className = "arcade-completion-modal";
-  
-  // Create content with improved button styling
-  overlay.innerHTML = `
+  const e = document.createElement("div");
+  e.className = "arcade-completion-modal";
+  e.innerHTML = `
     <div class="completion-modal-content">
       <h2 style="color: var(--gold)">Boss Defeated!</h2>
       <p style="font-size: 1.2rem; margin: 1rem 0;">Congratulations! You've conquered this challenge!</p>
@@ -19776,140 +19797,94 @@ function showBossVictoryNotification() {
       </div>
     </div>
   `;
-  
-  document.body.appendChild(overlay);
-  requestAnimationFrame(() => overlay.classList.add("show"));
+  document.body.appendChild(e);
+  requestAnimationFrame(() => e.classList.add("show"));
 }
 
 function handleBossVictoryContinue() {
   console.log("Boss victory continue button clicked");
+  const e = document.querySelector(".arcade-completion-modal");
+  updateAllCoinDisplays(); // Add this line to update coin display immediately
   
-  const modal = document.querySelector(".arcade-completion-modal");
-  if (modal) {
-    modal.classList.remove("show");
-    setTimeout(() => {
-      modal.remove();
-      
-      // Get the existing transition overlay if it exists
-      const transitionOverlay = document.querySelector(".background-transition-overlay");
-      
-      // If the overlay exists, we'll use it to ensure a smooth transition
-      if (transitionOverlay) {
-        console.log("Using existing transition overlay for smooth transition");
-        
-        // Ensure the overlay has the final blue state
-        transitionOverlay.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
-        
-        // Reset the rest of the boss styles
-        resetBossStyles(true); // true = preserve the overlay
-      } else {
-        // Otherwise do a complete reset
-        resetBossStyles();
-      }
-      
-      // Unlock next set and proceed
+  e && (e.classList.remove("show"), 
+    setTimeout((()=>{
+      e.remove();
+      const t = document.querySelector(".background-transition-overlay");
+      t ? (console.log("Using existing transition overlay for smooth transition"),
+      t.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)",
+      resetBossStyles(!0)) : resetBossStyles(),
       unlockNextSet();
-      const nextSet = gameState.currentSet + 1;
-      gameState.currentSet = nextSet;
-      gameState.currentLevel = 1;
-      
-      // Start the next level with a delay
-      setTimeout(() => {
-        console.log("Starting next level");
-        // Remove the transition overlay right before starting the next level
-        if (transitionOverlay && transitionOverlay.parentNode) {
-          transitionOverlay.parentNode.removeChild(transitionOverlay);
-        }
-        startLevel(1);
-      }, 500);
-    }, 300);
-  }
+      const n = gameState.currentSet + 1;
+      gameState.currentSet = n,
+      gameState.currentLevel = 1,
+      updateAllCoinDisplays(), // Add this line to update coin display before next level
+      setTimeout((()=>{
+        console.log("Starting next level"),
+        t && t.parentNode && t.parentNode.removeChild(t),
+        startLevel(1)
+      }), 500)
+    }), 300)
+  )
 }
 
-function resetBossStyles(preserveOverlay = false) {
-  console.log("Resetting boss styles", preserveOverlay ? "(preserving overlay)" : "");
-  
-  // Reset question screen
-  const questionScreen = document.getElementById("question-screen");
-  if (questionScreen) {
-    // Get the transition overlay if it exists
-    const transitionOverlay = questionScreen.querySelector(".background-transition-overlay");
-    
-    // If we're preserving it, temporarily remove it
-    if (preserveOverlay && transitionOverlay) {
-      transitionOverlay.remove();
-    }
-    
-    // Clear styles from the question screen
-    questionScreen.removeAttribute("style");
-    
-    // Put the transition overlay back if we're preserving it
-    if (preserveOverlay && transitionOverlay) {
-      questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
-    }
-    
-    // If not preserving the overlay, make sure any existing ones are removed
-    if (!preserveOverlay) {
-      questionScreen.querySelectorAll(".background-transition-overlay").forEach(el => el.remove());
+function resetBossStyles(e = false) {
+  console.log("Resetting boss styles", e ? "(preserving overlay)" : "");
+
+  // Reset boss health bar styling
+  const progressCircle = document.querySelector('.progress-circle');
+  if (progressCircle) {
+    const progress = progressCircle.querySelector('.progress');
+    if (progress) {
+      progress.classList.remove('warning', 'boss-health');
+      progress.style.stroke = '';  // Reset to default color
+      progress.style.animation = 'none';
       
-      // Then force the background style directly
-      setTimeout(() => {
-        questionScreen.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
-      }, 10);
+      // Force reflow to make sure animation removal takes effect
+      void progress.offsetWidth;
+      progress.style.animation = '';
     }
   }
   
-  // Reset question word
-  const questionWord = document.getElementById("question-word");
-  if (questionWord) {
-    questionWord.removeAttribute("style");
+  const t = document.getElementById("question-screen");
+  if (t) {
+    const n = t.querySelector(".background-transition-overlay");
+    e && n && n.remove();
+    t.removeAttribute("style");
+    e && n && t.insertBefore(n, t.firstChild);
+    e || (t.querySelectorAll(".background-transition-overlay").forEach(e => e.remove()),
+    setTimeout(() => {
+      t.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
+    }, 10));
   }
   
-  // Stop any boss-specific effects
-  if (typeof stopBossRainingLetters === 'function') {
-    stopBossRainingLetters();
-  }
+  const n = document.getElementById("question-word");
+  n && n.removeAttribute("style");
   
-  // Cancel any remaining animations except the overlay if preserving
-  const selectorToRemove = preserveOverlay ? 
-    ".incineration-effect, .boss-orb" : 
-    ".incineration-effect, .boss-orb, .background-transition-overlay";
+  "function" == typeof stopBossRainingLetters && stopBossRainingLetters();
   
-  const existingElements = document.querySelectorAll(selectorToRemove);
-  existingElements.forEach(elem => {
-    if (elem.parentNode) {
-      elem.parentNode.removeChild(elem);
-    }
+  const r = e ? ".incineration-effect, .boss-orb" : ".incineration-effect, .boss-orb, .background-transition-overlay";
+  document.querySelectorAll(r).forEach(e => {
+    e.parentNode && e.parentNode.removeChild(e);
   });
 }
 
 function handleBossVictoryHome() {
   console.log("Boss victory home button clicked");
+  const e = document.querySelector(".arcade-completion-modal");
+  updateAllCoinDisplays(); // Add this line to update coin display immediately
   
-  const modal = document.querySelector(".arcade-completion-modal");
-  if (modal) {
-    modal.classList.remove("show");
-    setTimeout(() => {
-      modal.remove();
-      
-      // Force cleanup of boss styles
-      resetBossStyles();
-      
-      // IMPORTANT: Unlock next set and update the current set in game state
+  e && (e.classList.remove("show"), 
+    setTimeout((()=>{
+      e.remove(),
+      resetBossStyles(),
       unlockNextSet();
-      
-      // Save the next set as the current set in the game state
-      const nextSet = gameState.currentSet + 1;
-      gameState.currentSet = nextSet;
-      gameState.currentLevel = 1;
-      
-      // Save this progress explicitly to ensure it persists
-      saveProgress();
-      
-      // Now we can safely return to welcome screen
-      showScreen("welcome-screen");
-    }, 300);
-  }
+      const t = gameState.currentSet + 1;
+      gameState.currentSet = t,
+      gameState.currentLevel = 1,
+      saveProgress(),
+      showScreen("welcome-screen")
+    }), 300)
+  )
 }
 
 // ADD this function to check if the current user is the admin
