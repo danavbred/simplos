@@ -150,46 +150,6 @@ body {
 }
 
 
-.share-modal {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--glass);
-    backdrop-filter: blur(10px);
-    padding: 2rem;
-    border-radius: 20px;
-    z-index: 1000;
-    width: 90%;
-    max-width: 500px;
-}
-
-.share-modal-header {
-    color: var(--gold);
-    margin-bottom: 1.5rem;
-}
-
-.users-list {
-    max-height: 300px;
-    overflow-y: auto;
-    margin: 1rem 0;
-}
-
-.user-item {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem;
-    margin: 0.5rem 0;
-    background: rgba(255,255,255,0.1);
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.user-item:hover {
-    background: rgba(255,255,255,0.2);
-    transform: translateY(-2px);
-}
 
 @keyframes shareGlow {
     0% { box-shadow: 0 0 5px var(--accent); }
@@ -218,16 +178,119 @@ body {
     z-index: 999;
 }
 
+.share-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    z-index: 1000;
+    width: 90%;
+    max-width: 500px;
+    animation: fadeIn 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.share-modal-content {
+    padding: 2rem;
+}
+
+.share-modal-header {
+    color: var(--gold);
+    margin-bottom: 1rem;
+    font-size: 1.5rem;
+    text-align: center;
+}
+
+.share-modal-description {
+    margin-bottom: 1.5rem;
+    opacity: 0.8;
+    text-align: center;
+}
+
+.users-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 1rem 0;
+    padding-right: 5px;
+}
+
+.users-list::-webkit-scrollbar {
+    width: 5px;
+}
+
+.users-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+}
+
 .user-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem;
+    padding: 0.75rem 1rem;
     margin: 0.5rem 0;
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     transition: all 0.3s ease;
 }
+
+.user-item:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.user-info i {
+    color: var(--accent);
+}
+
+.modal-close {
+    margin-top: 1rem;
+    width: 100%;
+}
+
+.small-button {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    min-width: 0;
+    width: auto;
+}
+
+.fade-out {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translate(-50%, -55%); }
+    to { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+@media (max-width: 768px) {
+    .share-modal {
+        width: 95%;
+    }
+    
+    .user-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    
+    .user-item .small-button {
+        width: 100%;
+    }
+}
+
 
 .user-item:hover {
     background: rgba(255,255,255,0.2);
@@ -5336,121 +5399,107 @@ background-clip: text;
 }
 
 /* Resurrection Animation Styles */
-.resurrection-animation {
-    position: relative;
-    width: 240px;
-    height: 240px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+
+.resurrection-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  z-index: 2000;
+  opacity: 0;
+  transition: opacity 0.5s ease;
 }
 
-.resurrection-circle {
-    width: 200px;
-    height: 200px;
+.resurrection-overlay.show {
+  opacity: 1;
 }
 
-.resurrection-progress {
-    stroke: var(--gold);
-    stroke-linecap: round;
-    transform-origin: center;
-    transform: rotate(-90deg);
-    stroke-dashoffset: 339.29;
-    filter: drop-shadow(0 0 10px var(--gold));
+.revive-container {
+  text-align: center;
+  position: relative;
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  margin-bottom: 1rem;
 }
 
-.resurrection-ankh {
-    position: absolute;
-    font-size: 5rem;
-    color: var(--gold);
-    animation: resurrectGlow 2s infinite;
+.ankh-symbol {
+  position: absolute;
+  font-size: 5rem;
+  color: var(--gold);
+  z-index: 10;
+  animation: ankhPulse 2s infinite;
 }
 
-@keyframes resurrectGlow {
-    0%, 100% { text-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
-    50% { text-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
+.revive-title {
+  color: var(--text);
+  font-size: 1.8rem;
+  margin-bottom: 1rem;
 }
 
-@keyframes particleFlow {
-    0% {
-        transform: translate(-50%, -50%) scale(0);
-        opacity: 0;
-    }
-    20% {
-        opacity: 1;
-    }
-    100% {
-        transform: translate(calc(-50% + var(--end-x)), calc(-50% + var(--end-y))) scale(1);
-        opacity: 0;
-    }
+.revive-timer {
+  color: var(--gold);
+  font-size: 4rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
 }
 
-/* Mobile Responsive Adjustments */
-@media (max-width: 768px) {
-    .ankh-symbol {
-        font-size: 6rem;
-    }
-    
-    .revive-title {
-        font-size: 2rem;
-    }
-    
-    .revive-timer {
-        font-size: 4rem;
-    }
-    
-    .revive-button {
-        padding: 0.75rem 2rem;
-        font-size: 1.2rem;
-    }
-    
-    .resurrection-animation {
-        width: 180px;
-        height: 180px;
-    }
-    
-    .resurrection-circle {
-        width: 150px;
-        height: 150px;
-    }
-    
-    .resurrection-ankh {
-        font-size: 3.5rem;
-    }
+.revive-button {
+  padding: 1rem 3rem;
+  font-size: 1.5rem;
+  background: var(--accent);
+  color: var(--text);
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 20px var(--accent);
+  animation: buttonGlow 1.5s infinite;
 }
 
-@media (max-width: 480px) {
-    .ankh-symbol {
-        font-size: 5rem;
-    }
-    
-    .revive-title {
-        font-size: 1.8rem;
-    }
-    
-    .revive-timer {
-        font-size: 3.5rem;
-    }
-    
-    .revive-button {
-        padding: 0.5rem 1.5rem;
-        font-size: 1rem;
-    }
-    
-    .resurrection-animation {
-        width: 150px;
-        height: 150px;
-    }
-    
-    .resurrection-circle {
-        width: 120px;
-        height: 120px;
-    }
-    
-    .resurrection-ankh {
-        font-size: 3rem;
-    }
+.revive-button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 30px var(--accent);
 }
+
+.resurrection-progress circle {
+  transition: stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.resurrection-fill {
+  stroke: var(--gold);
+  filter: drop-shadow(0 0 5px var(--gold));
+}
+
+@keyframes ankhPulse {
+  0%, 100% {
+    transform: scale(1);
+    text-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+  }
+  50% {
+    transform: scale(1.1);
+    text-shadow: 0 0 50px rgba(255, 215, 0, 0.8);
+  }
+}
+
+@keyframes buttonGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px var(--accent);
+  }
+  50% {
+    box-shadow: 0 0 30px var(--accent);
+  }
+}
+
 
 /* Stage-Set Cascade UI Styles */
 .stages-container {
@@ -8078,83 +8127,77 @@ async function initializeGameProgressForUser(userId) {
 }
 
 async function handleLogin() {
-    const loginInput = document.getElementById('loginUsername').value;
+    const usernameOrEmail = document.getElementById('loginUsername').value;
     const password = document.getElementById('loginPassword').value;
     
-    if (!loginInput || !password) {
-        alert('Please enter both username/email and password');
+    if (!usernameOrEmail || !password) {
+        alert("Please enter both username/email and password");
         return;
     }
-
+    
     try {
-        // Determine if input is an email or username
-        const isEmail = loginInput.includes('@');
+        let loginPromise;
         
-        let loginMethod;
-        if (isEmail) {
-            // Login with email
-            loginMethod = supabaseClient.auth.signInWithPassword({
-                email: loginInput,
+        if (usernameOrEmail.includes('@')) {
+            loginPromise = supabaseClient.auth.signInWithPassword({
+                email: usernameOrEmail,
                 password: password
             });
         } else {
-            // Login with username
-            const { data: userProfile, error: profileError } = await supabaseClient
+            const { data: userData, error: userError } = await supabaseClient
                 .from('user_profiles')
                 .select('email')
-                .eq('username', loginInput)
+                .eq('username', usernameOrEmail)
                 .single();
-
-            if (profileError || !userProfile) {
+                
+            if (userError || !userData) {
                 alert('Username not found');
                 return;
             }
-
-            loginMethod = supabaseClient.auth.signInWithPassword({
-                email: userProfile.email,
+            
+            loginPromise = supabaseClient.auth.signInWithPassword({
+                email: userData.email,
                 password: password
             });
         }
-
-        const { data, error } = await loginMethod;
-
+        
+        const { data, error } = await loginPromise;
+        
         if (error) {
-            console.error('Login Error:', error);
+            console.error("Login Error:", error);
             alert(error.message);
             return;
         }
-
+        
         if (data.user) {
             currentUser = data.user;
-            
-            // Hide auth modal first
             hideAuthModal();
             
-            // Then update UI and load data
-            const { data: profile } = await supabaseClient
+            // Get user's status and role
+            const { data: profileData } = await supabaseClient
                 .from('user_profiles')
-                .select('status')
+                .select('status, role')
                 .eq('id', currentUser.id)
                 .single();
                 
-            if (profile) {
-                currentUser.status = profile.status;
-                updateUserStatusDisplay(profile.status);
+            if (profileData) {
+                currentUser.status = profileData.status;
+                currentUser.role = profileData.role;
+                updateUserStatusDisplay(profileData.status);
             }
-
+            
             await Promise.all([
                 loadCustomLists(),
                 loadUserGameProgress(currentUser.id)
             ]);
-
+            
             updateAuthUI();
             updateGuestPlayButton();
             showScreen('welcome-screen');
         }
-
-    } catch (error) {
-        console.error('Unexpected Login Error:', error);
-        alert('An unexpected error occurred during login');
+    } catch (e) {
+        console.error("Unexpected Login Error:", e);
+        alert("An unexpected error occurred during login");
     }
 }
 
@@ -12419,139 +12462,95 @@ function saveCurrentList() {
 }
 
 function updateListsDisplay() {
-   const container = document.getElementById('custom-lists-container');
-   if (!container) {
-       console.error('Custom lists container not found');
-       return;
-   }
-   
-   const limits = CustomListsManager.getListLimits();
-   const userStatus = currentUser?.status || 'unregistered';
-   const MIN_WORDS = 6;
-   
-   // Clear container
-   container.innerHTML = '';
-   
-   // Check if we have lists to display
-   if (!CustomListsManager.lists || !Array.isArray(CustomListsManager.lists) || CustomListsManager.lists.length === 0) {
-       container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
-       return;
-   }
-   
-   // Create and add each list item
-   CustomListsManager.lists.forEach(list => {
-       if (!list || !list.id) return; // Skip invalid list entries
-       
-       // Update list with max levels info
-       const enhancedList = updateCustomListSchema(list);
-       const wordCount = enhancedList.words?.length || 0;
-       const hasEnoughWords = wordCount >= MIN_WORDS;
-       
-       // Create list item container
-       const listItem = document.createElement('div');
-       listItem.className = `custom-list-item collapsed ${list.isShared ? 'shared-list' : ''}`;
-       listItem.dataset.listId = list.id;
-       
-       // Create list item content
-       listItem.innerHTML = `
+    const container = document.getElementById('custom-lists-container');
+    if (!container) return;
+    
+    const limits = CustomListsManager.getListLimits();
+    const userRole = currentUser?.role || 'unregistered';
+    
+    container.innerHTML = '';
+    
+    if (!CustomListsManager.lists || !Array.isArray(CustomListsManager.lists) || CustomListsManager.lists.length === 0) {
+        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
+        return;
+    }
+    
+    CustomListsManager.lists.forEach(list => {
+        if (!list || !list.id) return;
+        
+        const updatedList = updateCustomListSchema(list);
+        const wordCount = updatedList.words?.length || 0;
+        const hasEnoughWords = wordCount >= 6;
+        
+        const item = document.createElement('div');
+        item.className = 'custom-list-item collapsed ' + (list.isShared ? 'shared-list' : '');
+        item.dataset.listId = list.id;
+        
+        // Create actions buttons with conditionally shown share button
+        const shareButtonHtml = userRole === 'teacher' ? 
+            `<button class="main-button share-button">
+                <i class="fas fa-share-alt"></i> Share
+            </button>` : '';
+        
+        item.innerHTML = `
            <div class="list-actions">
-               <button class="main-button practice-button" ${!hasEnoughWords ? 'disabled' : ''}>
-                   ${hasEnoughWords ? 'Practice' : `Need ${MIN_WORDS - wordCount} more`}
+               <button class="main-button practice-button" ${hasEnoughWords ? "" : "disabled"}>
+                   ${hasEnoughWords ? "Practice" : `Need ${6-wordCount} more`}
                </button>
                <button class="main-button edit-button">Edit</button>
                <button class="main-button delete-button">Delete</button>
-               ${userStatus === 'premium' ? `
-                   <button class="main-button share-button">
-                       <i class="fas fa-share-alt"></i> Share
-                   </button>
-               ` : ''}
+               ${shareButtonHtml}
            </div>
            <div class="list-header">
-               <h3>${list.name || 'Unnamed List'}</h3>
+               <h3>${list.name || "Unnamed List"}</h3>
                <div class="list-summary">
-                   <span class="word-count ${!hasEnoughWords ? 'insufficient' : ''}">${wordCount} words</span>
-                   ${!hasEnoughWords ? `<span class="warning-text">(Minimum ${MIN_WORDS} needed)</span>` : ''}
+                   <span class="word-count ${hasEnoughWords ? "" : "insufficient"}">${wordCount} words</span>
+                   ${hasEnoughWords ? "" : '<span class="warning-text">(Minimum 6 needed)</span>'}
                    <span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>
-                   ${enhancedList.max_levels > 0 ? `<span class="level-info">Supports ${enhancedList.max_levels} levels</span>` : ''}
-                   <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0,5).join(', ') : ''}${list.words && list.words.length > 5 ? '...' : ''}</p>
+                   ${updatedList.max_levels > 0 ? `<span class="level-info">Supports ${updatedList.max_levels} levels</span>` : ""}
+                   <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0, 5).join(", ") : ""}${list.words && list.words.length > 5 ? "..." : ""}</p>
                </div>
            </div>
        `;
-       
-       // Add item to container
-       container.appendChild(listItem);
-       
-       // Set up event listeners for buttons
-       const practiceButton = listItem.querySelector('.practice-button');
-       if (practiceButton) {
-           if (hasEnoughWords) {
-               practiceButton.onclick = function() {
-                   startCustomListPractice(list.id);
-               };
-           } else {
-               practiceButton.style.opacity = '0.6';
-               practiceButton.style.cursor = 'not-allowed';
-           }
-       }
-       
-       const editButton = listItem.querySelector('.edit-button');
-       if (editButton) {
-           editButton.onclick = function() {
-               console.log('Edit button clicked for list:', list.id);
-               editCustomList(list.id);
-           };
-       }
-       
-       const deleteButton = listItem.querySelector('.delete-button');
-       if (deleteButton) {
-           deleteButton.onclick = function() {
-               console.log('Delete button clicked for list:', list.id);
-               deleteCustomList(list.id);
-           };
-       }
-       
-       const shareButton = listItem.querySelector('.share-button');
-       if (shareButton) {
-           shareButton.onclick = function() {
-               showShareModal(list.id);
-           };
-       }
-       
-       const header = listItem.querySelector('.list-header');
-       if (header) {
-           header.onclick = function() {
-               toggleListCollapse(list.id);
-           };
-       }
-   });
-
-   // Add some custom CSS for the warning style
-   const styleEl = document.getElementById('custom-list-styles');
-   if (!styleEl) {
-       const newStyle = document.createElement('style');
-       newStyle.id = 'custom-list-styles';
-       newStyle.textContent = `
-           .word-count.insufficient {
-               color: #ff6b6b;
-               font-weight: bold;
-           }
-           .warning-text {
-               color: #ff6b6b;
-               font-size: 0.85rem;
-               margin-left: 0.5rem;
-           }
-           .level-info {
-               color: var(--accent);
-               font-size: 0.85rem;
-               margin-left: 0.5rem;
-           }
-           .practice-button[disabled] {
-               opacity: 0.6;
-               cursor: not-allowed;
-           }
-       `;
-       document.head.appendChild(newStyle);
-   }
+        
+        container.appendChild(item);
+        
+        const practiceButton = item.querySelector('.practice-button');
+        if (practiceButton) {
+            if (hasEnoughWords) {
+                practiceButton.onclick = function() { startCustomListPractice(list.id); };
+            } else {
+                practiceButton.style.opacity = "0.6";
+                practiceButton.style.cursor = "not-allowed";
+            }
+        }
+        
+        const editButton = item.querySelector('.edit-button');
+        if (editButton) {
+            editButton.onclick = function() {
+                console.log("Edit button clicked for list:", list.id);
+                editCustomList(list.id);
+            };
+        }
+        
+        const deleteButton = item.querySelector('.delete-button');
+        if (deleteButton) {
+            deleteButton.onclick = function() {
+                console.log("Delete button clicked for list:", list.id);
+                deleteCustomList(list.id);
+            };
+        }
+        
+        const shareButton = item.querySelector('.share-button');
+        if (shareButton) {
+            shareButton.onclick = function() { showShareModal(list.id); };
+        }
+        
+        const headerElement = item.querySelector('.list-header');
+        if (headerElement) {
+            headerElement.onclick = function() { toggleListCollapse(list.id); };
+        }
+    });
 }
 
 function startCustomListPractice(listId) {
@@ -13214,18 +13213,17 @@ async function debugShareList(listId, recipientId) {
     }
 }
 
-async function shareListWithUser(listId, recipientId) {
+async function shareListWithUser(listId, userId) {
     try {
-        console.log("Sharing list:", listId, "with user:", recipientId);
-        
-        if (!currentUser) {
-            console.error("No current user - cannot share list");
+        if (!currentUser) return false;
+        if (currentUser.role !== 'teacher') {
+            showNotification("Only teachers can share lists", "error");
             return false;
         }
         
-        // Find the list in CustomListsManager
-        const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
+        console.log("Sharing list:", listId, "with user:", userId);
         
+        const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
         if (!list) {
             console.error("List not found for sharing:", listId);
             return false;
@@ -13233,21 +13231,20 @@ async function shareListWithUser(listId, recipientId) {
         
         console.log("Found list to share:", list.name);
         
-        // Direct insert into custom_lists table
         const { data, error } = await supabaseClient
-            .from('custom_lists')
+            .from("custom_lists")
             .insert({
-                user_id: recipientId,
-                name: `${list.name} (Shared by ${currentUser.user_metadata?.username || "User"})`,
+                user_id: userId,
+                name: `${list.name} (Shared by ${currentUser.user_metadata?.username || "Teacher"})`,
                 words: list.words || [],
                 translations: list.translations || [],
                 is_shared: true,
-                shared_with: [recipientId],
+                shared_with: [userId],
                 shared_by: currentUser.id,
                 created_at: new Date().toISOString(),
                 status: 'active'
             });
-        
+            
         if (error) {
             console.error("Error sharing list:", error);
             return false;
@@ -13257,8 +13254,8 @@ async function shareListWithUser(listId, recipientId) {
         showNotification("List shared successfully!", "success");
         closeShareModal();
         return true;
-    } catch (error) {
-        console.error("Error in shareListWithUser:", error);
+    } catch (e) {
+        console.error("Error in shareListWithUser:", e);
         showNotification("Error sharing list", "error");
         return false;
     }
@@ -13315,9 +13312,14 @@ async function loadSharedLists() {
     }));
 }
 
-// REPLACE the showShareModal function
 function showShareModal(listId) {
     console.log("Opening share modal for list:", listId);
+    
+    // Check if user is a teacher
+    if (currentUser?.role !== 'teacher') {
+        showNotification("Only teachers can share lists", "error");
+        return;
+    }
     
     // Remove any existing modals
     const existingModal = document.querySelector('.share-modal');
@@ -13335,18 +13337,21 @@ function showShareModal(listId) {
     const modal = document.createElement('div');
     modal.className = 'share-modal';
     modal.innerHTML = `
-        <h3 class="share-modal-header">Share List</h3>
-        <div class="users-list">Loading users...</div>
-        <button class="start-button modal-close" onclick="closeShareModal()">Cancel</button>
+        <div class="share-modal-content">
+            <h3 class="share-modal-header">Share List</h3>
+            <p class="share-modal-description">Choose students to share this list with:</p>
+            <div class="users-list">Loading students...</div>
+            <button class="main-button modal-close" onclick="closeShareModal()">Cancel</button>
+        </div>
     `;
     document.body.appendChild(modal);
     
-    // Now we know the modal and users-list are in the DOM
     const usersList = modal.querySelector('.users-list');
     
-    // Fetch users
+    // Fetch users - filter to only show students
     supabaseClient.from("user_profiles")
-        .select("id, username")
+        .select("id, username, role")
+        .eq("role", "student")
         .neq("id", currentUser.id)
         .then(({ data, error }) => {
             if (error) {
@@ -13356,47 +13361,57 @@ function showShareModal(listId) {
             }
             
             if (!data || data.length === 0) {
-                usersList.innerHTML = '<div class="user-item"><span>No other users available</span></div>';
+                usersList.innerHTML = '<div class="user-item"><span>No students available</span></div>';
                 return;
             }
             
             usersList.innerHTML = data.map(user => `
                 <div class="user-item">
-                    <span>${user.username || "Unnamed User"}</span>
-                    <button class="start-button share-with-user-btn" data-user-id="${user.id}">
+                    <div class="user-info">
+                        <i class="fas fa-user"></i>
+                        <span>${user.username || "Student"}</span>
+                    </div>
+                    <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}">
                         <i class="fas fa-share-alt"></i> Share
                     </button>
                 </div>
-            `).join("");
+            `).join('');
             
-            // Add click handlers to share buttons
-            modal.querySelectorAll('.share-with-user-btn').forEach(btn => {
-                btn.onclick = async () => {
-                    const userId = btn.getAttribute('data-user-id');
-                    btn.disabled = true;
-                    const originalText = btn.innerHTML;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
+            // Add event listeners to share buttons
+            modal.querySelectorAll('.share-with-user-btn').forEach(button => {
+                button.onclick = async () => {
+                    const userId = button.getAttribute('data-user-id');
+                    button.disabled = true;
+                    const originalContent = button.innerHTML;
+                    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
                     
                     const success = await shareListWithUser(listId, userId);
-                    
-                    if (!success) {
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
+                    if (success) {
+                        button.innerHTML = '<i class="fas fa-check"></i> Shared';
+                        button.style.backgroundColor = 'var(--success)';
+                    } else {
+                        button.disabled = false;
+                        button.innerHTML = originalContent;
                     }
                 };
             });
         });
 }
 
-// ADD this function to close the share modal
 function closeShareModal() {
     const modal = document.querySelector('.share-modal');
     const backdrop = document.querySelector('.modal-backdrop');
     
-    if (modal) modal.remove();
-    if (backdrop) backdrop.remove();
+    if (modal) {
+        modal.classList.add('fade-out');
+        setTimeout(() => modal.remove(), 300);
+    }
+    
+    if (backdrop) {
+        backdrop.classList.add('fade-out');
+        setTimeout(() => backdrop.remove(), 300);
+    }
 }
-
 
 function handleProgressionAfterCompletion(isLevelCompleted) {
     if (!isLevelCompleted && currentGame.streakBonus) {
@@ -13440,10 +13455,7 @@ function hideUpgradePrompt() {
     }
 }
 
-
-
 function showUpgradePrompt(callback) {
-    // Store the current screen and level info
     const gameContext = {
         screen: document.querySelector('.screen.visible')?.id,
         stage: gameState.currentStage,
@@ -13454,16 +13466,307 @@ function showUpgradePrompt(callback) {
     if (gameContext.screen) {
         localStorage.setItem('gameContext', JSON.stringify(gameContext));
     }
-
-    if (!currentUser) {
-        showUnregisteredWarning(() => {
+    
+    if (currentUser) {
+        if (checkUpgradeStatus()) {
+            if (callback) callback();
+            return;
+        }
+        
+        // Create fullscreen upgrade form similar to signup exhort
+        const fullscreenUpgrade = document.createElement('div');
+        fullscreenUpgrade.className = 'fullscreen-signup-page';
+        fullscreenUpgrade.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--gradient);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 2rem;
+            animation: fadeIn 0.3s ease-in-out;
+        `;
+        
+        fullscreenUpgrade.innerHTML = `
+            <div class="signup-header" style="width: 100%; display: flex; justify-content: flex-start; margin-bottom: 2rem;">
+                <button class="skip-upgrade-button" style="
+                    background: rgba(255,255,255,0.15);
+                    border: none;
+                    color: var(--text);
+                    padding: 0.75rem 1.5rem;
+                    border-radius: 50px;
+                    font-size: 0.9rem;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                ">
+                    Skip
+                </button>
+            </div>
+            
+            <div class="upgrade-content" style="
+                text-align: center;
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                max-width: 600px;
+                width: 100%;
+            ">
+                <h2 style="
+                    font-size: 2rem;
+                    color: var(--gold);
+                    margin-bottom: 1.5rem;
+                    animation: floatAnimation 3s ease-in-out infinite;
+                ">Upgrade to Premium!</h2>
+                
+                <p style="
+                    font-size: 1.2rem;
+                    line-height: 1.6;
+                    margin-bottom: 2rem;
+                    color: var(--text);
+                ">Unlock all stages, advanced features, and unlimited practice with a premium account</p>
+                
+                <div class="features-list" style="
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
+                    margin-bottom: 3rem;
+                    text-align: left;
+                ">
+                    <div class="feature-item" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 1rem;
+                    ">
+                        <i class="fas fa-check-circle" style="color: var(--gold); font-size: 1.5rem;"></i>
+                        <span>Access to all 5 stages and levels</span>
+                    </div>
+                    <div class="feature-item" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 1rem;
+                    ">
+                        <i class="fas fa-check-circle" style="color: var(--gold); font-size: 1.5rem;"></i>
+                        <span>Share your custom lists with students</span>
+                    </div>
+                    <div class="feature-item" style="
+                        display: flex;
+                        align-items: center;
+                        gap: 1rem;
+                    ">
+                        <i class="fas fa-check-circle" style="color: var(--gold); font-size: 1.5rem;"></i>
+                        <span>Unlimited custom lists with more words</span>
+                    </div>
+                </div>
+                
+                <form id="upgradeForm" style="width: 100%; text-align: right; direction: rtl;">
+                    <div class="form-group" style="margin-bottom: 1rem; text-align: right;">
+                        <label><input type="checkbox" id="isAdult" onchange="toggleParentFields()" name="isAdult"> אני מעל גיל 18</label>
+                    </div>
+                    
+                    <div id="parentInfoSection" style="text-align: right;">
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; color: var(--text);">שם מלא של הורה</label>
+                            <input type="text" id="parentName" name="parentName" style="
+                                width: 100%;
+                                padding: 0.75rem;
+                                border-radius: 25px;
+                                background: rgba(255, 255, 255, 0.1);
+                                border: 1px solid rgba(255, 255, 255, 0.2);
+                                color: var(--text);
+                            ">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; color: var(--text);">מספר טלפון של הורה</label>
+                            <input type="tel" id="parentPhone" name="parentPhone" pattern="[0-9]{10}" placeholder="הזן מספר טלפון של הורה" style="
+                                width: 100%;
+                                padding: 0.75rem;
+                                border-radius: 25px;
+                                background: rgba(255, 255, 255, 0.1);
+                                border: 1px solid rgba(255, 255, 255, 0.2);
+                                color: var(--text);
+                            ">
+                        </div>
+                    </div>
+                    
+                    <div id="adultInfoSection" style="display: none; text-align: right;">
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; color: var(--text);">שם מלא</label>
+                            <input type="text" id="fullName" name="fullName" style="
+                                width: 100%;
+                                padding: 0.75rem;
+                                border-radius: 25px;
+                                background: rgba(255, 255, 255, 0.1);
+                                border: 1px solid rgba(255, 255, 255, 0.2);
+                                color: var(--text);
+                            ">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; color: var(--text);">מספר טלפון</label>
+                            <input type="tel" id="phone" name="phone" pattern="[0-9]{10}" placeholder="הזן מספר טלפון" style="
+                                width: 100%;
+                                padding: 0.75rem;
+                                border-radius: 25px;
+                                background: rgba(255, 255, 255, 0.1);
+                                border: 1px solid rgba(255, 255, 255, 0.2);
+                                color: var(--text);
+                            ">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem; text-align: right;">
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text);">איך שמעת עלינו?</label>
+                        <select id="referralSource" name="referralSource" style="
+                            width: 100%;
+                            padding: 0.75rem;
+                            border-radius: 25px;
+                            background: rgba(255, 255, 255, 0.1);
+                            border: 1px solid rgba(255, 255, 255, 0.2);
+                            color: var(--text);
+                        ">
+                            <option value="friend">חבר/ה</option>
+                            <option value="teacher">מורה</option>
+                            <option value="social">רשתות חברתיות</option>
+                            <option value="other">אחר</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="signup-footer" style="
+                width: 100%;
+                display: flex;
+                justify-content: center;
+                padding-bottom: 2rem;
+                flex-direction: column;
+                align-items: center;
+                gap: 1rem;
+            ">
+                <button id="submitUpgradeBtn" class="signup-now-button" style="
+                    background: var(--gold);
+                    color: var(--primary-dark);
+                    border: none;
+                    padding: 1.25rem 3rem;
+                    border-radius: 50px;
+                    font-size: 1.2rem;
+                    font-weight: bold;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 10px 20px rgba(255, 215, 0, 0.2);
+                    animation: pulseAnimation 1.5s infinite ease-in-out;
+                    width: 100%;
+                    max-width: 400px;
+                ">
+                    שלח בקשת שדרוג
+                </button>
+                <p style="color: var(--text); opacity: 0.8; font-size: 0.9rem; text-align: center;">
+                    לאחר שליחת הבקשה ניצור איתך קשר בווטסאפ
+                </p>
+            </div>
+        `;
+        
+        document.body.appendChild(fullscreenUpgrade);
+        
+        // Skip button functionality
+        fullscreenUpgrade.querySelector('.skip-upgrade-button').addEventListener('click', function() {
+            document.body.removeChild(fullscreenUpgrade);
             if (callback) callback();
         });
-    } else if (!checkUpgradeStatus()) {
-        showUpgradeScreen();
+        
+        // Submit button functionality
+        fullscreenUpgrade.querySelector('#submitUpgradeBtn').addEventListener('click', async function() {
+            const isAdult = document.getElementById('isAdult').checked;
+            
+            try {
+                const { data: userData } = await supabaseClient
+                    .from('user_profiles')
+                    .select('username, created_at')
+                    .eq('id', currentUser.id)
+                    .single();
+                
+                let requestData = {
+                    user_id: currentUser.id,
+                    is_adult: isAdult,
+                    full_name: isAdult ? 
+                        document.getElementById('fullName').value : 
+                        document.getElementById('parentName').value,
+                    phone: isAdult ? 
+                        document.getElementById('phone').value : 
+                        document.getElementById('parentPhone').value,
+                    parent_name: isAdult ? 
+                        null : 
+                        document.getElementById('parentName').value,
+                    parent_phone: isAdult ? 
+                        null : 
+                        document.getElementById('parentPhone').value,
+                    referral_source: document.getElementById('referralSource').value
+                };
+                
+                if (!validateUpgradeForm(isAdult)) {
+                    alert("Please fill in all required fields");
+                    return;
+                }
+                
+                const { data, error } = await supabaseClient
+                    .from('upgrade_requests')
+                    .insert([requestData])
+                    .select();
+                
+                if (error) throw error;
+                
+                const { error: profileError } = await supabaseClient
+                    .from('user_profiles')
+                    .update({ status: 'pending' })
+                    .eq('id', currentUser.id);
+                
+                if (profileError) throw profileError;
+                
+                localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
+                
+                // Show success notification
+                const successNotification = document.createElement('div');
+                successNotification.className = 'confirmation-popup';
+                successNotification.innerHTML = `
+                    <h2>Thank You!</h2>
+                    <p>We've received your upgrade request. We'll contact you soon with payment details.</p>
+                    <button id="continueAfterUpgradeBtn">Continue Playing</button>
+                `;
+                
+                document.body.appendChild(successNotification);
+                setTimeout(() => successNotification.classList.add('show'), 100);
+                
+                document.getElementById('continueAfterUpgradeBtn').onclick = function() {
+                    successNotification.classList.remove('show');
+                    setTimeout(() => {
+                        successNotification.remove();
+                        document.body.removeChild(fullscreenUpgrade);
+                        updateUserStatusDisplay('pending');
+                        if (callback) callback();
+                    }, 300);
+                };
+            } catch (e) {
+                console.error("Upgrade Request Error:", e);
+                alert("Error processing request. Please try again.");
+            }
+        });
     } else {
-        // Already requested upgrade, continue with game
-        if (callback) callback();
+        // For unregistered users, show the existing exhort
+        showUnregisteredWarning(callback);
+    }
+}
+
+function validateUpgradeForm(isAdult) {
+    if (isAdult) {
+        return document.getElementById('fullName').value && 
+               document.getElementById('phone').value;
+    } else {
+        return document.getElementById('parentName').value && 
+               document.getElementById('parentPhone').value;
     }
 }
 
@@ -14176,74 +14479,12 @@ function toggleParentFields() {
         adultSection.style.display = 'none';
         
         // Toggle required attributes
-        parentInputs.forEach(input => input.required = true);
+        parentInputs.forEach(input => input.required = false);
         adultInputs.forEach(input => input.required = false);
     }
 }
 
-async function handleUpgradeSubmit(event) {
-    event.preventDefault();
-    const isAdult = document.getElementById('isAdult').checked;
-    
-    try {
-        // First get user profile details
-        const { data: userProfile } = await supabaseClient
-            .from('user_profiles')
-            .select('username, created_at')
-            .eq('id', currentUser.id)
-            .single();
 
-        let formData = {
-            user_id: currentUser.id,
-            is_adult: isAdult,
-            full_name: isAdult ? document.getElementById('fullName').value : document.getElementById('parentName').value,
-            phone: isAdult ? document.getElementById('phone').value : document.getElementById('parentPhone').value,
-            parent_name: !isAdult ? document.getElementById('parentName').value : null,
-            parent_phone: !isAdult ? document.getElementById('parentPhone').value : null,
-            referral_source: document.getElementById('referralSource').value
-        };
-
-        if (!validateForm(isAdult)) {
-            alert('Please fill in all required fields');
-            return;
-        }
-
-        const { data, error } = await supabaseClient
-            .from('upgrade_requests')
-            .insert([formData])
-            .select();
-
-        if (error) throw error;
-
-        // Update user profile status to pending
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .update({ status: 'pending' })
-            .eq('id', currentUser.id);
-
-        if (profileError) throw profileError;
-
-        // Store in localStorage to prevent repeated prompts
-        localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
-
-        // Show confirmation popup
-        const popup = document.createElement('div');
-        popup.className = 'confirmation-popup';
-        popup.innerHTML = `
-            <h2>Thank You!</h2>
-            <p>We've received your upgrade request. We'll contact you soon with payment details.</p>
-            <button onclick="continueAfterUpgrade()">Continue Playing</button>
-        `;
-        document.body.appendChild(popup);
-        
-        // Show popup with animation
-        setTimeout(() => popup.classList.add('show'), 100);
-
-    } catch (error) {
-        console.error('Upgrade Request Error:', error);
-        alert('Error processing request. Please try again.');
-    }
-}
 
 function continueAfterUpgrade() {
     // Remove popup
@@ -19634,113 +19875,179 @@ async function deleteCustomList(listId) {
 }
 
 function showReviveOverlay() {
-    const overlay = document.createElement('div');
-    overlay.className = 'revive-overlay';
-    overlay.innerHTML = `
-        <div class="revive-content">
-            <div class="ankh-symbol">☥</div>
-            <h2 class="revive-title">Revive?</h2>
-            <div class="revive-timer">5</div>
-            <button class="revive-button">Revive</button>
-        </div>
-    `;
+  // Create a resurrection overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'resurrection-overlay';
+  
+  // Find the existing progress circle and clone it
+  const originalProgressCircle = document.querySelector('.progress-circle');
+  const progressCircleClone = originalProgressCircle.cloneNode(true);
+  
+  // Create the revive content container
+  const reviveContainer = document.createElement('div');
+  reviveContainer.className = 'revive-container';
+  
+  // Add the ankh symbol
+  const ankhSymbol = document.createElement('div');
+  ankhSymbol.className = 'ankh-symbol';
+  ankhSymbol.textContent = '☥';
+  reviveContainer.appendChild(ankhSymbol);
+  
+  // Position the progress circle clone in the revive container
+  progressCircleClone.style.position = 'absolute';
+  progressCircleClone.style.top = '0';
+  progressCircleClone.style.left = '0';
+  
+  // Adjust SVG circle properties
+  const progressSVG = progressCircleClone.querySelector('svg');
+  const circles = progressCircleClone.querySelectorAll('circle');
+  
+  circles.forEach(circle => {
+    // Reset all circles
+    circle.style.transition = 'none';
+    circle.style.strokeDashoffset = '339.29'; // Reset to empty state
     
-    document.body.appendChild(overlay);
-    
-    // Fade in animation
-    requestAnimationFrame(() => {
-        overlay.classList.add('show');
-    });
-    
-    // Set up countdown
-    let seconds = 5;
-    const timerDisplay = overlay.querySelector('.revive-timer');
-    
-    const countdownInterval = setInterval(() => {
-        seconds--;
-        timerDisplay.textContent = seconds;
-        
-        if (seconds <= 0) {
-            clearInterval(countdownInterval);
-            handleReviveTimeout();
-        }
-    }, 1000);
-    
-    // Handle revive button click
-    const reviveButton = overlay.querySelector('.revive-button');
-    reviveButton.onclick = () => {
-        clearInterval(countdownInterval);
-        handleRevive();
-    };
-    
-    // Store interval for cleanup
-    overlay.dataset.intervalId = countdownInterval;
+    // Make progress circle gold for resurrection
+    if (circle.classList.contains('progress')) {
+      circle.classList.add('resurrection-fill');
+      circle.style.stroke = 'var(--gold)';
+    }
+  });
+  
+  // Remove coins container if it exists in the clone
+  const coinsContainer = progressCircleClone.querySelector('.coins-container');
+  if (coinsContainer) {
+    progressCircleClone.removeChild(coinsContainer);
+  }
+  
+  reviveContainer.appendChild(progressCircleClone);
+  overlay.appendChild(reviveContainer);
+  
+  // Add timer and button below the circle
+  const content = document.createElement('div');
+  content.className = 'revive-content';
+  
+  const title = document.createElement('h2');
+  title.className = 'revive-title';
+  title.textContent = 'Revive?';
+  
+  const timer = document.createElement('div');
+  timer.className = 'revive-timer';
+  timer.textContent = '5';
+  
+  const button = document.createElement('button');
+  button.className = 'revive-button';
+  button.textContent = 'Revive';
+  
+  content.appendChild(title);
+  content.appendChild(timer);
+  content.appendChild(button);
+  
+  overlay.appendChild(content);
+  document.body.appendChild(overlay);
+  
+  // Make the overlay visible
+  requestAnimationFrame(() => {
+    overlay.classList.add('show');
+  });
+  
+  // Set up the countdown timer
+  let timeLeft = 5;
+  const timerInterval = setInterval(() => {
+    timeLeft--;
+    timer.textContent = timeLeft;
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      handleReviveTimeout();
+    }
+  }, 1000);
+  
+  // Set up button click event
+  button.onclick = () => {
+    clearInterval(timerInterval);
+    handleRevive();
+  };
+  
+  // Store interval ID in the overlay for cleanup
+  overlay.dataset.intervalId = timerInterval;
 }
 
 function handleReviveTimeout() {
-    const overlay = document.querySelector('.revive-overlay');
-    
-    if (overlay) {
-        overlay.classList.remove('show');
-        setTimeout(() => {
-            overlay.remove();
-            showScreen('welcome-screen');
-        }, 500);
-    }
+  const overlay = document.querySelector('.resurrection-overlay');
+  if (overlay) {
+    overlay.classList.remove('show');
+    setTimeout(() => {
+      overlay.remove();
+      showScreen('welcome-screen');
+    }, 500);
+  }
 }
 
 function handleRevive() {
-    const overlay = document.querySelector('.revive-overlay');
+  const overlay = document.querySelector('.resurrection-overlay');
+  if (!overlay) return;
+  
+  // Get the cloned progress circle from the overlay
+  const progressCircle = overlay.querySelector('.progress-circle');
+  if (!progressCircle) return;
+  
+  // Hide the timer and button
+  const reviveContent = overlay.querySelector('.revive-content');
+  if (reviveContent) {
+    reviveContent.style.opacity = '0';
+  }
+  
+  // Change the title to indicate resurrection is happening
+  const title = document.createElement('div');
+  title.className = 'revive-title';
+  title.textContent = 'Resurrecting...';
+  title.style.opacity = '0';
+  
+  // Replace the content with just the title
+  if (reviveContent) {
+    overlay.replaceChild(title, reviveContent);
     
-    if (overlay) {
-        // First change content to show resurrection animation
-        const content = overlay.querySelector('.revive-content');
-        content.innerHTML = `
-            <div class="resurrection-animation">
-                <div class="progress-circle resurrection-circle">
-                    <svg width="100%" height="100%" viewBox="0 0 120 120">
-                        <circle class="bg" cx="60" cy="60" r="54" stroke-width="8"/>
-                        <circle class="resurrection-progress" cx="60" cy="60" r="54" stroke-width="8"/>
-                    </svg>
-                    <div class="ankh-symbol resurrection-ankh">☥</div>
-                </div>
-            </div>
-        `;
-        
-        // Start resurrection animation
-        const progressCircle = overlay.querySelector('.resurrection-progress');
-        const circumference = 2 * Math.PI * 54;
-        progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
-        progressCircle.style.strokeDashoffset = circumference;
-        
-        // Create light particles effect
-        createResurrectionParticles();
-        
-        // Animate progress circle filling
-        setTimeout(() => {
-            progressCircle.style.transition = 'stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1)';
-            progressCircle.style.strokeDashoffset = '0';
-        }, 100);
-        
-        // After animation completes, restart level
-        setTimeout(() => {
-            overlay.classList.remove('show');
-            setTimeout(() => {
-                overlay.remove();
-                
-                // Reset game state
-                currentGame.wrongStreak = 0;
-                timeRemaining = currentGame.initialTimeRemaining;
-                
-                // If in custom practice, handle specially
-                if (currentGame.isCustomPractice) {
-                    startCustomLevel(currentGame.customLevel);
-                } else {
-                    startLevel(gameState.currentLevel);
-                }
-            }, 500);
-        }, 2500);
-    }
+    // Fade the title in
+    setTimeout(() => {
+      title.style.transition = 'opacity 0.5s ease';
+      title.style.opacity = '1';
+    }, 100);
+  }
+  
+  // Get the progress circle and prepare the fill animation
+  const progressElement = progressCircle.querySelector('circle.progress');
+  
+  if (progressElement) {
+    // Start with empty circle
+    const circumference = 2 * Math.PI * 54;
+    progressElement.style.strokeDasharray = `${circumference} ${circumference}`;
+    progressElement.style.strokeDashoffset = circumference;
+    
+    // After a short delay, animate the fill
+    setTimeout(() => {
+      progressElement.style.transition = 'stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1)';
+      progressElement.style.strokeDashoffset = '0'; // Fill to 100%
+    }, 300);
+  }
+  
+  // After animation completes, close overlay and restart level
+  setTimeout(() => {
+    overlay.classList.remove('show');
+    setTimeout(() => {
+      overlay.remove();
+      
+      // Reset game state for revival
+      currentGame.wrongStreak = 0;
+      timeRemaining = currentGame.initialTimeRemaining;
+      
+      // Restart the current level
+      if (currentGame.isCustomPractice) {
+        startCustomLevel(currentGame.customLevel);
+      } else {
+        startLevel(gameState.currentLevel);
+      }
+    }, 500);
+  }, 2500);
 }
 
 function createResurrectionParticles() {
