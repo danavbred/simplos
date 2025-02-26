@@ -22017,6 +22017,35 @@ function showShareModal(listId) {
   }
 }
 
+function generateAnswerOptions(correctAnswer) {
+  const buttonsContainer = document.querySelector(".buttons");
+  if (!buttonsContainer) return;
+  
+  buttonsContainer.innerHTML = "";
+  
+  // Create a set of options including the correct answer
+  let options = [correctAnswer];
+  const isHebrewAnswer = isHebrewWord(correctAnswer);
+  
+  // Get additional options based on whether we need Hebrew or English words
+  const additionalOptions = getRandomAnswerOptions(correctAnswer, isHebrewAnswer, 3);
+  options = options.concat(additionalOptions);
+  
+  // Shuffle the options
+  options = shuffleArray(options);
+  
+  // Create buttons for each option
+  options.forEach(option => {
+    const button = document.createElement("button");
+    button.textContent = option;
+    button.className = isHebrewAnswer ? "hebrew-text" : "";
+    button.onclick = function(event) {
+      handleAnswer(event);
+    };
+    buttonsContainer.appendChild(button);
+  });
+}
+
 </script>
 </body>
 </html>
