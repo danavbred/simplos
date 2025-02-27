@@ -15136,202 +15136,197 @@ const powerupPool = {
     }
 };
 
-// REPLACE initializePowerups function
 function initializePowerups() {
-  const powerupDefinitions = {
-    highFive: {
-      id: "highFiveCard",
-      cost: 30,
-      effect: 50,
-      type: "goodie",
-      icon: "fa-hand-paper",
-      name: "High Five",
-      message: "high-fived"
-    },
-    fistBump: {
-      id: "fistBumpCard",
-      cost: 40,
-      effect: 75,
-      type: "goodie",
-      icon: "fa-fist-raised",
-      name: "Fist Bump",
-      message: "fist-bumped"
-    },
-    energyBoost: {
-      id: "energyBoostCard",
-      cost: 45,
-      type: "goodie",
-      icon: "fa-bolt",
-      name: "Energy Boost",
-      message: "boosted"
-    },
-    freeze: {
-      id: "freezeCard",
-      cost: 150,
-      duration: 10000,
-      type: "baddie",
-      icon: "fa-snowflake",
-      name: "Freeze",
-      message: "froze"
-    },
-    coinStorm: {
-      id: "coinStormCard",
-      cost: 160,
-      type: "baddie",
-      icon: "fa-cloud-showers-heavy",
-      name: "Coin Storm",
-      message: "cast a coin storm on"
-    },
-    screenShake: {
-      id: "screenShakeCard",
-      cost: 130,
-      duration: 5000,
-      type: "baddie",
-      icon: "fa-shake",
-      name: "Screen Shake",
-      message: "shook"
-    }
-  };
-
-  // Function to update powerup buttons state
-  function updatePowerupButtons() {
-    document.querySelectorAll('.powerup-card').forEach(card => {
-      const costElement = card.querySelector('.powerup-cost');
-      if (!costElement) return;
-      
-      const cost = parseInt(costElement.textContent);
-      const canAfford = currentGame.coins >= cost;
-      
-      card.classList.toggle('disabled', !canAfford);
-      card.style.cursor = canAfford ? 'pointer' : 'not-allowed';
-      card.style.opacity = canAfford ? '1' : '0.5';
-    });
-  }
-
-  // Initialize powerup display
-  function initializePowerupDisplay() {
-    const container = document.querySelector('.powerups-container');
-    if (!container) return;
-    
-    // Clear existing powerups
-    container.innerHTML = '';
-    
-    // Select random powerups
-    const powerupKeys = Object.keys(powerupDefinitions);
-    const selectedKeys = [];
-    
-    // Select 3 random powerups
-    while (selectedKeys.length < 3 && powerupKeys.length > 0) {
-      const randomIndex = Math.floor(Math.random() * powerupKeys.length);
-      selectedKeys.push(powerupKeys.splice(randomIndex, 1)[0]);
-    }
-    
-    // Create powerup cards
-    selectedKeys.forEach(key => {
-      const powerup = powerupDefinitions[key];
-      const card = document.createElement('div');
-      card.className = `powerup-card ${powerup.type}`;
-      card.id = powerup.id;
-      card.innerHTML = `
-        <i class="fas ${powerup.icon} powerup-icon"></i>
-        <div class="powerup-name">${powerup.name}</div>
-        <div class="powerup-cost">${powerup.cost}</div>
-      `;
-      
-      card.onclick = async () => {
-        console.log('Powerup clicked:', powerup.name);
-        
-        if (currentGame.coins < powerup.cost) {
-          return showNotification('Not enough coins!', 'error');
+    const powerupPool = {
+        highFive: {
+            id: 'highFiveCard',
+            cost: 30,
+            effect: 50,
+            type: 'goodie',
+            icon: 'fa-hand-paper',
+            name: 'High Five',
+            message: 'high-fived'
+        },
+        fistBump: {
+            id: 'fistBumpCard',
+            cost: 40,
+            effect: 75,
+            type: 'goodie',
+            icon: 'fa-fist-raised',
+            name: 'Fist Bump',
+            message: 'fist-bumped'
+        },
+        energyBoost: {
+            id: 'energyBoostCard',
+            cost: 45,
+            type: 'goodie',
+            icon: 'fa-bolt',
+            name: 'Energy Boost',
+            message: 'boosted'
+        },
+        freeze: {
+            id: 'freezeCard',
+            cost: 150,
+            duration: 10000,
+            type: 'baddie',
+            icon: 'fa-snowflake',
+            name: 'Freeze',
+            message: 'froze'
+        },
+        coinStorm: {
+            id: 'coinStormCard',
+            cost: 160,
+            type: 'baddie',
+            icon: 'fa-cloud-showers-heavy',
+            name: 'Coin Storm',
+            message: 'cast a coin storm on'
+        },
+        screenShake: {
+            id: 'screenShakeCard',
+            cost: 130,
+            duration: 5000,
+            type: 'baddie',
+            icon: 'fa-shake',
+            name: 'Screen Shake',
+            message: 'shook'
         }
+    };
+
+    function getRandomPowerups(count = 3) {
+        const powerupKeys = Object.keys(powerupPool);
+        const selectedKeys = [];
+        while (selectedKeys.length < count && powerupKeys.length > 0) {
+            const randomIndex = Math.floor(Math.random() * powerupKeys.length);
+            selectedKeys.push(powerupKeys.splice(randomIndex, 1)[0]);
+        }
+        return selectedKeys;
+    }
+
+    function renderPowerups() {
+        const container = document.querySelector('.powerups-container');
+        if (!container) return;
         
-        // Find another random player to target
-        const otherPlayers = currentArcadeSession.participants.filter(
-          p => p.username !== currentArcadeSession.playerName && 
-               p.username !== undefined && 
-               p.username !== null
+        container.innerHTML = '';
+        const selectedPowerups = getRandomPowerups(3);
+        
+        selectedPowerups.forEach(key => {
+            const powerup = powerupPool[key];
+            const card = document.createElement('div');
+            card.className = `powerup-card ${powerup.type}`;
+            card.id = powerup.id;
+            
+            card.innerHTML = `
+                <i class="fas ${powerup.icon} powerup-icon"></i>
+                <div class="powerup-name">${powerup.name}</div>
+                <div class="powerup-cost">${powerup.cost}</div>
+            `;
+            
+            card.onclick = async () => {
+                console.log('Powerup clicked:', powerup.name); // Debug log
+                
+                if (currentGame.coins < powerup.cost) {
+                    showNotification('Not enough coins!', 'error');
+                    return;
+                }
+                
+                // Change this section in the card.onclick function:
+                const otherPlayers = currentArcadeSession.participants.filter(
+            p => p.username !== currentArcadeSession.playerName && 
+                 p.username !== undefined && 
+                 p.username !== null
         );
-        
+
         if (otherPlayers.length === 0) {
-          return showNotification('Waiting for other players to join...', 'info');
+            showNotification('Waiting for other players to join...', 'info');
+            return;
         }
-        
-        const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
-        
-        // Deduct cost
-        const oldCoins = currentGame.coins;
-        currentGame.coins -= powerup.cost;
-        document.querySelectorAll('.coin-count').forEach(element => {
-          element.textContent = currentGame.coins;
+                
+                const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+                
+                // Deduct coins immediately
+                const oldCoins = currentGame.coins;
+                currentGame.coins -= powerup.cost;
+                
+                // Update coins display
+                document.querySelectorAll('.coin-count').forEach(display => {
+                    display.textContent = currentGame.coins;
+                });
+                
+                try {
+                    // Send powerup effect
+                    await window.arcadeChannel.send({
+                        type: 'broadcast',
+                        event: 'powerup_effect',
+                        payload: {
+                            powerupKey: key,
+                            targetUser: targetPlayer.username,
+                            fromUser: currentArcadeSession.playerName,
+                            powerup: powerup
+                        }
+                    });
+                    
+                    // Show feedback
+                    showNotification(`Used ${powerup.name} on ${targetPlayer.username}!`, powerup.type);
+                    
+                    // Update progress
+                    await window.arcadeChannel.send({
+                        type: 'broadcast',
+                        event: 'progress_update',
+                        payload: {
+                            username: currentArcadeSession.playerName,
+                            wordsCompleted: currentGame.wordsCompleted,
+                            coins: currentGame.coins,
+                            timestamp: Date.now()
+                        }
+                    });
+                    
+                    // Get new powerups
+                    renderPowerups();
+                    
+                } catch (error) {
+                    console.error('Powerup use error:', error);
+                    // Revert coins if failed
+                    currentGame.coins = oldCoins;
+                    document.querySelectorAll('.coin-count').forEach(display => {
+                        display.textContent = oldCoins;
+                    });
+                    showNotification('Failed to use powerup!', 'error');
+                }
+            };
+            
+            container.appendChild(card);
         });
         
-        try {
-          // Send powerup effect
-          await window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'powerup_effect',
-            payload: {
-              powerupKey: key,
-              targetUser: targetPlayer.username,
-              fromUser: currentArcadeSession.playerName,
-              powerup: powerup
-            }
-          });
-          
-          showNotification(`Used ${powerup.name} on ${targetPlayer.username}!`, powerup.type);
-          
-          // Update progress
-          await window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'progress_update',
-            payload: {
-              username: currentArcadeSession.playerName,
-              wordsCompleted: currentGame.wordsCompleted,
-              coins: currentGame.coins,
-              timestamp: Date.now()
-            }
-          });
-          
-          // Reinitialize powerups to refresh
-          initializePowerupDisplay();
-        } catch (error) {
-          console.error('Powerup use error:', error);
-          currentGame.coins = oldCoins;
-          document.querySelectorAll('.coin-count').forEach(element => {
-            element.textContent = oldCoins;
-          });
-          showNotification('Failed to use powerup!', 'error');
-        }
-      };
-      
-      container.appendChild(card);
-    });
-    
-    updatePowerupButtons();
-  }
+        updatePowerupAvailability();
+    }
 
-  // Initialize powerups
-  initializePowerupDisplay();
-  
-  // Update powerup state when coins change
-  const coinDisplay = document.querySelector('.coin-count');
-  if (coinDisplay) {
-    new MutationObserver(() => {
-      updatePowerupButtons();
-    }).observe(coinDisplay, { 
-      childList: true, 
-      characterData: true, 
-      subtree: true 
-    });
-  }
-  
-  // Make sure powerups container is visible
-  const powerupsContainer = document.querySelector('.powerups-container');
-  if (powerupsContainer) {
-    powerupsContainer.style.display = 'flex';
-  }
-  
-  updatePowerupButtons();
+    function updatePowerupAvailability() {
+        document.querySelectorAll('.powerup-card').forEach(card => {
+            const costElement = card.querySelector('.powerup-cost');
+            if (!costElement) return;
+            
+            const cost = parseInt(costElement.textContent);
+            const canAfford = currentGame.coins >= cost;
+            
+            card.classList.toggle('disabled', !canAfford);
+            card.style.cursor = canAfford ? 'pointer' : 'not-allowed';
+            card.style.opacity = canAfford ? '1' : '0.5';
+        });
+    }
+
+    // Initialize first set of powerups
+    renderPowerups();
+    
+    // Watch for coin changes
+    const coinDisplay = document.querySelector('.coin-count');
+    if (coinDisplay) {
+        new MutationObserver(() => {
+            updatePowerupAvailability();
+        }).observe(coinDisplay, { childList: true, characterData: true, subtree: true });
+    }
+    
+    // Initial availability check
+    updatePowerupAvailability();
 }
 
 function requestFullscreenMode() {
