@@ -6061,74 +6061,6 @@ body.dark-theme {
   pointer-events: none;
 }
 
-/* ADD THIS to your existing CSS */
-.custom-lists-section {
-    margin: 2rem 0;
-    text-align: left;
-    width: 100%;
-}
-
-.arcade-custom-list-item {
-    padding: 0.75rem 1rem;
-    margin: 0.5rem 0;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    transition: all 0.3s ease;
-}
-
-.arcade-custom-list-item:hover {
-    background: rgba(255, 255, 255, 0.15);
-    transform: translateY(-2px);
-}
-
-.custom-list-checkbox {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    cursor: pointer;
-}
-
-.custom-list-checkbox input[type="checkbox"] {
-    margin-right: 10px;
-    width: 18px;
-    height: 18px;
-}
-
-.custom-list-checkbox .list-name {
-    flex: 1;
-    font-weight: 500;
-}
-
-.custom-list-checkbox .word-count {
-    margin-left: 10px;
-    opacity: 0.8;
-    font-size: 0.9rem;
-}
-
-/* Improved start button */
-#teacher-view .start-button {
-    padding: 1rem 2rem;
-    font-size: 1.2rem;
-    background: var(--accent);
-    color: var(--text);
-    border: none;
-    border-radius: 25px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-top: 1.5rem;
-    width: fit-content;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
-}
-
-#teacher-view .start-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(30, 144, 255, 0.5);
-}
-
-
-
 </style>
 </head>
 <body>
@@ -6542,13 +6474,6 @@ body.dark-theme {
                </div>
                <p class="stage-warning" style="display: none; color: var(--error);">Please select at least one stage</p>
            </div>
-
-           <div class="custom-lists-section">
-            <h3>Include Custom Lists:</h3>
-            <div class="custom-lists-container" id="arcade-custom-lists">
-                <p class="loading-lists">Loading lists...</p>
-            </div>
-        </div>
 
            <div class="word-goal">
             <h3>Word Goal: <span id="wordGoalDisplay">50</span> words</h3>
@@ -12924,162 +12849,159 @@ let currentArcadeSession = {
 };
 
 
-// REPLACE the showArcadeModal function
 async function showArcadeModal() {
-    console.log('Opening join modal with OTP:');
-    const arcadeModal = document.getElementById('arcade-modal');
+    const modal = document.getElementById('arcade-modal');
     const teacherView = document.getElementById('teacher-view');
     const playerView = document.getElementById('player-view');
-    const otpInput = document.getElementById('otpInput');
-    const usernameInput = document.getElementById('arcadeUsername');
-    const inputGroup = usernameInput ? usernameInput.closest('.input-group') : null;
-    
+    const usernameField = document.getElementById('arcadeUsername');
+    const usernameGroup = usernameField ? usernameField.closest('.input-group') : null;
+
     try {
         if (currentUser) {
-            const { data } = await supabaseClient.from('user_profiles').select('role').eq('id', currentUser.id).single();
-            
-            if (data?.role === 'teacher') {
-                // This is a teacher
+            const { data: profile } = await supabaseClient
+                .from('user_profiles')
+                .select('role')
+                .eq('id', currentUser.id)
+                .single();
+
+            if (profile?.role === 'teacher') {
+                // Generate OTP
                 const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+                // Store in session
                 currentArcadeSession.otp = otp;
                 currentArcadeSession.teacherId = currentUser.id;
                 currentArcadeSession.participants = [];
                 currentArcadeSession.isInitialized = false;
-                
+
+                // Create channel
                 window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`, {
                     config: { broadcast: { self: true } }
                 });
-                
-                window.arcadeChannel.on('broadcast', { event: 'player_join' }, ({payload}) => {
-                    console.log('Player join event received:', payload);
-                    if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
-                        currentArcadeSession.participants.push({
-                            username: payload.username,
-                            wordsCompleted: 0,
-                            coins: 0
-                        });
-                        
-                        document.getElementById('player-count').textContent = currentArcadeSession.participants.length;
-                        
-                        const leaderboard = document.getElementById('arcade-leaderboard');
-                        if (leaderboard && leaderboard.offsetParent !== null) {
-                            updateAllPlayersProgress();
+
+                // Set up channel listeners
+                window.arcadeChannel
+                    .on('broadcast', { event: 'player_join' }, ({ payload }) => {
+                        console.log('Player join event received:', payload);
+                        if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
+                            currentArcadeSession.participants.push({
+                                username: payload.username,
+                                wordsCompleted: 0,
+                                coins: 0
+                            });
+
+                            // Update both player count and leaderboard
+                            document.getElementById('player-count').textContent = 
+                                currentArcadeSession.participants.length;
+
+                            // Update leaderboard if visible
+                            const leaderboard = document.getElementById('arcade-leaderboard');
+                            if (leaderboard && leaderboard.offsetParent !== null) {
+                                updateAllPlayersProgress();
+                            }
                         }
-                    }
-                }).subscribe();
-                
-                const baseUrl = window.location.origin + window.location.pathname;
-                console.log(baseUrl);
-                
-                // Generate QR code for this session
+                    })
+                    .subscribe();
+
+                // Generate QR code with proper URL construction
+                const currentUrl = window.location.origin + window.location.pathname;
+                const joinUrl = `${currentUrl}#join=${otp}`;
                 generateQRCode(otp);
-                
+
                 document.getElementById('otp').textContent = otp;
                 teacherView.style.display = 'block';
                 playerView.style.display = 'none';
-                
-                // Initialize the word goal slider
+
+                // Initialize word goal slider
                 initializeWordGoalSlider();
+            } else {
+                // For registered non-teacher users, auto-fill username and hide that field
+                teacherView.style.display = 'none';
+                playerView.style.display = 'block';
                 
-                // Load custom lists for the teacher
-                await loadArcadeCustomLists();
-            } else if (teacherView.style.display = 'none', playerView.style.display = 'block', usernameInput && inputGroup) {
-                // For students with accounts, prefill username
-                const username = currentUser.user_metadata?.username || currentUser.email.split('@')[0];
-                usernameInput.value = username;
-                usernameInput.readOnly = true;
-                usernameInput.style.display = 'none';
-                
-                const displayElement = document.createElement('div');
-                displayElement.className = 'username-display';
-                displayElement.textContent = `Joining as: ${username}`;
-                inputGroup.insertBefore(displayElement, usernameInput);
+                if (usernameField && usernameGroup) {
+                    const username = currentUser.user_metadata?.username || 
+                                    currentUser.email.split('@')[0];
+                    usernameField.value = username;
+                    usernameField.readOnly = true;
+                    usernameField.style.display = 'none';
+                    
+                    // Add a placeholder to show the username
+                    const usernamePlaceholder = document.createElement('div');
+                    usernamePlaceholder.className = 'username-display';
+                    usernamePlaceholder.textContent = `Joining as: ${username}`;
+                    usernameGroup.insertBefore(usernamePlaceholder, usernameField);
+                }
             }
-        } else if (teacherView.style.display = 'none', playerView.style.display = 'block', usernameInput) {
-            // For guests, allow username input
-            usernameInput.readOnly = false;
-            usernameInput.style.display = 'block';
+        } else {
+            // For unregistered users, show both username and OTP fields
+            teacherView.style.display = 'none';
+            playerView.style.display = 'block';
             
-            const displayElement = inputGroup?.querySelector('.username-display');
-            displayElement && displayElement.remove();
+            if (usernameField) {
+                usernameField.readOnly = false;
+                usernameField.style.display = 'block';
+                
+                // Remove any existing username display
+                const existingDisplay = usernameGroup?.querySelector('.username-display');
+                if (existingDisplay) existingDisplay.remove();
+            }
         }
-        
-        arcadeModal.style.display = 'block';
+
+        modal.style.display = 'block';
+
     } catch (error) {
         console.error('Arcade setup error:', error);
         alert('Failed to initialize arcade');
     }
 }
 
-// REPLACE the initializeWordGoalSlider function
 function initializeWordGoalSlider() {
     const slider = document.getElementById('wordGoalSlider');
     const display = document.getElementById('wordGoalDisplay');
     const input = document.getElementById('wordGoalInput');
     const stops = document.querySelectorAll('.slider-stop');
     
-    if (slider && display && input) {
-        slider.min = 1;
-        slider.max = 200;
-        slider.value = 50;
-        display.textContent = 50;
-        input.value = 50;
+    if (!slider || !display || !input) return;
+    
+    // Set the min attribute to 0 to match visual display
+    slider.min = 0;
+    slider.max = 200;
+    slider.value = 50; // Default value
+    display.textContent = 50;
+    input.value = 50;
+    
+    // Update display and input when slider changes
+    slider.addEventListener('input', function() {
+        const value = parseInt(this.value);
+        display.textContent = value;
+        input.value = value;
+    });
+    
+    // Update slider and display when input changes
+    input.addEventListener('input', function() {
+        let value = parseInt(this.value) || 0;
         
-        slider.addEventListener('input', function() {
-            const value = parseInt(this.value);
-            display.textContent = value;
-            input.value = value;
-            
-            // Check against custom words count
-            let customWordsCount = 0;
-            document.querySelectorAll('#arcade-custom-lists input[type="checkbox"]:checked').forEach(checkbox => {
-                customWordsCount += parseInt(checkbox.getAttribute('data-word-count') || 0);
-            });
-            
-            if (value < customWordsCount) {
-                this.value = customWordsCount;
-                display.textContent = customWordsCount;
-                input.value = customWordsCount;
-            }
-        });
+        // Enforce min/max constraints
+        value = Math.max(0, Math.min(200, value));
         
-        input.addEventListener('input', function() {
-            let value = parseInt(this.value) || 0;
-            
-            // Get custom words count
-            let customWordsCount = 0;
-            document.querySelectorAll('#arcade-custom-lists input[type="checkbox"]:checked').forEach(checkbox => {
-                customWordsCount += parseInt(checkbox.getAttribute('data-word-count') || 0);
-            });
-            
-            // Ensure minimum value from custom lists
-            value = Math.max(customWordsCount, Math.min(200, value));
-            
+        slider.value = value;
+        display.textContent = value;
+        this.value = value;
+    });
+    
+    // Allow clicking on preset stops
+    stops.forEach(stop => {
+        stop.addEventListener('click', function() {
+            const value = parseInt(this.dataset.value);
             slider.value = value;
             display.textContent = value;
-            this.value = value;
+            input.value = value;
         });
-        
-        stops.forEach(stop => {
-            stop.addEventListener('click', function() {
-                const value = parseInt(this.dataset.value);
-                
-                // Get custom words count
-                let customWordsCount = 0;
-                document.querySelectorAll('#arcade-custom-lists input[type="checkbox"]:checked').forEach(checkbox => {
-                    customWordsCount += parseInt(checkbox.getAttribute('data-word-count') || 0);
-                });
-                
-                // Use the larger of the two values
-                const finalValue = Math.max(value, customWordsCount);
-                
-                slider.value = finalValue;
-                display.textContent = finalValue;
-                input.value = finalValue;
-            });
-        });
-    }
+    });
 }
+
+
 
 function startPlayerCounting(teacherId) {
     if (window.countInterval) clearInterval(window.countInterval);
@@ -13477,95 +13399,108 @@ function updateAllPlayersProgress() {
     document.getElementById('sessionWordGoal').textContent = currentArcadeSession.wordGoal;
 }
 
-// REPLACE the startArcade function
 async function startArcade() {
-    const selectedStages = Array.from(document.querySelectorAll('.stage-checkboxes input:checked')).map(checkbox => parseInt(checkbox.value));
-    const selectedCustomLists = getSelectedCustomLists();
+    const selectedStages = Array.from(document.querySelectorAll('.stage-checkboxes input:checked'))
+        .map(cb => parseInt(cb.value));
+        
+    // Validate stage selection
     const stageWarning = document.querySelector('.stage-warning');
-    
-    if (selectedStages.length === 0 && selectedCustomLists.length === 0) {
-        stageWarning && (stageWarning.style.display = 'block');
-        console.error('No stages or custom lists selected');
+    if (selectedStages.length === 0) {
+        if (stageWarning) {
+            stageWarning.style.display = 'block';
+        }
+        console.error('No stages selected');
         return;
+    } else if (stageWarning) {
+        stageWarning.style.display = 'none';
     }
-    
-    stageWarning && (stageWarning.style.display = 'none');
-    
-    // Generate word pool with both stage words and custom list words
-    currentArcadeSession.wordPool = await generateWordPoolWithCustomLists(selectedStages, selectedCustomLists);
-    
-    const wordGoalInput = document.getElementById('wordGoal') || document.getElementById('wordGoalSlider');
-    if (wordGoalInput) {
-        const wordGoal = parseInt(wordGoalInput.value);
-        currentArcadeSession.wordGoal = isNaN(wordGoal) ? 50 : wordGoal;
-        console.log('Selected word goal:', currentArcadeSession.wordGoal);
-    } else {
-        console.error('Word goal slider element not found. Available elements:', document.querySelectorAll('select, input[type="range"]'));
+
+    // Generate word pool from selected stages
+    currentArcadeSession.wordPool = generateWordPool(selectedStages);
+
+    // Find word goal element with multiple potential selectors
+    const wordGoalSlider = 
+        document.getElementById('wordGoal') || 
+        document.getElementById('wordGoalSlider');
+
+    // Log diagnostic information
+    if (!wordGoalSlider) {
+        console.error('Word goal slider element not found. Available elements:', 
+            document.querySelectorAll('select, input[type="range"]')
+        );
+        
+        // Fallback to default
         currentArcadeSession.wordGoal = 50;
         console.warn('Defaulting to word goal of 50');
-    }
-    
-    // Limit the wordPool to the wordGoal
-    if (currentArcadeSession.wordPool.length > currentArcadeSession.wordGoal) {
-        // Keep all custom list words and trim from stage words
-        const customWords = currentArcadeSession.wordPool.filter(item => item.fromCustomList);
-        const stageWords = currentArcadeSession.wordPool.filter(item => !item.fromCustomList);
+    } else {
+        // Parse value with additional safeguards
+        const goalValue = parseInt(wordGoalSlider.value);
+        currentArcadeSession.wordGoal = isNaN(goalValue) ? 50 : goalValue;
         
-        if (customWords.length <= currentArcadeSession.wordGoal) {
-            // Add as many stage words as needed to reach the goal
-            const remainingSpace = currentArcadeSession.wordGoal - customWords.length;
-            currentArcadeSession.wordPool = [...customWords, ...stageWords.slice(0, remainingSpace)];
-        } else {
-            // If too many custom words, just take what fits the goal
-            currentArcadeSession.wordPool = customWords.slice(0, currentArcadeSession.wordGoal);
-        }
+        console.log('Selected word goal:', currentArcadeSession.wordGoal);
     }
-    
+
+    // Update session state
     currentArcadeSession.state = 'started';
+
+    // Initialize participants list
     currentArcadeSession.participants = [];
-    
-    window.arcadeChannel.on('broadcast', { event: 'progress_update' }, ({payload}) => {
-        updatePlayerProgress(payload);
-        checkGameEnd();
-    }).on('broadcast', { event: 'check_game_status' }, async ({payload}) => {
-        console.log('Received game status check:', payload);
-        await window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'game_state_response',
-            payload: {
-                state: currentArcadeSession.state,
-                wordPool: currentArcadeSession.wordPool,
-                wordGoal: currentArcadeSession.wordGoal,
-                requestType: payload?.requestType || 'standard'
-            }
-        });
-        
-        if (payload?.requestType === 'lateJoin' && currentArcadeSession.state === 'active' && payload.username && !currentArcadeSession.participants.find(p => p.username === payload.username)) {
-            currentArcadeSession.participants.push({
-                username: payload.username,
-                wordsCompleted: 0,
-                coins: 0,
-                lateJoin: true
+
+    // Add channel subscriptions for progress updates
+    window.arcadeChannel
+        .on('broadcast', { event: 'progress_update' }, ({ payload }) => {
+            updatePlayerProgress(payload);
+            checkGameEnd();
+        })
+        .on('broadcast', { event: 'check_game_status' }, async ({ payload }) => {
+            // Respond with current state
+            console.log('Received game status check:', payload);
+            await window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'game_state_response',
+                payload: {
+                    state: currentArcadeSession.state,
+                    wordPool: currentArcadeSession.wordPool,
+                    wordGoal: currentArcadeSession.wordGoal,
+                    requestType: payload?.requestType || 'standard'
+                }
             });
             
-            const participantCountElement = document.getElementById('activeParticipantCount');
-            if (participantCountElement) {
-                participantCountElement.textContent = currentArcadeSession.participants.length;
+            // If this is a late join request and game is active, make sure player is tracked
+            if (payload?.requestType === 'lateJoin' && 
+                currentArcadeSession.state === 'active' &&
+                payload.username) {
+                // Add player to participants if not already there
+                if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
+                    currentArcadeSession.participants.push({
+                        username: payload.username,
+                        wordsCompleted: 0,
+                        coins: 0,
+                        lateJoin: true
+                    });
+                    
+                    // Update UI
+                    const activeParticipantCount = document.getElementById('activeParticipantCount');
+                    if (activeParticipantCount) {
+                        activeParticipantCount.textContent = 
+                            currentArcadeSession.participants.length;
+                    }
+                    updateAllPlayersProgress();
+                }
             }
-            
-            updateAllPlayersProgress();
-        }
-    });
-    
+        });
+
     const arcadeModal = document.getElementById('arcade-modal');
     if (arcadeModal) {
         arcadeModal.style.display = 'none';
     }
-    
+
     showModeratorScreen();
     
+    // Initialize idle detection for moderator
     if (currentUser?.id === currentArcadeSession.teacherId) {
         const idleDetection = initializeModeratorIdleDetection();
+        // Store for cleanup
         currentArcadeSession.idleDetection = idleDetection;
     }
 }
@@ -21326,7 +21261,7 @@ function exitCustomPractice() {
  * @param {boolean} isCorrect - Whether the answer is correct
  * @param {boolean} isSkip - Whether this was a skip action
  */
- async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
+async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
   if (isCorrect) {
     // Handle correct answer
     currentGame.currentIndex++;
@@ -22254,154 +22189,7 @@ async function ensureUserInitialization(userId) {
   }
 }
 
-// Function to load and display teacher's custom lists in the arcade modal
-async function loadArcadeCustomLists() {
-    const customListsContainer = document.getElementById('arcade-custom-lists');
-    if (!customListsContainer) return;
-    
-    customListsContainer.innerHTML = '<p class="loading-lists">Loading lists...</p>';
-    
-    try {
-        await CustomListsManager.initialize();
-        
-        // Filter lists to only those owned by the current user (teacher)
-        const teacherLists = CustomListsManager.lists.filter(list => 
-            !list.isShared && list.userId === currentUser.id);
-        
-        if (!teacherLists || teacherLists.length === 0) {
-            customListsContainer.innerHTML = '<p class="no-lists-message">No custom lists available</p>';
-            return;
-        }
-        
-        customListsContainer.innerHTML = '';
-        teacherLists.forEach(list => {
-            const wordCount = list.words?.length || 0;
-            
-            const listItem = document.createElement('div');
-            listItem.className = 'arcade-custom-list-item';
-            listItem.innerHTML = `
-                <label class="custom-list-checkbox">
-                    <input type="checkbox" data-list-id="${list.id}" data-word-count="${wordCount}">
-                    <span class="list-name">${list.name || 'Unnamed List'}</span>
-                    <span class="word-count">(${wordCount} words)</span>
-                </label>
-            `;
-            
-            customListsContainer.appendChild(listItem);
-        });
-        
-        // Add change listeners to update word count display
-        customListsContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-            checkbox.addEventListener('change', updateArcadeWordCount);
-        });
-        
-    } catch (error) {
-        console.error('Error loading custom lists:', error);
-        customListsContainer.innerHTML = '<p class="no-lists-message">Failed to load custom lists</p>';
-    }
-}
 
-// Calculate and update the word count display based on selections
-function updateArcadeWordCount() {
-    const wordGoalDisplay = document.getElementById('wordGoalDisplay');
-    const wordGoalSlider = document.getElementById('wordGoalSlider');
-    const wordGoalInput = document.getElementById('wordGoalInput');
-    
-    if (!wordGoalDisplay || !wordGoalSlider || !wordGoalInput) return;
-    
-    // Get selected custom lists word count
-    let customWordsCount = 0;
-    document.querySelectorAll('#arcade-custom-lists input[type="checkbox"]:checked').forEach(checkbox => {
-        customWordsCount += parseInt(checkbox.getAttribute('data-word-count') || 0);
-    });
-    
-    // Get selected stages count
-    const stagesSelected = document.querySelectorAll('.stage-checkboxes input[type="checkbox"]:checked').length > 0;
-    
-    // If custom lists selected, ensure the word goal is at least that size
-    if (customWordsCount > 0) {
-        const currentValue = parseInt(wordGoalSlider.value);
-        if (currentValue < customWordsCount) {
-            wordGoalSlider.value = customWordsCount;
-            wordGoalInput.value = customWordsCount;
-            wordGoalDisplay.textContent = customWordsCount;
-        }
-        
-        // Update min values
-        wordGoalSlider.min = customWordsCount;
-        wordGoalInput.min = customWordsCount;
-    } else {
-        // Reset min values if no custom lists selected
-        wordGoalSlider.min = 1;
-        wordGoalInput.min = 1;
-    }
-}
-
-// Get selected custom lists
-function getSelectedCustomLists() {
-    const selectedLists = [];
-    
-    document.querySelectorAll('#arcade-custom-lists input[type="checkbox"]:checked').forEach(checkbox => {
-        const listId = checkbox.getAttribute('data-list-id');
-        if (listId) {
-            selectedLists.push(listId);
-        }
-    });
-    
-    return selectedLists;
-}
-
-// Generate word pool including custom lists
-async function generateWordPoolWithCustomLists(selectedStages, selectedListIds) {
-    let wordPool = [];
-    
-    // First add words from custom lists
-    if (selectedListIds && selectedListIds.length > 0) {
-        for (const listId of selectedListIds) {
-            const list = CustomListsManager.lists.find(l => l.id === listId);
-            if (list && list.words && list.translations) {
-                for (let i = 0; i < list.words.length; i++) {
-                    if (list.words[i] && list.translations[i]) {
-                        wordPool.push({
-                            word: list.words[i],
-                            translation: list.translations[i],
-                            fromCustomList: true,
-                            listName: list.name
-                        });
-                    }
-                }
-            }
-        }
-    }
-    
-    // Then add words from selected stages
-    if (selectedStages && selectedStages.length > 0) {
-        selectedStages.forEach(stage => {
-            Object.keys(vocabularySets).forEach(key => {
-                if (key.startsWith(`${stage}_`)) {
-                    const set = vocabularySets[key];
-                    set.words.forEach((word, index) => {
-                        wordPool.push({
-                            word: word,
-                            translation: set.translations[index],
-                            fromStage: stage,
-                            setKey: key
-                        });
-                    });
-                }
-            });
-        });
-        
-        // Shuffle only the stage words
-        const stageWords = wordPool.filter(item => !item.fromCustomList);
-        const customWords = wordPool.filter(item => item.fromCustomList);
-        
-        stageWords.sort(() => Math.random() - 0.5);
-        wordPool = [...customWords, ...stageWords];
-    }
-    
-    return wordPool;
-}
 
 </script>
 </body>
