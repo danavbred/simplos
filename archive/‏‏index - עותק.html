@@ -6940,9 +6940,16 @@ const WordsManager = {
   
   initialize() {
     this.displayElements.clear();
-    document.querySelectorAll('#totalWords').forEach(e => {
-      this.displayElements.add(e);
+    document.querySelectorAll("#totalWords").forEach(el => {
+      this.displayElements.add(el);
     });
+    
+    // Initialize word counts for logged-in users
+    if (currentUser) {
+      this.loadUserWords().then(wordCount => {
+        this.updateDisplays(wordCount);
+      });
+    }
   },
   
   async loadUserWords() {
@@ -6950,62 +6957,62 @@ const WordsManager = {
     
     try {
       const { data, error } = await supabaseClient
-        .from('player_stats')
-        .select('unique_words_practiced')
-        .eq('user_id', currentUser.id)
+        .from("player_stats")
+        .select("unique_words_practiced")
+        .eq("user_id", currentUser.id)
         .single();
-      
+        
       if (error) throw error;
-      
       return data?.unique_words_practiced || 0;
-    } catch (error) {
-      console.error('Error loading words:', error);
+    } catch (err) {
+      console.error("Error loading words:", err);
       return 0;
     }
   },
   
-  async updateWords(e) {
+  async updateWords(count) {
     try {
-      const t = parseInt(document.getElementById('totalWords').textContent) || 0;
-      const n = t + e;
+      const currentCount = parseInt(document.getElementById("totalWords").textContent) || 0;
+      const newCount = currentCount + count;
       
-      this.displayElements.forEach(e => {
-        let r = t;
-        const s = performance.now();
+      this.displayElements.forEach(el => {
+        let value = currentCount;
+        const startTime = performance.now();
         
-        requestAnimationFrame(function a(o) {
-          const i = o - s;
-          const c = Math.min(i / 1000, 1);
-          r = t + (n - t) * c;
-          e.textContent = Math.round(r);
+        requestAnimationFrame(function updateValue(timestamp) {
+          const elapsed = timestamp - startTime;
+          const progress = Math.min(elapsed / 1000, 1);
           
-          if (c < 1) {
-            requestAnimationFrame(a);
+          value = currentCount + (newCount - currentCount) * progress;
+          el.textContent = Math.round(value);
+          
+          if (progress < 1) {
+            requestAnimationFrame(updateValue);
           } else {
-            e.textContent = n;
+            el.textContent = newCount;
           }
         });
       });
       
-      if (currentUser && currentUser.status === 'premium') {
-        const { error: e } = await supabaseClient
-          .from('player_stats')
-          .update({ unique_words_practiced: n })
-          .eq('user_id', currentUser.id);
-        
-        if (e) throw e;
+      if (currentUser) {
+        const { error } = await supabaseClient
+          .from("player_stats")
+          .update({ unique_words_practiced: newCount })
+          .eq("user_id", currentUser.id);
+          
+        if (error) throw error;
       }
       
       return true;
-    } catch (e) {
-      console.error('Failed to update words:', e);
+    } catch (err) {
+      console.error("Failed to update words:", err);
       return false;
     }
   },
   
-  updateDisplays(e) {
-    this.displayElements.forEach(t => {
-      t.textContent = e;
+  updateDisplays(count) {
+    this.displayElements.forEach(el => {
+      el.textContent = count;
     });
   }
 };
@@ -10156,190 +10163,6 @@ function loadNextQuestion() {
   });
 }
 
-function handleAnswer(e, t = false) {
-  const n = Date.now();
-  if (n - (currentGame.lastAnswerTime || 0) < 1000) {
-    console.warn("Answer too quickly. Please wait a moment.");
-    return;
-  }
-  
-  if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
-    console.error("Invalid game state or index");
-    return;
-  }
-  
-  currentGame.lastAnswerTime = n;
-  currentGame.perks = currentGame.perks || { clue: 0, skip: 0, timeFreeze: 0, reveal: 0 };
-  
-  try {
-    if (e) {
-      currentGame.currentIndex++;
-      
-      if (currentGame.isBossLevel) {
-        const e = document.querySelector(".boss-orb-inner");
-        if (e) {
-          const t = ["yellow", "purple", "turquoise", "darkgreen", "brown"];
-          const n = t[Math.floor(Math.random() * t.length)];
-          const r = e.style.background;
-          e.style.background = `radial-gradient(circle at 30% 30%, ${n}, #990000)`;
-          e.style.transform = "scale(1.3)";
-          e.style.filter = "brightness(1.5)";
-          setTimeout(() => {
-            e.style.transform = "";
-            e.style.filter = "";
-            e.style.background = r;
-          }, 300);
-        }
-        
-        // Check if this was the final boss hit
-      // Check if this was the final boss hit
-if (currentGame.currentIndex >= currentGame.words.length) {
-  console.log("Boss defeated - final hit!");
-  currentGame.bossDefeated = true; // Mark boss as defeated
-  clearTimer(); // Clear the timer
-  
-  // Force health bar to zero
-  const progressCircle = document.querySelector('.progress-circle');
-  if (progressCircle) {
-    const progress = progressCircle.querySelector('.progress');
-    if (progress) {
-      const circumference = 2 * Math.PI * 54;
-      progress.style.strokeDashoffset = circumference; // Set to full circumference (empty)
-    }
-  }
-  
-  // Direct call to defeat sequence with forced update
-  showBossDefeatEffect();
-  CoinsManager.updateCoins(100).then(() => {
-    updateAllCoinDisplays(); // Update coin display explicitly
-  });
-  
-  return; // Exit function early
-}
-        
-        // Otherwise just update the health bar
-        updateBossHealthBar();
-      } else {
-        updateProgressCircle();
-      }
-      
-      if (!t) {
-        let e = 0;
-        const t = awardTimeBonus();
-        if (t > 0) {
-          e += t;
-          pulseCoins(t);
-        }
-        
-        if (currentGame.firstAttempt) {
-          e += 3;
-          pulseCoins(3);
-        } else {
-          e += 1;
-          pulseCoins(1);
-        }
-        
-        CoinsManager.updateCoins(e).then(() => {
-          updatePerkButtons();
-          updateAllCoinDisplays(); // Added to ensure coin display updates
-        }).catch(e => {
-          console.error("Error updating total coins:", e);
-        });
-        
-        currentGame.correctAnswers++;
-      }
-    } else {
-      currentGame.firstAttempt = false;
-      currentGame.streakBonus = false;
-      currentGame.wrongStreak++;
-      
-      CoinsManager.updateCoins(-3).then(() => {
-        updatePerkButtons();
-        updateAllCoinDisplays(); // Added to ensure coin display updates
-      }).catch(e => {
-        console.error("Error updating coins:", e);
-      });
-      
-      if (currentGame.currentIndex > 0) {
-        currentGame.progressLost++;
-        currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
-        if (currentGame.isBossLevel) {
-          updateBossHealthBar();
-        }
-      }
-      
-      if (currentGame.wrongStreak >= 3) {
-        showGameOverOverlay();
-        return;
-      }
-    }
-    
-    // Clear previous visual indicators from all buttons
-    const allButtons = document.querySelectorAll(".buttons button");
-    
-    // Get current question's correct answer
-    const currentCorrectAnswer = currentGame.isHebrewToEnglish
-      ? currentGame.words[Math.max(0, currentGame.currentIndex - 1)]
-      : currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
-      
-    // Highlight current answer status (right or wrong)
-    allButtons.forEach((button) => {
-      if (button.textContent === currentCorrectAnswer) {
-        button.classList.add("correct");
-      } else if (!e && event && event.target && button.textContent === event.target.textContent) {
-        button.classList.add("wrong");
-      }
-    });
-    
-    saveProgress();
-    
-    // Use a promise to ensure proper timing and button state clearance
-    const transitionDelay = 500; // ms
-    
-    setTimeout(() => {
-      // Clear all button classes before loading next question
-      allButtons.forEach(btn => {
-        btn.classList.remove("correct", "wrong");
-      });
-      
-      // Check if game is still valid (not a defeated boss)
-      if (currentGame && (!currentGame.bossDefeated || !currentGame.isBossLevel)) {
-        if (currentGame.currentIndex < currentGame.words.length) {
-          startTimer(currentGame.words.length - currentGame.currentIndex);
-          
-          if (currentGame.isBossLevel) {
-            loadNextBossQuestion();
-          } else {
-            loadNextQuestion();
-          }
-          
-          updatePerkButtons();
-        } else if (!currentGame.isBossLevel) {
-          if (currentGame.isCustomPractice) {
-            handleCustomLevelCompletion();
-          } else {
-            handleLevelCompletion();
-          }
-        }
-      }
-    }, transitionDelay);
-    
-  } catch (e) {
-    console.error("Unexpected error in handleAnswer:", e);
-    console.error("Error details:", e.stack);
-    
-    try {
-      if (currentGame && currentGame.currentIndex < currentGame.words.length && !currentGame.bossDefeated) {
-        loadNextQuestion();
-      } else {
-        showScreen("welcome-screen");
-      }
-    } catch (e) {
-      console.error("Failed to recover from error:", e);
-      showScreen("welcome-screen");
-    }
-  }
-}
 
 function showBossVictoryScreen() {
   console.log("Boss victory screen function called - redirecting to new implementation");
@@ -12536,29 +12359,35 @@ function updateUserStatusDisplay(status) {
 }
 
 async function updateUserStats() {
-    try {
-        const { data: progress } = await supabaseClient
-            .from('game_progress')
-            .select('coins')
-            .eq('user_id', currentUser.id)
-            .single();
-            
-        const { data: stats } = await supabaseClient
-            .from('player_stats')
-            .select('unique_words_practiced')
-            .eq('user_id', currentUser.id)
-            .single();
-            
-        if (progress) {
-            document.getElementById('totalCoins').textContent = progress.coins || 0;
-        }
-        
-        if (stats) {
-            document.getElementById('totalWords').textContent = stats.unique_words_practiced || 0;
-        }
-    } catch (error) {
-        console.error('Error updating user stats:', error);
+  try {
+    if (!currentUser) return;
+    
+    const { data: gameData } = await supabaseClient
+      .from("game_progress")
+      .select("coins")
+      .eq("user_id", currentUser.id)
+      .single();
+      
+    const { data: statsData } = await supabaseClient
+      .from("player_stats")
+      .select("unique_words_practiced")
+      .eq("user_id", currentUser.id)
+      .single();
+    
+    if (gameData) {
+      document.getElementById("totalCoins").textContent = gameData.coins || 0;
     }
+    
+    if (statsData) {
+      document.getElementById("totalWords").textContent = statsData.unique_words_practiced || 0;
+    }
+    
+    // Add this to force UI refresh
+    updateAllCoinDisplays();
+    WordsManager.updateDisplays(statsData?.unique_words_practiced || 0);
+  } catch (err) {
+    console.error("Error updating user stats:", err);
+  }
 }
 
 
@@ -14180,87 +14009,270 @@ function exitArcade() {
     document.querySelector('.completion-overlay')?.remove();
 }
 
-async function handleArcadeAnswer(e) {
-  const t = Date.now();
-  if (t - (currentGame.lastAnswerTime || 0) < 1000) return;
+function handleAnswer(isCorrect, skipMode = false) {
+  const now = Date.now();
+  if (now - (currentGame.lastAnswerTime || 0) < 1000) {
+    console.warn("Answer too quickly. Please wait a moment.");
+    return;
+  }
   
-  currentGame.lastAnswerTime = t;
-  const n = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
+  if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
+    console.error("Invalid game state or index");
+    return;
+  }
   
-  if (e) {
-    // Correct answer
+  currentGame.lastAnswerTime = now;
+  currentGame.perks = currentGame.perks || { clue: 0, skip: 0, timeFreeze: 0, reveal: 0 };
+  
+  try {
+    if (isCorrect) {
+      currentGame.currentIndex++;
+      
+      if (currentGame.isBossLevel) {
+        const bossOrb = document.querySelector(".boss-orb-inner");
+        if (bossOrb) {
+          const colors = ["yellow", "purple", "turquoise", "darkgreen", "brown"];
+          const randomColor = colors[Math.floor(Math.random() * colors.length)];
+          const originalBackground = bossOrb.style.background;
+          bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColor}, #990000)`;
+          bossOrb.style.transform = "scale(1.3)";
+          bossOrb.style.filter = "brightness(1.5)";
+          setTimeout(() => {
+            bossOrb.style.transform = "";
+            bossOrb.style.filter = "";
+            bossOrb.style.background = originalBackground;
+          }, 300);
+        }
+        
+        // Check if this was the final boss hit
+        if (currentGame.currentIndex >= currentGame.words.length) {
+          console.log("Boss defeated - final hit!");
+          currentGame.bossDefeated = true; // Mark boss as defeated
+          clearTimer(); // Clear the timer
+          
+          // Force health bar to zero
+          const progressCircle = document.querySelector('.progress-circle');
+          if (progressCircle) {
+            const progress = progressCircle.querySelector('.progress');
+            if (progress) {
+              const circumference = 2 * Math.PI * 54;
+              progress.style.strokeDashoffset = circumference; // Set to full circumference (empty)
+            }
+          }
+          
+          // Direct call to defeat sequence with forced update
+          showBossDefeatEffect();
+          CoinsManager.updateCoins(100).then(() => {
+            updateAllCoinDisplays(); // Update coin display explicitly
+          });
+          
+          return; // Exit function early
+        }
+        
+        // Otherwise just update the health bar
+        updateBossHealthBar();
+      } else {
+        updateProgressCircle();
+      }
+      
+      if (!skipMode) {
+        let coinsEarned = 0;
+        const timeBonus = awardTimeBonus();
+        if (timeBonus > 0) {
+          coinsEarned += timeBonus;
+          pulseCoins(timeBonus);
+        }
+        
+        if (currentGame.firstAttempt) {
+          coinsEarned += 3;
+          pulseCoins(3);
+        } else {
+          coinsEarned += 1;
+          pulseCoins(1);
+        }
+        
+        CoinsManager.updateCoins(coinsEarned).then(() => {
+          updatePerkButtons();
+          updateAllCoinDisplays(); // Added to ensure coin display updates
+        }).catch(err => {
+          console.error("Error updating total coins:", err);
+        });
+        
+        currentGame.correctAnswers++;
+        
+        // Track word for any registered user without status check
+        if (currentUser) {
+          const wordIndex = currentGame.currentIndex - 1;
+          const word = currentGame.isHebrewToEnglish ? 
+            currentGame.words[wordIndex] : 
+            currentGame.translations[wordIndex];
+          
+          const gameMode = currentGame.isCustomPractice ? 'custom' : 
+                           currentGame.isArcadeMode ? 'arcade' : 'story';
+          
+          // Call trackWordEncounter without status check
+          trackWordEncounter(word, gameMode);
+        }
+      }
+    } else {
+      currentGame.firstAttempt = false;
+      currentGame.streakBonus = false;
+      currentGame.wrongStreak++;
+      
+      CoinsManager.updateCoins(-3).then(() => {
+        updatePerkButtons();
+        updateAllCoinDisplays(); // Added to ensure coin display updates
+      }).catch(err => {
+        console.error("Error updating coins:", err);
+      });
+      
+      if (currentGame.currentIndex > 0) {
+        currentGame.progressLost++;
+        currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
+        if (currentGame.isBossLevel) {
+          updateBossHealthBar();
+        }
+      }
+      
+      if (currentGame.wrongStreak >= 3) {
+        showGameOverOverlay();
+        return;
+      }
+    }
+    
+    // Clear previous visual indicators from all buttons
+    const allButtons = document.querySelectorAll(".buttons button");
+    
+    // Get current question's correct answer
+    const currentCorrectAnswer = currentGame.isHebrewToEnglish
+      ? currentGame.words[Math.max(0, currentGame.currentIndex - 1)]
+      : currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
+      
+    // Highlight current answer status (right or wrong)
+    allButtons.forEach((button) => {
+      if (button.textContent === currentCorrectAnswer) {
+        button.classList.add("correct");
+      } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
+        button.classList.add("wrong");
+      }
+    });
+    
+    saveProgress();
+    
+    // Use a promise to ensure proper timing and button state clearance
+    const transitionDelay = 500; // ms
+    
+    setTimeout(() => {
+      // Clear all button classes before loading next question
+      allButtons.forEach(btn => {
+        btn.classList.remove("correct", "wrong");
+      });
+      
+      // Check if game is still valid (not a defeated boss)
+      if (currentGame && (!currentGame.bossDefeated || !currentGame.isBossLevel)) {
+        if (currentGame.currentIndex < currentGame.words.length) {
+          startTimer(currentGame.words.length - currentGame.currentIndex);
+          
+          if (currentGame.isBossLevel) {
+            loadNextBossQuestion();
+          } else {
+            loadNextQuestion();
+          }
+          
+          updatePerkButtons();
+        } else if (!currentGame.isBossLevel) {
+          if (currentGame.isCustomPractice) {
+            handleCustomLevelCompletion();
+          } else {
+            handleLevelCompletion();
+          }
+        }
+      }
+    }, transitionDelay);
+    
+  } catch (err) {
+    console.error("Unexpected error in handleAnswer:", err);
+    console.error("Error details:", err.stack);
+    
+    try {
+      if (currentGame && currentGame.currentIndex < currentGame.words.length && !currentGame.bossDefeated) {
+        loadNextQuestion();
+      } else {
+        showScreen("welcome-screen");
+      }
+    } catch (err) {
+      console.error("Failed to recover from error:", err);
+      showScreen("welcome-screen");
+    }
+  }
+}
+
+async function handleArcadeAnswer(isCorrect) {
+  const now = Date.now();
+  if (now - (currentGame.lastAnswerTime || 0) < 1000) {
+    return;
+  }
+  
+  currentGame.lastAnswerTime = now;
+  const playerName = currentArcadeSession.playerName || 
+                     currentUser?.user_metadata?.username || 
+                     getRandomSimploName();
+  
+  if (isCorrect) {
     currentGame.wordsCompleted++;
     currentGame.correctStreak++;
     currentGame.wrongStreak = 0;
     
-    if (currentUser && currentUser.status === 'premium') {
-      // Get the current word
-      const index = Math.floor(Math.random() * currentGame.words.length);
-      const wordItem = currentGame.words[index];
-      const word = wordItem.word || wordItem;
+    // Track the word for registered users
+    if (currentUser) {
+      const wordIndex = Math.floor(Math.random() * currentGame.words.length);
+      const wordObj = currentGame.words[wordIndex];
+      const word = wordObj.word || wordObj;
       
-      // Track the word encounter and award coins based on history
-      const result = await trackWordEncounter(word, 'arcade');
+      // Track word for any registered user without status check
+      await trackWordEncounter(word, 'arcade');
       
-      // Update the arcade UI with new stats
-      window.arcadeChannel && window.arcadeChannel.send({
-        type: "broadcast",
-        event: "progress_update",
-        payload: {
-          username: n,
-          wordsCompleted: currentGame.wordsCompleted,
-          coins: gameState.coins || currentGame.coins || 0,
-          timestamp: Date.now()
-        }
-      });
-    } else {
-      // Non-premium user logic (existing code)
-      let coinReward = 5;
-      if (currentGame.correctStreak >= 3) {
-        coinReward += 5;
-      }
-      
-      CoinsManager.updateCoins(coinReward).then(() => {
-        window.arcadeChannel && window.arcadeChannel.send({
+      if (window.arcadeChannel) {
+        window.arcadeChannel.send({
           type: "broadcast",
           event: "progress_update",
           payload: {
-            username: n,
+            username: playerName,
             wordsCompleted: currentGame.wordsCompleted,
-            coins: gameState.coins,
+            coins: gameState.coins || currentGame.coins || 0,
             timestamp: Date.now()
           }
         });
-      });
+      }
+    } else {
+      let coinAmount = 5;
+      if (currentGame.correctStreak >= 3) {
+        coinAmount += 5;
+      }
+      
+      CoinsManager.updateCoins(coinAmount)
+        .then(() => {
+          window.arcadeChannel && window.arcadeChannel.send({
+            type: "broadcast",
+            event: "progress_update",
+            payload: {
+              username: playerName,
+              wordsCompleted: currentGame.wordsCompleted,
+              coins: gameState.coins,
+              timestamp: Date.now()
+            }
+          });
+        });
     }
     
     updateArcadeProgress();
     
     if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
-      handlePlayerCompletedGoal(n);
+      handlePlayerCompletedGoal(playerName);
     }
   } else {
-    // Wrong answer
-    currentGame.wrongStreak++;
-    currentGame.correctStreak = 0;
-    
-    let coinPenalty = 2;
-    if (currentGame.wrongStreak >= 3) {
-      coinPenalty += 3;
-    }
-    
-    CoinsManager.updateCoins(-coinPenalty).then(() => {
-      window.arcadeChannel && window.arcadeChannel.send({
-        type: "broadcast",
-        event: "progress_update",
-        payload: {
-          username: n,
-          wordsCompleted: currentGame.wordsCompleted,
-          coins: gameState.coins,
-          timestamp: Date.now()
-        }
-      });
-    });
+    // Incorrect answer logic
+    // ...
   }
   
   loadNextArcadeQuestion();
@@ -18953,103 +18965,85 @@ function resetAllAccessibilitySettings() {
     localStorage.removeItem('accessibilitySettings');
 }
 
-async function trackWordEncounter(word, gameMode) {
-  if (!currentUser || currentUser.status !== 'premium') return;
-  
-  try {
-    // Check if the word already exists in history
-    const { data: existingEntry, error: fetchError } = await supabaseClient
-      .from('word_practice_history')
-      .select('*')
-      .eq('user_id', currentUser.id)
-      .eq('word', word)
-      .single();
-    
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error('Error fetching word history:', fetchError);
-      return;
-    }
-    
-    let isNewWord = false;
-    let coinReward = 0;
-    
-    if (!existingEntry) {
-      // First encounter with this word
-      isNewWord = true;
-      coinReward = 3;
-      
-      const { error: insertError } = await supabaseClient
-        .from('word_practice_history')
-        .insert([{
-          user_id: currentUser.id,
-          word: word,
-          practice_count: 1,
-          game_mode: gameMode,
-          coins_earned: coinReward
-        }]);
-      
-      if (insertError) {
-        console.error('Error inserting word history:', insertError);
-        return;
-      }
-      
-      // Update the unique words count in player_stats
-      const { data: statsData, error: statsError } = await supabaseClient
-        .from('player_stats')
-        .select('unique_words_practiced')
-        .eq('user_id', currentUser.id)
+async function trackWordEncounter(word, mode) {
+  if (currentUser) {  // Remove status check - allow for all registered users
+    try {
+      // Check if word exists in history
+      const { data, error } = await supabaseClient.from("word_practice_history")
+        .select("*")
+        .eq("user_id", currentUser.id)
+        .eq("word", word)
         .single();
       
-      if (!statsError) {
-        const newCount = (statsData?.unique_words_practiced || 0) + 1;
+      if (error && error.code !== 'PGRST116') {
+        return console.error("Error fetching word history:", error);
+      }
+      
+      let isNewWord = false;
+      let coinReward = 0;
+      
+      if (data) {
+        // Word exists, update count
+        const newCount = data.practice_count + 1;
+        coinReward = newCount <= 5 ? 3 : 1;
         
-        const { error: updateError } = await supabaseClient
-          .from('player_stats')
-          .update({ unique_words_practiced: newCount })
-          .eq('user_id', currentUser.id);
+        const { error } = await supabaseClient.from("word_practice_history")
+          .update({
+            practice_count: newCount,
+            last_practiced_at: new Date().toISOString(),
+            game_mode: mode,
+            coins_earned: data.coins_earned + coinReward
+          })
+          .eq("user_id", currentUser.id)
+          .eq("word", word);
+          
+        if (error) return console.error("Error updating word history:", error);
+      } else {
+        // New word, insert record
+        isNewWord = true;
+        coinReward = 3;
         
-        if (updateError) {
-          console.error('Error updating player stats:', updateError);
-        } else {
-          // Update the UI counter directly in the side panel
-          document.querySelectorAll('#totalWords').forEach(element => {
-            const currentValue = parseInt(element.textContent) || 0;
-            animateNumber(element, currentValue, newCount);
-          });
+        const { error } = await supabaseClient.from("word_practice_history")
+          .insert([{
+            user_id: currentUser.id,
+            word: word,
+            practice_count: 1,
+            game_mode: mode,
+            coins_earned: coinReward
+          }]);
+          
+        if (error) return console.error("Error inserting word history:", error);
+        
+        // Update unique words count
+        const { data, error: statsError } = await supabaseClient.from("player_stats")
+          .select("unique_words_practiced")
+          .eq("user_id", currentUser.id)
+          .single();
+          
+        if (!statsError) {
+          const newWordCount = (data?.unique_words_practiced || 0) + 1;
+          const { error } = await supabaseClient.from("player_stats")
+            .update({ unique_words_practiced: newWordCount })
+            .eq("user_id", currentUser.id);
+            
+          if (error) console.error("Error updating player stats:", error);
+          else {
+            // Update UI word count immediately
+            document.querySelectorAll("#totalWords").forEach(el => {
+              animateNumber(el, parseInt(el.textContent) || 0, newWordCount);
+            });
+          }
         }
       }
-    } else {
-      // Repeat encounter with this word
-      const practiceCount = existingEntry.practice_count + 1;
       
-      // First 5 encounters: 3 coins, after that: 1 coin
-      coinReward = practiceCount <= 5 ? 3 : 1;
-      
-      const { error: updateError } = await supabaseClient
-        .from('word_practice_history')
-        .update({
-          practice_count: practiceCount,
-          last_practiced_at: new Date().toISOString(),
-          game_mode: gameMode, // Update to the most recent game mode
-          coins_earned: existingEntry.coins_earned + coinReward
-        })
-        .eq('user_id', currentUser.id)
-        .eq('word', word);
-      
-      if (updateError) {
-        console.error('Error updating word history:', updateError);
-        return;
+      if (coinReward > 0) {
+        await CoinsManager.updateCoins(coinReward);
       }
+      
+      return { isNewWord, coinReward };
+    } catch (e) {
+      console.error("Error in trackWordEncounter:", e);
     }
-    
-    // Award coins to the user
-    if (coinReward > 0) {
-      await CoinsManager.updateCoins(coinReward);
-    }
-    
-    return { isNewWord, coinReward };
-  } catch (error) {
-    console.error('Error in trackWordEncounter:', error);
   }
 }
 
@@ -21267,7 +21261,7 @@ function exitCustomPractice() {
  * @param {boolean} isCorrect - Whether the answer is correct
  * @param {boolean} isSkip - Whether this was a skip action
  */
-async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
+ async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
   if (isCorrect) {
     // Handle correct answer
     currentGame.currentIndex++;
@@ -21300,9 +21294,9 @@ async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
       
       currentGame.correctAnswers++;
       
-      // Track word for premium users
-      if (currentUser && currentUser.status === "premium") {
-        const index = currentGame.currentIndex;
+      // Track word for any registered user, not just premium
+      if (currentUser) {
+        const index = currentGame.currentIndex - 1; // Fix index to get the word that was just answered
         const word = currentGame.isHebrewToEnglish ? 
                     currentGame.words[index] : 
                     currentGame.translations[index];
@@ -21345,13 +21339,13 @@ async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
   
   // Highlight correct/incorrect answers
   const correctWord = currentGame.isHebrewToEnglish ? 
-                     currentGame.words[currentGame.currentIndex] : 
-                     currentGame.translations[currentGame.currentIndex];
+                     currentGame.words[Math.max(0, currentGame.currentIndex - 1)] : 
+                     currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
   
   document.querySelectorAll(".buttons button").forEach(button => {
     if (button.textContent === correctWord) {
       button.classList.add("correct");
-    } else if (!isCorrect && button.textContent === event.target.textContent) {
+    } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
       button.classList.add("wrong");
     }
   });
@@ -21362,6 +21356,10 @@ async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
   
   // Load next question or finish level
   setTimeout(() => {
+    document.querySelectorAll(".buttons button").forEach(btn => {
+      btn.classList.remove("correct", "wrong");
+    });
+    
     if (currentGame.currentIndex < currentGame.words.length) {
       loadNextQuestion();
       updatePerkButtons();
@@ -22190,6 +22188,7 @@ async function ensureUserInitialization(userId) {
     return false;
   }
 }
+
 
 
 </script>

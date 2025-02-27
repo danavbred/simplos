@@ -14009,203 +14009,6 @@ function exitArcade() {
     document.querySelector('.completion-overlay')?.remove();
 }
 
-function handleAnswer(isCorrect, skipMode = false) {
-  const now = Date.now();
-  if (now - (currentGame.lastAnswerTime || 0) < 1000) {
-    console.warn("Answer too quickly. Please wait a moment.");
-    return;
-  }
-  
-  if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
-    console.error("Invalid game state or index");
-    return;
-  }
-  
-  currentGame.lastAnswerTime = now;
-  currentGame.perks = currentGame.perks || { clue: 0, skip: 0, timeFreeze: 0, reveal: 0 };
-  
-  try {
-    if (isCorrect) {
-      currentGame.currentIndex++;
-      
-      if (currentGame.isBossLevel) {
-        const bossOrb = document.querySelector(".boss-orb-inner");
-        if (bossOrb) {
-          const colors = ["yellow", "purple", "turquoise", "darkgreen", "brown"];
-          const randomColor = colors[Math.floor(Math.random() * colors.length)];
-          const originalBackground = bossOrb.style.background;
-          bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColor}, #990000)`;
-          bossOrb.style.transform = "scale(1.3)";
-          bossOrb.style.filter = "brightness(1.5)";
-          setTimeout(() => {
-            bossOrb.style.transform = "";
-            bossOrb.style.filter = "";
-            bossOrb.style.background = originalBackground;
-          }, 300);
-        }
-        
-        // Check if this was the final boss hit
-        if (currentGame.currentIndex >= currentGame.words.length) {
-          console.log("Boss defeated - final hit!");
-          currentGame.bossDefeated = true; // Mark boss as defeated
-          clearTimer(); // Clear the timer
-          
-          // Force health bar to zero
-          const progressCircle = document.querySelector('.progress-circle');
-          if (progressCircle) {
-            const progress = progressCircle.querySelector('.progress');
-            if (progress) {
-              const circumference = 2 * Math.PI * 54;
-              progress.style.strokeDashoffset = circumference; // Set to full circumference (empty)
-            }
-          }
-          
-          // Direct call to defeat sequence with forced update
-          showBossDefeatEffect();
-          CoinsManager.updateCoins(100).then(() => {
-            updateAllCoinDisplays(); // Update coin display explicitly
-          });
-          
-          return; // Exit function early
-        }
-        
-        // Otherwise just update the health bar
-        updateBossHealthBar();
-      } else {
-        updateProgressCircle();
-      }
-      
-      if (!skipMode) {
-        let coinsEarned = 0;
-        const timeBonus = awardTimeBonus();
-        if (timeBonus > 0) {
-          coinsEarned += timeBonus;
-          pulseCoins(timeBonus);
-        }
-        
-        if (currentGame.firstAttempt) {
-          coinsEarned += 3;
-          pulseCoins(3);
-        } else {
-          coinsEarned += 1;
-          pulseCoins(1);
-        }
-        
-        CoinsManager.updateCoins(coinsEarned).then(() => {
-          updatePerkButtons();
-          updateAllCoinDisplays(); // Added to ensure coin display updates
-        }).catch(err => {
-          console.error("Error updating total coins:", err);
-        });
-        
-        currentGame.correctAnswers++;
-        
-        // Track word for any registered user without status check
-        if (currentUser) {
-          const wordIndex = currentGame.currentIndex - 1;
-          const word = currentGame.isHebrewToEnglish ? 
-            currentGame.words[wordIndex] : 
-            currentGame.translations[wordIndex];
-          
-          const gameMode = currentGame.isCustomPractice ? 'custom' : 
-                           currentGame.isArcadeMode ? 'arcade' : 'story';
-          
-          // Call trackWordEncounter without status check
-          trackWordEncounter(word, gameMode);
-        }
-      }
-    } else {
-      currentGame.firstAttempt = false;
-      currentGame.streakBonus = false;
-      currentGame.wrongStreak++;
-      
-      CoinsManager.updateCoins(-3).then(() => {
-        updatePerkButtons();
-        updateAllCoinDisplays(); // Added to ensure coin display updates
-      }).catch(err => {
-        console.error("Error updating coins:", err);
-      });
-      
-      if (currentGame.currentIndex > 0) {
-        currentGame.progressLost++;
-        currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
-        if (currentGame.isBossLevel) {
-          updateBossHealthBar();
-        }
-      }
-      
-      if (currentGame.wrongStreak >= 3) {
-        showGameOverOverlay();
-        return;
-      }
-    }
-    
-    // Clear previous visual indicators from all buttons
-    const allButtons = document.querySelectorAll(".buttons button");
-    
-    // Get current question's correct answer
-    const currentCorrectAnswer = currentGame.isHebrewToEnglish
-      ? currentGame.words[Math.max(0, currentGame.currentIndex - 1)]
-      : currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
-      
-    // Highlight current answer status (right or wrong)
-    allButtons.forEach((button) => {
-      if (button.textContent === currentCorrectAnswer) {
-        button.classList.add("correct");
-      } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
-        button.classList.add("wrong");
-      }
-    });
-    
-    saveProgress();
-    
-    // Use a promise to ensure proper timing and button state clearance
-    const transitionDelay = 500; // ms
-    
-    setTimeout(() => {
-      // Clear all button classes before loading next question
-      allButtons.forEach(btn => {
-        btn.classList.remove("correct", "wrong");
-      });
-      
-      // Check if game is still valid (not a defeated boss)
-      if (currentGame && (!currentGame.bossDefeated || !currentGame.isBossLevel)) {
-        if (currentGame.currentIndex < currentGame.words.length) {
-          startTimer(currentGame.words.length - currentGame.currentIndex);
-          
-          if (currentGame.isBossLevel) {
-            loadNextBossQuestion();
-          } else {
-            loadNextQuestion();
-          }
-          
-          updatePerkButtons();
-        } else if (!currentGame.isBossLevel) {
-          if (currentGame.isCustomPractice) {
-            handleCustomLevelCompletion();
-          } else {
-            handleLevelCompletion();
-          }
-        }
-      }
-    }, transitionDelay);
-    
-  } catch (err) {
-    console.error("Unexpected error in handleAnswer:", err);
-    console.error("Error details:", err.stack);
-    
-    try {
-      if (currentGame && currentGame.currentIndex < currentGame.words.length && !currentGame.bossDefeated) {
-        loadNextQuestion();
-      } else {
-        showScreen("welcome-screen");
-      }
-    } catch (err) {
-      console.error("Failed to recover from error:", err);
-      showScreen("welcome-screen");
-    }
-  }
-}
 
 async function handleArcadeAnswer(isCorrect) {
   const now = Date.now();
@@ -21261,7 +21064,7 @@ function exitCustomPractice() {
  * @param {boolean} isCorrect - Whether the answer is correct
  * @param {boolean} isSkip - Whether this was a skip action
  */
- async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
+async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
   if (isCorrect) {
     // Handle correct answer
     currentGame.currentIndex++;
@@ -21294,9 +21097,9 @@ function exitCustomPractice() {
       
       currentGame.correctAnswers++;
       
-      // Track word for any registered user, not just premium
-      if (currentUser) {
-        const index = currentGame.currentIndex - 1; // Fix index to get the word that was just answered
+      // Track word for premium users
+      if (currentUser && currentUser.status === "premium") {
+        const index = currentGame.currentIndex;
         const word = currentGame.isHebrewToEnglish ? 
                     currentGame.words[index] : 
                     currentGame.translations[index];
@@ -21339,13 +21142,13 @@ function exitCustomPractice() {
   
   // Highlight correct/incorrect answers
   const correctWord = currentGame.isHebrewToEnglish ? 
-                     currentGame.words[Math.max(0, currentGame.currentIndex - 1)] : 
-                     currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
+                     currentGame.words[currentGame.currentIndex] : 
+                     currentGame.translations[currentGame.currentIndex];
   
   document.querySelectorAll(".buttons button").forEach(button => {
     if (button.textContent === correctWord) {
       button.classList.add("correct");
-    } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
+    } else if (!isCorrect && button.textContent === event.target.textContent) {
       button.classList.add("wrong");
     }
   });
@@ -21356,10 +21159,6 @@ function exitCustomPractice() {
   
   // Load next question or finish level
   setTimeout(() => {
-    document.querySelectorAll(".buttons button").forEach(btn => {
-      btn.classList.remove("correct", "wrong");
-    });
-    
     if (currentGame.currentIndex < currentGame.words.length) {
       loadNextQuestion();
       updatePerkButtons();
