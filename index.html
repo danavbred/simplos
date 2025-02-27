@@ -16276,24 +16276,7 @@ let countdownTimer = null;
 let lastLeaderboardUpdate = Date.now();
 let isCountingDown = false;
 
-function initializeModeratorInactivityTimer() {
-    // Clear any existing timers
-    if (moderatorActivityTimer) clearTimeout(moderatorActivityTimer);
-    if (countdownTimer) clearInterval(countdownTimer);
-    
-    // Reset state
-    lastLeaderboardUpdate = Date.now();
-    isCountingDown = false;
-    
-    // Create overlay if it doesn't exist
-    createInactivityOverlay();
-    
-    // Start monitoring for inactivity
-    startInactivityMonitoring();
-    
-    // Start leaderboard update tracking
-    trackLeaderboardUpdates();
-}
+
 
 function createInactivityOverlay() {
     // Remove any existing overlay
@@ -16481,34 +16464,6 @@ const moderatorInactivity = {
     isGameActive: false
 };
 
-function initializeModeratorInactivityTimer() {
-    // Only proceed if we're on the moderator screen and game has been initialized
-    if (!isModeratorScreenActive() || !currentArcadeSession.isInitialized) {
-        return;
-    }
-    
-    // Set game as active
-    moderatorInactivity.isGameActive = true;
-    
-    // Clear any existing timers
-    clearModeratorTimers();
-    
-    // Reset state
-    moderatorInactivity.lastLeaderboardUpdate = Date.now();
-    moderatorInactivity.isCountingDown = false;
-    moderatorInactivity.isInitialized = true;
-    
-    // Create overlay if it doesn't exist
-    createModeratorInactivityOverlay();
-    
-    // Start monitoring for inactivity
-    startModeratorInactivityMonitoring();
-    
-    // Start leaderboard update tracking
-    trackModeratorLeaderboardUpdates();
-    
-    console.log('Moderator inactivity timer initialized');
-}
 
 function isModeratorScreenActive() {
     const moderatorScreen = document.getElementById('moderator-screen');
@@ -22289,7 +22244,142 @@ async function startArcade() {
     }
 }
 
+async function initializeArcade() {
+    try {
+        const initializeButton = document.querySelector('.initialize-button');
+        const endArcadeButton = document.querySelector('.end-arcade-button');
+        
+        // Hide initialize button and show end button
+        if (initializeButton) initializeButton.style.display = 'none';
+        if (endArcadeButton) endArcadeButton.classList.add('visible');
+        
+        // Set arcade as active
+        currentArcadeSession.state = 'active';
+        currentArcadeSession.isInitialized = true;
+        
+        // Reset participant progress
+        currentArcadeSession.participants = currentArcadeSession.participants.map(player => ({
+            ...player,
+            wordsCompleted: 0,
+            coins: player.coins || 0
+        }));
+        
+        // Update leaderboard
+        updateAllPlayersProgress();
+        
+        // Start inactivity timer for moderator
+        initializeModeratorInactivityTimer();
+        
+        // Broadcast game start event
+        await window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'game_playing',
+            payload: {
+                wordPool: currentArcadeSession.wordPool,
+                wordGoal: currentArcadeSession.wordGoal,
+                state: 'active',
+                timestamp: Date.now()
+            }
+        });
+    } catch (error) {
+        console.error('Initialize error:', error);
+        alert('Failed to start game');
+    }
+}
 
+function initializeModeratorInactivityTimer() {
+    moderatorActivityTimer && clearTimeout(moderatorActivityTimer);
+    countdownTimer && clearInterval(countdownTimer);
+    lastLeaderboardUpdate = Date.now();
+    isCountingDown = false;
+    
+    createInactivityOverlay();
+    startInactivityMonitoring();
+    trackLeaderboardUpdates();
+}
+
+function initializeArcadeParticipation() {
+    // Set up activity tracking
+    let lastActive = Date.now();
+    const INACTIVE_THRESHOLD = 60000; // 1 minute
+
+    // Heartbeat interval
+    const intervalId = setInterval(() => {
+        if (Date.now() - lastActive > INACTIVE_THRESHOLD) {
+            removeInactivePlayer();
+        }
+    }, 10000); // Check every 10 seconds
+    
+    // Store interval ID for cleanup
+    window.arcadeIntervals = window.arcadeIntervals || [];
+    window.arcadeIntervals.push(intervalId);
+
+    // Track user activity
+    ['mousemove', 'keypress', 'click'].forEach(event => {
+        document.addEventListener(event, () => {
+            lastActive = Date.now();
+        });
+    });
+
+    // Handle page refresh/close
+    window.addEventListener('beforeunload', () => {
+        if (window.arcadeChannel) {
+            window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'player_left',
+                payload: {
+                    username: currentArcadeSession.playerName
+                }
+            });
+        }
+    });
+}
+
+function removeInactivePlayer() {
+    if (window.arcadeChannel) {
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'player_inactive',
+            payload: {
+                username: currentArcadeSession.playerName
+            }
+        });
+    }
+}
+
+function initializeModeratorInactivityTimer() {
+    // Only proceed if we're on the moderator screen and game has been initialized
+    if (!isModeratorScreenActive() || !currentArcadeSession.isInitialized) {
+        return;
+    }
+    
+    // Set game as active
+    moderatorInactivity.isGameActive = true;
+    
+    // Clear any existing timers
+    if (moderatorActivityTimer) clearTimeout(moderatorActivityTimer);
+    if (countdownTimer) clearInterval(countdownTimer);
+    if (moderatorInactivity.activityTimer) clearTimeout(moderatorInactivity.activityTimer);
+    if (moderatorInactivity.countdownTimer) clearInterval(moderatorInactivity.countdownTimer);
+    
+    // Reset state
+    lastLeaderboardUpdate = Date.now();
+    moderatorInactivity.lastLeaderboardUpdate = Date.now();
+    isCountingDown = false;
+    moderatorInactivity.isCountingDown = false;
+    moderatorInactivity.isInitialized = true;
+    
+    // Create overlay for inactivity warning
+    createInactivityOverlay();
+    
+    // Start monitoring for inactivity
+    startInactivityMonitoring();
+    
+    // Track leaderboard updates
+    trackLeaderboardUpdates();
+    
+    console.log('Moderator inactivity timer initialized');
+}
 
 
 </script>
