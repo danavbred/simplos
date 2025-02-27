@@ -13645,7 +13645,7 @@ async function startArcade() {
     currentArcadeSession.wordGoal = isNaN(wordGoalValue) ? 50 : wordGoalValue;
     console.log("Selected word goal:", currentArcadeSession.wordGoal);
   } else {
-    console.error("Word goal slider element not found");
+    console.error("Word goal slider element not found. Available elements:", document.querySelectorAll('select, input[type="range"]'));
     currentArcadeSession.wordGoal = 50;
     console.warn("Defaulting to word goal of 50");
   }
@@ -13702,98 +13702,11 @@ async function startArcade() {
   
   showModeratorScreen();
   
-  // Calculate word sources asynchronously to prevent UI freeze
-  setTimeout(() => {
-    try {
-      // Count words by source
-      const customWordCount = currentArcadeSession.wordPool.filter(w => w.fromCustomList).length;
-      const stageWordCounts = {};
-      
-      // Sort stage words
-      currentArcadeSession.wordPool.forEach(word => {
-        if (word.fromStage) {
-          if (!stageWordCounts[word.fromStage]) {
-            stageWordCounts[word.fromStage] = 0;
-          }
-          stageWordCounts[word.fromStage]++;
-        }
-      });
-      
-      // Group custom list words
-      const customListWords = {};
-      currentArcadeSession.wordPool.forEach(word => {
-        if (word.fromCustomList && word.listName) {
-          if (!customListWords[word.listName]) {
-            customListWords[word.listName] = 0;
-          }
-          customListWords[word.listName]++;
-        }
-      });
-      
-      // Store metadata
-      currentArcadeSession.wordSourceInfo = {
-        customLists: customListWords,
-        stageWordCounts: stageWordCounts,
-        customWordCount: customWordCount,
-        totalWords: currentArcadeSession.wordPool.length
-      };
-      
-      // Update UI with source info
-      updateWordSourcesDisplay();
-    } catch (err) {
-      console.error("Error calculating word sources:", err);
-    }
-  }, 100);
-  
   // Add idle detection for teacher
   if (currentUser?.id === currentArcadeSession.teacherId) {
     const idleDetection = initializeModeratorIdleDetection();
     currentArcadeSession.idleDetection = idleDetection;
   }
-}
-
-// Helper function to update word sources display
-function updateWordSourcesDisplay() {
-  const sessionMetadata = document.querySelector('.session-metadata');
-  if (!sessionMetadata || !currentArcadeSession.wordSourceInfo) return;
-  
-  // Remove existing word sources info to prevent duplication
-  const existingInfo = sessionMetadata.querySelector('.word-sources-info');
-  if (existingInfo) {
-    existingInfo.remove();
-  }
-  
-  const wordSourcesInfo = document.createElement('div');
-  wordSourcesInfo.className = 'word-sources-info';
-  let html = '<p><strong>Word Sources:</strong><br>';
-  
-  // Stage words summary
-  const stageWordCounts = currentArcadeSession.wordSourceInfo.stageWordCounts;
-  if (Object.keys(stageWordCounts).length > 0) {
-    html += 'Stage words: ';
-    Object.keys(stageWordCounts).sort().forEach((stage, index) => {
-      if (index > 0) html += ', ';
-      html += `Stage ${stage} (${stageWordCounts[stage]})`;
-    });
-    html += '<br>';
-  }
-  
-  // Custom lists summary
-  const customLists = currentArcadeSession.wordSourceInfo.customLists;
-  if (Object.keys(customLists).length > 0) {
-    html += 'Custom lists: ';
-    Object.keys(customLists).forEach((listName, index) => {
-      if (index > 0) html += ', ';
-      html += `${listName} (${customLists[listName]})`;
-    });
-    html += '<br>';
-  }
-  
-  // Total
-  html += `Total: ${currentArcadeSession.wordSourceInfo.totalWords} words</p>`;
-  wordSourcesInfo.innerHTML = html;
-  
-  sessionMetadata.appendChild(wordSourcesInfo);
 }
 
 // ADD: WORD GOAL SLIDER MODIFICATION
@@ -13858,94 +13771,75 @@ function initializeWordGoalSlider() {
   }
 }
 
-async function generateWordPool(selectedStages) {
-  const wordGoalElement = document.getElementById('wordGoal') || 
-                         document.getElementById('wordGoalSlider');
-  const targetWordCount = wordGoalElement ? parseInt(wordGoalElement.value) : 50;
-  let wordPool = [];
+function generateWordPool(selectedStages) {
+  let pool = [];
   
-  // Get selected custom lists first
+  // Add words from selected stages
+  selectedStages.forEach(stage => {
+    Object.keys(vocabularySets).forEach(key => {
+      if (key.startsWith(`${stage}_`)) {
+        const set = vocabularySets[key];
+        set.words.forEach((word, index) => {
+          pool.push({
+            word: word,
+            translation: set.translations[index]
+          });
+        });
+      }
+    });
+  });
+  
+  // Add words from selected custom lists
   const selectedListsCheckboxes = document.querySelectorAll('.arcade-custom-list:checked');
   const selectedListsIds = Array.from(selectedListsCheckboxes).map(checkbox => 
     checkbox.getAttribute('data-list-id')
   );
   
-  // Process custom lists if selected
+  // If there are selected custom lists, fetch and add their words
   if (selectedListsIds.length > 0) {
-    try {
-      console.log(`Fetching ${selectedListsIds.length} custom lists`);
-      const { data: lists, error } = await supabaseClient
-        .from("custom_lists")
-        .select("*")
-        .in("id", selectedListsIds);
+    // Add a promise to the array to fetch custom lists
+    const customListsPromise = new Promise(async (resolve) => {
+      try {
+        const { data: lists, error } = await supabaseClient
+          .from("custom_lists")
+          .select("*")
+          .in("id", selectedListsIds);
+          
+        if (error) throw error;
         
-      if (error) throw error;
-      
-      // Add words from custom lists
-      lists.forEach(list => {
-        if (list.words && list.translations) {
-          for (let i = 0; i < list.words.length; i++) {
-            if (list.words[i] && list.translations[i]) {
-              wordPool.push({
-                word: list.words[i],
-                translation: list.translations[i],
-                fromCustomList: true,
-                listId: list.id,
-                listName: list.name
-              });
+        lists.forEach(list => {
+          if (list.words && list.translations) {
+            for (let i = 0; i < list.words.length; i++) {
+              if (list.words[i] && list.translations[i]) {
+                pool.push({
+                  word: list.words[i],
+                  translation: list.translations[i],
+                  fromCustomList: true,
+                  listId: list.id
+                });
+              }
             }
           }
-        }
-      });
-      
-      console.log(`Added ${wordPool.length} words from custom lists`);
-    } catch (err) {
-      console.error("Error fetching custom lists for word pool:", err);
-    }
-  }
-  
-  // Get stage words only if needed to reach target count
-  const customWordsCount = wordPool.length;
-  if (customWordsCount < targetWordCount) {
-    let stageWords = [];
-    
-    // Add words from selected stages
-    selectedStages.forEach(stage => {
-      Object.keys(vocabularySets).forEach(key => {
-        if (key.startsWith(`${stage}_`)) {
-          const set = vocabularySets[key];
-          set.words.forEach((word, index) => {
-            stageWords.push({
-              word: word,
-              translation: set.translations[index],
-              fromStage: stage
-            });
-          });
-        }
-      });
+        });
+        
+        resolve();
+      } catch (err) {
+        console.error("Error fetching custom lists for word pool:", err);
+        resolve(); // Resolve anyway to prevent hanging
+      }
     });
     
-    // Shuffle the stage words
-    stageWords.sort(() => Math.random() - 0.5);
-    
-    // Add only as many stage words as needed
-    const remainingWordsNeeded = targetWordCount - customWordsCount;
-    const stageWordsToAdd = stageWords.slice(0, remainingWordsNeeded);
-    wordPool = wordPool.concat(stageWordsToAdd);
-    
-    console.log(`Added ${stageWordsToAdd.length} words from stages ${selectedStages.join(', ')}`);
+    // Wait for custom lists to be fetched
+    customListsPromise.then(() => {
+      // Shuffle the pool after custom lists are added
+      pool.sort(() => Math.random() - 0.5);
+    });
+  } else {
+    // If no custom lists, just shuffle the stage words
+    pool.sort(() => Math.random() - 0.5);
   }
   
-  // Ensure we don't exceed target count (trim if necessary)
-  if (wordPool.length > targetWordCount) {
-    wordPool = wordPool.slice(0, targetWordCount);
-  }
-  
-  // Shuffle the final word pool
-  wordPool.sort(() => Math.random() - 0.5);
-  console.log(`Final word pool size: ${wordPool.length}`);
-  
-  return wordPool;
+  return pool;
 }
 
 function cleanupModeratorScreen() {
