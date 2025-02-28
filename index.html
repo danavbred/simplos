@@ -13450,109 +13450,125 @@ function cleanupModeratorScreen() {
 }
 
 async function startArcadeGame() {
-  const waitingScreen = document.getElementById("waiting-screen");
-  if (waitingScreen && waitingScreen.dataset.pollInterval) {
-    clearInterval(parseInt(waitingScreen.dataset.pollInterval));
-    delete waitingScreen.dataset.pollInterval;
-  }
-  
-  document.getElementById("question-screen").classList.add("visible");
-  document.getElementById("waiting-screen").classList.remove("visible");
-  
-  const username = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
-  
-  document.querySelectorAll(".coin-count").forEach(element => {
-    element.textContent = "0"; // Always start with 0 coins
-    element.style.display = "flex";
-  });
-  
-  document.querySelectorAll(".coins-container").forEach(element => {
-    element.style.display = "flex";
-  });
-  
-  const perksContainer = document.querySelector(".perks-container");
-  const powerupsContainer = document.querySelector(".powerups-container");
-  perksContainer.style.display = "none";
-  powerupsContainer.style.display = "flex";
-  
-  // Reset coins for all non-premium users
-  let initialCoins = 0;
-  
-  if (currentUser && currentUser.status === "premium") {
-    try {
-      const { data, error } = await supabaseClient
-        .from("game_progress")
-        .select("coins")
-        .eq("user_id", currentUser.id)
-        .single();
-        
-      if (!error && data) {
-        initialCoins = data.coins;
-        console.log("Loaded initial coins for premium user:", initialCoins);
-      }
-    } catch (error) {
-      console.error("Failed to load coins:", error);
-    }
-  }
-  
-  currentGame.coins = initialCoins;
-  updateAllCoinDisplays();
-  currentArcadeSession.initialCoins = initialCoins;
-    
-  // Send initial progress update with reset coins
-  await window.arcadeChannel.send({
-    type: "broadcast",
-    event: "progress_update",
-    payload: {
-      username: username,
-      wordsCompleted: 0,
-      coins: initialCoins,
-      timestamp: Date.now()
-    }
-  });
-  
-  currentArcadeSession.startTime = Date.now();
-  
-  currentGame = {
-    currentIndex: 0,
-    correctStreak: 0,
-    wrongStreak: 0,
-    words: currentArcadeSession.wordPool || [],
-    wordsCompleted: 0,
-    coins: initialCoins,
-    lastBroadcast: Date.now(),
-    initialCoinsLoaded: true,
-    playerUsername: username
-  };
-  
-  if (!currentGame.words || currentGame.words.length === 0) {
-    if (!(currentArcadeSession.wordPool && currentArcadeSession.wordPool.length > 0)) {
-      showErrorToast("Failed to join game: No words available");
-      showScreen("welcome-screen");
-      return;
-    }
-    currentGame.words = currentArcadeSession.wordPool;
-  }
-  
-  try {
-    // Mark this player as initialized
-    await window.arcadeChannel.send({
-      type: "broadcast",
-      event: "player_initialized",
-      payload: {
-        username: username,
-        initialCoins: initialCoins,
-        wordsCompleted: 0,
-        timestamp: Date.now(),
-        lateJoin: currentArcadeSession.state === "active"
-      }
-    });
-  } catch (error) {
-    console.error("Initialization broadcast failed:", error);
-  }
-  
-  // Initialize powerups
-  initializePowerups();
+   // Clean up any waiting screen intervals
+   const waitingScreen = document.getElementById('waiting-screen');
+   if (waitingScreen && waitingScreen.dataset.pollInterval) {
+       clearInterval(parseInt(waitingScreen.dataset.pollInterval));
+       delete waitingScreen.dataset.pollInterval;
+   }
+
+   const questionScreen = document.getElementById('question-screen');
+   questionScreen.classList.add('visible');
+   document.getElementById('waiting-screen').classList.remove('visible');
+   
+   // Determine player username more robustly
+   const playerUsername = currentArcadeSession.playerName || 
+       (currentUser?.user_metadata?.username || getRandomSimploName());
+   
+   // Initialize coins
+   document.querySelectorAll('.coin-count').forEach(display => {
+       display.textContent = currentGame.coins || 0;
+       display.style.display = 'flex';
+   });
+   
+   document.querySelectorAll('.coins-container').forEach(container => {
+       container.style.display = 'flex';
+   });
+
+   // Toggle menus for arcade mode
+   const perksContainer = document.querySelector('.perks-container');
+   const powerupsContainer = document.querySelector('.powerups-container');
+   
+   perksContainer.style.display = 'none';
+   powerupsContainer.style.display = 'flex';
+   
+   let initialCoins = 0;
+   
+   // For premium users, get current coins from game progress
+   if (currentUser && currentUser.status === 'premium') {
+       try {
+           const { data, error } = await supabaseClient
+               .from('game_progress')
+               .select('coins')
+               .eq('user_id', currentUser.id)
+               .single();
+               
+           if (!error && data) {
+               initialCoins = data.coins;
+               console.log('Loaded initial coins:', initialCoins);
+               
+               // Immediately update UI and broadcast initial state
+               currentGame.coins = initialCoins;
+               updateAllCoinDisplays();
+               
+               // Store initial coins value for final calculations
+               currentArcadeSession.initialCoins = initialCoins;
+               
+               // Broadcast initial coin state
+               await window.arcadeChannel.send({
+                   type: 'broadcast',
+                   event: 'progress_update',
+                   payload: {
+                       username: playerUsername,
+                       wordsCompleted: 0,
+                       coins: initialCoins,
+                       timestamp: Date.now()
+                   }
+               });
+           }
+       } catch (error) {
+           console.error('Failed to load coins:', error);
+       }
+   }
+   
+   // Mark session start time
+   currentArcadeSession.startTime = Date.now();
+   
+   // Reset game state with additional properties
+   currentGame = {
+       currentIndex: 0,
+       correctStreak: 0,
+       wrongStreak: 0,
+       words: currentArcadeSession.wordPool || [],
+       wordsCompleted: 0,
+       coins: initialCoins,
+       lastBroadcast: Date.now(),
+       initialCoinsLoaded: true,
+       playerUsername: playerUsername
+   };
+   
+   // Guard against empty word pool for late joiners
+   if (!currentGame.words || currentGame.words.length === 0) {
+       console.error('Empty word pool detected. Trying to fetch from currentArcadeSession');
+       if (currentArcadeSession.wordPool && currentArcadeSession.wordPool.length > 0) {
+           currentGame.words = currentArcadeSession.wordPool;
+       } else {
+           // Show error and return to welcome screen
+           showErrorToast('Failed to join game: No words available');
+           showScreen('welcome-screen');
+           return;
+       }
+   }
+
+   // Broadcast player initialization BEFORE first question
+   try {
+       await window.arcadeChannel.send({
+           type: 'broadcast',
+           event: 'player_initialized',
+           payload: {
+               username: playerUsername,
+               initialCoins: initialCoins,
+               wordsCompleted: 0,
+               timestamp: Date.now(),
+               lateJoin: currentArcadeSession.state === 'active' // Flag for late joiners
+           }
+       });
+   } catch (error) {
+       console.error('Initialization broadcast failed:', error);
+   }
+
+   // Initialize powerups
+   initializePowerups();
 
    // Set up Supabase real-time leaderboard channel
    const leaderboardChannel = supabaseClient
