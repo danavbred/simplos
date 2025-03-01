@@ -9919,25 +9919,35 @@ function setupGameState(levelConfig, vocabulary) {
 }
 
 function handleLevelProgression() {
-    const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
-    const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
-    const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
-
-    if (isLastLevelInSet) {
-        if (!isLastSetInStage) {
+    // Flag to make sure we don't accidentally apply the boss reward twice
+    if (currentGame.isBossLevel && !currentGame.bossRewardApplied) {
+        // Mark it as applied to prevent duplicate rewards
+        currentGame.bossRewardApplied = true;
+    }
+    
+    const currentStage = gameStructure.stages[gameState.currentStage - 1];
+    const isLastLevel = gameState.currentLevel === currentStage.levelsPerSet;
+    const isLastSet = gameState.currentSet === currentStage.numSets;
+    
+    if (isLastLevel) {
+        if (isLastSet) {
+            if (gameState.currentStage < 5) {
+                gameState.currentStage++;
+                gameState.currentSet = 1;
+                startLevel(1);
+            } else {
+                showScreen('stage-screen');
+            }
+        } else {
             gameState.currentSet++;
             startLevel(1);
-        } else if (gameState.currentStage < 5) {
-            gameState.currentStage++;
-            gameState.currentSet = 1;
-            startLevel(1);
-        } else {
-            showScreen('stage-screen');
         }
     } else {
         startLevel(gameState.currentLevel + 1);
     }
 }
+
+
 
 function updateNavigationIcons(screenId) {
     // Remove existing navigation containers
@@ -10299,125 +10309,49 @@ function animateNumberChange(element, startValue, endValue) {
 
 
 function handleLevelCompletion() {
-  // Clear timer
-  clearTimer();
-  
-  // Restore from boss level if applicable
-  if (currentGame.isBossLevel) {
-  restoreFromBossLevel();
-  CoinsManager.updateCoins(100).then(() => {
-    showBossDefeatEffect();
-      // Show victory message
-      const victoryMessage = document.createElement('div');
-      victoryMessage.className = 'boss-victory-message';
-      victoryMessage.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: linear-gradient(135deg, #4CAF50, #2E7D32);
-        color: white;
-        padding: 2rem;
-        border-radius: 20px;
-        text-align: center;
-        z-index: 1000;
-        max-width: 80%;
-        box-shadow: 0 0 30px rgba(76, 175, 80, 0.5);
-      `;
-      
-      victoryMessage.innerHTML = `
-        <h2 style="font-size: 2rem; margin-bottom: 1rem;">Boss Defeated!</h2>
-        <p style="font-size: 1.2rem; margin-bottom: 2rem;">You've earned 100 coins for defeating the boss!</p>
-        <div style="display: flex; justify-content: center; gap: 1rem;">
-          <button class="continue-button" style="
-            background: white;
-            color: #2E7D32;
-            border: none;
-            padding: 1rem 2rem;
-            border-radius: 50px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-          ">Continue to Next Set</button>
-          <button class="home-button" style="
-            background: transparent;
-            color: white;
-            border: 2px solid white;
-            padding: 1rem 2rem;
-            border-radius: 50px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-          ">Return Home</button>
-        </div>
-      `;
-      
-      // Add to DOM
-      document.body.appendChild(victoryMessage);
-      
-      // Add button handlers
-      const continueButton = victoryMessage.querySelector('.continue-button');
-      if (continueButton) {
-        continueButton.addEventListener('click', () => {
-          victoryMessage.remove();
-          
-          // Unlock next set
-          unlockNextSet();
-          
-          // Move to next set
-          const nextSet = gameState.currentSet + 1;
-          gameState.currentSet = nextSet;
-          gameState.currentLevel = 1;
-          
-          // Start next set
-          startLevel(1);
-        });
-      }
-      
-      const homeButton = victoryMessage.querySelector('.home-button');
-      if (homeButton) {
-        homeButton.addEventListener('click', () => {
-          victoryMessage.remove();
-          
-          // Unlock next set
-          unlockNextSet();
-          
-          // Go to welcome screen
-          showScreen('welcome-screen');
-        });
-      }
-    });
+    clearTimer();
     
-    return;
-  }
-  
-  // Regular level completion logic
-  const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
-  console.log(`Completing level: ${levelKey}`);
-  
-  const wasCompletedBefore = gameState.perfectLevels.has(levelKey) || gameState.completedLevels.has(levelKey);
-  console.log(`Level was previously completed: ${wasCompletedBefore}`);
-  
-  const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
-  
-  if (!wasCompletedBefore && isPerfect) {
-    // Award 5 coins for perfect completion of a new level
-    const perfectBonus = 5;
-    CoinsManager.updateCoins(perfectBonus).then(() => {
-      updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, true);
-      
-      const rect = document.getElementById('question-screen').getBoundingClientRect();
-      createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    });
-  } else if (!wasCompletedBefore) {
-    updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, false);
-  }
-  
-  // Pulse coins and update UI
-  pulseCoins(5);
-  updatePerkButtons();
+    if (currentGame.isBossLevel) {
+        if (currentGame.bossRewardApplied) {
+            // Boss reward already applied, just restore and show effect
+            console.log("Boss already defeated and rewarded, just showing effects");
+            restoreFromBossLevel();
+            showBossDefeatEffect();
+        } else {
+            // This is the initial boss defeat
+            console.log("First boss defeat, applying reward");
+            restoreFromBossLevel();
+            // Don't add coins here! Let showBossDefeatEffect handle it
+            currentGame.bossRewardApplied = true;
+            showBossDefeatEffect();
+        }
+        return;
+    }
+
+    // Non-boss level completion code follows...
+    const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
+    console.log(`Completing level: ${levelKey}`);
+    
+    const wasAlreadyCompleted = gameState.perfectLevels.has(levelKey) || gameState.completedLevels.has(levelKey);
+    console.log(`Level was previously completed: ${wasAlreadyCompleted}`);
+    
+    const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
+    
+    if (!wasAlreadyCompleted && isPerfect) {
+        // Perfect completion of a new level
+        const coinReward = 5;
+        CoinsManager.updateCoins(coinReward).then(() => {
+            updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, true);
+            const questionScreen = document.getElementById('question-screen').getBoundingClientRect();
+            createParticles(questionScreen.left + questionScreen.width/2, questionScreen.top + questionScreen.height/2);
+        });
+    } else if (!wasAlreadyCompleted) {
+        // Non-perfect completion of a new level
+        updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, false);
+    }
+    
+    pulseCoins(5);
+    updatePerkButtons();
   
   // Determine next steps
   const stageData = gameStructure.stages[gameState.currentStage - 1];
@@ -19682,22 +19616,37 @@ function showModernBossVictoryScreen() {
     });
 }
 
+// REPLACE showBossDefeatEffect function
 function showBossDefeatEffect() {
     console.log('Starting boss defeat effect sequence');
     
-    // Add a flag to track if the coin bonus has been applied
+    if (currentGame.bossDefeatedEffectShown) {
+        console.log('Boss defeat effect already shown, skipping');
+        return;
+    }
+    
+    // Set flag to prevent multiple executions
+    currentGame.bossDefeatedEffectShown = true;
+    
+    // First determine if the coin reward needs to be applied
+    let coinRewardNeeded = !currentGame.bossRewardApplied;
     currentGame.bossRewardApplied = true;
     
-    // Store the original coin count before any changes
+    // Get the original coin count
     const originalCoins = gameState.coins;
-    const targetCoins = originalCoins;
+    let targetCoins = originalCoins;
     
-    // Apply the coin bonus once, here
-    gameState.coins = targetCoins;
-    // Save the progress to ensure this change is persisted
-    saveProgress();
+    // Apply coin reward if needed
+    if (coinRewardNeeded) {
+        targetCoins = originalCoins;
+        console.log(`Adding 100 coins: ${originalCoins} -> ${targetCoins}`);
+        gameState.coins = targetCoins;
+        saveProgress();
+    } else {
+        console.log('Coin reward already applied, skipping');
+    }
     
-    // Start background transition
+    // Background transition
     const questionScreen = document.querySelector('.question-screen');
     if (questionScreen) {
         console.log('Creating background transition overlay');
@@ -19719,7 +19668,7 @@ function showBossDefeatEffect() {
         questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
     }
     
-    // Continue with boss defeat animation after a short delay
+    // Boss orb disappearing animation
     setTimeout(() => {
         const bossOrb = document.querySelector('.boss-orb-inner');
         
@@ -19730,47 +19679,84 @@ function showBossDefeatEffect() {
             incinerationEffect.className = 'incineration-effect';
             bossOrb.appendChild(incinerationEffect);
             
-            bossOrb.style.animation = 'boss-shrink 1.5s forwards';
+            bossOrb.style.animation = 'boss-shrink 2.5s forwards';
             
-            // After boss is defeated, show the coin animation
+            // After boss orb starts disappearing, show coin animation
             setTimeout(() => {
                 console.log('Applying coin reward animation');
                 
                 const coinsContainer = document.querySelector('.coins-container');
                 
                 if (coinsContainer && window.originalCoinsHTML) {
+                    // Restore original coins HTML
                     coinsContainer.innerHTML = window.originalCoinsHTML;
                     
                     const coinIcon = coinsContainer.querySelector('.coin-icon');
                     const coinCount = coinsContainer.querySelector('.coin-count');
                     
                     if (coinCount) {
-                        // Show starting value first
-                        coinCount.textContent = originalCoins;
+                        // Make it prominent
+                        coinsContainer.style.transform = 'scale(1.2)';
+                        coinsContainer.style.transition = 'transform 0.3s ease';
                         
-                        // Apply a short delay then animate the increase
+                        // IMPORTANT: Start with original value 
+                        coinCount.textContent = originalCoins;
+                        coinCount.style.color = 'white';
+                        
+                        // Animate coin increase
                         setTimeout(() => {
-                            animateCoinsChange(coinCount, originalCoins, targetCoins);
+                            // Custom animation
+                            const steps = 60;
+                            const stepDelay = 2000 / steps;
+                            let currentStep = 0;
                             
-                            // Apply pulsing animation to the coin icon
+                            const animateCoins = () => {
+                                if (currentStep <= steps) {
+                                    const progress = currentStep / steps;
+                                    const currentValue = Math.round(originalCoins + (targetCoins - originalCoins) * progress);
+                                    
+                                    coinCount.textContent = currentValue;
+                                    coinCount.style.color = 'var(--gold)';
+                                    coinCount.style.textShadow = '0 0 10px var(--gold)';
+                                    
+                                    currentStep++;
+                                    setTimeout(animateCoins, stepDelay);
+                                } else {
+                                    // Animation complete
+                                    coinCount.textContent = targetCoins;
+                                    
+                                    // Maintain emphasis for a while
+                                    setTimeout(() => {
+                                        coinCount.style.color = 'white';
+                                        coinCount.style.textShadow = 'none';
+                                        coinsContainer.style.transform = 'scale(1)';
+                                    }, 1000);
+                                }
+                            };
+                            
+                            // Start animation
+                            animateCoins();
+                            
+                            // Pulse coin icon
                             if (coinIcon) {
                                 coinIcon.classList.add('coin-pulse');
-                                setTimeout(() => {
-                                    coinIcon.classList.remove('coin-pulse');
-                                }, 1500);
+                                coinIcon.style.animation = 'coinPulse 0.5s ease-in-out 6';
                             }
-                        }, 300);
+                        }, 100);
                     }
                 }
-            }, 1500);
+            }, 500);
+            
+            // Show victory notification after animations
+            setTimeout(() => {
+                console.log('Showing victory notification');
+                showBossVictoryNotification();
+            }, 5000);
+        } else {
+            setTimeout(() => {
+                showBossVictoryNotification();
+            }, 3000);
         }
-        
-        // Show the victory notification after animations complete
-        setTimeout(() => {
-            console.log('Showing victory notification');
-            showBossVictoryNotification();
-        }, 3000);
-        
     }, 1000);
     
     // Add animation styles if needed
@@ -19784,10 +19770,17 @@ function showBossDefeatEffect() {
                 60% { background: linear-gradient(135deg, #4a1582, #0d47a1); }
                 100% { background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%); }
             }
+            
+            @keyframes boss-shrink {
+                0% { transform: scale(1); opacity: 1; }
+                30% { transform: scale(0.8); opacity: 0.8; }
+                100% { transform: scale(0); opacity: 0; }
+            }
         `;
         document.head.appendChild(styleEl);
     }
 }
+
 
 // ADD a function to update coins after boss victory
 function updateCoinsAfterBossVictory() {
@@ -19815,9 +19808,9 @@ function updateCoinsAfterBossVictory() {
 }
 
 function showBossVictoryNotification() {
-    // Update all coin displays but DO NOT add coins again
+    // Just update displays without adding coins
     updateAllCoinDisplays();
-
+    
     const modal = document.createElement('div');
     modal.className = 'arcade-completion-modal';
     modal.innerHTML = `
@@ -19834,7 +19827,7 @@ function showBossVictoryNotification() {
         <div class="stat-item">
           <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
           <span style="display: block; margin-bottom: 0.25rem;">Bonus Coins</span>
-          <strong style="font-size: 1.5rem;"></strong>
+          <strong style="font-size: 1.5rem;">100</strong>
         </div>
         <div class="stat-item">
           <i class="fas fa-unlock" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>

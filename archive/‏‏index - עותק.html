@@ -8852,170 +8852,175 @@ function createParticles(x, y) {
     }
 }
 
-function animateCoinsChange(element, startValue, endValue) {
+function animateCoinsChange(element, oldValue, newValue) {
     if (!element) return;
     
-    const duration = 1000; // 1 second
-    const frameRate = 60;
-    const frames = duration / (1000 / frameRate);
-    const increment = (endValue - startValue) / frames;
+    // Convert to numbers to ensure proper calculation
+    oldValue = parseFloat(oldValue) || 0;
+    newValue = parseFloat(newValue) || 0;
     
-    let currentFrame = 0;
-    let currentValue = startValue;
-
-    function updateFrame() {
-        currentFrame++;
+    const duration = 1000; // ms
+    const fps = 1000 / 60; // 60 frames per second
+    const steps = duration / fps;
+    const increment = (newValue - oldValue) / steps;
+    
+    let frame = 0;
+    let currentValue = oldValue;
+    
+    // We're using the animation class to trigger CSS transitions
+    element.classList.add("animating");
+    
+    function animate() {
+        frame++;
         currentValue += increment;
         
-        if (currentFrame <= frames) {
-            // Round to nearest integer for whole number display
+        if (frame <= steps) {
             element.textContent = Math.round(currentValue);
-            
-            // Add color change based on increase/decrease
+            // Set color based on whether coins are increasing or decreasing
             if (increment > 0) {
-                element.style.color = 'var(--success)';
+                element.style.color = "var(--success)";
             } else if (increment < 0) {
-                element.style.color = 'var(--error)';
+                element.style.color = "var(--error)";
             }
             
-            requestAnimationFrame(updateFrame);
+            requestAnimationFrame(animate);
         } else {
-            // Final frame
-            element.textContent = endValue;
-            
-            // Reset color after animation
+            // Ensure we end at exactly the target value
+            element.textContent = newValue;
+            // Reset color after animation completes
             setTimeout(() => {
-                element.style.color = 'var(--text)';
+                element.style.color = "var(--text)";
+                element.classList.remove("animating");
             }, 300);
         }
     }
-
-    updateFrame();
+    
+    // Start the animation
+    requestAnimationFrame(animate);
 }
+
 
 const LEADERBOARD_UPDATE_INTERVAL = 10000; // 10 seconds
 
-// REPLACE the updatePlayerProgress function
-function updatePlayerProgress(update) {
-  // Check if we need to throttle updates
-  const now = Date.now();
-  if (now - lastLeaderboardUpdate < LEADERBOARD_UPDATE_INTERVAL) {
-    // Just update the internal state, don't update UI yet
-    const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === update.username);
+function updatePlayerProgress(player) {
+    const now = Date.now();
+    
+    // Throttle updates to avoid too many DOM operations
+    if (now - lastLeaderboardUpdate < 10000) {
+        // Just update the in-memory data for now
+        const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === player.username);
+        if (playerIndex !== -1) {
+            currentArcadeSession.participants[playerIndex] = {
+                ...currentArcadeSession.participants[playerIndex],
+                ...player
+            };
+        } else {
+            currentArcadeSession.participants.push({
+                username: player.username,
+                wordsCompleted: player.wordsCompleted || 0,
+                coins: player.coins || 0
+            });
+        }
+        return;
+    }
+    
+    // Time to update the UI
+    lastLeaderboardUpdate = now;
+    
+    // Get current positions of elements and data for animation
+    const positions = {};
+    const oldValues = {};
+    
+    document.querySelectorAll('.leaderboard-entry').forEach(entry => {
+        const username = entry.querySelector('[data-username]')?.dataset.username;
+        if (username) {
+            positions[username] = entry.getBoundingClientRect();
+            
+            const wordsEl = entry.querySelector('[data-words]');
+            const coinsEl = entry.querySelector('[data-coins]');
+            
+            oldValues[username] = {
+                words: wordsEl ? parseInt(wordsEl.textContent) : 0,
+                coins: coinsEl ? parseInt(coinsEl.textContent) : 0
+            };
+        }
+    });
+    
+    // Update player data in the session state
+    const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === player.username);
     if (playerIndex !== -1) {
-      currentArcadeSession.participants[playerIndex] = {
-        ...currentArcadeSession.participants[playerIndex],
-        ...update
-      };
+        currentArcadeSession.participants[playerIndex] = {
+            ...currentArcadeSession.participants[playerIndex],
+            ...player
+        };
     } else {
-      currentArcadeSession.participants.push({
-        username: update.username,
-        wordsCompleted: update.wordsCompleted || 0,
-        coins: update.coins || 0
-      });
+        currentArcadeSession.participants.push({
+            username: player.username,
+            wordsCompleted: player.wordsCompleted || 0,
+            coins: player.coins || 0
+        });
     }
-    return;
-  }
-  
-  // Time to update the leaderboard
-  lastLeaderboardUpdate = now;
-  
-  // Store the current positions and values
-  const oldPositions = {};
-  const oldValues = {};
-  
-  document.querySelectorAll('.leaderboard-entry').forEach(entry => {
-    const username = entry.querySelector('[data-username]')?.dataset.username;
-    if (username) {
-      oldPositions[username] = entry.getBoundingClientRect();
-      
-      const wordsElement = entry.querySelector('[data-words]');
-      const coinsElement = entry.querySelector('[data-coins]');
-      
-      oldValues[username] = {
-        words: wordsElement ? parseInt(wordsElement.textContent) : 0,
-        coins: coinsElement ? parseInt(coinsElement.textContent) : 0
-      };
-    }
-  });
-  
-  // Update the state
-  const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === update.username);
-  if (playerIndex !== -1) {
-    currentArcadeSession.participants[playerIndex] = {
-      ...currentArcadeSession.participants[playerIndex],
-      ...update
-    };
-  } else {
-    currentArcadeSession.participants.push({
-      username: update.username,
-      wordsCompleted: update.wordsCompleted || 0,
-      coins: update.coins || 0
-    });
-  }
-  
-  // Sort participants by words completed (primary) and coins (secondary)
-  const sortedParticipants = [...currentArcadeSession.participants]
-    .sort((a, b) => {
-      if (b.wordsCompleted !== a.wordsCompleted) {
-        return b.wordsCompleted - a.wordsCompleted;
-      }
-      return b.coins - a.coins;
-    });
-  
-  // Generate the new leaderboard HTML
-  const leaderboardHTML = sortedParticipants.map((player, index) => `
+    
+    // Sort and create new HTML for the leaderboard
+    const sortedParticipants = [...currentArcadeSession.participants]
+        .sort((a, b) => {
+            if (b.wordsCompleted !== a.wordsCompleted) {
+                return b.wordsCompleted - a.wordsCompleted;
+            }
+            return b.coins - a.coins;
+        });
+    
+    const leaderboardHTML = sortedParticipants.map((p, index) => `
     <div class="leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ""}"
          data-rank="${index + 1}">
       <div>${index + 1}</div>
-      <div data-username="${player.username}">${player.username}</div>
-      <div data-words="${player.wordsCompleted || 0}">${player.wordsCompleted || 0}</div>
-      <div data-coins="${player.coins || 0}">${player.coins || 0}</div>
+      <div data-username="${p.username}">${p.username}</div>
+      <div data-words="${p.wordsCompleted || 0}">${p.wordsCompleted || 0}</div>
+      <div data-coins="${p.coins || 0}">${p.coins || 0}</div>
     </div>
   `).join('');
-  
-  const leaderboardElement = document.getElementById('arcade-leaderboard');
-  if (leaderboardElement) {
-    // Keep the header and replace the entries
-    const header = leaderboardElement.querySelector('.leaderboard-header');
-    leaderboardElement.innerHTML = header ? header.outerHTML + leaderboardHTML : leaderboardHTML;
-  
-    // Apply animations
-    leaderboardElement.querySelectorAll('.leaderboard-entry').forEach(entry => {
-      const username = entry.querySelector('[data-username]')?.dataset.username;
-      if (username && oldPositions[username]) {
-        const oldRect = oldPositions[username];
-        const newRect = entry.getBoundingClientRect();
-        const deltaY = oldRect.top - newRect.top;
+    
+    const leaderboardEl = document.getElementById('arcade-leaderboard');
+    if (leaderboardEl) {
+        const headerEl = leaderboardEl.querySelector('.leaderboard-header');
+        leaderboardEl.innerHTML = headerEl ? headerEl.outerHTML + leaderboardHTML : leaderboardHTML;
         
-        if (deltaY > 0) {
-          entry.classList.add('moving-up');
-        } else if (deltaY < 0) {
-          entry.classList.add('moving-down');
-        }
-        
-        if (oldValues[username]) {
-          const wordsElement = entry.querySelector('[data-words]');
-          const coinsElement = entry.querySelector('[data-coins]');
-          
-          if (wordsElement) {
-            animateCoinsChange(wordsElement, oldValues[username].words, parseInt(wordsElement.textContent));
-          }
-          
-          if (coinsElement) {
-            animateCoinsChange(coinsElement, oldValues[username].coins, parseInt(coinsElement.textContent));
-          }
-        }
-        
-        entry.addEventListener('animationend', () => {
-          entry.classList.remove('moving-up', 'moving-down');
-        }, { once: true });
-      }
-    });
-  }
-  
-  // Also update arcade progress if applicable
-  updateArcadeProgress();
+        // Apply animations to elements that moved
+        leaderboardEl.querySelectorAll('.leaderboard-entry').forEach(entry => {
+            const username = entry.querySelector('[data-username]')?.dataset.username;
+            if (username && positions[username]) {
+                const oldRect = positions[username];
+                const newRect = entry.getBoundingClientRect();
+                const deltaY = oldRect.top - newRect.top;
+                
+                if (deltaY > 0) {
+                    entry.classList.add('moving-up');
+                } else if (deltaY < 0) {
+                    entry.classList.add('moving-down');
+                }
+                
+                if (oldValues[username]) {
+                    const wordsEl = entry.querySelector('[data-words]');
+                    const coinsEl = entry.querySelector('[data-coins]');
+                    
+                    if (wordsEl && oldValues[username].words !== parseInt(wordsEl.textContent)) {
+                        animateCoinsChange(wordsEl, oldValues[username].words, parseInt(wordsEl.textContent));
+                    }
+                    
+                    if (coinsEl && oldValues[username].coins !== parseInt(coinsEl.textContent)) {
+                        animateCoinsChange(coinsEl, oldValues[username].coins, parseInt(coinsEl.textContent));
+                    }
+                }
+                
+                entry.addEventListener('animationend', () => {
+                    entry.classList.remove('moving-up', 'moving-down');
+                }, { once: true });
+            }
+        });
+    }
+    
+    // Update arcade progress UI elements
+    updateArcadeProgress();
 }
 
 function handleTimeUp() {
@@ -9914,25 +9919,35 @@ function setupGameState(levelConfig, vocabulary) {
 }
 
 function handleLevelProgression() {
-    const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
-    const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
-    const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
-
-    if (isLastLevelInSet) {
-        if (!isLastSetInStage) {
+    // Flag to make sure we don't accidentally apply the boss reward twice
+    if (currentGame.isBossLevel && !currentGame.bossRewardApplied) {
+        // Mark it as applied to prevent duplicate rewards
+        currentGame.bossRewardApplied = true;
+    }
+    
+    const currentStage = gameStructure.stages[gameState.currentStage - 1];
+    const isLastLevel = gameState.currentLevel === currentStage.levelsPerSet;
+    const isLastSet = gameState.currentSet === currentStage.numSets;
+    
+    if (isLastLevel) {
+        if (isLastSet) {
+            if (gameState.currentStage < 5) {
+                gameState.currentStage++;
+                gameState.currentSet = 1;
+                startLevel(1);
+            } else {
+                showScreen('stage-screen');
+            }
+        } else {
             gameState.currentSet++;
             startLevel(1);
-        } else if (gameState.currentStage < 5) {
-            gameState.currentStage++;
-            gameState.currentSet = 1;
-            startLevel(1);
-        } else {
-            showScreen('stage-screen');
         }
     } else {
         startLevel(gameState.currentLevel + 1);
     }
 }
+
+
 
 function updateNavigationIcons(screenId) {
     // Remove existing navigation containers
@@ -10294,125 +10309,49 @@ function animateNumberChange(element, startValue, endValue) {
 
 
 function handleLevelCompletion() {
-  // Clear timer
-  clearTimer();
-  
-  // Restore from boss level if applicable
-  if (currentGame.isBossLevel) {
-  restoreFromBossLevel();
-  CoinsManager.updateCoins(100).then(() => {
-    showBossDefeatEffect();
-      // Show victory message
-      const victoryMessage = document.createElement('div');
-      victoryMessage.className = 'boss-victory-message';
-      victoryMessage.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: linear-gradient(135deg, #4CAF50, #2E7D32);
-        color: white;
-        padding: 2rem;
-        border-radius: 20px;
-        text-align: center;
-        z-index: 1000;
-        max-width: 80%;
-        box-shadow: 0 0 30px rgba(76, 175, 80, 0.5);
-      `;
-      
-      victoryMessage.innerHTML = `
-        <h2 style="font-size: 2rem; margin-bottom: 1rem;">Boss Defeated!</h2>
-        <p style="font-size: 1.2rem; margin-bottom: 2rem;">You've earned 100 coins for defeating the boss!</p>
-        <div style="display: flex; justify-content: center; gap: 1rem;">
-          <button class="continue-button" style="
-            background: white;
-            color: #2E7D32;
-            border: none;
-            padding: 1rem 2rem;
-            border-radius: 50px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-          ">Continue to Next Set</button>
-          <button class="home-button" style="
-            background: transparent;
-            color: white;
-            border: 2px solid white;
-            padding: 1rem 2rem;
-            border-radius: 50px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-          ">Return Home</button>
-        </div>
-      `;
-      
-      // Add to DOM
-      document.body.appendChild(victoryMessage);
-      
-      // Add button handlers
-      const continueButton = victoryMessage.querySelector('.continue-button');
-      if (continueButton) {
-        continueButton.addEventListener('click', () => {
-          victoryMessage.remove();
-          
-          // Unlock next set
-          unlockNextSet();
-          
-          // Move to next set
-          const nextSet = gameState.currentSet + 1;
-          gameState.currentSet = nextSet;
-          gameState.currentLevel = 1;
-          
-          // Start next set
-          startLevel(1);
-        });
-      }
-      
-      const homeButton = victoryMessage.querySelector('.home-button');
-      if (homeButton) {
-        homeButton.addEventListener('click', () => {
-          victoryMessage.remove();
-          
-          // Unlock next set
-          unlockNextSet();
-          
-          // Go to welcome screen
-          showScreen('welcome-screen');
-        });
-      }
-    });
+    clearTimer();
     
-    return;
-  }
-  
-  // Regular level completion logic
-  const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
-  console.log(`Completing level: ${levelKey}`);
-  
-  const wasCompletedBefore = gameState.perfectLevels.has(levelKey) || gameState.completedLevels.has(levelKey);
-  console.log(`Level was previously completed: ${wasCompletedBefore}`);
-  
-  const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
-  
-  if (!wasCompletedBefore && isPerfect) {
-    // Award 5 coins for perfect completion of a new level
-    const perfectBonus = 5;
-    CoinsManager.updateCoins(perfectBonus).then(() => {
-      updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, true);
-      
-      const rect = document.getElementById('question-screen').getBoundingClientRect();
-      createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    });
-  } else if (!wasCompletedBefore) {
-    updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, false);
-  }
-  
-  // Pulse coins and update UI
-  pulseCoins(5);
-  updatePerkButtons();
+    if (currentGame.isBossLevel) {
+        if (currentGame.bossRewardApplied) {
+            // Boss reward already applied, just restore and show effect
+            console.log("Boss already defeated and rewarded, just showing effects");
+            restoreFromBossLevel();
+            showBossDefeatEffect();
+        } else {
+            // This is the initial boss defeat
+            console.log("First boss defeat, applying reward");
+            restoreFromBossLevel();
+            // Don't add coins here! Let showBossDefeatEffect handle it
+            currentGame.bossRewardApplied = true;
+            showBossDefeatEffect();
+        }
+        return;
+    }
+
+    // Non-boss level completion code follows...
+    const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
+    console.log(`Completing level: ${levelKey}`);
+    
+    const wasAlreadyCompleted = gameState.perfectLevels.has(levelKey) || gameState.completedLevels.has(levelKey);
+    console.log(`Level was previously completed: ${wasAlreadyCompleted}`);
+    
+    const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
+    
+    if (!wasAlreadyCompleted && isPerfect) {
+        // Perfect completion of a new level
+        const coinReward = 5;
+        CoinsManager.updateCoins(coinReward).then(() => {
+            updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, true);
+            const questionScreen = document.getElementById('question-screen').getBoundingClientRect();
+            createParticles(questionScreen.left + questionScreen.width/2, questionScreen.top + questionScreen.height/2);
+        });
+    } else if (!wasAlreadyCompleted) {
+        // Non-perfect completion of a new level
+        updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, false);
+    }
+    
+    pulseCoins(5);
+    updatePerkButtons();
   
   // Determine next steps
   const stageData = gameStructure.stages[gameState.currentStage - 1];
@@ -10911,10 +10850,6 @@ function findFurthestProgression() {
         return isUnlocked && isNotCompleted;
     };
 
-    // Helper to calculate a rank score for a level (higher = further progression)
-    const calculateRank = (stage, set, level) => {
-        return 10000 * stage + 100 * set + level;
-    };
 
     // First check preferred stage if set
     if (preferredStage && preferredStage >= 1 && preferredStage <= 5) {
@@ -13449,126 +13384,115 @@ function cleanupModeratorScreen() {
     }
 }
 
-async function startArcadeGame() {
-   // Clean up any waiting screen intervals
-   const waitingScreen = document.getElementById('waiting-screen');
-   if (waitingScreen && waitingScreen.dataset.pollInterval) {
-       clearInterval(parseInt(waitingScreen.dataset.pollInterval));
-       delete waitingScreen.dataset.pollInterval;
-   }
-
-   const questionScreen = document.getElementById('question-screen');
-   questionScreen.classList.add('visible');
-   document.getElementById('waiting-screen').classList.remove('visible');
-   
-   // Determine player username more robustly
-   const playerUsername = currentArcadeSession.playerName || 
-       (currentUser?.user_metadata?.username || getRandomSimploName());
-   
-   // Initialize coins
-   document.querySelectorAll('.coin-count').forEach(display => {
-       display.textContent = currentGame.coins || 0;
-       display.style.display = 'flex';
-   });
-   
-   document.querySelectorAll('.coins-container').forEach(container => {
-       container.style.display = 'flex';
-   });
-
-   // Toggle menus for arcade mode
-   const perksContainer = document.querySelector('.perks-container');
-   const powerupsContainer = document.querySelector('.powerups-container');
-   
-   perksContainer.style.display = 'none';
-   powerupsContainer.style.display = 'flex';
-   
-   let initialCoins = 0;
-   
-   // For premium users, get current coins from game progress
-   if (currentUser && currentUser.status === 'premium') {
-       try {
-           const { data, error } = await supabaseClient
-               .from('game_progress')
-               .select('coins')
-               .eq('user_id', currentUser.id)
-               .single();
-               
-           if (!error && data) {
-               initialCoins = data.coins;
-               console.log('Loaded initial coins:', initialCoins);
-               
-               // Immediately update UI and broadcast initial state
-               currentGame.coins = initialCoins;
-               updateAllCoinDisplays();
-               
-               // Store initial coins value for final calculations
-               currentArcadeSession.initialCoins = initialCoins;
-               
-               // Broadcast initial coin state
-               await window.arcadeChannel.send({
-                   type: 'broadcast',
-                   event: 'progress_update',
-                   payload: {
-                       username: playerUsername,
-                       wordsCompleted: 0,
-                       coins: initialCoins,
-                       timestamp: Date.now()
-                   }
-               });
-           }
-       } catch (error) {
-           console.error('Failed to load coins:', error);
-       }
-   }
-   
-   // Mark session start time
-   currentArcadeSession.startTime = Date.now();
-   
-   // Reset game state with additional properties
-   currentGame = {
-       currentIndex: 0,
-       correctStreak: 0,
-       wrongStreak: 0,
-       words: currentArcadeSession.wordPool || [],
-       wordsCompleted: 0,
-       coins: initialCoins,
-       lastBroadcast: Date.now(),
-       initialCoinsLoaded: true,
-       playerUsername: playerUsername
-   };
-   
-   // Guard against empty word pool for late joiners
-   if (!currentGame.words || currentGame.words.length === 0) {
-       console.error('Empty word pool detected. Trying to fetch from currentArcadeSession');
-       if (currentArcadeSession.wordPool && currentArcadeSession.wordPool.length > 0) {
-           currentGame.words = currentArcadeSession.wordPool;
-       } else {
-           // Show error and return to welcome screen
-           showErrorToast('Failed to join game: No words available');
-           showScreen('welcome-screen');
-           return;
-       }
-   }
-
-   // Broadcast player initialization BEFORE first question
-   try {
-       await window.arcadeChannel.send({
-           type: 'broadcast',
-           event: 'player_initialized',
-           payload: {
-               username: playerUsername,
-               initialCoins: initialCoins,
-               wordsCompleted: 0,
-               timestamp: Date.now(),
-               lateJoin: currentArcadeSession.state === 'active' // Flag for late joiners
-           }
-       });
-   } catch (error) {
-       console.error('Initialization broadcast failed:', error);
-   }
-
-   // Initialize powerups
-   initializePowerups();
+function startArcadeGame() {
+    // Clear any polling interval from the waiting screen
+    const waitingScreen = document.getElementById('waiting-screen');
+    if (waitingScreen && waitingScreen.dataset.pollInterval) {
+        clearInterval(parseInt(waitingScreen.dataset.pollInterval));
+        delete waitingScreen.dataset.pollInterval;
+    }
+    
+    // Show question screen, hide waiting screen
+    document.getElementById('question-screen').classList.add('visible');
+    document.getElementById('waiting-screen').classList.remove('visible');
+    
+    // Get player name (either from user profile or random)
+    const playerName = currentArcadeSession.playerName || 
+                      (currentUser?.user_metadata?.username) || 
+                      getRandomSimploName();
+    
+    // Show coins on UI
+    document.querySelectorAll('.coin-count').forEach(el => {
+        el.textContent = '0';
+        el.style.display = 'flex';
+    });
+    
+    document.querySelectorAll('.coins-container').forEach(el => {
+        el.style.display = 'flex';
+    });
+    
+    // Hide perks container, show powerups container
+    const perksContainer = document.querySelector('.perks-container');
+    const powerupsContainer = document.querySelector('.powerups-container');
+    perksContainer.style.display = 'none';
+    powerupsContainer.style.display = 'flex';
+    
+    // Initialize coins
+    let initialCoins = 0;
+    
+    if (currentUser && currentUser.status === 'premium') {
+        try {
+            const { data, error } = supabaseClient
+                .from('game_progress')
+                .select('coins')
+                .eq('user_id', currentUser.id)
+                .single();
+                
+            if (!error && data) {
+                initialCoins = data.coins;
+                console.log('Loaded initial coins:', initialCoins);
+            }
+        } catch (err) {
+            console.error('Failed to load coins:', err);
+        }
+    } else {
+        // For unregistered users, try to get coins from localStorage
+        initialCoins = parseInt(localStorage.getItem('simploxCustomCoins') || '0');
+    }
+    
+    // Update all coin displays with the initial amount
+    currentGame.coins = initialCoins;
+    currentArcadeSession.initialCoins = initialCoins;
+    
+    // Update ALL coin displays
+    document.querySelectorAll('.coin-count').forEach(el => {
+        el.textContent = initialCoins.toString();
+    });
+    
+    // Broadcast initial state to sync with moderator
+    try {
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'progress_update',
+            payload: {
+                username: playerName,
+                wordsCompleted: 0,
+                coins: initialCoins,
+                timestamp: Date.now()
+            }
+        });
+    } catch (err) {
+        console.error('Failed to send initial progress update:', err);
+    }
+    
+    // Set up the game state
+    currentArcadeSession.startTime = Date.now();
+    
+    // Initialize the game
+    currentGame = {
+        currentIndex: 0,
+        correctStreak: 0,
+        wrongStreak: 0,
+        words: currentArcadeSession.wordPool || [],
+        wordsCompleted: 0,
+        coins: initialCoins,
+        lastBroadcast: Date.now(),
+        initialCoinsLoaded: true,
+        playerUsername: playerName
+    };
+    
+    // Check if the words are available
+    if (!currentGame.words || currentGame.words.length === 0) {
+        if (!(currentArcadeSession.wordPool && currentArcadeSession.wordPool.length > 0)) {
+            showErrorToast('Failed to join game: No words available');
+            showScreen('welcome-screen');
+            return;
+        }
+        currentGame.words = currentArcadeSession.wordPool;
+    }
+    
+    // Initialize powerups
+    initializePowerups();
 
    // Set up Supabase real-time leaderboard channel
    const leaderboardChannel = supabaseClient
@@ -13610,6 +13534,7 @@ async function startArcadeGame() {
            
            updateAllPlayersProgress();
            updateArcadeProgress();
+
        })
        .on('broadcast', { event: 'progress_update' }, ({ payload }) => {
            console.log('Progress update received:', payload);
@@ -14123,75 +14048,67 @@ function handleAnswer(isCorrect, skipMode = false) {
   }
 }
 
-async function handleArcadeAnswer(isCorrect) {
-  const now = Date.now();
-  if (now - (currentGame.lastAnswerTime || 0) < 1000) {
-    return;
-  }
-  
-  currentGame.lastAnswerTime = now;
-  const playerName = currentArcadeSession.playerName || 
-                     currentUser?.user_metadata?.username || 
-                     getRandomSimploName();
-  
-  if (isCorrect) {
-    currentGame.wordsCompleted++;
-    currentGame.correctStreak++;
-    currentGame.wrongStreak = 0;
+function handleArcadeAnswer(isCorrect) {
+    const now = Date.now();
+    if (now - (currentGame.lastAnswerTime || 0) < 1000) {
+        return; // Prevent rapid clicking
+    }
     
-    // Track the word for registered users
-    if (currentUser) {
-      const wordIndex = Math.floor(Math.random() * currentGame.words.length);
-      const wordObj = currentGame.words[wordIndex];
-      const word = wordObj.word || wordObj;
-      
-      // Track word for any registered user without status check
-      await trackWordEncounter(word, 'arcade');
-      
-      if (window.arcadeChannel) {
-        window.arcadeChannel.send({
-          type: "broadcast",
-          event: "progress_update",
-          payload: {
-            username: playerName,
-            wordsCompleted: currentGame.wordsCompleted,
-            coins: gameState.coins || currentGame.coins || 0,
-            timestamp: Date.now()
-          }
-        });
-      }
-    } else {
-      let coinAmount = 5;
-      if (currentGame.correctStreak >= 3) {
-        coinAmount += 5;
-      }
-      
-      CoinsManager.updateCoins(coinAmount)
-        .then(() => {
-          window.arcadeChannel && window.arcadeChannel.send({
-            type: "broadcast",
-            event: "progress_update",
-            payload: {
-              username: playerName,
-              wordsCompleted: currentGame.wordsCompleted,
-              coins: gameState.coins,
-              timestamp: Date.now()
+    currentGame.lastAnswerTime = now;
+    
+    const playerName = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
+    
+    if (isCorrect) {
+        // Increase word count
+        currentGame.wordsCompleted++;
+        currentGame.correctStreak++;
+        currentGame.wrongStreak = 0;
+        
+        // Handle coin rewards
+        if (currentUser) {
+            // Logic for logged in users...
+        } else {
+            // Logic for guest users
+            let coinsEarned = 5;
+            if (currentGame.correctStreak >= 3) {
+                coinsEarned += 5;
             }
-          });
-        });
+            
+            // Add coins
+            currentGame.coins += coinsEarned;
+            
+            // Update coin display
+            document.querySelectorAll(".coin-count").forEach(e => {
+                e.textContent = currentGame.coins;
+            });
+            
+            // ADD THIS LINE: Update powerup availability based on new coin count
+            updateArcadePowerups();
+            
+            // Send progress update
+            window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'progress_update',
+                payload: {
+                    username: playerName,
+                    wordsCompleted: currentGame.wordsCompleted,
+                    coins: currentGame.coins,
+                    timestamp: Date.now()
+                }
+            });
+        }
+        
+        // Update progress
+        updateArcadeProgress();
+        
+        // Check if player completed the goal
+        if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
+            handlePlayerCompletedGoal(playerName);
+        }
     }
     
-    updateArcadeProgress();
-    
-    if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
-      handlePlayerCompletedGoal(playerName);
-    }
-  } else {
-    // Incorrect answer logic
-    // ...
-  }
-  
-  loadNextArcadeQuestion();
+    // Load next question
+    loadNextArcadeQuestion();
 }
 
 function checkGameEnd() {
@@ -15026,196 +14943,255 @@ const powerupPool = {
 };
 
 function initializePowerups() {
-    const powerupPool = {
+    // Powerup definitions
+    const powerupDefinitions = {
         highFive: {
-            id: 'highFiveCard',
+            id: "highFiveCard",
             cost: 30,
             effect: 50,
-            type: 'goodie',
-            icon: 'fa-hand-paper',
-            name: 'High Five',
-            message: 'high-fived'
+            type: "goodie",
+            icon: "fa-hand-paper",
+            name: "High Five",
+            message: "high-fived"
         },
         fistBump: {
-            id: 'fistBumpCard',
+            id: "fistBumpCard",
             cost: 40,
             effect: 75,
-            type: 'goodie',
-            icon: 'fa-fist-raised',
-            name: 'Fist Bump',
-            message: 'fist-bumped'
+            type: "goodie",
+            icon: "fa-fist-raised",
+            name: "Fist Bump",
+            message: "fist-bumped"
         },
         energyBoost: {
-            id: 'energyBoostCard',
+            id: "energyBoostCard",
             cost: 45,
-            type: 'goodie',
-            icon: 'fa-bolt',
-            name: 'Energy Boost',
-            message: 'boosted'
+            type: "goodie",
+            icon: "fa-bolt",
+            name: "Energy Boost",
+            message: "boosted"
         },
         freeze: {
-            id: 'freezeCard',
+            id: "freezeCard",
             cost: 150,
             duration: 10000,
-            type: 'baddie',
-            icon: 'fa-snowflake',
-            name: 'Freeze',
-            message: 'froze'
+            type: "baddie",
+            icon: "fa-snowflake",
+            name: "Freeze",
+            message: "froze"
         },
         coinStorm: {
-            id: 'coinStormCard',
+            id: "coinStormCard",
             cost: 160,
-            type: 'baddie',
-            icon: 'fa-cloud-showers-heavy',
-            name: 'Coin Storm',
-            message: 'cast a coin storm on'
+            type: "baddie",
+            icon: "fa-cloud-showers-heavy",
+            name: "Coin Storm",
+            message: "cast a coin storm on"
         },
         screenShake: {
-            id: 'screenShakeCard',
+            id: "screenShakeCard",
             cost: 130,
             duration: 5000,
-            type: 'baddie',
-            icon: 'fa-shake',
-            name: 'Screen Shake',
-            message: 'shook'
+            type: "baddie",
+            icon: "fa-shake",
+            name: "Screen Shake", 
+            message: "shook"
         }
     };
 
-    function getRandomPowerups(count = 3) {
-        const powerupKeys = Object.keys(powerupPool);
-        const selectedKeys = [];
-        while (selectedKeys.length < count && powerupKeys.length > 0) {
-            const randomIndex = Math.floor(Math.random() * powerupKeys.length);
-            selectedKeys.push(powerupKeys.splice(randomIndex, 1)[0]);
-        }
-        return selectedKeys;
-    }
-
-    function renderPowerups() {
-        const container = document.querySelector('.powerups-container');
-        if (!container) return;
-        
-        container.innerHTML = '';
-        const selectedPowerups = getRandomPowerups(3);
-        
-        selectedPowerups.forEach(key => {
-            const powerup = powerupPool[key];
-            const card = document.createElement('div');
-            card.className = `powerup-card ${powerup.type}`;
-            card.id = powerup.id;
-            
-            card.innerHTML = `
-                <i class="fas ${powerup.icon} powerup-icon"></i>
-                <div class="powerup-name">${powerup.name}</div>
-                <div class="powerup-cost">${powerup.cost}</div>
-            `;
-            
-            card.onclick = async () => {
-                console.log('Powerup clicked:', powerup.name); // Debug log
-                
-                if (currentGame.coins < powerup.cost) {
-                    showNotification('Not enough coins!', 'error');
-                    return;
-                }
-                
-                // Change this section in the card.onclick function:
-                const otherPlayers = currentArcadeSession.participants.filter(
-            p => p.username !== currentArcadeSession.playerName && 
-                 p.username !== undefined && 
-                 p.username !== null
-        );
-
-        if (otherPlayers.length === 0) {
-            showNotification('Waiting for other players to join...', 'info');
-            return;
-        }
-                
-                const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
-                
-                // Deduct coins immediately
-                const oldCoins = currentGame.coins;
-                currentGame.coins -= powerup.cost;
-                
-                // Update coins display
-                document.querySelectorAll('.coin-count').forEach(display => {
-                    display.textContent = currentGame.coins;
-                });
-                
-                try {
-                    // Send powerup effect
-                    await window.arcadeChannel.send({
-                        type: 'broadcast',
-                        event: 'powerup_effect',
-                        payload: {
-                            powerupKey: key,
-                            targetUser: targetPlayer.username,
-                            fromUser: currentArcadeSession.playerName,
-                            powerup: powerup
-                        }
-                    });
-                    
-                    // Show feedback
-                    showNotification(`Used ${powerup.name} on ${targetPlayer.username}!`, powerup.type);
-                    
-                    // Update progress
-                    await window.arcadeChannel.send({
-                        type: 'broadcast',
-                        event: 'progress_update',
-                        payload: {
-                            username: currentArcadeSession.playerName,
-                            wordsCompleted: currentGame.wordsCompleted,
-                            coins: currentGame.coins,
-                            timestamp: Date.now()
-                        }
-                    });
-                    
-                    // Get new powerups
-                    renderPowerups();
-                    
-                } catch (error) {
-                    console.error('Powerup use error:', error);
-                    // Revert coins if failed
-                    currentGame.coins = oldCoins;
-                    document.querySelectorAll('.coin-count').forEach(display => {
-                        display.textContent = oldCoins;
-                    });
-                    showNotification('Failed to use powerup!', 'error');
-                }
-            };
-            
-            container.appendChild(card);
-        });
-        
-        updatePowerupAvailability();
-    }
-
-    function updatePowerupAvailability() {
+    // Function to check and update powerup availability
+    function updateAvailability() {
         document.querySelectorAll('.powerup-card').forEach(card => {
             const costElement = card.querySelector('.powerup-cost');
             if (!costElement) return;
             
             const cost = parseInt(costElement.textContent);
-            const canAfford = currentGame.coins >= cost;
+            const isAffordable = currentGame.coins >= cost;
             
-            card.classList.toggle('disabled', !canAfford);
-            card.style.cursor = canAfford ? 'pointer' : 'not-allowed';
-            card.style.opacity = canAfford ? '1' : '0.5';
+            card.classList.toggle('disabled', !isAffordable);
+            card.style.cursor = isAffordable ? 'pointer' : 'not-allowed';
+            card.style.opacity = isAffordable ? '1' : '0.5';
         });
     }
 
-    // Initialize first set of powerups
-    renderPowerups();
-    
-    // Watch for coin changes
-    const coinDisplay = document.querySelector('.coin-count');
-    if (coinDisplay) {
-        new MutationObserver(() => {
-            updatePowerupAvailability();
-        }).observe(coinDisplay, { childList: true, characterData: true, subtree: true });
+    // Create a random selection of powerups
+    function getRandomPowerups(count = 3) {
+        const powerupKeys = Object.keys(powerupDefinitions);
+        const selectedKeys = [];
+        
+        while (selectedKeys.length < count && powerupKeys.length > 0) {
+            const randomIndex = Math.floor(Math.random() * powerupKeys.length);
+            selectedKeys.push(powerupKeys.splice(randomIndex, 1)[0]);
+        }
+        
+        return selectedKeys;
     }
     
+    // Set up the powerups container
+    const container = document.querySelector('.powerups-container');
+    if (!container) return;
+    
+    // Clear existing powerups
+    container.innerHTML = '';
+    
+    // Add random powerups
+    getRandomPowerups(3).forEach(key => {
+        const powerup = powerupDefinitions[key];
+        
+        const powerupCard = document.createElement('div');
+        powerupCard.className = `powerup-card ${powerup.type}`;
+        powerupCard.id = powerup.id;
+        
+        powerupCard.innerHTML = `
+            <i class="fas ${powerup.icon} powerup-icon"></i>
+            <div class="powerup-name">${powerup.name}</div>
+            <div class="powerup-cost">${powerup.cost}</div>
+        `;
+        
+        // Add click handler
+        powerupCard.onclick = async () => {
+            console.log("Powerup clicked:", powerup.name);
+            
+            // Check if player has enough coins
+            if (currentGame.coins < powerup.cost) {
+                showNotification("Not enough coins!", "error");
+                return;
+            }
+            
+            // Find a random player to target (excluding self)
+            const otherPlayers = currentArcadeSession.participants.filter(p => 
+                p.username !== currentArcadeSession.playerName && 
+                p.username !== undefined && 
+                p.username !== null
+            );
+            
+            if (otherPlayers.length === 0) {
+                showNotification("Waiting for other players to join...", "info");
+                return;
+            }
+            
+            // Select random target and deduct coins
+            const targetPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+            const oldCoins = currentGame.coins;
+            currentGame.coins -= powerup.cost;
+            
+            // Update displayed coins
+            document.querySelectorAll('.coin-count').forEach(el => {
+                el.textContent = currentGame.coins;
+            });
+            
+            try {
+                // Send powerup effect to target player
+                await window.arcadeChannel.send({
+                    type: 'broadcast',
+                    event: 'powerup_effect',
+                    payload: {
+                        powerupKey: key,
+                        targetUser: targetPlayer.username,
+                        fromUser: currentArcadeSession.playerName,
+                        powerup: powerup
+                    }
+                });
+                
+                // Show feedback notification
+                showNotification(`Used ${powerup.name} on ${targetPlayer.username}!`, powerup.type);
+                
+                // Update participant list with new coin count
+                await window.arcadeChannel.send({
+                    type: 'broadcast',
+                    event: 'progress_update',
+                    payload: {
+                        username: currentArcadeSession.playerName,
+                        wordsCompleted: currentGame.wordsCompleted,
+                        coins: currentGame.coins,
+                        timestamp: Date.now()
+                    }
+                });
+                
+                // Refresh powerups with the new coin amount
+                initializePowerups();
+                
+            } catch (error) {
+                console.error("Powerup use error:", error);
+                // Restore coins on error
+                currentGame.coins = oldCoins;
+                document.querySelectorAll('.coin-count').forEach(el => {
+                    el.textContent = oldCoins;
+                });
+                showNotification("Failed to use powerup!", "error");
+            }
+        };
+        
+        container.appendChild(powerupCard);
+    });
+    
     // Initial availability check
-    updatePowerupAvailability();
+    updateAvailability();
+    
+    // Set up an observer to watch for coin count changes
+    const coinDisplay = document.querySelector('.coin-count');
+    if (coinDisplay) {
+        const observer = new MutationObserver(() => {
+            updateAvailability();
+        });
+        
+        observer.observe(coinDisplay, {
+            childList: true,
+            characterData: true,
+            subtree: true
+        });
+    }
+    
+    // Return the updateAvailability function so it can be called externally
+    return updateAvailability;
+}
+
+// Update powerup availability whenever coin count changes
+function updatePowerupAvailability() {
+  document.querySelectorAll('.powerup-card').forEach(card => {
+    const costElement = card.querySelector('.powerup-cost');
+    if (!costElement) return;
+    
+    const cost = parseInt(costElement.textContent);
+    const isAffordable = currentGame.coins >= cost;
+    
+    card.classList.toggle('disabled', !isAffordable);
+    card.style.cursor = isAffordable ? 'pointer' : 'not-allowed';
+    card.style.opacity = isAffordable ? '1' : '0.5';
+  });
+}
+
+function updateArcadePowerups() {
+    // Get all powerup cards
+    const powerupCards = document.querySelectorAll('.powerup-card');
+    
+    // Current coin amount
+    const currentCoins = currentGame.coins || 0;
+    
+    // Update each powerup card's availability
+    powerupCards.forEach(card => {
+        const costElement = card.querySelector('.powerup-cost');
+        if (!costElement) return;
+        
+        // Parse cost from the element
+        const cost = parseInt(costElement.textContent);
+        
+        // Determine if player can afford this powerup
+        const canAfford = currentCoins >= cost;
+        
+        // Update visual state
+        card.classList.toggle('disabled', !canAfford);
+        card.style.opacity = canAfford ? '1' : '0.5';
+        card.style.cursor = canAfford ? 'pointer' : 'not-allowed';
+    });
+}
+
+// Call this after any coin update in arcade mode
+function updateArcadeCoinDisplay() {
+  document.querySelectorAll(".coin-count").forEach(element => {
+    element.textContent = currentGame.coins;
+  });
+  updatePowerupAvailability();
 }
 
 function requestFullscreenMode() {
@@ -16071,75 +16047,98 @@ async function handlePlayerCompletedGoal(username) {
   }
 }
 
-// REPLACE the endArcade function
 function endArcade() {
-  // Stop moderator inactivity monitoring
-  moderatorInactivity.isGameActive = false;
-  currentArcadeSession.celebrationTriggered = true;
-  currentArcadeSession.state = "ended";
-  currentArcadeSession.endTime = Date.now();
-  
-  if (currentArcadeSession.participants.length >= 3) {
-    const topPlayers = [...currentArcadeSession.participants]
-      .sort((a, b) => b.wordsCompleted !== a.wordsCompleted ? 
-        b.wordsCompleted - a.wordsCompleted : b.coins - a.coins)
-      .slice(0, 3)
-      .map((player, index) => ({
-        ...player,
-        rank: index + 1,
-        completionTime: Date.now() - 1000 * index
-      }));
-      
-    window.arcadeChannel.send({
-      type: "broadcast",
-      event: "game_end",
-      payload: {
-        state: "ended",
-        podiumPlayers: topPlayers,
-        teacherId: currentArcadeSession.teacherId,
-        forcedEnd: false,
-        duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
-      }
-    });
+    // Stop tracking moderator activity
+    moderatorInactivity.isGameActive = false;
     
-    startLeaderboardCelebration(topPlayers);
-  } else {
-    window.arcadeChannel.send({
-      type: "broadcast",
-      event: "game_end",
-      payload: {
-        state: "ended",
-        forcedEnd: true,
-        teacherId: currentArcadeSession.teacherId
-      }
-    });
+    // Mark the celebration as triggered to prevent duplicate celebrations
+    currentArcadeSession.celebrationTriggered = true;
     
-    showScreen("welcome-screen");
-  }
-  
-  // Reset the arcade session
-  resetArcadeSession();
-  
-  if (window.arcadeChannel) {
-    window.arcadeChannel.unsubscribe();
-  }
+    // Update the state
+    currentArcadeSession.state = "ended";
+    currentArcadeSession.endTime = Date.now();
+    
+    // If there are enough participants, show the victory celebration
+    if (currentArcadeSession.participants.length >= 3) {
+        // Sort participants by words completed and then by coins
+        const podiumPlayers = [...currentArcadeSession.participants]
+            .sort((a, b) => {
+                if (b.wordsCompleted !== a.wordsCompleted) {
+                    return b.wordsCompleted - a.wordsCompleted;
+                }
+                return b.coins - a.coins;
+            })
+            .slice(0, 3)
+            .map((player, index) => ({
+                ...player,
+                rank: index + 1,
+                completionTime: Date.now() - (1000 * index) // Staggered completion times
+            }));
+        
+        // Broadcast the game end event
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'game_end',
+            payload: {
+                state: 'ended',
+                podiumPlayers: podiumPlayers,
+                teacherId: currentArcadeSession.teacherId,
+                forcedEnd: false,
+                duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
+            }
+        });
+        
+        // Show the celebration for the moderator
+        startLeaderboardCelebration(podiumPlayers);
+    } else {
+        // Not enough participants for celebration, just end the game
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'game_end',
+            payload: {
+                state: 'ended',
+                forcedEnd: true,
+                teacherId: currentArcadeSession.teacherId
+            }
+        });
+        
+        // Return to welcome screen
+        showScreen('welcome-screen');
+    }
+    
+    // Reset everything for a clean state
+    resetArcadeSession();
+    
+    // Clean up any remaining timers
+    if (window.arcadeChannel) {
+        window.arcadeChannel.unsubscribe();
+        window.arcadeChannel = null;
+    }
 }
 
 function resetArcadeSession() {
-    // Generate a completely new OTP
-    const newOtp = Math.floor(1000 + 9000 * Math.random()).toString();
+    // Generate new OTP
+    const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     
-    // Comprehensive reset of all session variables
+    // Clear any existing timers
+    window.arcadeTimeouts && window.arcadeTimeouts.forEach(timeout => clearTimeout(timeout));
+    window.arcadeIntervals && window.arcadeIntervals.forEach(interval => clearInterval(interval));
+    
+    // Clear any animation frames
+    window.celebrationConfettiInterval && clearInterval(window.celebrationConfettiInterval);
+    window.playerConfettiInterval && clearInterval(window.playerConfettiInterval);
+    
+    // Reset arcade session completely
     currentArcadeSession = {
         eventId: null,
         otp: newOtp,
         wordPool: [],
         participants: [],
         teacherId: currentUser?.id || null,
-        wordGoal: 50,  // Reset to default
+        wordGoal: 50,
         state: "pre-start",
         completedPlayers: [],
-        playerRank: null,
+        playerRank: null, 
         winnerScreenShown: false,
         startTime: null,
         endTime: null,
@@ -16149,73 +16148,86 @@ function resetArcadeSession() {
         playerName: null,
         joinEventSent: false
     };
-
-    // Reset global tracking variables
+    
+    // Reset last update time for leaderboard
     lastLeaderboardUpdate = Date.now();
     
-    // Clear any lingering channels or subscriptions
+    // Unsubscribe from arcade channel
     if (window.arcadeChannel) {
         window.arcadeChannel.unsubscribe();
         window.arcadeChannel = null;
     }
-
-    // Reset leaderboard and moderator view
-    const leaderboard = document.getElementById("arcade-leaderboard");
-    if (leaderboard) {
-        const header = leaderboard.querySelector(".leaderboard-header");
-        leaderboard.innerHTML = header ? header.outerHTML : "";
+    
+    // Clear out the leaderboard
+    const leaderboardElement = document.getElementById('arcade-leaderboard');
+    if (leaderboardElement) {
+        const header = leaderboardElement.querySelector('.leaderboard-header');
+        leaderboardElement.innerHTML = header ? header.outerHTML : '';
     }
-
-    // Update OTP display in moderator screen
-    const otpDisplay = document.getElementById("moderatorOtp");
-    if (otpDisplay) {
-        otpDisplay.textContent = newOtp;
+    
+    // Update the OTP display in the moderator screen
+    const otpElement = document.getElementById('moderatorOtp');
+    if (otpElement) {
+        otpElement.textContent = newOtp;
     }
-
-    // Regenerate QR code
-    const qrCodeCanvas = document.getElementById("qrCode");
-    if (qrCodeCanvas) {
+    
+    // Regenerate QR code with new OTP
+    const qrElement = document.getElementById('qrCode');
+    if (qrElement) {
         const qrUrl = `${window.location.origin + window.location.pathname}#join=${newOtp}`;
         new QRious({
-            element: qrCodeCanvas,
+            element: qrElement,
             value: qrUrl,
             size: 200,
             backgroundAlpha: 1,
-            foreground: "#16213e",
-            background: "#ffffff",
-            level: "H"
+            foreground: '#16213e',
+            background: '#ffffff',
+            level: 'H'
         });
     }
-
-    // Reset database records (optional, server-side cleanup recommended)
-    supabaseClient.from("arcade_events")
-        .update({
-            status: 'waiting', 
-            game_state: {}, 
-            otp: newOtp
-        })
-        .eq('id', currentArcadeSession.eventId)
-        .then(({ error }) => {
-            if (error) console.error("Failed to reset arcade event:", error);
-        });
-
-    supabaseClient.from("arcade_participants")
-        .delete()
-        .eq('event_id', currentArcadeSession.eventId)
-        .then(({ error }) => {
-            if (error) console.error("Failed to clear participants:", error);
-        });
-
-    // Hide specific UI elements
-    const endArcadeButton = document.querySelector(".end-arcade-button");
+    
+    // Update the database if needed
+    if (currentArcadeSession.eventId) {
+        supabaseClient.from('arcade_events')
+            .update({
+                status: 'waiting',
+                game_state: {},
+                otp: newOtp
+            })
+            .eq('id', currentArcadeSession.eventId)
+            .then(({ error }) => {
+                if (error) console.error('Failed to reset arcade event:', error);
+            });
+        
+        supabaseClient.from('arcade_participants')
+            .delete()
+            .eq('event_id', currentArcadeSession.eventId)
+            .then(({ error }) => {
+                if (error) console.error('Failed to clear participants:', error);
+            });
+    }
+    
+    // Hide the end arcade button, it will be shown again when needed
+    const endArcadeButton = document.querySelector('.end-arcade-button');
     if (endArcadeButton) {
-        endArcadeButton.classList.remove("visible");
+        endArcadeButton.classList.remove('visible');
     }
-
-    // Clear any modal overlays
+    
+    // Remove any celebration overlays
     document.querySelectorAll('.celebration-overlay, .home-button-container').forEach(el => el.remove());
-
-    console.log("Arcade session completely reset with new OTP:", newOtp);
+    
+    // Reset current game state
+    currentGame = {
+        currentIndex: 0,
+        correctStreak: 0,
+        wrongStreak: 0,
+        words: [],
+        wordsCompleted: 0,
+        coins: 0,
+        lastBroadcast: Date.now()
+    };
+    
+    console.log('Arcade session completely reset with new OTP:', newOtp);
 }
 
 function finishCelebrationAndGoHome() {
@@ -19604,120 +19616,204 @@ function showModernBossVictoryScreen() {
     });
 }
 
+// REPLACE showBossDefeatEffect function
 function showBossDefeatEffect() {
-  console.log("Starting boss defeat effect sequence");
-  
-  // 1. Start with a delay
-  setTimeout(() => {
-    const questionScreen = document.querySelector(".question-screen");
-    const bossOrb = document.querySelector(".boss-orb-inner");
+    console.log('Starting boss defeat effect sequence');
     
-    // 2. Make boss orb disintegrate
-    if (bossOrb) {
-      console.log("Disintegrating boss orb");
-      
-      // Add explosion effect to the orb
-      const explosionEffect = document.createElement("div");
-      explosionEffect.className = "incineration-effect";
-      bossOrb.appendChild(explosionEffect);
-      
-      // Shrink the orb while exploding
-      bossOrb.style.animation = "boss-shrink 1.5s forwards";
-      
-      // After orb disintegrates, restore coin counter to its place
-      setTimeout(() => {
-        console.log("Restoring coin counter");
-        const coinsContainer = document.querySelector(".coins-container");
-        if (coinsContainer && window.originalCoinsHTML) {
-          coinsContainer.innerHTML = window.originalCoinsHTML;
-          
-          // Animate coin return
-          const coinIcon = coinsContainer.querySelector(".coin-icon");
-          const coinCount = coinsContainer.querySelector(".coin-count");
-          
-          if (coinIcon) {
-            coinIcon.style.transform = "scale(0)";
-            setTimeout(() => {
-              coinIcon.style.transition = "transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
-              coinIcon.style.transform = "scale(1)";
-            }, 100);
-          }
-          
-          if (coinCount) {
-            coinCount.textContent = gameState.coins + 100; // Add the boss defeat reward
-            coinCount.style.transform = "scale(0)";
-            setTimeout(() => {
-              coinCount.style.transition = "transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)";
-              coinCount.style.transform = "scale(1)";
-            }, 300);
-          }
-        }
-      }, 1500);
+    if (currentGame.bossDefeatedEffectShown) {
+        console.log('Boss defeat effect already shown, skipping');
+        return;
     }
     
-    // 3. Explicitly animate background with a custom element to ensure smooth transition
-    if (questionScreen) {
-      console.log("Starting background transition");
-      
-      // Create a full-screen overlay for the transition
-      const transitionOverlay = document.createElement("div");
-      transitionOverlay.className = "background-transition-overlay";
-      transitionOverlay.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(135deg, #800000, #3a0000);
-        z-index: -1;
-        transition: background 5s ease-in-out;
-        pointer-events: none;
-      `;
-      
-      // Insert before other elements but after question screen
-      questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
-      
-      // Force a reflow
-      void transitionOverlay.offsetWidth;
-      
-      // Start transition after a small delay
-      setTimeout(() => {
-        console.log("Transitioning to purple");
-        transitionOverlay.style.background = "linear-gradient(135deg, #4a1582, #0d47a1)";
-        
-        // Complete transition to blue
-        setTimeout(() => {
-          console.log("Transitioning to normal blue");
-          transitionOverlay.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
-          
-          // Switch particles back to normal
-          if (typeof stopBossRainingLetters === 'function') {
-            stopBossRainingLetters();
-          }
-          initializeParticles(questionScreen);
-          
-          // After background transition completes, show victory notification
-          setTimeout(() => {
-            console.log("Showing victory notification");
-            showBossVictoryNotification();
-          }, 1000);
-        }, 2500);
-      }, 500);
+    // Set flag to prevent multiple executions
+    currentGame.bossDefeatedEffectShown = true;
+    
+    // First determine if the coin reward needs to be applied
+    let coinRewardNeeded = !currentGame.bossRewardApplied;
+    currentGame.bossRewardApplied = true;
+    
+    // Get the original coin count
+    const originalCoins = gameState.coins;
+    let targetCoins = originalCoins;
+    
+    // Apply coin reward if needed
+    if (coinRewardNeeded) {
+        targetCoins = originalCoins;
+        console.log(`Adding 100 coins: ${originalCoins} -> ${targetCoins}`);
+        gameState.coins = targetCoins;
+        saveProgress();
     } else {
-      // Fallback if question screen isn't found
-      setTimeout(() => showBossVictoryNotification(), 4000);
+        console.log('Coin reward already applied, skipping');
     }
     
-  }, 2000); // Initial delay
+    // Background transition
+    const questionScreen = document.querySelector('.question-screen');
+    if (questionScreen) {
+        console.log('Creating background transition overlay');
+        
+        const transitionOverlay = document.createElement('div');
+        transitionOverlay.className = 'background-transition-overlay';
+        transitionOverlay.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #800000, #3a0000); 
+            z-index: -1;
+            animation: fade-to-blue 5s ease-in-out forwards;
+            pointer-events: none;
+        `;
+        
+        questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
+    }
+    
+    // Boss orb disappearing animation
+    setTimeout(() => {
+        const bossOrb = document.querySelector('.boss-orb-inner');
+        
+        if (bossOrb) {
+            console.log('Disintegrating boss orb');
+            
+            const incinerationEffect = document.createElement('div');
+            incinerationEffect.className = 'incineration-effect';
+            bossOrb.appendChild(incinerationEffect);
+            
+            bossOrb.style.animation = 'boss-shrink 2.5s forwards';
+            
+            // After boss orb starts disappearing, show coin animation
+            setTimeout(() => {
+                console.log('Applying coin reward animation');
+                
+                const coinsContainer = document.querySelector('.coins-container');
+                
+                if (coinsContainer && window.originalCoinsHTML) {
+                    // Restore original coins HTML
+                    coinsContainer.innerHTML = window.originalCoinsHTML;
+                    
+                    const coinIcon = coinsContainer.querySelector('.coin-icon');
+                    const coinCount = coinsContainer.querySelector('.coin-count');
+                    
+                    if (coinCount) {
+                        // Make it prominent
+                        coinsContainer.style.transform = 'scale(1.2)';
+                        coinsContainer.style.transition = 'transform 0.3s ease';
+                        
+                        // IMPORTANT: Start with original value 
+                        coinCount.textContent = originalCoins;
+                        coinCount.style.color = 'white';
+                        
+                        // Animate coin increase
+                        setTimeout(() => {
+                            // Custom animation
+                            const steps = 60;
+                            const stepDelay = 2000 / steps;
+                            let currentStep = 0;
+                            
+                            const animateCoins = () => {
+                                if (currentStep <= steps) {
+                                    const progress = currentStep / steps;
+                                    const currentValue = Math.round(originalCoins + (targetCoins - originalCoins) * progress);
+                                    
+                                    coinCount.textContent = currentValue;
+                                    coinCount.style.color = 'var(--gold)';
+                                    coinCount.style.textShadow = '0 0 10px var(--gold)';
+                                    
+                                    currentStep++;
+                                    setTimeout(animateCoins, stepDelay);
+                                } else {
+                                    // Animation complete
+                                    coinCount.textContent = targetCoins;
+                                    
+                                    // Maintain emphasis for a while
+                                    setTimeout(() => {
+                                        coinCount.style.color = 'white';
+                                        coinCount.style.textShadow = 'none';
+                                        coinsContainer.style.transform = 'scale(1)';
+                                    }, 1000);
+                                }
+                            };
+                            
+                            // Start animation
+                            animateCoins();
+                            
+                            // Pulse coin icon
+                            if (coinIcon) {
+                                coinIcon.classList.add('coin-pulse');
+                                coinIcon.style.animation = 'coinPulse 0.5s ease-in-out 6';
+                            }
+                        }, 100);
+                    }
+                }
+            }, 500);
+            
+            // Show victory notification after animations
+            setTimeout(() => {
+                console.log('Showing victory notification');
+                showBossVictoryNotification();
+            }, 5000);
+        } else {
+            setTimeout(() => {
+                showBossVictoryNotification();
+            }, 3000);
+        }
+    }, 1000);
+    
+    // Add animation styles if needed
+    if (!document.getElementById('boss-transition-style')) {
+        const styleEl = document.createElement('style');
+        styleEl.id = 'boss-transition-style';
+        styleEl.textContent = `
+            @keyframes fade-to-blue {
+                0% { background: linear-gradient(135deg, #800000, #3a0000); }
+                20% { background: linear-gradient(135deg, #800000, #3a0000); }
+                60% { background: linear-gradient(135deg, #4a1582, #0d47a1); }
+                100% { background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%); }
+            }
+            
+            @keyframes boss-shrink {
+                0% { transform: scale(1); opacity: 1; }
+                30% { transform: scale(0.8); opacity: 0.8; }
+                100% { transform: scale(0); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(styleEl);
+    }
+}
+
+
+// ADD a function to update coins after boss victory
+function updateCoinsAfterBossVictory() {
+    const currentCoins = gameState.coins;
+    const newCoins = currentCoins;
+    
+    // Update gameState.coins but don't use CoinsManager to avoid duplicate animations
+    gameState.coins = newCoins;
+    
+    // Update all coin displays with animation
+    document.querySelectorAll('.coin-count').forEach(el => {
+        animateCoinsChange(el, currentCoins, newCoins);
+    });
+    
+    // Pulse the coin icons
+    document.querySelectorAll('.coin-icon').forEach(icon => {
+        icon.classList.add('coin-pulse');
+        setTimeout(() => {
+            icon.classList.remove('coin-pulse');
+        }, 1500);
+    });
+    
+    // Save progress
+    saveProgress();
 }
 
 function showBossVictoryNotification() {
-  CoinsManager.updateCoins(100);
-  updateAllCoinDisplays(); // Add this to update coin display immediately
-  
-  const e = document.createElement("div");
-  e.className = "arcade-completion-modal";
-  e.innerHTML = `
+    // Just update displays without adding coins
+    updateAllCoinDisplays();
+    
+    const modal = document.createElement('div');
+    modal.className = 'arcade-completion-modal';
+    modal.innerHTML = `
     <div class="completion-modal-content">
       <h2 style="color: var(--gold)">Boss Defeated!</h2>
       <p style="font-size: 1.2rem; margin: 1rem 0;">Congratulations! You've conquered this challenge!</p>
@@ -19771,34 +19867,52 @@ function showBossVictoryNotification() {
       </div>
     </div>
   `;
-  document.body.appendChild(e);
-  requestAnimationFrame(() => e.classList.add("show"));
+    
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add('show'));
 }
 
 function handleBossVictoryContinue() {
-  console.log("Boss victory continue button clicked");
-  const e = document.querySelector(".arcade-completion-modal");
-  updateAllCoinDisplays(); // Add this line to update coin display immediately
-  
-  e && (e.classList.remove("show"), 
-    setTimeout((()=>{
-      e.remove();
-      const t = document.querySelector(".background-transition-overlay");
-      t ? (console.log("Using existing transition overlay for smooth transition"),
-      t.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)",
-      resetBossStyles(!0)) : resetBossStyles(),
-      unlockNextSet();
-      const n = gameState.currentSet + 1;
-      gameState.currentSet = n,
-      gameState.currentLevel = 1,
-      updateAllCoinDisplays(), // Add this line to update coin display before next level
-      setTimeout((()=>{
-        console.log("Starting next level"),
-        t && t.parentNode && t.parentNode.removeChild(t),
-        startLevel(1)
-      }), 500)
-    }), 300)
-  )
+    console.log('Boss victory continue button clicked');
+    
+    const modal = document.querySelector('.arcade-completion-modal');
+    
+    // Just update displays but DO NOT add coins again
+    updateAllCoinDisplays();
+    
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.remove();
+            
+            const transitionOverlay = document.querySelector('.background-transition-overlay');
+            if (transitionOverlay) {
+                console.log('Using existing transition overlay for smooth transition');
+                transitionOverlay.style.background = 'radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)';
+                resetBossStyles(true);
+            } else {
+                resetBossStyles();
+            }
+            
+            // Unlock next set without adding coins again
+            unlockNextSet();
+            
+            const nextSet = gameState.currentSet + 1;
+            gameState.currentSet = nextSet;
+            gameState.currentLevel = 1;
+            
+            // Update all displays but DO NOT add coins again
+            updateAllCoinDisplays();
+            
+            setTimeout(() => {
+                console.log('Starting next level');
+                if (transitionOverlay && transitionOverlay.parentNode) {
+                    transitionOverlay.parentNode.removeChild(transitionOverlay);
+                }
+                startLevel(1);
+            }, 500);
+        }, 300);
+    }
 }
 
 function resetBossStyles(e = false) {
@@ -19843,22 +19957,30 @@ function resetBossStyles(e = false) {
 }
 
 function handleBossVictoryHome() {
-  console.log("Boss victory home button clicked");
-  const e = document.querySelector(".arcade-completion-modal");
-  updateAllCoinDisplays(); // Add this line to update coin display immediately
-  
-  e && (e.classList.remove("show"), 
-    setTimeout((()=>{
-      e.remove(),
-      resetBossStyles(),
-      unlockNextSet();
-      const t = gameState.currentSet + 1;
-      gameState.currentSet = t,
-      gameState.currentLevel = 1,
-      saveProgress(),
-      showScreen("welcome-screen")
-    }), 300)
-  )
+    console.log('Boss victory home button clicked');
+    
+    const modal = document.querySelector('.arcade-completion-modal');
+    
+    // Just update displays but DO NOT add coins again
+    updateAllCoinDisplays();
+    
+    if (modal) {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.remove();
+            resetBossStyles();
+            
+            // Unlock next set without adding coins again
+            unlockNextSet();
+            
+            const nextSet = gameState.currentSet + 1;
+            gameState.currentSet = nextSet;
+            gameState.currentLevel = 1;
+            
+            saveProgress();
+            showScreen('welcome-screen');
+        }, 300);
+    }
 }
 
 // ADD this function to check if the current user is the admin
