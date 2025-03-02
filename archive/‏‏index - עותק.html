@@ -6176,6 +6176,107 @@ body.dark-theme {
   animation: enterWord 0.3s forwards;
 }
 
+.simple-level-transition {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, rgba(30, 144, 255, 0.2), rgba(0, 0, 0, 0.7));
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+  overflow: hidden;
+}
+
+.simple-level-transition.fade-out {
+  opacity: 0;
+}
+
+.simple-level-transition .level-announcement {
+  background: var(--glass);
+  backdrop-filter: blur(5px);
+  padding: 1.5rem 2.5rem;
+  border-radius: 15px;
+  text-align: center;
+  transform: scale(1);
+  transition: transform 0.3s ease;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+  animation: pulse-glow 1.5s infinite alternate;
+}
+
+.simple-level-transition.fade-out .level-announcement {
+  transform: scale(0.9);
+}
+
+.simple-level-transition .level-number {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: var(--gold);
+  margin-bottom: 0.5rem;
+}
+
+.simple-level-transition .level-text {
+  font-size: 1.2rem;
+  color: var(--text);
+  opacity: 0.9;
+}
+
+/* Light streaks animation */
+.light-streak {
+  position: absolute;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  width: 100%;
+  filter: blur(1px);
+  opacity: 0;
+  animation: streak-animation 1.2s ease-in-out;
+}
+
+@keyframes streak-animation {
+  0% {
+    transform: translateX(-100%) rotate(5deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.7;
+  }
+  90% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateX(100%) rotate(5deg);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 10px rgba(30, 144, 255, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 20px rgba(30, 144, 255, 0.6);
+  }
+}
+
+/* Progress bar styling */
+.transition-progress {
+  position: absolute;
+  bottom: -5px;
+  left: 0;
+  height: 3px;
+  background: var(--gold);
+  width: 0%;
+  border-radius: 0 0 10px 10px;
+  transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 </style>
 </head>
 <body>
@@ -8756,6 +8857,7 @@ const gameStructure = {
 const gameState = {
     currentStage: null,
     currentSet: null,
+    sessionStartTime: null,
     currentLevel: null,
     unlockedSets: {},
     unlockedLevels: {},
@@ -9882,7 +9984,7 @@ function generateAnswerChoices(correctAnswer, vocabulary) {
 function startLevel(level) {
   gameState.currentLevel = level;
   
-  // Set game context for potential resume
+  // Save game context
   const gameContext = {
     stage: gameState.currentStage,
     set: gameState.currentSet,
@@ -9893,90 +9995,73 @@ function startLevel(level) {
   console.log("Setting game context at level start:", gameContext);
   localStorage.setItem("gameContext", JSON.stringify(gameContext));
   
-  // Reset state for new level
+  // Reset game state
   currentGame.wrongStreak = 0;
   currentGame.correctAnswers = 0;
   currentGame.levelStartTime = Date.now();
   currentGame.firstAttempt = true;
   currentGame.streakBonus = true;
-  
-  // Update perks
   updatePerkButtons();
   
-  // Debug logging
   console.log("Current unlocked levels:", gameState.unlockedLevels);
   
   const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
   console.log(`Current set key: ${setKey}, unlocked levels in set:`, 
     gameState.unlockedLevels[setKey] ? Array.from(gameState.unlockedLevels[setKey]) : "none");
   
-  // Setup UI elements
+  // Show/hide UI elements
   const perksContainer = document.querySelector('.perks-container');
   const powerupsContainer = document.querySelector('.powerups-container');
   
   if (perksContainer) perksContainer.style.display = 'flex';
   if (powerupsContainer) powerupsContainer.style.display = 'none';
   
-  // Update coin display
   const coinCount = document.querySelector('.coin-count');
-  if (coinCount) {
-    coinCount.textContent = gameState.coins || 0;
-  }
+  if (coinCount) coinCount.textContent = gameState.coins || 0;
   
-  // Show coins container
   const coinsContainer = document.querySelector('.coins-container');
-  if (coinsContainer) {
-    coinsContainer.style.display = 'flex';
-  }
+  if (coinsContainer) coinsContainer.style.display = 'flex';
   
-  // Ensure game state is initialized
   gameState.currentStage = gameState.currentStage || 1;
   gameState.currentSet = gameState.currentSet || 1;
   gameState.currentLevel = level;
   
   console.log(`Starting level: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${level}`);
-  
-  // Add admin test button if applicable
   addAdminTestButton();
   
-  // Check if premium is required for this level
-  const userStatus = currentUser ? currentUser.status : "unregistered";
-  const isLevelRequiringPremium = [2, 7, 11, 15, 20].includes(level);
-  
-  if (isLevelRequiringPremium && userStatus !== "premium") {
-    const savedLevel = level;
+  // Check if premium is required
+  const userStatus = currentUser ? currentUser.status : 'unregistered';
+  if ([2, 7, 11, 15, 20].includes(level) && userStatus !== 'premium') {
+    const currentLevel = level;
     
-    // Handle unregistered users
     if (!currentUser) {
       return showUnregisteredWarning(() => {
-        proceedWithLevel(savedLevel);
+        proceedWithLevel(currentLevel);
       });
     }
     
-    // Check if upgrade already requested
     if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
       return showUpgradePrompt(() => {
-        proceedWithLevel(savedLevel);
+        proceedWithLevel(currentLevel);
       });
     }
   }
   
-  // Flag boss level
+  // Determine if this is a boss level
   if (level === 21) {
     currentGame.isBossLevel = true;
     console.log("Boss level detected");
-    
-    // Apply boss styles after a small delay to ensure DOM is ready
     setTimeout(applyBossLevelStyles, 100);
-    
-    // Apply again after a longer delay to override any potential changes
     setTimeout(applyBossLevelStyles, 500);
   } else {
     currentGame.isBossLevel = false;
   }
   
-  // Process with regular level start
-  proceedWithLevel(level);
+  // Determine if we need to show the full intro
+  // Force full intro for boss levels or first level of a set
+  const forceFullIntro = level === 21 || level === 1;
+  
+  proceedWithLevel(level, forceFullIntro);
 }
 
 function addAdminTestButton() {
@@ -10084,60 +10169,46 @@ function findFurthestProgression() {
     };
 }
 
-function proceedWithLevel(level) {
+function proceedWithLevel(level, forceFullIntro = false) {
   currentGame.restartsRemaining = currentGame.restartsRemaining || 2;
   gameState.currentLevel = level;
   
   const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-  const vocabulary = vocabularySets[setKey];
+  const vocabularySet = vocabularySets[setKey];
   
-  // Update coin display
   const coinCount = document.querySelector('.coin-count');
   if (coinCount) {
     coinCount.textContent = gameState.coins || 0;
     coinCount.style.display = 'block';
   }
   
-  // Store starting state
   currentGame.startingCoins = gameState.coins;
-  currentGame.startingPerks = {...gameState.perks};
+  currentGame.startingPerks = { ...gameState.perks };
   currentGame.timeBonus = 0;
   currentGame.initialTimeRemaining = null;
   currentGame.streakBonus = true;
   currentGame.levelStartTime = Date.now();
   
-  // Show level intro
   showLevelIntro(level, () => {
-    // Set up the game state
-    setupGameState(calculateWordsForLevel(level, vocabulary), vocabulary);
-    
-    // Show the question screen
+    setupGameState(calculateWordsForLevel(level, vocabularySet), vocabularySet);
     showScreen("question-screen");
-    
-    // Check for admin user and add test button
     addAdminTestButton();
     
-    // Boss level requires special initialization
     if (level === 21) {
       console.log("Initializing boss level in proceedWithLevel");
       initializeBossLevel();
-      
-      // Apply boss styles forcefully after DOM is ready
       setTimeout(applyBossLevelStyles, 200);
-      
       loadNextBossQuestion();
     } else {
       updateProgressCircle();
       loadNextQuestion();
     }
     
-    // Start the timer
     setTimeout(() => {
       startTimer(currentGame.words.length);
     }, 200);
-  });
+  }, forceFullIntro);
 }
-
 
 document.querySelector('.perks-container').innerHTML = `
     ${Object.entries(PERK_CONFIG).map(([type, config]) => `
@@ -10922,29 +10993,61 @@ window.onload = async () => {
 };
 
 function stopLevelAndGoBack() {
-    clearTimer();
-    isFrozen = false;
-    
-    // Reset game state
-    currentGame = {
-        words: [],
-        translations: [],
-        currentIndex: 0,
-        correctAnswers: 0,
-        firstAttempt: true,
-        isHebrewToEnglish: false,
-        mixed: false,
-        speedChallenge: false,
-        timeBonus: 0,
-        initialTimeRemaining: null,
-        streakBonus: true,
-        restartsRemaining: null
-    };
-    
-    // Immediately show welcome screen
-    showScreen('welcome-screen');
+  clearTimer();
+  isFrozen = false;
+  
+  // Show a simple outro animation
+  const outro = document.createElement('div');
+  outro.className = 'simple-level-transition';
+  
+  // Create light streaks for animation
+  for (let i = 0; i < 3; i++) {
+    const streak = document.createElement('div');
+    streak.className = 'light-streak';
+    streak.style.top = `${20 + (i * 25)}%`;
+    streak.style.animationDelay = `${i * 0.2}s`;
+    outro.appendChild(streak);
+  }
+  
+  const announcement = document.createElement('div');
+  announcement.className = 'level-announcement simple';
+  
+  announcement.innerHTML = `
+    <div class="level-number">
+      <i class="fas fa-check-circle" style="color: var(--gold); font-size: 2rem;"></i>
+    </div>
+    <div class="level-text">Session Complete</div>
+  `;
+  
+  outro.appendChild(announcement);
+  document.body.appendChild(outro);
+  
+  // Clear session
+  gameState.sessionStartTime = null;
+  
+  currentGame = {
+    words: [],
+    translations: [],
+    currentIndex: 0,
+    correctAnswers: 0,
+    firstAttempt: true,
+    isHebrewToEnglish: false,
+    mixed: false,
+    speedChallenge: false,
+    timeBonus: 0,
+    initialTimeRemaining: null,
+    streakBonus: true,
+    restartsRemaining: null
+  };
+  
+  setTimeout(() => {
+    outro.classList.add('fade-out');
+    setTimeout(() => {
+      document.body.removeChild(outro);
+      showScreen("welcome-screen");
+    }, 300);
+  }, 1200);
 }
-
 
 function showGameOverOverlay() {
     clearTimer();
@@ -11447,67 +11550,108 @@ function unlockNextStage() {
   }
 }
 
-function showLevelIntro(level, callback) {
-  // If it's a custom practice, just call the callback
-  if (currentGame.isCustomPractice) {
-    callback();
-    return;
-  }
-
-  const overlay = document.createElement('div');
-  overlay.className = 'slide-transition';
+function showLevelIntro(level, callback, forceFullIntro = false) {
+  // Check if this is a new session or just a level transition
+  const isNewSession = !gameState.sessionStartTime || 
+                      (Date.now() - gameState.sessionStartTime > 30 * 60 * 1000) || 
+                      forceFullIntro;
   
-  // Check if it's a test level, boss level, etc.
-  const isTestLevel = [3, 6, 9, 10, 13, 16, 19, 20].includes(level);
-  const isBossLevel = level === 21;
+// For level transitions in the same session, use simple fade
+if (!isNewSession) {
+  const simpleTransition = document.createElement('div');
+  simpleTransition.className = 'simple-level-transition';
+  
+  // Create light streaks for animation
+  for (let i = 0; i < 3; i++) {
+    const streak = document.createElement('div');
+    streak.className = 'light-streak';
+    streak.style.top = `${20 + (i * 25)}%`;
+    streak.style.animationDelay = `${i * 0.2}s`;
+    simpleTransition.appendChild(streak);
+  }
+  
+  const announcement = document.createElement('div');
+  announcement.className = 'level-announcement simple';
+  
+  // Add a dynamic progress bar
+  const progressBar = document.createElement('div');
+  progressBar.className = 'transition-progress';
+  
+  announcement.innerHTML = `
+    <div class="level-number">${level}</div>
+    <div class="level-text">Stage ${gameState.currentStage} - Set ${gameState.currentSet}</div>
+  `;
+  
+  announcement.appendChild(progressBar);
+  simpleTransition.appendChild(announcement);
+  document.body.appendChild(simpleTransition);
+  
+  // Animate progress bar
+  setTimeout(() => {
+    progressBar.style.width = '100%';
+  }, 50);
+  
+  setTimeout(() => {
+    simpleTransition.classList.add('fade-out');
+    setTimeout(() => {
+      callback();
+      document.body.removeChild(simpleTransition);
+    }, 300);
+  }, 800);
+  
+  return;
+}
+  
+  // For new sessions, use the fuller intro but optimized
+  const isTest = [3, 6, 9, 10, 13, 16, 19, 20].includes(level);
+  const isBoss = level === 21;
   
   let levelClass = 'normal-level';
-  if (isTestLevel) levelClass = 'test-level';
-  if (isBossLevel) levelClass = 'boss-level';
+  if (isTest) levelClass = 'test-level';
+  if (isBoss) levelClass = 'boss-level';
   
-  overlay.innerHTML = `
-    <div class="slide-panel-left"></div>
-    <div class="slide-panel-right"></div>
+  const transition = document.createElement('div');
+  transition.className = 'level-transition';
+  transition.innerHTML = `
     <div class="level-announcement ${levelClass}">
-      <h1>${isBossLevel ? 'BOSS FIGHT!' : `Stage ${gameState.currentStage}`}</h1>
-      <h2>${isBossLevel ? 'FINAL CHALLENGE' : `Level ${gameState.currentSet}-${level}`}</h2>
-      ${isTestLevel ? '<div class="test-badge">Review Challenge</div>' : ''}
-      ${isBossLevel ? '<div class="boss-badge">DANGER ZONE</div>' : ''}
+      <h1>${isBoss ? 'BOSS FIGHT!' : `Stage ${gameState.currentStage}`}</h1>
+      <h2>${isBoss ? 'FINAL CHALLENGE' : `Level ${gameState.currentSet}-${level}`}</h2>
+      ${isTest ? '<div class="test-badge">Review Challenge</div>' : ''}
+      ${isBoss ? '<div class="boss-badge">DANGER ZONE</div>' : ''}
     </div>
   `;
   
-  document.body.appendChild(overlay);
+  document.body.appendChild(transition);
+  const announcement = transition.querySelector('.level-announcement');
   
-  const announcement = overlay.querySelector('.level-announcement');
+  // Force reflow to ensure animation works
+  transition.offsetHeight;
   
-  // Force a reflow before adding the show class
-  overlay.offsetHeight;
-  
-  overlay.classList.add('show');
+  transition.classList.add('show');
   announcement.classList.add('show');
   
-  // Special boss styling
-  if (isBossLevel) {
-    const bossAnnouncement = overlay.querySelector('.level-announcement');
-    if (bossAnnouncement) {
-      bossAnnouncement.style.background = 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)';
-      bossAnnouncement.style.boxShadow = '0 0 30px rgba(255, 0, 0, 0.5)';
+  // Add boss level styling if needed
+  if (isBoss) {
+    const announcementEl = transition.querySelector('.level-announcement');
+    if (announcementEl) {
+      announcementEl.style.background = 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)';
+      announcementEl.style.boxShadow = '0 0 30px rgba(255, 0, 0, 0.5)';
       
-      const bossTitle = bossAnnouncement.querySelector('h1');
-      if (bossTitle) {
-        bossTitle.style.color = '#ffffff';
-        bossTitle.style.textShadow = '0 0 20px rgba(255, 0, 0, 0.8)';
+      const titleEl = announcementEl.querySelector('h1');
+      if (titleEl) {
+        titleEl.style.color = '#ffffff';
+        titleEl.style.textShadow = '0 0 20px rgba(255, 0, 0, 0.8)';
       }
     }
   }
   
   setTimeout(() => {
     callback();
-    overlay.classList.remove('show');
+    transition.classList.remove('show');
     announcement.classList.remove('show');
     
     setTimeout(() => {
-      document.body.removeChild(overlay);
+      document.body.removeChild(transition);
     }, 400);
   }, 1500);
 }
