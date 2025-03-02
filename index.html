@@ -6158,7 +6158,93 @@ body.dark-theme {
   animation: rankNumberEnter 0.3s ease-out forwards;
 }
 
+@keyframes exitWord {
+  0% { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(-50px); opacity: 0; }
+}
 
+@keyframes enterWord {
+  0% { transform: translateX(50px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+.question-word.exiting {
+  animation: exitWord 0.3s forwards;
+}
+
+.question-word.entering {
+  animation: enterWord 0.3s forwards;
+}
+
+.simple-level-transition {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.simple-level-transition.fade-out {
+  opacity: 0;
+}
+
+.simple-level-transition .level-announcement {
+  background: var(--glass);
+  backdrop-filter: blur(5px);
+  padding: 1.5rem 2.5rem;
+  border-radius: 15px;
+  text-align: center;
+  transform: scale(1);
+  transition: transform 0.3s ease;
+}
+
+.simple-level-transition.fade-out .level-announcement {
+  transform: scale(0.9);
+}
+
+.level-transition {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.level-transition.show {
+  opacity: 1;
+}
+
+.level-transition .level-announcement {
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  padding: 2rem 3rem;
+  border-radius: 20px;
+  text-align: center;
+  z-index: 2;
+}
+
+.level-transition .level-announcement.show {
+  opacity: 1;
+  transform: scale(1);
+}
 
 </style>
 </head>
@@ -8740,6 +8826,7 @@ const gameStructure = {
 const gameState = {
     currentStage: null,
     currentSet: null,
+    sessionStartTime: null,
     currentLevel: null,
     unlockedSets: {},
     unlockedLevels: {},
@@ -9866,7 +9953,7 @@ function generateAnswerChoices(correctAnswer, vocabulary) {
 function startLevel(level) {
   gameState.currentLevel = level;
   
-  // Set game context for potential resume
+  // Save game context
   const gameContext = {
     stage: gameState.currentStage,
     set: gameState.currentSet,
@@ -9877,90 +9964,73 @@ function startLevel(level) {
   console.log("Setting game context at level start:", gameContext);
   localStorage.setItem("gameContext", JSON.stringify(gameContext));
   
-  // Reset state for new level
+  // Reset game state
   currentGame.wrongStreak = 0;
   currentGame.correctAnswers = 0;
   currentGame.levelStartTime = Date.now();
   currentGame.firstAttempt = true;
   currentGame.streakBonus = true;
-  
-  // Update perks
   updatePerkButtons();
   
-  // Debug logging
   console.log("Current unlocked levels:", gameState.unlockedLevels);
   
   const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
   console.log(`Current set key: ${setKey}, unlocked levels in set:`, 
     gameState.unlockedLevels[setKey] ? Array.from(gameState.unlockedLevels[setKey]) : "none");
   
-  // Setup UI elements
+  // Show/hide UI elements
   const perksContainer = document.querySelector('.perks-container');
   const powerupsContainer = document.querySelector('.powerups-container');
   
   if (perksContainer) perksContainer.style.display = 'flex';
   if (powerupsContainer) powerupsContainer.style.display = 'none';
   
-  // Update coin display
   const coinCount = document.querySelector('.coin-count');
-  if (coinCount) {
-    coinCount.textContent = gameState.coins || 0;
-  }
+  if (coinCount) coinCount.textContent = gameState.coins || 0;
   
-  // Show coins container
   const coinsContainer = document.querySelector('.coins-container');
-  if (coinsContainer) {
-    coinsContainer.style.display = 'flex';
-  }
+  if (coinsContainer) coinsContainer.style.display = 'flex';
   
-  // Ensure game state is initialized
   gameState.currentStage = gameState.currentStage || 1;
   gameState.currentSet = gameState.currentSet || 1;
   gameState.currentLevel = level;
   
   console.log(`Starting level: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${level}`);
-  
-  // Add admin test button if applicable
   addAdminTestButton();
   
-  // Check if premium is required for this level
-  const userStatus = currentUser ? currentUser.status : "unregistered";
-  const isLevelRequiringPremium = [2, 7, 11, 15, 20].includes(level);
-  
-  if (isLevelRequiringPremium && userStatus !== "premium") {
-    const savedLevel = level;
+  // Check if premium is required
+  const userStatus = currentUser ? currentUser.status : 'unregistered';
+  if ([2, 7, 11, 15, 20].includes(level) && userStatus !== 'premium') {
+    const currentLevel = level;
     
-    // Handle unregistered users
     if (!currentUser) {
       return showUnregisteredWarning(() => {
-        proceedWithLevel(savedLevel);
+        proceedWithLevel(currentLevel);
       });
     }
     
-    // Check if upgrade already requested
     if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
       return showUpgradePrompt(() => {
-        proceedWithLevel(savedLevel);
+        proceedWithLevel(currentLevel);
       });
     }
   }
   
-  // Flag boss level
+  // Determine if this is a boss level
   if (level === 21) {
     currentGame.isBossLevel = true;
     console.log("Boss level detected");
-    
-    // Apply boss styles after a small delay to ensure DOM is ready
     setTimeout(applyBossLevelStyles, 100);
-    
-    // Apply again after a longer delay to override any potential changes
     setTimeout(applyBossLevelStyles, 500);
   } else {
     currentGame.isBossLevel = false;
   }
   
-  // Process with regular level start
-  proceedWithLevel(level);
+  // Determine if we need to show the full intro
+  // Force full intro for boss levels or first level of a set
+  const forceFullIntro = level === 21 || level === 1;
+  
+  proceedWithLevel(level, forceFullIntro);
 }
 
 function addAdminTestButton() {
@@ -10068,60 +10138,46 @@ function findFurthestProgression() {
     };
 }
 
-function proceedWithLevel(level) {
+function proceedWithLevel(level, forceFullIntro = false) {
   currentGame.restartsRemaining = currentGame.restartsRemaining || 2;
   gameState.currentLevel = level;
   
   const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-  const vocabulary = vocabularySets[setKey];
+  const vocabularySet = vocabularySets[setKey];
   
-  // Update coin display
   const coinCount = document.querySelector('.coin-count');
   if (coinCount) {
     coinCount.textContent = gameState.coins || 0;
     coinCount.style.display = 'block';
   }
   
-  // Store starting state
   currentGame.startingCoins = gameState.coins;
-  currentGame.startingPerks = {...gameState.perks};
+  currentGame.startingPerks = { ...gameState.perks };
   currentGame.timeBonus = 0;
   currentGame.initialTimeRemaining = null;
   currentGame.streakBonus = true;
   currentGame.levelStartTime = Date.now();
   
-  // Show level intro
   showLevelIntro(level, () => {
-    // Set up the game state
-    setupGameState(calculateWordsForLevel(level, vocabulary), vocabulary);
-    
-    // Show the question screen
+    setupGameState(calculateWordsForLevel(level, vocabularySet), vocabularySet);
     showScreen("question-screen");
-    
-    // Check for admin user and add test button
     addAdminTestButton();
     
-    // Boss level requires special initialization
     if (level === 21) {
       console.log("Initializing boss level in proceedWithLevel");
       initializeBossLevel();
-      
-      // Apply boss styles forcefully after DOM is ready
       setTimeout(applyBossLevelStyles, 200);
-      
       loadNextBossQuestion();
     } else {
       updateProgressCircle();
       loadNextQuestion();
     }
     
-    // Start the timer
     setTimeout(() => {
       startTimer(currentGame.words.length);
     }, 200);
-  });
+  }, forceFullIntro);
 }
-
 
 document.querySelector('.perks-container').innerHTML = `
     ${Object.entries(PERK_CONFIG).map(([type, config]) => `
@@ -10349,43 +10405,66 @@ function updateProgressCircle() {
 
 
 function loadNextQuestion() {
-  // Clear any existing classes from previous question
-  document.querySelectorAll(".buttons button").forEach(btn => {
-    btn.classList.remove("correct", "wrong");
-  });
-  
-  if (currentGame.currentIndex >= currentGame.words.length) {
-    return;
-  }
-  
-  const e = !![3, 6, 9, 10, 13, 16, 19, 20, 21].includes(gameState.currentLevel) && Math.random() < 0.5;
-  const t = currentGame.currentIndex;
-  const n = e ? currentGame.translations[t] : currentGame.words[t];
-  
-  document.getElementById("question-word").textContent = n;
-  
-  const r = e ? currentGame.words[t] : currentGame.translations[t];
-  const s = e ? currentGame.words : currentGame.translations;
-  const o = new Set([r]);
-  
-  while (o.size < 3) {
-    const e = s[Math.floor(Math.random() * s.length)];
-    if (e !== r) {
-      o.add(e);
-    }
-  }
-  
-  const a = document.getElementById("buttons");
-  a.innerHTML = "";
-  
-  Array.from(o).sort(() => Math.random() - 0.5).forEach((e) => {
-    const t = document.createElement("button");
-    t.textContent = e;
-    t.onclick = () => handleAnswer(e === r);
-    a.appendChild(t);
-  });
-}
+    // Clear previous button states
+    document.querySelectorAll('.buttons button').forEach(button => {
+        button.classList.remove('correct', 'wrong');
+    });
 
+    // Check if we've reached the end of the word list
+    if (currentGame.currentIndex >= currentGame.words.length) return;
+
+    const questionWordElement = document.getElementById('question-word');
+    
+    // Choose whether to show Hebrew or English based on game state or randomness 
+    const showTranslation = !![3, 6, 9, 10, 13, 16, 19, 20, 21].includes(gameState.currentLevel) && Math.random() < 0.5;
+    
+    const idx = currentGame.currentIndex;
+    const word = showTranslation ? currentGame.translations[idx] : currentGame.words[idx];
+    
+    // Generate answer options
+    const correctAnswer = showTranslation ? currentGame.words[idx] : currentGame.translations[idx];
+    const options = showTranslation ? currentGame.words : currentGame.translations;
+    const answerSet = new Set([correctAnswer]);
+    
+    // Add distractors until we have enough options
+    while (answerSet.size < 3) {
+        const distractor = options[Math.floor(Math.random() * options.length)];
+        if (distractor !== correctAnswer) {
+            answerSet.add(distractor);
+        }
+    }
+    
+    // Shuffle answer options and create buttons
+    const buttons = document.getElementById('buttons');
+    buttons.innerHTML = '';
+    Array.from(answerSet).sort(() => Math.random() - 0.5).forEach(option => {
+        const button = document.createElement('button');
+        button.textContent = option;
+        button.onclick = () => handleAnswer(option === correctAnswer);
+        buttons.appendChild(button);
+    });
+
+    // Apply animation only after first question
+    if (currentGame.currentIndex > 0) {
+        // Add exit animation
+        questionWordElement.classList.add('exiting');
+        
+        // Wait for animation to complete before changing text and adding entrance animation
+        setTimeout(() => {
+            questionWordElement.textContent = word;
+            questionWordElement.classList.remove('exiting');
+            questionWordElement.classList.add('entering');
+            
+            // Remove entrance animation class after it completes
+            setTimeout(() => {
+                questionWordElement.classList.remove('entering');
+            }, 300); // Animation duration
+        }, 300); // Animation duration
+    } else {
+        // For the first word, just set it without animation
+        questionWordElement.textContent = word;
+    }
+}
 
 function showBossVictoryScreen() {
   console.log("Boss victory screen function called - redirecting to new implementation");
@@ -10883,29 +10962,46 @@ window.onload = async () => {
 };
 
 function stopLevelAndGoBack() {
-    clearTimer();
-    isFrozen = false;
-    
-    // Reset game state
-    currentGame = {
-        words: [],
-        translations: [],
-        currentIndex: 0,
-        correctAnswers: 0,
-        firstAttempt: true,
-        isHebrewToEnglish: false,
-        mixed: false,
-        speedChallenge: false,
-        timeBonus: 0,
-        initialTimeRemaining: null,
-        streakBonus: true,
-        restartsRemaining: null
-    };
-    
-    // Immediately show welcome screen
-    showScreen('welcome-screen');
+  clearTimer();
+  isFrozen = false;
+  
+  // Show a simple outro animation
+  const outro = document.createElement('div');
+  outro.className = 'simple-level-transition';
+  outro.innerHTML = `
+    <div class="level-announcement simple">
+      <h2>Session Complete</h2>
+      <p>Thanks for playing!</p>
+    </div>
+  `;
+  document.body.appendChild(outro);
+  
+  // Clear session
+  gameState.sessionStartTime = null;
+  
+  currentGame = {
+    words: [],
+    translations: [],
+    currentIndex: 0,
+    correctAnswers: 0,
+    firstAttempt: true,
+    isHebrewToEnglish: false,
+    mixed: false,
+    speedChallenge: false,
+    timeBonus: 0,
+    initialTimeRemaining: null,
+    streakBonus: true,
+    restartsRemaining: null
+  };
+  
+  setTimeout(() => {
+    outro.classList.add('fade-out');
+    setTimeout(() => {
+      document.body.removeChild(outro);
+      showScreen("welcome-screen");
+    }, 300);
+  }, 1200);
 }
-
 
 function showGameOverOverlay() {
     clearTimer();
@@ -11408,67 +11504,89 @@ function unlockNextStage() {
   }
 }
 
-function showLevelIntro(level, callback) {
-  // If it's a custom practice, just call the callback
-  if (currentGame.isCustomPractice) {
-    callback();
+function showLevelIntro(level, callback, forceFullIntro = false) {
+  // Check if this is a new session or just a level transition
+  const isNewSession = !gameState.sessionStartTime || 
+                      (Date.now() - gameState.sessionStartTime > 30 * 60 * 1000) || 
+                      forceFullIntro;
+  
+  // Set session start time if this is a new session
+  if (isNewSession) {
+    gameState.sessionStartTime = Date.now();
+  }
+  
+  // For level transitions in the same session, use simple fade
+  if (!isNewSession) {
+    const simpleTransition = document.createElement('div');
+    simpleTransition.className = 'simple-level-transition';
+    simpleTransition.innerHTML = `
+      <div class="level-announcement simple">
+        <h2>Level ${gameState.currentStage}-${level}</h2>
+      </div>
+    `;
+    document.body.appendChild(simpleTransition);
+    
+    setTimeout(() => {
+      simpleTransition.classList.add('fade-out');
+      setTimeout(() => {
+        callback();
+        document.body.removeChild(simpleTransition);
+      }, 300);
+    }, 800);
+    
     return;
   }
-
-  const overlay = document.createElement('div');
-  overlay.className = 'slide-transition';
   
-  // Check if it's a test level, boss level, etc.
-  const isTestLevel = [3, 6, 9, 10, 13, 16, 19, 20].includes(level);
-  const isBossLevel = level === 21;
+  // For new sessions, use the fuller intro but optimized
+  const isTest = [3, 6, 9, 10, 13, 16, 19, 20].includes(level);
+  const isBoss = level === 21;
   
   let levelClass = 'normal-level';
-  if (isTestLevel) levelClass = 'test-level';
-  if (isBossLevel) levelClass = 'boss-level';
+  if (isTest) levelClass = 'test-level';
+  if (isBoss) levelClass = 'boss-level';
   
-  overlay.innerHTML = `
-    <div class="slide-panel-left"></div>
-    <div class="slide-panel-right"></div>
+  const transition = document.createElement('div');
+  transition.className = 'level-transition';
+  transition.innerHTML = `
     <div class="level-announcement ${levelClass}">
-      <h1>${isBossLevel ? 'BOSS FIGHT!' : `Stage ${gameState.currentStage}`}</h1>
-      <h2>${isBossLevel ? 'FINAL CHALLENGE' : `Level ${gameState.currentSet}-${level}`}</h2>
-      ${isTestLevel ? '<div class="test-badge">Review Challenge</div>' : ''}
-      ${isBossLevel ? '<div class="boss-badge">DANGER ZONE</div>' : ''}
+      <h1>${isBoss ? 'BOSS FIGHT!' : `Stage ${gameState.currentStage}`}</h1>
+      <h2>${isBoss ? 'FINAL CHALLENGE' : `Level ${gameState.currentSet}-${level}`}</h2>
+      ${isTest ? '<div class="test-badge">Review Challenge</div>' : ''}
+      ${isBoss ? '<div class="boss-badge">DANGER ZONE</div>' : ''}
     </div>
   `;
   
-  document.body.appendChild(overlay);
+  document.body.appendChild(transition);
+  const announcement = transition.querySelector('.level-announcement');
   
-  const announcement = overlay.querySelector('.level-announcement');
+  // Force reflow to ensure animation works
+  transition.offsetHeight;
   
-  // Force a reflow before adding the show class
-  overlay.offsetHeight;
-  
-  overlay.classList.add('show');
+  transition.classList.add('show');
   announcement.classList.add('show');
   
-  // Special boss styling
-  if (isBossLevel) {
-    const bossAnnouncement = overlay.querySelector('.level-announcement');
-    if (bossAnnouncement) {
-      bossAnnouncement.style.background = 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)';
-      bossAnnouncement.style.boxShadow = '0 0 30px rgba(255, 0, 0, 0.5)';
+  // Add boss level styling if needed
+  if (isBoss) {
+    const announcementEl = transition.querySelector('.level-announcement');
+    if (announcementEl) {
+      announcementEl.style.background = 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)';
+      announcementEl.style.boxShadow = '0 0 30px rgba(255, 0, 0, 0.5)';
       
-      const bossTitle = bossAnnouncement.querySelector('h1');
-      if (bossTitle) {
-        bossTitle.style.color = '#ffffff';
-        bossTitle.style.textShadow = '0 0 20px rgba(255, 0, 0, 0.8)';
+      const titleEl = announcementEl.querySelector('h1');
+      if (titleEl) {
+        titleEl.style.color = '#ffffff';
+        titleEl.style.textShadow = '0 0 20px rgba(255, 0, 0, 0.8)';
       }
     }
   }
   
   setTimeout(() => {
     callback();
-    overlay.classList.remove('show');
+    transition.classList.remove('show');
     announcement.classList.remove('show');
     
     setTimeout(() => {
-      document.body.removeChild(overlay);
+      document.body.removeChild(transition);
     }, 400);
   }, 1500);
 }
@@ -16226,44 +16344,58 @@ function startBossLevel() {
 }
 
 function loadNextBossQuestion() {
-  console.log("Loading next boss question");
-  
-  // Apply boss styles again to ensure they're active
-  setTimeout(applyBossLevelStyles, 100);
-  createLightningEffect();
+    console.log("Loading next boss question");
+    setTimeout(applyBossLevelStyles, 100);
+    createLightningEffect();
     createBossRainingLetters();
 
-  
-  // Get question word element
-  const questionWord = document.getElementById('question-word');
-  if (questionWord) {
-    // Apply boss word styling directly
-    questionWord.style.setProperty('color', '#ff3333', 'important');
-    questionWord.style.setProperty('text-shadow', '0 0 10px rgba(255, 0, 0, 0.5)', 'important');
-    questionWord.style.setProperty('animation', 'pulseWord 2s infinite', 'important');
-  }
-  
-  // Standard word loading with error handling
-  try {
-    loadNextQuestion();
+    const questionWordElement = document.getElementById('question-word');
     
-    // Update health bar after loading question
-    setTimeout(() => {
-      updateBossHealthBar();
-    }, 50);
-    
-    // Randomly reorder buttons to increase difficulty
-    const buttonsContainer = document.getElementById('buttons');
-    if (buttonsContainer && Math.random() < 0.3) {
-      const buttons = Array.from(buttonsContainer.children);
-      const shuffled = buttons.sort(() => Math.random() - 0.5);
-      shuffled.forEach(button => {
-        buttonsContainer.appendChild(button);
-      });
+    // Apply boss-specific styles
+    if (questionWordElement) {
+        questionWordElement.style.setProperty("color", "#ff3333", "important");
+        questionWordElement.style.setProperty("text-shadow", "0 0 10px rgba(255, 0, 0, 0.5)", "important");
+        questionWordElement.style.setProperty("animation", "pulseWord 2s infinite", "important");
     }
-  } catch (error) {
-    console.error("Error loading boss question:", error);
-  }
+
+    try {
+        // Apply word transition animation
+        if (currentGame.currentIndex > 0 && questionWordElement) {
+            // Add exit animation
+            questionWordElement.classList.add('exiting');
+            
+            // Wait for animation to complete before loading next question
+            setTimeout(() => {
+                loadNextQuestion();
+                questionWordElement.classList.remove('exiting');
+                questionWordElement.classList.add('entering');
+                
+                // Remove entrance animation class after it completes
+                setTimeout(() => {
+                    questionWordElement.classList.remove('entering');
+                }, 300);
+            }, 300);
+        } else {
+            // For the first word, just load without animation
+            loadNextQuestion();
+        }
+        
+        // Update boss health bar
+        setTimeout(() => {
+            updateBossHealthBar();
+        }, 50);
+
+        // Randomly shuffle answer buttons for additional challenge
+        const buttonsContainer = document.getElementById('buttons');
+        if (buttonsContainer && Math.random() < 0.3) {
+            const buttons = Array.from(buttonsContainer.children);
+            buttons.sort(() => Math.random() - 0.5).forEach(button => {
+                buttonsContainer.appendChild(button);
+            });
+        }
+    } catch (error) {
+        console.error("Error loading boss question:", error);
+    }
 }
 
 function restoreFromBossLevel() {
