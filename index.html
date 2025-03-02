@@ -2085,24 +2085,26 @@ body {
 }
 
 .level-announcement {
-    position: absolute;
-    z-index: 10000;
-    color: var(--text);
-    text-align: center;
-    opacity: 0;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    transform: scale(0.9);
-    background: rgba(0, 0, 0, 0.3);
-    padding: 2rem 3rem;
-    border-radius: 20px;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  z-index: 10000;
+  color: var(--text);
+  text-align: center;
+  opacity: 0;
+  transition: all .4s cubic-bezier(.4, 0, .2, 1);
+  background: rgba(0,0,0,.3);
+  padding: 2rem 3rem;
+  border-radius: 20px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,.1);
+  box-shadow: 0 10px 30px rgba(0,0,0,.3);
 }
 
 .level-announcement.show {
-    opacity: 1;
-    transform: scale(1);
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 .level-announcement h1 {
@@ -6209,6 +6211,9 @@ body.dark-theme {
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
   z-index: 2;
   animation: pulse-glow 1.5s infinite alternate;
+  width: auto;
+  min-width: 200px;
+  margin: 0 auto; /* Center horizontally */
 }
 
 .simple-level-transition.fade-out .level-announcement {
@@ -6276,6 +6281,7 @@ body.dark-theme {
   border-radius: 0 0 10px 10px;
   transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
+
 
 </style>
 </head>
@@ -10999,6 +11005,9 @@ function stopLevelAndGoBack() {
   // Show a simple outro animation
   const outro = document.createElement('div');
   outro.className = 'simple-level-transition';
+  outro.style.display = 'flex';
+  outro.style.justifyContent = 'center';
+  outro.style.alignItems = 'center';
   
   // Create light streaks for animation
   for (let i = 0; i < 3; i++) {
@@ -11011,6 +11020,7 @@ function stopLevelAndGoBack() {
   
   const announcement = document.createElement('div');
   announcement.className = 'level-announcement simple';
+  announcement.style.position = 'relative'; // Ensure proper positioning
   
   announcement.innerHTML = `
     <div class="level-number">
@@ -11557,9 +11567,13 @@ function showLevelIntro(level, callback, forceFullIntro = false) {
                       forceFullIntro;
   
 // For level transitions in the same session, use simple fade
+// For level transitions in the same session, use simple fade
 if (!isNewSession) {
   const simpleTransition = document.createElement('div');
   simpleTransition.className = 'simple-level-transition';
+  simpleTransition.style.display = 'flex';
+  simpleTransition.style.justifyContent = 'center';
+  simpleTransition.style.alignItems = 'center';
   
   // Create light streaks for animation
   for (let i = 0; i < 3; i++) {
@@ -11572,6 +11586,7 @@ if (!isNewSession) {
   
   const announcement = document.createElement('div');
   announcement.className = 'level-announcement simple';
+  announcement.style.position = 'relative'; // Ensure proper positioning
   
   // Add a dynamic progress bar
   const progressBar = document.createElement('div');
