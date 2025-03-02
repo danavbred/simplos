@@ -8296,4 +8296,573 @@ function handleAnswer(correct, skipMode = false) {
       showScreen('welcome-screen');
     }
   }
+}
+
+// Show Auth Modal function (needed for login/signup)
+function showAuthModal() {
+  const authModal = document.getElementById('authModal');
+  authModal && authModal.classList.add('show');
+}
+
+// Hide Auth Modal function
+function hideAuthModal() {
+  const authModal = document.getElementById('authModal');
+  authModal && authModal.classList.remove('show');
+}
+
+// Toggle Side Panel function
+function toggleSidePanel() {
+  const sidePanel = document.querySelector('.side-panel');
+  const hamburgerButton = document.querySelector('.hamburger-button');
+  const modalOverlay = document.querySelector('.modal-overlay');
+  
+  if (sidePanel.classList.contains('open')) {
+    sidePanel.classList.remove('open');
+    hamburgerButton.classList.remove('open');
+    if (modalOverlay) modalOverlay.classList.remove('open');
+  } else {
+    sidePanel.classList.add('open');
+    hamburgerButton.classList.add('open');
+    if (modalOverlay) modalOverlay.classList.add('open');
+  }
+}
+
+// Show Screen function - central navigation function
+function showScreen(screenId, forceRefresh = false) {
+  if (screenId === 'welcome-screen') {
+    console.log('Returning to welcome screen, clearing game context');
+    localStorage.removeItem('gameContext');
+  }
+  
+  console.log('showScreen called with:', {
+    screenId: screenId,
+    forceRefresh: forceRefresh,
+    currentUser: currentUser ? currentUser.id : 'No user'
+  });
+  
+  // Clean up question screen if leaving it
+  const currentScreen = document.querySelector('.screen.visible');
+  if (currentScreen && currentScreen.id === 'question-screen') {
+    clearTimer();
+    isFrozen = false;
+  }
+  
+  // Force refresh if requested
+  if (forceRefresh && screenId === 'welcome-screen') {
+    console.log('Initiating full page reload');
+    saveProgress();
+    window.location.reload(true);
+    return;
+  }
+  
+  // Hide all screens
+  document.querySelectorAll('.screen').forEach(screen => {
+    screen.classList.remove('visible');
+    
+    // Clean up any particle containers
+    const particleContainer = screen.querySelector('.particle-container');
+    if (particleContainer) {
+      particleContainer.remove();
+    }
+  });
+  
+  // Show the requested screen
+  const screen = document.getElementById(screenId);
+  if (screen) {
+    screen.classList.add('visible');
+    
+    // Initialize particles for the screen
+    initializeParticles(screen);
+    
+    // Update coin displays
+    updateAllCoinDisplays();
+    
+    // Handle screen-specific initializations
+    switch (screenId) {
+      case 'question-screen':
+        updatePerkButtons();
+        console.log('Question screen shown, checking for admin button');
+        setTimeout(() => {
+          addAdminTestButton();
+        }, 100);
+        break;
+        
+      case 'welcome-screen':
+        if (restoreGameContext()) {
+          startGame();
+        }
+        break;
+        
+      case 'stage-cascade-screen':
+        return showStageCascadeScreen();
+    }
+    
+    console.log(`Switched to screen: ${screenId}`);
+  } else {
+    console.error(`Screen with id ${screenId} not found`);
+  }
+}
+
+// Function to safely show a screen (ensures screen exists first)
+function safeShowScreen(screenId, forceRefresh = false) {
+  ensureScreenExists(screenId);
+  showScreen(screenId, forceRefresh);
+}
+
+// Function to ensure a screen exists
+function ensureScreenExists(screenId) {
+  if (!document.getElementById(screenId)) {
+    console.warn(`Screen ${screenId} doesn't exist. Creating it.`);
+    const screen = document.createElement('div');
+    screen.id = screenId;
+    screen.className = 'screen';
+    document.body.appendChild(screen);
+  }
+}
+
+// Start Game function - critical main function
+function startGame() {
+  console.log('Starting game');
+  
+  if (!hasExistingProgress()) {
+    console.log('No existing progress found, showing grade selector');
+    return showGradeLevelSelector();
+  }
+  
+  // Check for saved game context
+  const savedContext = localStorage.getItem('gameContext');
+  if (savedContext) {
+    try {
+      const context = JSON.parse(savedContext);
+      if (context.stage && context.set && context.level) {
+        console.log('Found saved game context:', context);
+        gameState.currentStage = context.stage;
+        gameState.currentSet = context.set;
+        gameState.currentLevel = context.level;
+        return startLevel(gameState.currentLevel);
+      }
+    } catch (error) {
+      console.error('Error parsing game context:', error);
+    }
+  }
+  
+  console.log('Using current game state:', {
+    stage: gameState.currentStage, 
+    set: gameState.currentSet, 
+    level: gameState.currentLevel
+  });
+  
+  startLevel(gameState.currentLevel);
+}
+
+// Function to check if user has existing game progress
+function hasExistingProgress() {
+  // Check for completed levels
+  if (gameState.completedLevels.size > 0 || gameState.perfectLevels.size > 0) {
+    return true;
+  }
+  
+  // Check for unlocked sets beyond defaults
+  for (let stage = 1; stage <= 5; stage++) {
+    const sets = gameState.unlockedSets[stage];
+    // Skip checking default unlocks for stage 1
+    if (stage === 1 && (!sets || sets.size === 9)) continue;
+    
+    // If we have any sets and at least one is beyond the first set
+    if (sets && sets.size > 1) {
+      return true;
+    }
+  }
+  
+  // Check localStorage as a fallback
+  const savedProgress = localStorage.getItem('simploxProgress');
+  if (savedProgress) {
+    const progress = JSON.parse(savedProgress);
+    if (progress.completedLevels && progress.completedLevels.length > 0) return true;
+    if (progress.perfectLevels && progress.perfectLevels.length > 0) return true;
+  }
+  
+  return false;
+}
+
+// Show grade level selector for new players
+function showGradeLevelSelector() {
+  const modalBackdrop = document.createElement('div');
+  modalBackdrop.className = 'modal-backdrop';
+  modalBackdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(5px);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+    
+  const modal = document.createElement('div');
+  modal.className = 'grade-level-modal';
+  modal.style.cssText = `
+        background: var(--glass);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    `;
+    
+  modal.innerHTML = `
+        <h2 style="color: var(--gold); margin-bottom: 1.5rem;">What grade level are you?</h2>
+        <p style="margin-bottom: 2rem; opacity: 0.9;">Choose your education level for the best learning experience:</p>
+        <div class="grade-options" style="display: flex; flex-direction: column; gap: 1rem;">
+            <button class="grade-option" data-stage="2" style="padding: 1rem; border-radius: 10px; background: rgba(255,255,255,0.1); border: none; color: var(--text); cursor: pointer; transition: all 0.3s ease;">
+                <i class="fas fa-school" style="margin-right: 0.5rem;"></i> Elementary School
+            </button>
+            <button class="grade-option" data-stage="3" style="padding: 1rem; border-radius: 10px; background: rgba(255,255,255,0.1); border: none; color: var(--text); cursor: pointer; transition: all 0.3s ease;">
+                <i class="fas fa-graduation-cap" style="margin-right: 0.5rem;"></i> Junior High School
+            </button>
+            <button class="grade-option" data-stage="4" style="padding: 1rem; border-radius: 10px; background: rgba(255,255,255,0.1); border: none; color: var(--text); cursor: pointer; transition: all 0.3s ease;">
+                <i class="fas fa-user-graduate" style="margin-right: 0.5rem;"></i> High School
+            </button>
+            <button class="grade-option" data-stage="5" style="padding: 1rem; border-radius: 10px; background: rgba(255,255,255,0.1); border: none; color: var(--text); cursor: pointer; transition: all 0.3s ease;">
+                <i class="fas fa-university" style="margin-right: 0.5rem;"></i> University
+            </button>
+        </div>
+    `;
+    
+  document.body.appendChild(modalBackdrop);
+  modalBackdrop.appendChild(modal);
+  
+  // Add hover effects and click handlers to buttons
+  modal.querySelectorAll('.grade-option').forEach(button => {
+    button.addEventListener('mouseover', () => {
+      button.style.background = 'rgba(255,255,255,0.2)';
+      button.style.transform = 'translateY(-2px)';
+    });
+    
+    button.addEventListener('mouseout', () => {
+      button.style.background = 'rgba(255,255,255,0.1)';
+      button.style.transform = 'translateY(0)';
+    });
+    
+    button.addEventListener('click', () => {
+      const stage = parseInt(button.dataset.stage);
+      localStorage.setItem('preferredStage', stage);
+      modalBackdrop.remove();
+      
+      gameState.currentStage = stage;
+      gameState.currentSet = 1;
+      startLevel(1);
+    });
+  });
+}
+
+// Show cascade screen for stage/set selection
+function showStageCascadeScreen() {
+  const container = document.querySelector('.stages-container');
+  if (!container) {
+    console.error('Stages container not found');
+    return false;
+  }
+  
+  container.innerHTML = '';
+  
+  // Create stage wrappers
+  for (let stageIndex = 0; stageIndex < gameStructure.stages.length; stageIndex++) {
+    const stage = gameStructure.stages[stageIndex];
+    const stageNumber = stage.id;
+    
+    // Check if any sets in this stage are unlocked
+    const stageUnlocked = gameState.unlockedSets[stageNumber] && gameState.unlockedSets[stageNumber].size > 0;
+    
+    if (!stageUnlocked) continue; // Skip locked stages
+    
+    const stageWrapper = document.createElement('div');
+    stageWrapper.className = 'stage-wrapper';
+    stageWrapper.dataset.stage = stageNumber;
+    
+    // Create stage button
+    const stageButton = document.createElement('div');
+    stageButton.className = 'stage-button';
+    stageButton.innerHTML = `
+      <div class="stage-info">
+        <div class="stage-icon">
+          <i class="${getStageIcon(stageNumber)}"></i>
+        </div>
+        <div class="stage-text">
+          <div class="stage-name">${getStageName(stageNumber)}</div>
+          <div class="stage-desc">${getStageDescription(stageNumber)}</div>
+        </div>
+      </div>
+      <div class="stage-toggle">
+        <i class="fas fa-chevron-down"></i>
+      </div>
+    `;
+    
+    // Create sets container
+    const setsContainer = document.createElement('div');
+    setsContainer.className = 'sets-container';
+    
+    const setsGrid = document.createElement('div');
+    setsGrid.className = 'sets-grid';
+    
+    // Add sets
+    for (let set = 1; set <= stage.numSets; set++) {
+      const setButton = document.createElement('div');
+      
+      // Check if set is unlocked
+      const isUnlocked = gameState.unlockedSets[stageNumber] && 
+                        gameState.unlockedSets[stageNumber].has(set);
+                        
+      setButton.className = `set-button ${isUnlocked ? 'active' : 'locked'}`;
+      
+      if (isUnlocked) {
+        // Check if set is completed
+        const isCompleted = checkIfSetCompleted(stageNumber, set);
+        
+        setButton.textContent = `Set ${set}`;
+        
+        if (isCompleted) {
+          const completedIndicator = document.createElement('div');
+          completedIndicator.className = 'completed-indicator';
+          completedIndicator.innerHTML = '<i class="fas fa-check-circle"></i>';
+          setButton.appendChild(completedIndicator);
+        }
+        
+        setButton.onclick = () => showLevelScreen(set);
+      } else {
+        setButton.innerHTML = `
+          <div class="lock-icon">
+            <i class="fas fa-lock"></i>
+          </div>
+        `;
+      }
+      
+      setsGrid.appendChild(setButton);
+    }
+    
+    setsContainer.appendChild(setsGrid);
+    stageWrapper.appendChild(stageButton);
+    stageWrapper.appendChild(setsContainer);
+    container.appendChild(stageWrapper);
+    
+    // Set up toggle functionality
+    stageButton.addEventListener('click', function() {
+      const wrapper = this.parentElement;
+      wrapper.classList.toggle('open');
+    });
+  }
+  
+  // Open first stage by default
+  const firstStage = container.querySelector('.stage-wrapper');
+  if (firstStage) {
+    firstStage.classList.add('open');
+  }
+  
+  showScreen('stage-cascade-screen');
+  return true;
+}
+
+// Check if a set is completed
+function checkIfSetCompleted(stage, set) {
+  const totalLevels = gameStructure.stages[stage - 1].levelsPerSet;
+  let completedCount = 0;
+  
+  for (let level = 1; level <= totalLevels; level++) {
+    const levelKey = `${stage}_${set}_${level}`;
+    if (gameState.perfectLevels.has(levelKey) || gameState.completedLevels.has(levelKey)) {
+      completedCount++;
+    }
+  }
+  
+  return completedCount === totalLevels;
+}
+
+// Get stage icon
+function getStageIcon(stage) {
+  const icons = {
+    1: 'fas fa-book',
+    2: 'fas fa-graduation-cap',
+    3: 'fas fa-school',
+    4: 'fas fa-university',
+    5: 'fas fa-brain'
+  };
+  
+  return icons[stage] || 'fas fa-star';
+}
+
+// Get stage name
+function getStageName(stage) {
+  const names = {
+    1: 'Stage 1: Fundamentals',
+    2: 'Stage 2: Elementary',
+    3: 'Stage 3: Intermediate',
+    4: 'Stage 4: Advanced',
+    5: 'Stage 5: Expert'
+  };
+  
+  return names[stage] || `Stage ${stage}`;
+}
+
+// Get stage description
+function getStageDescription(stage) {
+  const descriptions = {
+    1: 'Basic vocabulary and phrases',
+    2: 'Elementary vocabulary building',
+    3: 'Intermediate language skills',
+    4: 'Advanced concepts and usage',
+    5: 'Expert level mastery'
+  };
+  
+  return descriptions[stage] || `Stage ${stage} content`;
+}
+
+// Show level screen with sets
+function showLevelScreen(setNumber) {
+  gameState.currentSet = setNumber;
+  debugUnlockState();
+  
+  const levelContainer = document.getElementById('level-container');
+  if (!levelContainer) return;
+  
+  levelContainer.innerHTML = '';
+  
+  const stage = gameStructure.stages[gameState.currentStage - 1];
+  if (!stage) return;
+  
+  // Create level header
+  const headerDiv = document.createElement('div');
+  headerDiv.className = 'level-header';
+  
+  // Calculate completion percentage
+  const totalLevels = stage.levelsPerSet;
+  let completedLevels = 0;
+  
+  for (let i = 1; i <= totalLevels; i++) {
+    const levelKey = `${gameState.currentStage}_${setNumber}_${i}`;
+    if (gameState.perfectLevels.has(levelKey)) {
+      completedLevels++;
+    } else if (gameState.completedLevels.has(levelKey)) {
+      completedLevels++;
+    }
+  }
+  
+  const completionPercentage = Math.round((completedLevels / totalLevels) * 100);
+  const setIcon = getSetIcon(gameState.currentStage, setNumber);
+  const setDescription = getSetDescription(gameState.currentStage, setNumber);
+  
+  headerDiv.innerHTML = `
+        <div class="level-title-area">
+            <div class="set-icon">
+                <i class="${setIcon}"></i>
+            </div>
+            <div class="set-details">
+                <div class="set-name">Stage ${gameState.currentStage} - Set ${setNumber}</div>
+                <div class="set-desc">${setDescription}</div>
+            </div>
+        </div>
+        <div class="set-progress">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${completionPercentage}%"></div>
+            </div>
+            <div class="progress-text">${completedLevels}/${totalLevels} levels</div>
+        </div>
+    `;
+  
+  levelContainer.appendChild(headerDiv);
+  
+  // Create level grid
+  const levelGrid = document.createElement('div');
+  levelGrid.className = 'level-grid';
+  
+  // Define test levels
+  const testLevels = [3, 6, 9, 10, 13, 16, 19, 20];
+  
+  // Get unlocked levels for this set
+  const setKey = `${gameState.currentStage}_${setNumber}`;
+  if (!gameState.unlockedLevels[setKey]) {
+    gameState.unlockedLevels[setKey] = new Set([1]);
+  }
+  
+  console.log(`Rendering levels for ${setKey}. Unlocked levels:`, 
+    Array.from(gameState.unlockedLevels[setKey] || []));
+  
+  for (let i = 1; i <= stage.levelsPerSet; i++) {
+    const levelDiv = document.createElement('div');
+    const levelKey = `${gameState.currentStage}_${setNumber}_${i}`;
+    const isUnlocked = gameState.unlockedLevels[setKey]?.has(i);
+    
+    console.log(`Level ${i} unlocked:`, isUnlocked);
+    
+    const isPerfect = gameState.perfectLevels.has(levelKey);
+    const isCompleted = gameState.completedLevels.has(levelKey);
+    const isBoss = (i === stage.bossLevel);
+    const isTest = testLevels.includes(i);
+    
+    levelDiv.className = 'level-item';
+    
+    if (isUnlocked) {
+      levelDiv.classList.add('unlocked');
+    }
+    
+    if (isPerfect) {
+      levelDiv.classList.add('perfect');
+    } else if (isCompleted) {
+      levelDiv.classList.add('completed');
+    }
+    
+    if (isBoss) {
+      levelDiv.classList.add('boss');
+    }
+    
+    if (isTest) {
+      levelDiv.classList.add('test');
+    }
+    
+    if (!isUnlocked) {
+      levelDiv.classList.add('locked');
+    }
+    
+    levelDiv.textContent = i;
+    
+    if (isUnlocked) {
+      levelDiv.onclick = () => startLevel(i);
+    }
+    
+    levelGrid.appendChild(levelDiv);
+  }
+  
+  levelContainer.appendChild(levelGrid);
+  
+  // Add legend
+  const legendDiv = document.createElement('div');
+  legendDiv.className = 'level-type-legend';
+  legendDiv.innerHTML = `
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--accent), rgba(30, 144, 255, 0.7));"></div>
+            <span>Normal</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--success), #45b649);"></div>
+            <span>Completed</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--gold), #FFA500);"></div>
+            <span>Perfect</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--gold), var(--accent));"></div>
+            <span>Boss</span>
+        </div>
+    `;
+  
+  levelContainer.appendChild(legendDiv);
+  
+  showScreen('level-screen');
 }</script></body></html></body></html>

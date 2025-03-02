@@ -266,92 +266,223 @@ body {
     }
 }
 
-
-
-.upgrade-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(5px);
-    z-index: 1000;
+.fullscreen-upgrade-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--gradient);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2rem;
+  animation: fadeIn 0.3s ease-in-out;
 }
 
-.upgrade-form {
-    width: 100%;
-    max-width: 500px;
-    padding: 2rem;
-    background: var(--glass);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    text-align: right;
-    direction: rtl;
+.upgrade-header {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 2rem;
 }
 
-.upgrade-form h2 {
-    font-size: 1.5rem;
-    font-weight: bold;
-    text-align: center;
-    margin-bottom: 1.5rem;
-    background: linear-gradient(to right, var(--gold), var(--accent));
-    -webkit-background-clip: text;
-background-clip: text;
-    -webkit-text-fill-color: transparent;
+.skip-upgrade-button {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: var(--text);
+  padding: 0.75rem 1.5rem;
+  border-radius: 50px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.form-group {
-    margin-bottom: 1rem;
+.skip-upgrade-button:hover {
+  background: rgba(255,255,255,0.25);
 }
 
-.form-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    color: var(--text);
+.upgrade-content {
+  text-align: center;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 600px;
+  width: 100%;
 }
 
-.form-group input[type="tel"],
-.form-group select {
-    width: 100%;
-    padding: 0.75rem;
-    border-radius: 25px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: var(--text);
+.upgrade-title {
+  font-size: 2rem;
+  color: var(--gold);
+  margin-bottom: 1.5rem;
+  animation: floatAnimation 3s ease-in-out infinite;
 }
 
-.form-group input[type="checkbox"] {
-    margin-right: 0.5rem;
+.upgrade-description {
+  font-size: 1.2rem;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+  color: var(--text);
 }
 
-.submit-button {
-    width: 100%;
+.features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.feature-item i {
+  color: var(--gold);
+  font-size: 1.5rem;
+}
+
+.upgrade-form-container {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1.5rem;
+  border-radius: 15px;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+#upgradeForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: left;
+}
+
+#upgradeForm .form-group {
+  margin-bottom: 1rem;
+}
+
+#upgradeForm label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+#upgradeForm input[type="tel"],
+#upgradeForm input[type="text"],
+#upgradeForm select {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--text);
+}
+
+#upgradeForm input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
+.upgrade-now-button {
+  position: relative;
+  z-index: 10; /* Ensure the button is on top of other elements */
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  background: var(--gold);
+  color: var(--primary-dark);
+  border: none;
+  padding: 1.25rem 3rem;
+  border-radius: 50px;
+  font-size: 1.2rem;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 20px rgba(255, 215, 0, 0.2);
+  animation: pulseAnimation 1.5s infinite ease-in-out;
+  margin-top: 1rem;
+  width: 100%;
+  -webkit-appearance: none; /* Fix for iOS */
+  -webkit-tap-highlight-color: rgba(0,0,0,0); /* Fix for iOS touch feedback */
+}
+
+.upgrade-now-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 30px rgba(255, 215, 0, 0.4);
+}
+
+.upgrade-now-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3);
+}
+
+/* Add a visual indicator when the button is clicked */
+.upgrade-now-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.5);
+}
+
+.upgrade-note {
+  text-align: center;
+  color: var(--text);
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .fullscreen-upgrade-page {
+    padding: 1.5rem;
+  }
+  
+  .upgrade-title {
+    font-size: 1.8rem;
+  }
+  
+  .upgrade-description {
+    font-size: 1rem;
+  }
+  
+  .feature-item i {
+    font-size: 1.2rem;
+  }
+  
+  .upgrade-now-button {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .fullscreen-upgrade-page {
     padding: 1rem;
-    border: 2px solid var(--accent);
-    background: transparent;
-    color: var(--text);
-    border-radius: 25px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    margin-top: 1rem;
+  }
+  
+  .upgrade-title {
+    font-size: 1.5rem;
+  }
+  
+  .upgrade-form-container {
+    padding: 1rem;
+  }
+  
+  #upgradeForm input[type="tel"],
+  #upgradeForm input[type="text"],
+  #upgradeForm select {
+    padding: 0.65rem;
+  }
 }
 
-.submit-button:hover {
-    box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent);
+@keyframes floatAnimation {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
-.upgrade-form p {
-    text-align: center;
-    color: var(--text);
-    margin-top: 1rem;
-    font-size: 0.9rem;
-    opacity: 0.8;
+@keyframes pulseAnimation {
+  0%, 100% { transform: scale(1); box-shadow: 0 10px 20px rgba(255, 215, 0, 0.2); }
+  50% { transform: scale(1.05); box-shadow: 0 10px 30px rgba(255, 215, 0, 0.4); }
 }
 
 /* Maintain active state for auth tabs */
@@ -3156,109 +3287,146 @@ background-clip: text;
     50% { opacity: 1; }
 }
 
+/* Modal Base Styles */
+.upgrade-confirmation-modal, 
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .upgrade-confirmation-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
 }
 
 .modal-backdrop {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+
+/* Popup Content Styles */
+.confirmation-content,
+.confirmation-popup {
+  background: var(--primary-dark);
+  border-radius: 20px;
+  padding: 2rem;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 
 .confirmation-content {
-    background: var(--glass);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    padding: 2rem;
-    text-align: center;
-    max-width: 400px;
-    z-index: 2001;
-}
-
-.confirmation-content h2 {
-    color: var(--gold);
-    margin-bottom: 1rem;
-}
-
-.continue-button {
-    margin-top: 1rem;
-    padding: 0.75rem 1.5rem;
-    background: var(--accent);
-    color: white;
-    border: none;
-    border-radius: 25px;
-    cursor: pointer;
-    transition: background 0.3s ease;
-}
-
-.continue-button:hover {
-    background: color-mix(in srgb, var(--accent) 90%, white);
+  backdrop-filter: blur(10px);
+  max-width: 400px;
+  z-index: 2001;
 }
 
 .confirmation-popup {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(0.7);
-    opacity: 0;
-    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-    z-index: 1001;
-    pointer-events: none;
-    width: 90%;
-    max-width: 500px;
-    background: var(--primary-dark);
-    padding: 2rem;
-    border-radius: 20px;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-    border: 2px solid var(--accent);
-    text-align: center;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.7);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  z-index: 1001;
+  pointer-events: none;
+  width: 90%;
+  max-width: 500px;
+  border: 2px solid var(--accent);
 }
 
 .confirmation-popup.show {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 1;
-    pointer-events: auto;
-    animation: popupAppear 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+  animation: popupAppear 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
+/* Heading Styles */
+.confirmation-content h2,
 .confirmation-popup h2 {
-    color: var(--gold);
-    margin-bottom: 1.5rem;
+  color: var(--gold);
+  margin-bottom: 1.5rem;
 }
 
 .confirmation-popup p {
-    color: var(--text);
-    margin-bottom: 2rem;
+  color: var(--text);
+  margin-bottom: 2rem;
+}
+
+/* Button Styles */
+.continue-button,
+.confirmation-popup button {
+  padding: 0.875rem 2rem;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  margin-top: 1rem;
+}
+
+.continue-button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 25px;
 }
 
 .confirmation-popup button {
-    position: relative;
-    padding: 0.875rem 2rem;
-    border: 2px solid var(--accent);
-    background: transparent;
-    color: var(--text);
-    border-radius: 50px;
-    font-size: 1.1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
+  position: relative;
+  border: 2px solid var(--accent);
+  background: transparent;
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.continue-button:hover {
+  background: color-mix(in srgb, var(--accent) 90%, white);
 }
 
 .confirmation-popup button:hover {
-    box-shadow: 0 0 15px var(--accent), 0 0 30px var(--accent);
+  background: linear-gradient(to bottom, var(--gold), #ffc107);
+  transform: translateY(-2px);
+  box-shadow: 0 7px 20px rgba(255, 215, 0, 0.4);
 }
+
+.confirmation-popup button:active {
+  transform: translateY(1px);
+  box-shadow: 0 3px 10px rgba(255, 215, 0, 0.3);
+}
+
+/* Animations */
+@keyframes popupAppear {
+  0% {
+    transform: translate(-50%, -50%) scale(0.7) rotate(-5deg);
+    opacity: 0;
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(1.05) rotate(2deg);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1) rotate(0);
+    opacity: 1;
+  }
+}
+
+@keyframes popupFadeIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+
 
 .level.boss {
     background: linear-gradient(135deg, var(--gold), var(--accent));
@@ -5991,6 +6159,7 @@ body.dark-theme {
 }
 
 
+
 </style>
 </head>
 <body>
@@ -6300,60 +6469,86 @@ body.dark-theme {
 
 
 <div id="upgrade-screen" class="screen">
-    <div class="upgrade-modal">
-        <div class="upgrade-form">
-    <h2>שדרוג לפרימיום</h2>
-    <form id="upgradeForm" onsubmit="handleUpgradeSubmit(event)">
-        <div class="form-group">
-            <label>
-                <input type="checkbox" id="isAdult" onchange="toggleParentFields()" name="isAdult">
-                אני מעל גיל 18
-            </label>
+    <div class="fullscreen-upgrade-page">
+      <div class="upgrade-header">
+        <button class="skip-upgrade-button" onclick="skipUpgrade()">
+          Skip
+        </button>
+      </div>
+      
+      <div class="upgrade-content">
+        <h2 class="upgrade-title">Upgrade to Premium!</h2>
+        
+        <p class="upgrade-description">
+          Get full access to all stages, unlimited custom lists, and many more premium features
+        </p>
+        
+        <div class="features-list">
+          <div class="feature-item">
+            <i class="fas fa-check-circle"></i>
+            <span>Access all 5 stages with hundreds of words</span>
+          </div>
+          <div class="feature-item">
+            <i class="fas fa-check-circle"></i>
+            <span>Create unlimited custom word lists</span>
+          </div>
+          <div class="feature-item">
+            <i class="fas fa-check-circle"></i>
+            <span>Share your lists with friends</span>
+          </div>
         </div>
         
-        <!-- Parent Info Section -->
-        <div id="parentInfoSection">
+        <div class="upgrade-form-container">
+          <form id="upgradeForm" onsubmit="handleUpgradeSubmit(event)">
             <div class="form-group">
-                <label>שם מלא של הורה</label>
+              <label>
+                <input type="checkbox" id="isAdult" onchange="toggleParentFields()" name="isAdult"> 
+                I am over 18 years old
+              </label>
+            </div>
+            
+            <div id="parentInfoSection">
+              <div class="form-group">
+                <label>Parent's Full Name</label>
                 <input type="text" id="parentName" name="parentName">
+              </div>
+              <div class="form-group">
+                <label>Parent's Phone Number</label>
+                <input type="tel" id="parentPhone" name="parentPhone" pattern="[0-9]{10}" placeholder="Enter parent's phone number">
+              </div>
             </div>
-            <div class="form-group">
-                <label>מספר טלפון של הורה</label>
-                <input type="tel" id="parentPhone" name="parentPhone" 
-                       pattern="[0-9]{10}" placeholder="הזן מספר טלפון של הורה">
-            </div>
-        </div>
-
-        <!-- Adult Info Section -->
-        <div id="adultInfoSection" style="display:none;">
-            <div class="form-group">
-                <label>שם מלא</label>
+            
+            <div id="adultInfoSection" style="display: none;">
+              <div class="form-group">
+                <label>Full Name</label>
                 <input type="text" id="fullName" name="fullName">
+              </div>
+              <div class="form-group">
+                <label>Phone Number</label>
+                <input type="tel" id="phone" name="phone" pattern="[0-9]{10}" placeholder="Enter your phone number">
+              </div>
             </div>
+            
             <div class="form-group">
-                <label>מספר טלפון</label>
-                <input type="tel" id="phone" name="phone" 
-                       pattern="[0-9]{10}" placeholder="הזן מספר טלפון">
+              <label>How did you hear about us?</label>
+              <select id="referralSource" name="referralSource">
+                <option value="friend">Friend</option>
+                <option value="teacher">Teacher</option>
+                <option value="social">Social Media</option>
+                <option value="other">Other</option>
+              </select>
             </div>
+            
+            <button type="submit" class="upgrade-now-button" onclick="handleUpgradeButtonClick(event)">
+                Upgrade Now
+              </button>
+          </form>
+          
+          <p class="upgrade-note">After submitting, we'll contact you via WhatsApp</p>
         </div>
-
-        <div class="form-group">
-            <label>איך שמעת עלינו?</label>
-            <select id="referralSource" name="referralSource">
-                <option value="friend">חבר/ה</option>
-                <option value="teacher">מורה</option>
-                <option value="social">רשתות חברתיות</option>
-                <option value="other">אחר</option>
-            </select>
-        </div>
-
-        <button type="submit" class="submit-button">שלח/י בקשה</button>
-        <button type="button" class="skip-button" onclick="skipUpgrade()">דלג</button>
-    </form>
-    <p>לאחר שליחת הבקשה ניצור איתך קשר בווטסאפ</p>
-</div>
+      </div>
     </div>
-</div>
+  </div>
 
 <div id="leaderboard-screen" class="screen">
     <div class="navigation-container">
@@ -11675,22 +11870,29 @@ function showUpgradePrompt(callback) {
 }
 
 function hideUpgradePromptAndContinue() {
-    // Hide upgrade screen
-    const upgradeScreen = document.getElementById('upgrade-screen');
-    if (upgradeScreen) {
-        upgradeScreen.classList.remove('visible');
+  isFrozen = false;
+  clearTimer();
+  
+  // Remove any confirmation popup that might exist
+  const confirmationPopups = document.querySelectorAll('.confirmation-popup');
+  confirmationPopups.forEach(popup => {
+    if (popup) {
+      popup.remove();
     }
-    
-    // Reset any frozen state
-    isFrozen = false;
-    clearTimer();
-    
-    // Continue to the next level using the current level as reference
-    if (gameState.currentLevel) {
-        proceedWithLevel(gameState.currentLevel);
-    } else {
-        showScreen('welcome-screen');
-    }
+  });
+  
+  // Hide the upgrade screen
+  const upgradeScreen = document.getElementById("upgrade-screen");
+  if (upgradeScreen && upgradeScreen.classList.contains('visible')) {
+    upgradeScreen.classList.remove('visible');
+  }
+  
+  // Proceed with the level if we have a current level
+  if (gameState.currentLevel) {
+    proceedWithLevel(gameState.currentLevel);
+  } else {
+    showScreen("welcome-screen");
+  }
 }
 
 function handleUpgradeClick() {
@@ -12146,106 +12348,76 @@ function toggleParentFields() {
     }
 }
 
-async function handleUpgradeSubmit(event) {
-    event.preventDefault();
-    const isAdult = document.getElementById('isAdult').checked;
-    
-    try {
-        // First get user profile details
-        const { data: userProfile } = await supabaseClient
-            .from('user_profiles')
-            .select('username, created_at')
-            .eq('id', currentUser.id)
-            .single();
-
-        let formData = {
-            user_id: currentUser.id,
-            is_adult: isAdult,
-            full_name: isAdult ? document.getElementById('fullName').value : document.getElementById('parentName').value,
-            phone: isAdult ? document.getElementById('phone').value : document.getElementById('parentPhone').value,
-            parent_name: !isAdult ? document.getElementById('parentName').value : null,
-            parent_phone: !isAdult ? document.getElementById('parentPhone').value : null,
-            referral_source: document.getElementById('referralSource').value
-        };
-
-        if (!validateForm(isAdult)) {
-            alert('Please fill in all required fields');
-            return;
-        }
-
-        const { data, error } = await supabaseClient
-            .from('upgrade_requests')
-            .insert([formData])
-            .select();
-
-        if (error) throw error;
-
-        // Update user profile status to pending
-        const { error: profileError } = await supabaseClient
-            .from('user_profiles')
-            .update({ status: 'pending' })
-            .eq('id', currentUser.id);
-
-        if (profileError) throw profileError;
-
-        // Store in localStorage to prevent repeated prompts
-        localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
-
-        // Show confirmation popup
-        const popup = document.createElement('div');
-        popup.className = 'confirmation-popup';
-        popup.innerHTML = `
-            <h2>Thank You!</h2>
-            <p>We've received your upgrade request. We'll contact you soon with payment details.</p>
-            <button onclick="continueAfterUpgrade()">Continue Playing</button>
-        `;
-        document.body.appendChild(popup);
-        
-        // Show popup with animation
-        setTimeout(() => popup.classList.add('show'), 100);
-
-    } catch (error) {
-        console.error('Upgrade Request Error:', error);
-        alert('Error processing request. Please try again.');
-    }
-}
 
 function continueAfterUpgrade() {
-    // Remove popup
-    const popup = document.querySelector('.confirmation-popup');
-    if (popup) {
-        popup.classList.remove('show');
-        setTimeout(() => popup.remove(), 300);
-    }
-    
-    // Hide upgrade screen
-    const upgradeScreen = document.getElementById('upgrade-screen');
-    if (upgradeScreen) {
-        upgradeScreen.classList.remove('visible');
-    }
-    
-    // Clear form
-    const form = document.getElementById('upgradeForm');
-    if (form) form.reset();
-    
-    // Update the display manually
-    if (currentUser) {
-        updateUserStatusDisplay('pending');
-    }
-    
-    // Continue game
-    hideUpgradePromptAndContinue();
+  console.log("continueAfterUpgrade called");
+  
+  // Remove the popup
+  const popup = document.querySelector('.confirmation-popup');
+  if (popup) {
+    popup.style.opacity = "0";
+    popup.style.transform = "translate(-50%, -50%) scale(0.7)";
+    setTimeout(() => {
+      if (popup.parentNode) {
+        popup.parentNode.removeChild(popup);
+      }
+    }, 300);
+  }
+  
+  // Hide the upgrade screen
+  const upgradeScreen = document.getElementById('upgrade-screen');
+  if (upgradeScreen) {
+    upgradeScreen.classList.remove('visible');
+  }
+  
+  // Reset the form
+  const form = document.getElementById('upgradeForm');
+  if (form) {
+    form.reset();
+  }
+  
+  // Update user status display to reflect pending status
+  if (currentUser) {
+    updateUserStatusDisplay("pending");
+  }
+  
+  // Hide the upgrade form and continue with gameplay
+  hideUpgradePromptAndContinue();
+  
+  console.log("Upgrade process completed");
 }
 
-function validateForm(isAdult) {
-    if (isAdult) {
-        return document.getElementById('fullName').value && 
-               document.getElementById('phone').value;
-    } else {
-        return document.getElementById('parentName').value && 
-               document.getElementById('parentPhone').value;
-    }
+
+
+
+// Add a debug helper function to check popup status
+function checkPopupStatus() {
+  const popups = document.querySelectorAll('.confirmation-popup');
+  if (popups.length === 0) {
+    console.log("No confirmation popups found in the DOM");
+    return;
+  }
+  
+  popups.forEach((popup, index) => {
+    console.log(`Popup ${index + 1}:`, {
+      visibility: window.getComputedStyle(popup).visibility,
+      opacity: window.getComputedStyle(popup).opacity,
+      display: window.getComputedStyle(popup).display,
+      zIndex: window.getComputedStyle(popup).zIndex,
+      transform: window.getComputedStyle(popup).transform,
+      position: window.getComputedStyle(popup).position
+    });
+  });
 }
+
+// Add a global debug function for the upgrade process
+window.debugUpgrade = function() {
+  checkPopupStatus();
+  console.log("Upgrade screen visible:", document.getElementById("upgrade-screen").classList.contains("visible"));
+  console.log("Upgrade form:", document.getElementById("upgradeForm"));
+  console.log("Current user:", currentUser);
+};
+
 
 function skipUpgrade() {
     hideUpgradePromptAndContinue();
@@ -23529,6 +23701,408 @@ function saveInlineEdit(listId) {
       showNotification('Failed to save list', 'error');
     }
   });
+}
+
+// Add this new function to handle direct button clicks
+function handleUpgradeButtonClick(event) {
+  console.log("Upgrade button clicked directly");
+  
+  // Prevent the default form submission if this is a direct click
+  // so we can handle it manually
+  if (event) {
+    event.preventDefault();
+  }
+  
+  // Call the form submission handler manually
+  handleUpgradeSubmit(event);
+}
+
+async function handleUpgradeSubmit(e) {
+    console.log("handleUpgradeSubmit called");
+    
+    if (e) {
+        e.preventDefault();
+    }
+    
+    const isAdult = document.getElementById("isAdult").checked;
+    
+    try {
+        // Form validation
+        if (isAdult) {
+            const fullName = document.getElementById("fullName");
+            const phone = document.getElementById("phone");
+            
+            if (!fullName.value.trim()) {
+                fullName.style.border = "2px solid #ff4444";
+                alert("Please enter your full name");
+                return false;
+            }
+            
+            if (!phone.value.trim()) {
+                phone.style.border = "2px solid #ff4444";
+                alert("Please enter your phone number");
+                return false;
+            }
+        } else {
+            const parentName = document.getElementById("parentName");
+            const parentPhone = document.getElementById("parentPhone");
+            
+            if (!parentName.value.trim()) {
+                parentName.style.border = "2px solid #ff4444";
+                alert("Please enter your parent's full name");
+                return false;
+            }
+            
+            if (!parentPhone.value.trim()) {
+                parentPhone.style.border = "2px solid #ff4444";
+                alert("Please enter your parent's phone number");
+                return false;
+            }
+        }
+        
+        // Create request data
+        let requestData = {
+            user_id: currentUser.id,
+            is_adult: isAdult,
+            full_name: isAdult ? document.getElementById("fullName").value : document.getElementById("parentName").value,
+            phone: isAdult ? document.getElementById("phone").value : document.getElementById("parentPhone").value,
+            parent_name: isAdult ? null : document.getElementById("parentName").value,
+            parent_phone: isAdult ? null : document.getElementById("parentPhone").value,
+            referral_source: document.getElementById("referralSource").value
+        };
+        
+        // Try to insert into upgrade_requests table
+        try {
+            const { data, error } = await supabaseClient
+                .from("upgrade_requests")
+                .insert([requestData])
+                .select();
+                
+            if (error) {
+                console.warn("Could not save to upgrade_requests table:", error.message);
+            }
+        } catch (err) {
+            console.warn("Error with upgrade_requests table, continuing:", err.message);
+        }
+        
+        // Update user profile status
+        const { error: updateError } = await supabaseClient
+            .from("user_profiles")
+            .update({ status: "pending" })
+            .eq("id", currentUser.id);
+            
+        if (updateError) throw updateError;
+        
+        // Set local storage flag
+        // In the handleUpgradeSubmit function, change:
+localStorage.setItem(`upgradeRequested_${currentUser.id}`, "true");
+updateUserStatusDisplay("pending");
+showUpgradeConfirmation();  // This will now use our new implementation
+return true;
+    } catch (error) {
+        console.error("Upgrade Request Error:", error);
+        alert("Error processing request. Please try again.");
+        return false;
+    }
+}
+
+// Simplify the validateForm function to make it more robust
+function validateForm(isAdult) {
+  try {
+    if (isAdult) {
+      return document.getElementById("fullName").value.trim() && 
+             document.getElementById("phone").value.trim();
+    } else {
+      return document.getElementById("parentName").value.trim() && 
+             document.getElementById("parentPhone").value.trim();
+    }
+  } catch (e) {
+    console.error("Error in validateForm:", e);
+    return false;
+  }
+}
+
+// Add input event handlers to clear error styling when user starts typing
+document.addEventListener('DOMContentLoaded', function() {
+  const fields = ["fullName", "phone", "parentName", "parentPhone"];
+  
+  fields.forEach(field => {
+    const el = document.getElementById(field);
+    if (el) {
+      el.addEventListener('input', function() {
+        this.style.border = "1px solid rgba(255, 255, 255, 0.2)";
+      });
+    }
+  });
+  
+  // Also ensure the form has the submit handler directly attached
+  const form = document.getElementById('upgradeForm');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      console.log("Form submit event triggered");
+      handleUpgradeSubmit(e);
+    });
+  }
+});
+
+
+// Add this to help diagnose issues
+window.debugUpgrade = function() {
+  checkPopupStatus();
+  console.log('Upgrade screen visible:', document.getElementById('upgrade-screen').classList.contains('visible'));
+  console.log('Upgrade form:', document.getElementById('upgradeForm'));
+  console.log('Current user:', currentUser);
+};
+
+function showUpgradeConfirmation() {
+  // First remove any existing popups
+  document.querySelectorAll('.upgrade-confirmation-popup, .confirmation-popup').forEach(popup => popup.remove());
+  
+  // Create a new container for the popup
+  const popupOverlay = document.createElement('div');
+  popupOverlay.className = 'upgrade-confirmation-overlay';
+  popupOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2002;
+  `;
+  
+  // Create the popup content
+  const popupContent = document.createElement('div');
+  popupContent.className = 'upgrade-confirmation-content';
+  popupContent.style.cssText = `
+    background: var(--primary-dark);
+    border: 3px solid var(--gold);
+    border-radius: 20px;
+    padding: 2.5rem 2rem;
+    text-align: center;
+    width: 90%;
+    max-width: 450px;
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+    position: relative;
+  `;
+  
+  // Add the content
+  popupContent.innerHTML = `
+    <h2 style="color: var(--gold); margin-bottom: 1.5rem; font-size: 2rem;">Thank You!</h2>
+    <p style="margin-bottom: 2.5rem; color: var(--text); font-size: 1.1rem; line-height: 1.6;">
+      We've received your upgrade request. We'll contact you soon with payment details.
+    </p>
+    <button id="upgrade-continue-button" style="
+      background: var(--gold);
+      color: var(--primary-dark);
+      border: none;
+      padding: 1rem 2rem;
+      border-radius: 50px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3);
+      width: 80%;
+      max-width: 300px;
+    ">Continue Playing</button>
+  `;
+  
+  // Append to DOM
+  popupOverlay.appendChild(popupContent);
+  document.body.appendChild(popupOverlay);
+  
+  // Add event listeners after the element is in the DOM
+  setTimeout(() => {
+    const continueButton = document.getElementById('upgrade-continue-button');
+    
+    if (continueButton) {
+      console.log("Adding event listener to continue button");
+      
+      // Use multiple event listeners to ensure it works
+      continueButton.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log("Continue button clicked!");
+        handleUpgradeContinue();
+        return false;
+      };
+      
+      continueButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log("Continue button clicked (addEventListener)!");
+        handleUpgradeContinue();
+      }, true);
+      
+      // Add hover effect
+      continueButton.addEventListener('mouseover', function() {
+        this.style.background = 'linear-gradient(to bottom, var(--gold), #ffa500)';
+        this.style.transform = 'translateY(-2px)';
+        this.style.boxShadow = '0 7px 20px rgba(255, 215, 0, 0.4)';
+      });
+      
+      continueButton.addEventListener('mouseout', function() {
+        this.style.background = 'var(--gold)';
+        this.style.transform = 'translateY(0)';
+        this.style.boxShadow = '0 5px 15px rgba(255, 215, 0, 0.3)';
+      });
+    } else {
+      console.error("Continue button not found in the DOM");
+    }
+    
+    // Add click handler to close when clicking outside
+    popupOverlay.addEventListener('click', function(e) {
+      if (e.target === this) {
+        handleUpgradeContinue();
+      }
+    });
+    
+  }, 100);
+  
+  console.log("Upgrade confirmation popup added to DOM");
+}
+
+function handleUpgradeContinue() {
+  console.log("handleUpgradeContinue called");
+  
+  // Remove the popup
+  const popupOverlay = document.querySelector('.upgrade-confirmation-overlay');
+  if (popupOverlay) {
+    // Apply fade out
+    popupOverlay.style.opacity = '0';
+    popupOverlay.style.transition = 'opacity 0.3s ease';
+    
+    // Remove after animation completes
+    setTimeout(() => {
+      if (popupOverlay.parentNode) {
+        popupOverlay.parentNode.removeChild(popupOverlay);
+      }
+    }, 300);
+  }
+  
+  // Also remove any other popups that might exist
+  document.querySelectorAll('.confirmation-popup').forEach(popup => {
+    popup.parentNode && popup.parentNode.removeChild(popup);
+  });
+
+  // Hide upgrade screen
+  const upgradeScreen = document.getElementById("upgrade-screen");
+  if (upgradeScreen) {
+    upgradeScreen.classList.remove("visible");
+  }
+
+  // Reset form
+  const upgradeForm = document.getElementById("upgradeForm");
+  if (upgradeForm) {
+    upgradeForm.reset();
+  }
+  
+  // Store the current game state
+  const currentLevel = gameState.currentLevel;
+  
+  // Continue with the game
+  hideUpgradePromptAndContinue();
+  
+  // Resume gameplay
+  setTimeout(() => {
+    // Check if we're in a level and resume from there
+    const gameContext = localStorage.getItem("gameContext");
+    if (gameContext) {
+      try {
+        const context = JSON.parse(gameContext);
+        if (context.level) {
+          console.log(`Resuming gameplay at level ${context.level}`);
+          gameState.currentLevel = context.level;
+          startLevel(context.level);
+        }
+      } catch (e) {
+        console.error("Error parsing game context:", e);
+      }
+    }
+  }, 500);
+  
+  console.log("Upgrade process completed, continuing game");
+}
+
+function continueAfterUpgrade() {
+  console.log("continueAfterUpgrade called");
+  
+  const popup = document.querySelector(".confirmation-popup");
+  if (popup) {
+    popup.style.opacity = "0";
+    popup.style.transform = "translate(-50%, -50%) scale(0.7)";
+    
+    setTimeout(() => {
+      if (popup.parentNode) {
+        popup.parentNode.removeChild(popup);
+      }
+    }, 300);
+  }
+
+  const upgradeScreen = document.getElementById("upgrade-screen");
+  if (upgradeScreen) {
+    upgradeScreen.classList.remove("visible");
+  }
+
+  const upgradeForm = document.getElementById("upgradeForm");
+  if (upgradeForm) {
+    upgradeForm.reset();
+  }
+
+  // Store the current game level/state before hiding for smooth transition
+  const currentLevel = gameState.currentLevel;
+  
+  hideUpgradePromptAndContinue();
+  
+  // If the player was in the middle of a level, ensure we return to it
+  if (currentLevel) {
+    console.log(`Resuming gameplay at level ${currentLevel}`);
+    setTimeout(() => {
+      // Check if we're in a level and resume from there
+      const gameContext = localStorage.getItem("gameContext");
+      if (gameContext) {
+        try {
+          const context = JSON.parse(gameContext);
+          if (context.level) {
+            gameState.currentLevel = context.level;
+            startLevel(context.level);
+          }
+        } catch (e) {
+          console.error("Error parsing game context:", e);
+        }
+      }
+    }, 500);
+  }
+  
+  console.log("Upgrade process completed");
+}
+
+// Add a debug function to check popup status
+window.debugUpgrade = function() {
+  const popups = document.querySelectorAll('.confirmation-popup');
+  
+  if (popups.length === 0) {
+    console.log("No confirmation popups found in the DOM");
+  } else {
+    popups.forEach((popup, index) => {
+      console.log(`Popup ${index + 1}:`, {
+        visibility: window.getComputedStyle(popup).visibility,
+        opacity: window.getComputedStyle(popup).opacity,
+        display: window.getComputedStyle(popup).display,
+        zIndex: window.getComputedStyle(popup).zIndex,
+        transform: window.getComputedStyle(popup).transform,
+        position: window.getComputedStyle(popup).position
+      });
+    });
+  }
+  
+  console.log("Upgrade screen visible:", document.getElementById('upgrade-screen').classList.contains('visible'));
+  console.log("Upgrade form:", document.getElementById('upgradeForm'));
+  console.log("Current user:", currentUser);
 }
 
 </script>
