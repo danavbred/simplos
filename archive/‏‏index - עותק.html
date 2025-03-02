@@ -14312,25 +14312,29 @@ function showConsolationScreen() {
 }
 
 
-function showFinalResultsForPlayer(players) {
-    const playerUsername = currentArcadeSession.playerName;
+function showFinalResultsForPlayer(podiumPlayers) {
+    const playerName = currentArcadeSession.playerName;
+    const playerPodiumInfo = podiumPlayers.find(p => p.username === playerName);
     
-    // If player already saw their victory screen (top 3), don't show another
-    if (currentArcadeSession.winnerScreenShown && 
-        currentArcadeSession.podiumRanks && 
-        currentArcadeSession.podiumRanks[playerUsername]) {
+    // If player is already on podium and has seen victory screen, don't show again
+    if (currentArcadeSession.winnerScreenShown && playerPodiumInfo && playerPodiumInfo.rank <= 3) {
         return;
     }
     
-    // Check if current player is on podium (rank 1-3)
-    const isOnPodium = currentArcadeSession.podiumRanks && 
-                       currentArcadeSession.podiumRanks[playerUsername];
-    
-    if (isOnPodium) {
-        // Show detailed results for podium players
-        showPodiumPlayerResults(players);
+    // Find the player's rank (either from podium or calculate based on completion)
+    let playerRank;
+    if (playerPodiumInfo) {
+        playerRank = playerPodiumInfo.rank;
     } else {
-        // Show simple consolation screen for non-podium players
+        // For non-podium players, find their position in participants list
+        const sortedParticipants = [...currentArcadeSession.participants]
+            .sort((a, b) => b.wordsCompleted - a.wordsCompleted);
+        playerRank = sortedParticipants.findIndex(p => p.username === playerName) + 1;
+    }
+    
+    if (playerRank <= 3) {
+        showPersonalVictoryScreen(playerRank);
+    } else {
         showConsolationScreen();
     }
 }
@@ -16047,25 +16051,29 @@ function handleArcadeCompletion(playerData) {
 }
 
 async function handlePlayerCompletedGoal(username) {
+    // Skip if player already completed
     if (currentArcadeSession.completedPlayers.includes(username)) return;
     
+    // Record completion time
     const completionTime = Date.now();
     currentArcadeSession.completedPlayers.push(username);
     
-    // Determine rank based on completion order only
+    // Determine rank based on completion order (1st, 2nd, 3rd)
     let rank = 0;
     const completionIndex = currentArcadeSession.completedPlayers.indexOf(username);
     if (completionIndex < 3) {
+        // 1st, 2nd, or 3rd place based strictly on completion order
         rank = completionIndex + 1;
         
-        // Store rank and completion time
-        currentArcadeSession.podiumRanks = currentArcadeSession.podiumRanks || {};
+        // Store the rank information
+        if (!currentArcadeSession.podiumRanks) {
+            currentArcadeSession.podiumRanks = {};
+        }
         currentArcadeSession.podiumRanks[username] = {
             rank: rank,
             completionTime: completionTime
         };
-        
-        console.log(`Player ${username} earned podium rank ${rank}`);
+        console.log(`Player ${username} earned podium rank ${rank} (first to finish)`);
     }
     
     // Update player data
@@ -16080,10 +16088,10 @@ async function handlePlayerCompletedGoal(username) {
         playerData.completed = true;
     }
     
-    // Broadcast the completion
+    // Broadcast completion to all players
     await window.arcadeChannel.send({
-        type: 'broadcast',
-        event: 'player_completed',
+        type: "broadcast",
+        event: "player_completed",
         payload: {
             username: username,
             rank: rank,
@@ -16094,12 +16102,12 @@ async function handlePlayerCompletedGoal(username) {
         }
     });
     
-    // Show victory screen for the current player if they ranked
+    // Show victory screen for this player if they placed
     if (username === currentArcadeSession.playerName && rank > 0) {
         showPersonalVictoryScreen(rank);
     }
     
-    // End game if 3 players have completed
+    // End game if all podium positions are filled
     if (currentArcadeSession.completedPlayers.length >= 3) {
         await endArcadeForAll();
     }
@@ -16348,29 +16356,29 @@ async function endArcadeForAll() {
     currentArcadeSession.state = "ended";
     currentArcadeSession.endTime = Date.now();
     
-    // Prepare podium players array
+    // Create array of podium players based on completion order
     const podiumPlayers = [];
     
+    // Use the original ranking from podiumRanks if available
     if (currentArcadeSession.podiumRanks) {
-        // Convert podium ranks to sorted array
-        Object.entries(currentArcadeSession.podiumRanks).forEach(([username, data]) => {
-            const playerData = currentArcadeSession.participants.find(p => p.username === username);
-            if (playerData) {
+        Object.entries(currentArcadeSession.podiumRanks).forEach(([username, rankInfo]) => {
+            const player = currentArcadeSession.participants.find(p => p.username === username);
+            if (player) {
                 podiumPlayers.push({
-                    username: playerData.username,
-                    wordsCompleted: playerData.wordsCompleted || 0,
-                    coins: playerData.coins || 0,
-                    rank: data.rank,
-                    completionTime: data.completionTime
+                    username: player.username, 
+                    wordsCompleted: player.wordsCompleted || 0,
+                    coins: player.coins || 0,
+                    rank: rankInfo.rank,
+                    completionTime: rankInfo.completionTime
                 });
             }
         });
         
-        // Sort strictly by rank (completion order)
+        // Sort by rank (not by words or coins)
         podiumPlayers.sort((a, b) => a.rank - b.rank);
     }
     
-    // Ensure we have 3 entries, even if placeholders
+    // Fill up to 3 places if needed
     while (podiumPlayers.length < 3) {
         const rank = podiumPlayers.length + 1;
         podiumPlayers.push({
@@ -16382,15 +16390,14 @@ async function endArcadeForAll() {
     }
     
     console.log("Final podium players:", podiumPlayers.map(p => ({
-        username: p.username,
-        rank: p.rank,
+        username: p.username, 
+        rank: p.rank, 
         wordsCompleted: p.wordsCompleted
     })));
     
-    // Broadcast end game event with properly sorted podium
     await window.arcadeChannel.send({
-        type: 'broadcast',
-        event: 'game_end',
+        type: "broadcast",
+        event: "game_end",
         payload: {
             state: "ended",
             podiumPlayers: podiumPlayers,
@@ -16399,7 +16406,6 @@ async function endArcadeForAll() {
         }
     });
     
-    // Show appropriate screens
     if (currentUser?.id === currentArcadeSession.teacherId) {
         showModeratorVictoryScreen(podiumPlayers);
     } else {
@@ -17115,10 +17121,11 @@ function cleanupModeratorInactivityMonitoring() {
     if (overlay) overlay.remove();
 }
 
-function startLeaderboardCelebration(winners) {
-    // Clear any existing modal overlay
-    const modalOverlay = document.querySelector('.moderator-inactivity-overlay');
-    if (modalOverlay) modalOverlay.classList.remove('visible');
+function startLeaderboardCelebration(podiumPlayers) {
+    const celebrationOverlay = document.querySelector('.moderator-inactivity-overlay');
+    if (celebrationOverlay) {
+        celebrationOverlay.classList.remove('visible');
+    }
     
     // Create celebration overlay
     const overlay = document.createElement('div');
@@ -17126,20 +17133,18 @@ function startLeaderboardCelebration(winners) {
     document.body.appendChild(overlay);
     setTimeout(() => overlay.classList.add('visible'), 10);
     
-    // Sort winners explicitly by rank to ensure proper display order
-    const sortedWinners = [...winners].sort((a, b) => a.rank - b.rank);
-    
-    // Find and highlight winner entries in the leaderboard
+    // Get leaderboard entries
     const leaderboardEntries = document.getElementById('arcade-leaderboard').querySelectorAll('.leaderboard-entry');
     const entryPositions = new Map();
     
-    sortedWinners.forEach(winner => {
+    // Create winner elements based on strict podium ranks
+    podiumPlayers.forEach(player => {
         leaderboardEntries.forEach(entry => {
-            const usernameElement = entry.querySelector('[data-username]');
-            if (!usernameElement) return;
+            const usernameEl = entry.querySelector('[data-username]');
+            if (!usernameEl) return;
             
-            const username = usernameElement.dataset.username;
-            if (username === winner.username) {
+            const username = usernameEl.dataset.username;
+            if (username === player.username) {
                 const rect = entry.getBoundingClientRect();
                 entryPositions.set(username, {
                     left: rect.left,
@@ -17148,77 +17153,63 @@ function startLeaderboardCelebration(winners) {
                     height: rect.height
                 });
                 
-                // Create a celebration clone of the entry
-                const celebrationEntry = entry.cloneNode(true);
-                celebrationEntry.classList.add('winner-entry', 'celebrating');
+                // Create winner entry
+                const winnerEntry = entry.cloneNode(true);
+                winnerEntry.classList.add('winner-entry', 'celebrating');
                 
-                // Apply specific styling based on rank
-                if (winner.rank === 1) {
-                    celebrationEntry.classList.add('first-place');
-                    const label = document.createElement('div');
-                    label.className = 'winner-label';
-                    label.textContent = 'CHAMPION';
-                    celebrationEntry.appendChild(label);
-                    addWinnerEmojis(celebrationEntry, ['👑', '🏆', '🌟'], winner.rank);
-                } 
-                else if (winner.rank === 2) {
-                    celebrationEntry.classList.add('second-place');
-                    const label = document.createElement('div');
-                    label.className = 'winner-label';
-                    label.textContent = 'RUNNER-UP';
-                    celebrationEntry.appendChild(label);
-                    addWinnerEmojis(celebrationEntry, ['🥈', '✨'], winner.rank);
-                } 
-                else if (winner.rank === 3) {
-                    celebrationEntry.classList.add('third-place');
-                    const label = document.createElement('div');
-                    label.className = 'winner-label';
-                    label.textContent = 'BRONZE MEDAL';
-                    celebrationEntry.appendChild(label);
-                    addWinnerEmojis(celebrationEntry, ['🥉', '🎉'], winner.rank);
+                // Add appropriate class based on rank (not position in array)
+                if (player.rank === 1) {
+                    winnerEntry.classList.add('first-place');
+                    const winnerLabel = document.createElement('div');
+                    winnerLabel.className = 'winner-label';
+                    winnerLabel.textContent = 'CHAMPION';
+                    winnerEntry.appendChild(winnerLabel);
+                    addWinnerEmojis(winnerEntry, ['👑', '🏆', '🌟'], player.rank);
+                } else if (player.rank === 2) {
+                    winnerEntry.classList.add('second-place');
+                    const winnerLabel = document.createElement('div');
+                    winnerLabel.className = 'winner-label';
+                    winnerLabel.textContent = 'RUNNER-UP';
+                    winnerEntry.appendChild(winnerLabel);
+                    addWinnerEmojis(winnerEntry, ['🥈', '✨'], player.rank);
+                } else if (player.rank === 3) {
+                    winnerEntry.classList.add('third-place');
+                    const winnerLabel = document.createElement('div');
+                    winnerLabel.className = 'winner-label';
+                    winnerLabel.textContent = 'BRONZE MEDAL';
+                    winnerEntry.appendChild(winnerLabel);
+                    addWinnerEmojis(winnerEntry, ['🥉', '🎉'], player.rank);
                 }
                 
-                // Position and style the celebration entry
-                celebrationEntry.style.position = 'fixed';
-                celebrationEntry.style.left = `${rect.left}px`;
-                celebrationEntry.style.top = `${rect.top}px`;
-                celebrationEntry.style.width = `${rect.width}px`;
-                celebrationEntry.style.height = `${rect.height}px`;
-                celebrationEntry.style.zIndex = 3 - winner.rank + 100;
+                // Position and style the winner entry
+                winnerEntry.style.position = 'fixed';
+                winnerEntry.style.left = `${rect.left}px`;
+                winnerEntry.style.top = `${rect.top}px`;
+                winnerEntry.style.width = `${rect.width}px`;
+                winnerEntry.style.height = `${rect.height}px`;
+                winnerEntry.style.zIndex = 103 - player.rank;
                 
-                // Style the content elements
-                const rankElement = celebrationEntry.querySelector('.rank');
-                const nameElement = celebrationEntry.querySelector('[data-username]');
-                const wordsElement = celebrationEntry.querySelector('[data-words]');
-                const coinsElement = celebrationEntry.querySelector('[data-coins]');
-                
-                if (rankElement) rankElement.style.fontSize = '3rem';
-                if (nameElement) nameElement.style.fontSize = '3rem';
-                if (wordsElement) wordsElement.style.fontSize = '2.5rem';
-                if (coinsElement) coinsElement.style.fontSize = '2.5rem';
-                
-                document.body.appendChild(celebrationEntry);
+                // Add to the document
+                document.body.appendChild(winnerEntry);
                 setTimeout(() => {
-                    celebrationEntry.classList.add('centered');
+                    winnerEntry.classList.add('centered');
                 }, 50);
             }
         });
     });
     
-    // Start confetti and celebration effects
+    // Start celebration effects
     setTimeout(() => {
         startConfettiShower();
-        
-        // Broadcast celebration to all players
         window.arcadeChannel.send({
             type: 'broadcast',
             event: 'celebration',
             payload: {
-                winners: sortedWinners.map(winner => ({
-                    username: winner.username,
-                    rank: winner.rank,
-                    wordsCompleted: winner.wordsCompleted,
-                    coins: winner.coins
+                winners: podiumPlayers.map(p => ({
+                    username: p.username,
+                    rank: p.rank,
+                    wordsCompleted: p.wordsCompleted,
+                    coins: p.coins
                 }))
             }
         });
