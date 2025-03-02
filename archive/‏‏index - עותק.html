@@ -21271,108 +21271,86 @@ supabaseClient
 }
 
 function updateListsDisplay() {
-    const container = document.getElementById("custom-lists-container");
-    if (!container) return void console.error("Custom lists container not found");
-
-    const limits = CustomListsManager.getListLimits();
-    const userStatus = currentUser?.status || "unregistered";
-    
-    container.innerHTML = "";
-    
-    if (CustomListsManager.lists && Array.isArray(CustomListsManager.lists) && CustomListsManager.lists.length !== 0) {
-        CustomListsManager.lists.forEach(list => {
-            if (!list || !list.id) return;
-            
-            const wordCount = list.words?.length || 0;
-            const hasSufficientWords = wordCount >= 6;
-            
-            const listItem = document.createElement("div");
-            listItem.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
-            listItem.dataset.listId = list.id;
-            
-            // Create the list summary HTML without the plays available text for premium users
-            let listSummaryHTML = `
-                <span class="word-count ${hasSufficientWords ? "" : "insufficient"}">${wordCount} words</span>
-                ${hasSufficientWords ? "" : '<span class="warning-text">(Minimum 6 needed)</span>'}
-            `;
-            
-            // Only add plays available for non-premium users
-            if (userStatus !== "premium") {
-                listSummaryHTML += `<span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>`;
-            }
-            
-            // Add word preview
-            listSummaryHTML += `
-                <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0, 5).join(", ") : ""}${list.words && list.words.length > 5 ? "..." : ""}</p>
-            `;
-            
-            listItem.innerHTML = `
-                <div class="list-actions">
-                    <button class="main-button practice-button" ${hasSufficientWords ? "" : "disabled"}>
-                        ${hasSufficientWords ? "Practice" : `Need ${6 - wordCount} more`}
-                    </button>
-                    <button class="main-button edit-button">Edit</button>
-                    <button class="main-button delete-button">Delete</button>
-                    ${userStatus === "premium" ? `
-                        <button class="main-button share-button">
-                            <i class="fas fa-share-alt"></i> Share
-                        </button>
-                    ` : ""}
-                </div>
-                <div class="list-header">
-                    <h3>${list.name || "Unnamed List"}</h3>
-                    <div class="list-summary">
-                        ${listSummaryHTML}
-                    </div>
-                </div>
-            `;
-            
-            container.appendChild(listItem);
-            
-            // Add event listeners (rest of the function unchanged)
-            const practiceButton = listItem.querySelector(".practice-button");
-            if (practiceButton) {
-                if (hasSufficientWords) {
-                    practiceButton.onclick = function() {
-                        startCustomListPractice(list.id);
-                    };
-                } else {
-                    practiceButton.style.opacity = "0.6";
-                    practiceButton.style.cursor = "not-allowed";
-                }
-            }
-            
-            const editButton = listItem.querySelector(".edit-button");
-            if (editButton) {
-                editButton.onclick = function() {
-                    editCustomList(list.id);
-                };
-            }
-            
-            const deleteButton = listItem.querySelector(".delete-button");
-            if (deleteButton) {
-                deleteButton.onclick = function() {
-                    deleteCustomList(list.id);
-                };
-            }
-            
-            const shareButton = listItem.querySelector(".share-button");
-            if (shareButton) {
-                shareButton.onclick = function() {
-                    showShareModal(list.id);
-                };
-            }
-            
-            const listHeader = listItem.querySelector(".list-header");
-            if (listHeader) {
-                listHeader.onclick = function() {
-                    toggleListCollapse(list.id);
-                };
-            }
-        });
-    } else {
-        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
-    }
+  const container = document.getElementById('custom-lists-container');
+  if (!container) return;
+  
+  const limits = CustomListsManager.getListLimits();
+  const userStatus = currentUser?.status || 'unregistered';
+  
+  container.innerHTML = '';
+  
+  if (CustomListsManager.lists && Array.isArray(CustomListsManager.lists) && CustomListsManager.lists.length > 0) {
+    CustomListsManager.lists.forEach(list => {
+      if (!list || !list.id) return;
+      
+      const wordCount = list.words?.length || 0;
+      const canPractice = wordCount >= 6;
+      const playsAvailable = userStatus === 'premium' ? '' : `<span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>`;
+      
+      const listItem = document.createElement('div');
+      listItem.className = 'custom-list-item collapsed ' + (list.isShared ? 'shared-list' : '');
+      listItem.dataset.listId = list.id;
+      
+      listItem.innerHTML = `
+        <div class="list-actions">
+          <button class="main-button practice-button" ${canPractice ? '' : 'disabled'}>
+            ${canPractice ? 'Practice' : `Need ${6 - wordCount} more`}
+          </button>
+          <button class="main-button edit-button">Edit</button>
+          <button class="main-button delete-button">Delete</button>
+          ${userStatus === 'premium' ? `
+            <button class="main-button share-button">
+              <i class="fas fa-share-alt"></i> Share
+            </button>
+          ` : ''}
+        </div>
+        <div class="list-header">
+          <h3>${list.name || 'Unnamed List'}</h3>
+          <div class="list-summary">
+            <span class="word-count ${canPractice ? '' : 'insufficient'}">${wordCount} words</span>
+            ${canPractice ? '' : '<span class="warning-text">(Minimum 6 needed)</span>'}
+            ${playsAvailable}
+            <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0, 5).join(", ") : ""}${list.words && list.words.length > 5 ? "..." : ""}</p>
+          </div>
+        </div>
+      `;
+      
+      container.appendChild(listItem);
+      
+      // Setup the buttons
+      const practiceButton = listItem.querySelector('.practice-button');
+      if (practiceButton) {
+        if (canPractice) {
+          practiceButton.onclick = function() { startCustomListPractice(list.id); };
+        } else {
+          practiceButton.style.opacity = '0.6';
+          practiceButton.style.cursor = 'not-allowed';
+        }
+      }
+      
+      const editButton = listItem.querySelector('.edit-button');
+      if (editButton) {
+        editButton.onclick = function() { toggleInlineEdit(list.id); };
+      }
+      
+      const deleteButton = listItem.querySelector('.delete-button');
+      if (deleteButton) {
+        deleteButton.onclick = function() { deleteCustomList(list.id); };
+      }
+      
+      const shareButton = listItem.querySelector('.share-button');
+      if (shareButton) {
+        shareButton.onclick = function() { showShareModal(list.id); };
+      }
+      
+      const header = listItem.querySelector('.list-header');
+      if (header) {
+        header.onclick = function() { toggleListCollapse(list.id); };
+      }
+    });
+  } else {
+    container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
+  }
 }
 
 function toggleListEditMode(listId) {
@@ -23251,6 +23229,306 @@ function updatePlayerRankDisplay() {
   if (playerRank >= 1 && playerRank <= 3) {
     rankDisplay.classList.add(`rank-${playerRank}`);
   }
+}
+
+function toggleInlineEdit(listId) {
+  const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+  if (!listItem) return;
+  
+  // Check if already in edit mode
+  const isEditing = listItem.classList.contains('editing');
+  
+  if (isEditing) {
+    // Save the list
+    saveInlineEdit(listId);
+  } else {
+    // Enter edit mode
+    enterInlineEditMode(listId, listItem);
+  }
+}
+
+function enterInlineEditMode(listId, listItem) {
+  const list = CustomListsManager.lists.find(list => list.id === listId);
+  if (!list) return;
+  
+  listItem.classList.add('editing');
+  
+  // Change Edit button to Save
+  const editButton = listItem.querySelector('.edit-button');
+  if (editButton) {
+    editButton.textContent = 'Save';
+  }
+  
+  // Make list name editable
+  const listHeader = listItem.querySelector('.list-header h3');
+  const originalName = listHeader.textContent;
+  
+  // Replace with input field
+  listHeader.innerHTML = `<input type="text" class="list-name-edit" value="${originalName}" placeholder="List Name">`;
+  
+  // Create or show the inline edit container
+  let editContainer = listItem.querySelector('.inline-edit-container');
+  
+  if (!editContainer) {
+    editContainer = document.createElement('div');
+    editContainer.className = 'inline-edit-container';
+    
+    // Create word list table
+    const wordTable = document.createElement('div');
+    wordTable.className = 'inline-word-translation-list';
+    editContainer.appendChild(wordTable);
+    
+    // Add word button
+    const addButton = document.createElement('button');
+    addButton.className = 'main-button add-word-button';
+    addButton.innerHTML = '<i class="fas fa-plus"></i> Add Word';
+    addButton.onclick = function() { addInlineWord(listId); };
+    editContainer.appendChild(addButton);
+    
+    // Add after the list header
+    listItem.appendChild(editContainer);
+  }
+  
+  // Populate the word list
+  populateInlineWordList(listId, editContainer.querySelector('.inline-word-translation-list'));
+  
+  // Unfold the list item if it's collapsed
+  if (listItem.classList.contains('collapsed')) {
+    listItem.classList.remove('collapsed');
+  }
+}
+
+function populateInlineWordList(listId, container) {
+  const list = CustomListsManager.lists.find(list => list.id === listId);
+  if (!list || !container) return;
+  
+  container.innerHTML = '';
+  
+  if (Array.isArray(list.words)) {
+    list.words.forEach((word, index) => {
+      const translation = list.translations && index < list.translations.length ? list.translations[index] : '';
+      
+      const wordItem = document.createElement('div');
+      wordItem.className = 'inline-word-translation-item';
+      wordItem.draggable = true;
+      wordItem.innerHTML = `
+        <div class="drag-handle">
+          <i class="fas fa-grip-vertical"></i>
+        </div>
+        <span class="source-word" contenteditable="true">${word}</span>
+        <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
+        <button class="delete-word-btn" onclick="deleteInlineWord(this)">
+          <i class="fas fa-times" style="font-size: 12px;"></i>
+        </button>
+      `;
+      
+      container.appendChild(wordItem);
+      initializeInlineDragAndDrop(wordItem);
+    });
+  }
+  
+  makeInlineWordListDraggable(container);
+}
+
+function initializeInlineDragAndDrop(element) {
+  if (!element) return;
+  
+  const clone = element.cloneNode(true);
+  if (element.parentNode) {
+    element.parentNode.replaceChild(clone, element);
+  }
+  
+  element = clone;
+  element.setAttribute('draggable', 'true');
+  
+  element.addEventListener('dragstart', (e) => {
+    e.stopPropagation();
+    element.classList.add('dragging');
+    e.dataTransfer.setData('text/plain', '');
+  });
+  
+  element.addEventListener('dragend', (e) => {
+    e.stopPropagation();
+    element.classList.remove('dragging');
+  });
+  
+  const deleteBtn = element.querySelector('.delete-word-btn');
+  if (deleteBtn) {
+    deleteBtn.onclick = () => deleteInlineWord(deleteBtn);
+  }
+  
+  return element;
+}
+
+function makeInlineWordListDraggable(container) {
+  if (!container) return;
+  
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const draggingElement = container.querySelector('.dragging');
+    if (!draggingElement) return;
+    
+    const afterElement = getInlineDragAfterElement(container, e.clientY);
+    if (afterElement) {
+      container.insertBefore(draggingElement, afterElement);
+    } else {
+      container.appendChild(draggingElement);
+    }
+  });
+  
+  container.querySelectorAll('.inline-word-translation-item').forEach(item => {
+    initializeInlineDragAndDrop(item);
+  });
+}
+
+function getInlineDragAfterElement(container, y) {
+  if (!container) return null;
+  
+  const draggableElements = [...container.querySelectorAll('.inline-word-translation-item:not(.dragging)')];
+  
+  return draggableElements.length ? draggableElements.reduce((closest, element) => {
+    const box = element.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      return { offset: offset, element: element };
+    } else {
+      return closest;
+    }
+  }, { offset: Number.NEGATIVE_INFINITY }).element : null;
+}
+
+function addInlineWord(listId) {
+  const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+  if (!listItem) return;
+  
+  const container = listItem.querySelector('.inline-word-translation-list');
+  if (!container) return;
+  
+  const wordItem = document.createElement('div');
+  wordItem.className = 'inline-word-translation-item';
+  wordItem.draggable = true;
+  wordItem.innerHTML = `
+    <div class="drag-handle">
+      <i class="fas fa-grip-vertical"></i>
+    </div>
+    <span class="source-word" contenteditable="true"></span>
+    <input type="text" class="target-word" placeholder="Hebrew translation">
+    <button class="delete-word-btn" onclick="deleteInlineWord(this)">
+      <i class="fas fa-times" style="font-size: 12px;"></i>
+    </button>
+  `;
+  
+  const newItem = container.appendChild(wordItem);
+  initializeInlineDragAndDrop(newItem);
+  
+  if (container.children.length === 1) {
+    makeInlineWordListDraggable(container);
+  }
+  
+  newItem.querySelector('.source-word').focus();
+}
+
+function deleteInlineWord(button) {
+  if (!button) return;
+  const wordItem = button.closest('.inline-word-translation-item');
+  if (wordItem) {
+    wordItem.remove();
+  }
+}
+
+function saveInlineEdit(listId) {
+  const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
+  if (!listItem) return;
+  
+  const list = CustomListsManager.lists.find(list => list.id === listId);
+  if (!list) return;
+  
+  // Get the updated list name
+  const nameInput = listItem.querySelector('.list-name-edit');
+  const newName = nameInput ? nameInput.value.trim() : list.name;
+  
+  // Get all words and translations
+  const words = [];
+  const translations = [];
+  
+  listItem.querySelectorAll('.inline-word-translation-item').forEach(item => {
+    const word = item.querySelector('.source-word').textContent.trim();
+    const translation = item.querySelector('.target-word').value.trim();
+    
+    if (word && translation) {
+      words.push(word);
+      translations.push(translation);
+    }
+  });
+  
+  // Update the list object
+  const updatedList = {
+    ...list,
+    name: newName,
+    words: words,
+    translations: translations
+  };
+  
+  // Save changes
+  CustomListsManager.save(updatedList).then(savedList => {
+    if (savedList) {
+      // Exit edit mode
+      listItem.classList.remove('editing');
+      
+      // Update the edit button back to "Edit"
+      const editButton = listItem.querySelector('.edit-button');
+      if (editButton) {
+        editButton.textContent = 'Edit';
+      }
+      
+      // Update the list header
+      const listHeader = listItem.querySelector('.list-header h3');
+      if (listHeader) {
+        listHeader.textContent = newName;
+      }
+      
+      // Update the list preview
+      const wordPreview = listItem.querySelector('.word-preview');
+      if (wordPreview) {
+        wordPreview.textContent = words.slice(0, 5).join(", ") + (words.length > 5 ? "..." : "");
+      }
+      
+      // Update word count
+      const wordCount = listItem.querySelector('.word-count');
+      if (wordCount) {
+        wordCount.textContent = words.length + " words";
+        wordCount.classList.toggle('insufficient', words.length < 6);
+      }
+      
+      // Hide the warning text if there are enough words
+      const warningText = listItem.querySelector('.warning-text');
+      if (warningText) {
+        warningText.style.display = words.length < 6 ? '' : 'none';
+      }
+      
+      // Enable/disable practice button
+      const practiceButton = listItem.querySelector('.practice-button');
+      if (practiceButton) {
+        const canPractice = words.length >= 6;
+        practiceButton.disabled = !canPractice;
+        practiceButton.textContent = canPractice ? 'Practice' : `Need ${6 - words.length} more`;
+        practiceButton.style.opacity = canPractice ? '1' : '0.6';
+        practiceButton.style.cursor = canPractice ? 'pointer' : 'not-allowed';
+        
+        if (canPractice) {
+          practiceButton.onclick = function() {
+            startCustomListPractice(listId);
+          };
+        } else {
+          practiceButton.onclick = null;
+        }
+      }
+      
+      showNotification('List saved successfully', 'success');
+    } else {
+      showNotification('Failed to save list', 'error');
+    }
+  });
 }
 
 </script>
