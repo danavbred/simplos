@@ -10394,50 +10394,43 @@ function updateNavigationIcons(screenId) {
 }
 
 function updateProgressCircle() {
-    const circle = document.querySelector('.progress-circle .progress');
-    const progressCircle = document.querySelector('.progress-circle');
-    
-    const radius = 54;
-    const circumference = 2 * Math.PI * radius;
-    
-    const progress = currentGame.currentIndex / currentGame.words.length;
-    
-    circle.style.strokeDasharray = `${circumference} ${circumference}`;
-    circle.style.strokeDashoffset = circumference * (1 - progress);
-    
-    // Advanced color progression
-    let hue, saturation, lightness;
-    
-    if (progress <= 0.2) {
-        // 0-20%: Dark Red
-        hue = 0;
-        saturation = 100;
-        lightness = 20;
-    } else if (progress <= 0.4) {
-        // 20-40%: Bright Red
-        hue = 0;
-        saturation = 100;
-        lightness = 50;
-    } else if (progress <= 0.6) {
-        // 40-60%: Orange
-        hue = 30;
-        saturation = 100;
-        lightness = 50;
-    } else if (progress <= 0.8) {
-        // 60-80%: Bright Green
-        hue = 120;
-        saturation = 100;
-        lightness = 40;
-    } else {
-        // 80-100%: Gold to Blue transition
-        const goldToBlueProgress = (progress - 0.8) * 5;
-        hue = 120 * (1 - goldToBlueProgress) + 60 * goldToBlueProgress;
-        saturation = 100;
-        lightness = 40 + (20 * goldToBlueProgress);
-    }
-    
-    circle.style.stroke = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-    
+  const progressCircle = document.querySelector('.progress-circle .progress');
+  const circumference = 2 * Math.PI * 54;
+  const progress = currentGame.currentIndex / currentGame.words.length;
+  
+  progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+  progressCircle.style.strokeDashoffset = circumference * (1 - progress);
+  
+  let hue, saturation, lightness;
+  
+  if (progress <= 0.2) {
+    // Dark red
+    hue = 0;
+    saturation = 100;
+    lightness = 20;
+  } else if (progress <= 0.4) {
+    // Bright red
+    hue = 0;
+    saturation = 100;
+    lightness = 45;
+  } else if (progress <= 0.6) {
+    // Orange
+    hue = 30;
+    saturation = 100;
+    lightness = 50;
+  } else if (progress <= 0.8) {
+    // Yellow
+    hue = 60;
+    saturation = 100;
+    lightness = 50;
+  } else {
+    // Green
+    hue = 120;
+    saturation = 100;
+    lightness = 40;
+  }
+  
+  progressCircle.style.stroke = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
 
@@ -24315,6 +24308,34 @@ window.debugUpgrade = function() {
   console.log("Upgrade screen visible:", document.getElementById('upgrade-screen').classList.contains('visible'));
   console.log("Upgrade form:", document.getElementById('upgradeForm'));
   console.log("Current user:", currentUser);
+}
+
+function requestFullscreenMode() {
+  const element = document.documentElement;
+  
+  // Skip if not mobile
+  if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return;
+  
+  // Check if already in fullscreen
+  if (document.fullscreenElement || document.webkitFullscreenElement || 
+      document.mozFullScreenElement || document.msFullscreenElement) {
+    return; // Already in fullscreen mode
+  }
+  
+  // Request fullscreen with fallbacks for different browsers
+  try {
+    if (element.requestFullscreen) {
+      element.requestFullscreen();
+    } else if (element.webkitRequestFullscreen) { // Safari
+      element.webkitRequestFullscreen();
+    } else if (element.mozRequestFullScreen) { // Firefox
+      element.mozRequestFullScreen();
+    } else if (element.msRequestFullscreen) { // IE/Edge
+      element.msRequestFullscreen();
+    }
+  } catch (error) {
+    console.log("Fullscreen request failed:", error);
+  }
 }
 
 </script>
