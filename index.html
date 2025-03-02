@@ -6182,13 +6182,14 @@ body.dark-theme {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
+  background: radial-gradient(circle at center, rgba(30, 144, 255, 0.2), rgba(0, 0, 0, 0.7));
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
   opacity: 1;
   transition: opacity 0.3s ease;
+  overflow: hidden;
 }
 
 .simple-level-transition.fade-out {
@@ -6203,47 +6204,77 @@ body.dark-theme {
   text-align: center;
   transform: scale(1);
   transition: transform 0.3s ease;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+  animation: pulse-glow 1.5s infinite alternate;
 }
 
 .simple-level-transition.fade-out .level-announcement {
   transform: scale(0.9);
 }
 
-.level-transition {
-  position: fixed;
-  top: 0;
-  left: 0;
+.simple-level-transition .level-number {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: var(--gold);
+  margin-bottom: 0.5rem;
+}
+
+.simple-level-transition .level-text {
+  font-size: 1.2rem;
+  color: var(--text);
+  opacity: 0.9;
+}
+
+/* Light streaks animation */
+.light-streak {
+  position: absolute;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
   width: 100%;
-  height: 100%;
-  z-index: 9999;
-  pointer-events: none;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.7);
+  filter: blur(1px);
   opacity: 0;
-  transition: opacity 0.4s ease;
+  animation: streak-animation 1.2s ease-in-out;
 }
 
-.level-transition.show {
-  opacity: 1;
+@keyframes streak-animation {
+  0% {
+    transform: translateX(-100%) rotate(5deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.7;
+  }
+  90% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateX(100%) rotate(5deg);
+    opacity: 0;
+  }
 }
 
-.level-transition .level-announcement {
-  opacity: 0;
-  transform: scale(0.9);
-  transition: opacity 0.4s ease, transform 0.4s ease;
-  background: var(--glass);
-  backdrop-filter: blur(10px);
-  padding: 2rem 3rem;
-  border-radius: 20px;
-  text-align: center;
-  z-index: 2;
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 10px rgba(30, 144, 255, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 20px rgba(30, 144, 255, 0.6);
+  }
 }
 
-.level-transition .level-announcement.show {
-  opacity: 1;
-  transform: scale(1);
+/* Progress bar styling */
+.transition-progress {
+  position: absolute;
+  bottom: -5px;
+  left: 0;
+  height: 3px;
+  background: var(--gold);
+  width: 0%;
+  border-radius: 0 0 10px 10px;
+  transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 </style>
@@ -10968,12 +10999,27 @@ function stopLevelAndGoBack() {
   // Show a simple outro animation
   const outro = document.createElement('div');
   outro.className = 'simple-level-transition';
-  outro.innerHTML = `
-    <div class="level-announcement simple">
-      <h2>Session Complete</h2>
-      <p>Thanks for playing!</p>
+  
+  // Create light streaks for animation
+  for (let i = 0; i < 3; i++) {
+    const streak = document.createElement('div');
+    streak.className = 'light-streak';
+    streak.style.top = `${20 + (i * 25)}%`;
+    streak.style.animationDelay = `${i * 0.2}s`;
+    outro.appendChild(streak);
+  }
+  
+  const announcement = document.createElement('div');
+  announcement.className = 'level-announcement simple';
+  
+  announcement.innerHTML = `
+    <div class="level-number">
+      <i class="fas fa-check-circle" style="color: var(--gold); font-size: 2rem;"></i>
     </div>
+    <div class="level-text">Session Complete</div>
   `;
+  
+  outro.appendChild(announcement);
   document.body.appendChild(outro);
   
   // Clear session
@@ -11510,32 +11556,51 @@ function showLevelIntro(level, callback, forceFullIntro = false) {
                       (Date.now() - gameState.sessionStartTime > 30 * 60 * 1000) || 
                       forceFullIntro;
   
-  // Set session start time if this is a new session
-  if (isNewSession) {
-    gameState.sessionStartTime = Date.now();
+// For level transitions in the same session, use simple fade
+if (!isNewSession) {
+  const simpleTransition = document.createElement('div');
+  simpleTransition.className = 'simple-level-transition';
+  
+  // Create light streaks for animation
+  for (let i = 0; i < 3; i++) {
+    const streak = document.createElement('div');
+    streak.className = 'light-streak';
+    streak.style.top = `${20 + (i * 25)}%`;
+    streak.style.animationDelay = `${i * 0.2}s`;
+    simpleTransition.appendChild(streak);
   }
   
-  // For level transitions in the same session, use simple fade
-  if (!isNewSession) {
-    const simpleTransition = document.createElement('div');
-    simpleTransition.className = 'simple-level-transition';
-    simpleTransition.innerHTML = `
-      <div class="level-announcement simple">
-        <h2>Level ${gameState.currentStage}-${level}</h2>
-      </div>
-    `;
-    document.body.appendChild(simpleTransition);
-    
+  const announcement = document.createElement('div');
+  announcement.className = 'level-announcement simple';
+  
+  // Add a dynamic progress bar
+  const progressBar = document.createElement('div');
+  progressBar.className = 'transition-progress';
+  
+  announcement.innerHTML = `
+    <div class="level-number">${level}</div>
+    <div class="level-text">Stage ${gameState.currentStage} - Set ${gameState.currentSet}</div>
+  `;
+  
+  announcement.appendChild(progressBar);
+  simpleTransition.appendChild(announcement);
+  document.body.appendChild(simpleTransition);
+  
+  // Animate progress bar
+  setTimeout(() => {
+    progressBar.style.width = '100%';
+  }, 50);
+  
+  setTimeout(() => {
+    simpleTransition.classList.add('fade-out');
     setTimeout(() => {
-      simpleTransition.classList.add('fade-out');
-      setTimeout(() => {
-        callback();
-        document.body.removeChild(simpleTransition);
-      }, 300);
-    }, 800);
-    
-    return;
-  }
+      callback();
+      document.body.removeChild(simpleTransition);
+    }, 300);
+  }, 800);
+  
+  return;
+}
   
   // For new sessions, use the fuller intro but optimized
   const isTest = [3, 6, 9, 10, 13, 16, 19, 20].includes(level);
