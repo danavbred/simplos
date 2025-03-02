@@ -13313,55 +13313,79 @@ function updateAllPlayersProgress() {
 
 async function startArcade() {
     // Get selected stages
-    const selectedStages = Array.from(
-        document.querySelectorAll('.stage-checkboxes input:checked')
-    ).map(checkbox => parseInt(checkbox.value));
-    
+    const selectedStages = Array.from(document.querySelectorAll('.stage-checkboxes input:checked')).map(el => parseInt(el.value));
     const warningElement = document.querySelector('.stage-warning');
     
-    // Validate stage selection
     if (selectedStages.length === 0) {
-        if (warningElement) {
-            warningElement.style.display = 'block';
-        }
+        if (warningElement) warningElement.style.display = 'block';
         console.error('No stages selected');
         return;
     }
     
-    if (warningElement) {
-        warningElement.style.display = 'none';
-    }
+    if (warningElement) warningElement.style.display = 'none';
     
     // Generate word pool from selected stages
     currentArcadeSession.wordPool = generateWordPool(selectedStages);
     
-    // Get word goal
-    const wordGoalElement = document.getElementById('wordGoal') || 
-                           document.getElementById('wordGoalSlider');
-    
-    if (wordGoalElement) {
-        const wordGoal = parseInt(wordGoalElement.value);
-        currentArcadeSession.wordGoal = isNaN(wordGoal) ? 50 : wordGoal;
+    // Get word goal from input
+    const wordGoalInput = document.getElementById('wordGoal') || document.getElementById('wordGoalSlider');
+    if (wordGoalInput) {
+        const wordGoalValue = parseInt(wordGoalInput.value);
+        currentArcadeSession.wordGoal = isNaN(wordGoalValue) ? 50 : wordGoalValue;
         console.log('Selected word goal:', currentArcadeSession.wordGoal);
     } else {
-        console.error('Word goal slider element not found. Available elements:', 
-                     document.querySelectorAll('select, input[type="range"]'));
+        console.error('Word goal slider element not found. Available elements:', document.querySelectorAll('select, input[type="range"]'));
         currentArcadeSession.wordGoal = 50;
         console.warn('Defaulting to word goal of 50');
     }
     
-    // Reset session state
+    // Initialize arcade session state with clear tracking properties
     currentArcadeSession.state = 'started';
     currentArcadeSession.participants = [];
-    currentArcadeSession.isInitialized = false; // Important: Set to false for new sessions
+    currentArcadeSession.completedPlayers = [];
+    currentArcadeSession.podiumRanks = {};
+    currentArcadeSession.isInitialized = false;
+    currentArcadeSession.startTime = null;  // Will be set when game becomes active
+    currentArcadeSession.endTime = null;
+    currentArcadeSession.winnerScreenShown = false;
     
-    // Set up event listeners
-    window.arcadeChannel.on('broadcast', { event: 'progress_update' }, ({ payload: data }) => {
-        updatePlayerProgress(data);
-        checkGameEnd();
-    }).on('broadcast', { event: 'check_game_status' }, async ({ payload: data }) => {
-        console.log('Received game status check:', data);
+    // Set up event listeners for progress updates and status checks
+    window.arcadeChannel.on('broadcast', { event: 'progress_update' }, ({ payload }) => {
+        if (payload && payload.username) {
+            // Safe update to prevent accidental progress resets
+            const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === payload.username);
+            
+            if (playerIndex !== -1) {
+                const player = currentArcadeSession.participants[playerIndex];
+                const currentProgress = player.wordsCompleted || 0;
+                
+                // Only allow progress to increase, never decrease (prevents accidental resets)
+                if (payload.wordsCompleted !== undefined && payload.wordsCompleted < currentProgress) {
+                    console.warn(`Prevented progress reset for ${payload.username}: ${currentProgress} → ${payload.wordsCompleted}`);
+                    payload.wordsCompleted = currentProgress; // Keep current progress
+                }
+                
+                // Update player data
+                currentArcadeSession.participants[playerIndex] = {
+                    ...player,
+                    ...payload
+                };
+            } else {
+                // New player
+                currentArcadeSession.participants.push({
+                    username: payload.username,
+                    wordsCompleted: payload.wordsCompleted || 0,
+                    coins: payload.coins || 0
+                });
+            }
+            
+            updatePlayerProgress(payload);
+            checkGameEnd();
+        }
+    }).on('broadcast', { event: 'check_game_status' }, async ({ payload }) => {
+        console.log('Received game status check:', payload);
         
+        // Respond with current game state
         await window.arcadeChannel.send({
             type: 'broadcast',
             event: 'game_state_response',
@@ -13369,42 +13393,61 @@ async function startArcade() {
                 state: currentArcadeSession.state,
                 wordPool: currentArcadeSession.wordPool,
                 wordGoal: currentArcadeSession.wordGoal,
-                requestType: data?.requestType || 'standard'
+                requestType: payload?.requestType || 'standard'
             }
         });
         
-        // Handle late joining player
-        if (data?.requestType === 'lateJoin' && 
+        // Handle late joining players
+        if (payload?.requestType === 'lateJoin' && 
             currentArcadeSession.state === 'active' && 
-            data.username && 
-            !currentArcadeSession.participants.find(p => p.username === data.username)) {
+            payload.username && 
+            !currentArcadeSession.participants.find(p => p.username === payload.username)) {
             
             currentArcadeSession.participants.push({
-                username: data.username,
+                username: payload.username,
                 wordsCompleted: 0,
                 coins: 0,
                 lateJoin: true
             });
             
-            const countElement = document.getElementById('activeParticipantCount');
-            if (countElement) {
-                countElement.textContent = currentArcadeSession.participants.length;
+            const participantCountElement = document.getElementById('activeParticipantCount');
+            if (participantCountElement) {
+                participantCountElement.textContent = currentArcadeSession.participants.length;
             }
             
             updateAllPlayersProgress();
         }
+    }).on('broadcast', { event: 'player_completed' }, ({ payload }) => {
+        console.log('Player completed event:', payload);
+        
+        // Only add to completed players if not already there
+        if (payload.username && !currentArcadeSession.completedPlayers.includes(payload.username)) {
+            currentArcadeSession.completedPlayers.push(payload.username);
+            
+            // Store rank information if provided
+            if (payload.rank && payload.rank <= 3) {
+                currentArcadeSession.podiumRanks[payload.username] = {
+                    rank: payload.rank,
+                    completionTime: payload.timestamp || Date.now()
+                };
+            }
+            
+            updatePlayerProgress(payload);
+            
+            // End game if 3 players have completed
+            if (currentArcadeSession.completedPlayers.length >= 3) {
+                endArcadeForAll();
+            }
+        }
     });
     
-    // Hide arcade modal
-    const modal = document.getElementById('arcade-modal');
-    if (modal) {
-        modal.style.display = 'none';
-    }
+    // Hide modal and show moderator screen
+    const arcadeModal = document.getElementById('arcade-modal');
+    if (arcadeModal) arcadeModal.style.display = 'none';
     
-    // Show moderator screen
     showModeratorScreen();
     
-    // Teacher-specific initialization
+    // Special handling for teachers
     if (currentUser?.id === currentArcadeSession.teacherId) {
         const idleDetection = initializeModeratorIdleDetection();
         currentArcadeSession.idleDetection = idleDetection;
@@ -14269,25 +14312,29 @@ function showConsolationScreen() {
 }
 
 
-function showFinalResultsForPlayer(players) {
-    const playerUsername = currentArcadeSession.playerName;
+function showFinalResultsForPlayer(podiumPlayers) {
+    const playerName = currentArcadeSession.playerName;
+    const playerPodiumInfo = podiumPlayers.find(p => p.username === playerName);
     
-    // If player already saw their victory screen (top 3), don't show another
-    if (currentArcadeSession.winnerScreenShown && 
-        currentArcadeSession.podiumRanks && 
-        currentArcadeSession.podiumRanks[playerUsername]) {
+    // If player is already on podium and has seen victory screen, don't show again
+    if (currentArcadeSession.winnerScreenShown && playerPodiumInfo && playerPodiumInfo.rank <= 3) {
         return;
     }
     
-    // Check if current player is on podium (rank 1-3)
-    const isOnPodium = currentArcadeSession.podiumRanks && 
-                       currentArcadeSession.podiumRanks[playerUsername];
-    
-    if (isOnPodium) {
-        // Show detailed results for podium players
-        showPodiumPlayerResults(players);
+    // Find the player's rank (either from podium or calculate based on completion)
+    let playerRank;
+    if (playerPodiumInfo) {
+        playerRank = playerPodiumInfo.rank;
     } else {
-        // Show simple consolation screen for non-podium players
+        // For non-podium players, find their position in participants list
+        const sortedParticipants = [...currentArcadeSession.participants]
+            .sort((a, b) => b.wordsCompleted - a.wordsCompleted);
+        playerRank = sortedParticipants.findIndex(p => p.username === playerName) + 1;
+    }
+    
+    if (playerRank <= 3) {
+        showPersonalVictoryScreen(playerRank);
+    } else {
         showConsolationScreen();
     }
 }
@@ -16004,68 +16051,66 @@ function handleArcadeCompletion(playerData) {
 }
 
 async function handlePlayerCompletedGoal(username) {
-  if (currentArcadeSession.completedPlayers.includes(username)) {
-    return;
-  }
-  
-  const completionTime = Date.now();
-  currentArcadeSession.completedPlayers.push(username);
-  
-  // Determine rank based on completion order
-  let rank = 0;
-  const playerIndex = currentArcadeSession.completedPlayers.indexOf(username);
-  
-  if (playerIndex < 3) {
-    rank = playerIndex + 1;
+    // Skip if player already completed
+    if (currentArcadeSession.completedPlayers.includes(username)) return;
     
-    // Store rank and completion time
-    if (!currentArcadeSession.podiumRanks) {
-      currentArcadeSession.podiumRanks = {};
+    // Record completion time
+    const completionTime = Date.now();
+    currentArcadeSession.completedPlayers.push(username);
+    
+    // Determine rank based on completion order (1st, 2nd, 3rd)
+    let rank = 0;
+    const completionIndex = currentArcadeSession.completedPlayers.indexOf(username);
+    if (completionIndex < 3) {
+        // 1st, 2nd, or 3rd place based strictly on completion order
+        rank = completionIndex + 1;
+        
+        // Store the rank information
+        if (!currentArcadeSession.podiumRanks) {
+            currentArcadeSession.podiumRanks = {};
+        }
+        currentArcadeSession.podiumRanks[username] = {
+            rank: rank,
+            completionTime: completionTime
+        };
+        console.log(`Player ${username} earned podium rank ${rank} (first to finish)`);
     }
     
-    currentArcadeSession.podiumRanks[username] = {
-      rank: rank,
-      completionTime: completionTime
-    };
+    // Update player data
+    const playerData = currentArcadeSession.participants.find(p => p.username === username);
+    if (playerData) {
+        if (rank > 0) {
+            playerData.rank = rank;
+            playerData.completionTime = completionTime;
+        }
+        playerData.wordsCompleted = currentGame.wordsCompleted;
+        playerData.coins = gameState.coins || currentGame.coins || 0;
+        playerData.completed = true;
+    }
     
-    console.log(`Player ${username} earned podium rank ${rank}`);
-  }
-  
-  // Update player record
-  const playerRecord = currentArcadeSession.participants.find(p => p.username === username);
-  if (playerRecord) {
-    if (rank > 0) {
-      playerRecord.rank = rank;
-      playerRecord.completionTime = completionTime;
+    // Broadcast completion to all players
+    await window.arcadeChannel.send({
+        type: "broadcast",
+        event: "player_completed",
+        payload: {
+            username: username,
+            rank: rank,
+            wordsCompleted: currentGame.wordsCompleted,
+            coins: gameState.coins || currentGame.coins || 0,
+            timestamp: completionTime,
+            completed: true
+        }
+    });
+    
+    // Show victory screen for this player if they placed
+    if (username === currentArcadeSession.playerName && rank > 0) {
+        showPersonalVictoryScreen(rank);
     }
-    playerRecord.wordsCompleted = currentGame.wordsCompleted;
-    playerRecord.coins = gameState.coins || currentGame.coins || 0;
-    playerRecord.completed = true;
-  }
-  
-  // Broadcast completion
-  await window.arcadeChannel.send({
-    type: "broadcast",
-    event: "player_completed",
-    payload: {
-      username: username,
-      rank: rank,
-      wordsCompleted: currentGame.wordsCompleted,
-      coins: gameState.coins || currentGame.coins || 0,
-      timestamp: completionTime,
-      completed: true
+    
+    // End game if all podium positions are filled
+    if (currentArcadeSession.completedPlayers.length >= 3) {
+        await endArcadeForAll();
     }
-  });
-  
-  // Show victory screen if this is the current player
-  if (username === currentArcadeSession.playerName && rank > 0) {
-    showPersonalVictoryScreen(rank);
-  }
-  
-  // End game if we have 3 completions
-  if (currentArcadeSession.completedPlayers.length >= 3) {
-    await endArcadeForAll();
-  }
 }
 
 function endArcade() {
@@ -16308,65 +16353,64 @@ function hidePersonalVictoryScreen() {
 }
 
 async function endArcadeForAll() {
-  currentArcadeSession.state = "ended";
-  currentArcadeSession.endTime = Date.now();
-  
-  // Sort podium players based on rank (completion order)
-  const podiumPlayers = [];
-  
-  if (currentArcadeSession.podiumRanks) {
-    Object.entries(currentArcadeSession.podiumRanks).forEach(([username, rankInfo]) => {
-      const playerRecord = currentArcadeSession.participants.find(p => p.username === username);
-      if (playerRecord) {
-        podiumPlayers.push({
-          username: playerRecord.username,
-          wordsCompleted: playerRecord.wordsCompleted || 0,
-          coins: playerRecord.coins || 0,
-          rank: rankInfo.rank,
-          completionTime: rankInfo.completionTime
+    currentArcadeSession.state = "ended";
+    currentArcadeSession.endTime = Date.now();
+    
+    // Create array of podium players based on completion order
+    const podiumPlayers = [];
+    
+    // Use the original ranking from podiumRanks if available
+    if (currentArcadeSession.podiumRanks) {
+        Object.entries(currentArcadeSession.podiumRanks).forEach(([username, rankInfo]) => {
+            const player = currentArcadeSession.participants.find(p => p.username === username);
+            if (player) {
+                podiumPlayers.push({
+                    username: player.username, 
+                    wordsCompleted: player.wordsCompleted || 0,
+                    coins: player.coins || 0,
+                    rank: rankInfo.rank,
+                    completionTime: rankInfo.completionTime
+                });
+            }
         });
-      }
+        
+        // Sort by rank (not by words or coins)
+        podiumPlayers.sort((a, b) => a.rank - b.rank);
+    }
+    
+    // Fill up to 3 places if needed
+    while (podiumPlayers.length < 3) {
+        const rank = podiumPlayers.length + 1;
+        podiumPlayers.push({
+            username: "---",
+            wordsCompleted: 0,
+            coins: 0,
+            rank: rank
+        });
+    }
+    
+    console.log("Final podium players:", podiumPlayers.map(p => ({
+        username: p.username, 
+        rank: p.rank, 
+        wordsCompleted: p.wordsCompleted
+    })));
+    
+    await window.arcadeChannel.send({
+        type: "broadcast",
+        event: "game_end",
+        payload: {
+            state: "ended",
+            podiumPlayers: podiumPlayers,
+            teacherId: currentArcadeSession.teacherId,
+            duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
+        }
     });
     
-    // Sort by rank (1, 2, 3)
-    podiumPlayers.sort((a, b) => a.rank - b.rank);
-  }
-  
-  // Fill in missing ranks if needed
-  while (podiumPlayers.length < 3) {
-    const rank = podiumPlayers.length + 1;
-    podiumPlayers.push({
-      username: "---",
-      wordsCompleted: 0,
-      coins: 0,
-      rank: rank
-    });
-  }
-  
-  console.log("Final podium players:", podiumPlayers.map(p => ({
-    username: p.username,
-    rank: p.rank,
-    wordsCompleted: p.wordsCompleted
-  })));
-  
-  // Broadcast game end
-  await window.arcadeChannel.send({
-    type: "broadcast",
-    event: "game_end",
-    payload: {
-      state: "ended",
-      podiumPlayers: podiumPlayers,
-      teacherId: currentArcadeSession.teacherId,
-      duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
+    if (currentUser?.id === currentArcadeSession.teacherId) {
+        showModeratorVictoryScreen(podiumPlayers);
+    } else {
+        showFinalResultsForPlayer(podiumPlayers);
     }
-  });
-  
-  // Show appropriate screen
-  if (currentUser?.id === currentArcadeSession.teacherId) {
-    showModeratorVictoryScreen(podiumPlayers);
-  } else {
-    showFinalResultsForPlayer(podiumPlayers);
-  }
 }
 
 function showFinalResults(players) {
@@ -17077,135 +17121,132 @@ function cleanupModeratorInactivityMonitoring() {
     if (overlay) overlay.remove();
 }
 
-function startLeaderboardCelebration(winners) {
-   // Hide the inactivity overlay
-   const inactivityOverlay = document.querySelector('.moderator-inactivity-overlay');
-   if (inactivityOverlay) inactivityOverlay.classList.remove('visible');
-   
-   // Create celebration overlay to dim everything else
-   const overlay = document.createElement('div');
-   overlay.className = 'celebration-overlay';
-   document.body.appendChild(overlay);
-   setTimeout(() => overlay.classList.add('visible'), 10);
-   
-   // Get and clone winner entries
-   const leaderboard = document.getElementById('arcade-leaderboard');
-   const entries = leaderboard.querySelectorAll('.leaderboard-entry');
-   
-   // Map for tracking original positions
-   const originalPositions = new Map();
-   
-   // Find the winner entries and clone them
-   winners.forEach(winner => {
-       entries.forEach(entry => {
-           const usernameEl = entry.querySelector('[data-username]');
-           if (!usernameEl) return;
-           
-           const username = usernameEl.dataset.username;
-           if (username === winner.username) {
-               // Store original position
-               const rect = entry.getBoundingClientRect();
-               originalPositions.set(username, {
-                   left: rect.left,
-                   top: rect.top,
-                   width: rect.width,
-                   height: rect.height
-               });
-               
-               // Clone entry for animation
-               const clone = entry.cloneNode(true);
-               clone.classList.add('winner-entry', 'celebrating');
-               
-               // Add place-specific class
-               if (winner.rank === 1) {
-                   clone.classList.add('first-place');
-                   
-                   // Add winner label
-                   const label = document.createElement('div');
-                   label.className = 'winner-label';
-                   label.textContent = 'CHAMPION';
-                   clone.appendChild(label);
-                   
-                   addWinnerEmojis(clone, ['👑', '🏆', '🌟'], winner.rank);
-               } else if (winner.rank === 2) {
-                   clone.classList.add('second-place');
-                   
-                   const label = document.createElement('div');
-                   label.className = 'winner-label';
-                   label.textContent = 'RUNNER-UP';
-                   clone.appendChild(label);
-                   
-                   addWinnerEmojis(clone, ['🥈', '✨'], winner.rank);
-               } else if (winner.rank === 3) {
-                   clone.classList.add('third-place');
-                   
-                   const label = document.createElement('div');
-                   label.className = 'winner-label';
-                   label.textContent = 'BRONZE MEDAL';
-                   clone.appendChild(label);
-                   
-                   addWinnerEmojis(clone, ['🥉', '🎉'], winner.rank);
-               }
-               
-               // Set initial position to match original entry
-               clone.style.position = 'fixed';
-               clone.style.left = `${rect.left}px`;
-               clone.style.top = `${rect.top}px`;
-               clone.style.width = `${rect.width}px`;
-               clone.style.height = `${rect.height}px`;
-               clone.style.zIndex = 100 + (3 - winner.rank);
-               
-               // Make text within entries bigger
-               const rankEl = clone.querySelector('.rank');
-               const nameEl = clone.querySelector('[data-username]');
-               const wordsEl = clone.querySelector('[data-words]');
-               const coinsEl = clone.querySelector('[data-coins]');
-               
-               if (rankEl) rankEl.style.fontSize = '3rem';
-               if (nameEl) nameEl.style.fontSize = '3rem';
-               if (wordsEl) wordsEl.style.fontSize = '2.5rem';
-               if (coinsEl) coinsEl.style.fontSize = '2.5rem';
-               
-               // Append to body for animation
-               document.body.appendChild(clone);
-               
-               // Add animation class after a small delay to ensure starting position
-               setTimeout(() => {
-                   clone.classList.add('centered');
-               }, 50);
-           }
-       });
-   });
-   
-   // Start confetti after entries have moved to center
-   setTimeout(() => {
-       startConfettiShower();
-       
-       // Broadcast celebration to all players
-       window.arcadeChannel.send({
-           type: 'broadcast',
-           event: 'celebration',
-           payload: {
-               winners: winners.map(w => ({
-                   username: w.username,
-                   rank: w.rank,
-                   wordsCompleted: w.wordsCompleted,
-                   coins: w.coins
-               }))
-           }
-       });
-   }, 1500);
-   
-   // Add home button
-   const homeButtonContainer = document.createElement('div');
-   homeButtonContainer.className = 'home-button-container';
-   homeButtonContainer.innerHTML = `
+function startLeaderboardCelebration(podiumPlayers) {
+    const celebrationOverlay = document.querySelector('.moderator-inactivity-overlay');
+    if (celebrationOverlay) {
+        celebrationOverlay.classList.remove('visible');
+    }
+    
+    // Create celebration overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'celebration-overlay';
+    document.body.appendChild(overlay);
+    setTimeout(() => overlay.classList.add('visible'), 10);
+    
+    // Get leaderboard entries
+    const leaderboardEntries = document.getElementById('arcade-leaderboard').querySelectorAll('.leaderboard-entry');
+    const entryPositions = new Map();
+    
+    // Create winner elements based on strict podium ranks
+    podiumPlayers.forEach(player => {
+        leaderboardEntries.forEach(entry => {
+            const usernameEl = entry.querySelector('[data-username]');
+            if (!usernameEl) return;
+            
+            const username = usernameEl.dataset.username;
+            if (username === player.username) {
+                const rect = entry.getBoundingClientRect();
+                entryPositions.set(username, {
+                    left: rect.left,
+                    top: rect.top,
+                    width: rect.width,
+                    height: rect.height
+                });
+                
+                // Create winner entry
+                const winnerEntry = entry.cloneNode(true);
+                winnerEntry.classList.add('winner-entry', 'celebrating');
+                
+                // Add appropriate class based on rank (not position in array)
+                if (player.rank === 1) {
+                    winnerEntry.classList.add('first-place');
+                    const winnerLabel = document.createElement('div');
+                    winnerLabel.className = 'winner-label';
+                    winnerLabel.textContent = 'CHAMPION';
+                    winnerEntry.appendChild(winnerLabel);
+                    addWinnerEmojis(winnerEntry, ['👑', '🏆', '🌟'], player.rank);
+                } else if (player.rank === 2) {
+                    winnerEntry.classList.add('second-place');
+                    const winnerLabel = document.createElement('div');
+                    winnerLabel.className = 'winner-label';
+                    winnerLabel.textContent = 'RUNNER-UP';
+                    winnerEntry.appendChild(winnerLabel);
+                    addWinnerEmojis(winnerEntry, ['🥈', '✨'], player.rank);
+                } else if (player.rank === 3) {
+                    winnerEntry.classList.add('third-place');
+                    const winnerLabel = document.createElement('div');
+                    winnerLabel.className = 'winner-label';
+                    winnerLabel.textContent = 'BRONZE MEDAL';
+                    winnerEntry.appendChild(winnerLabel);
+                    addWinnerEmojis(winnerEntry, ['🥉', '🎉'], player.rank);
+                }
+                
+                // Position and style the winner entry
+                winnerEntry.style.position = 'fixed';
+                winnerEntry.style.left = `${rect.left}px`;
+                winnerEntry.style.top = `${rect.top}px`;
+                winnerEntry.style.width = `${rect.width}px`;
+                winnerEntry.style.height = `${rect.height}px`;
+                winnerEntry.style.zIndex = 103 - player.rank;
+                
+                // Add to the document
+                document.body.appendChild(winnerEntry);
+                setTimeout(() => {
+                    winnerEntry.classList.add('centered');
+                }, 50);
+            }
+        });
+    });
+    
+    // Start celebration effects
+    setTimeout(() => {
+        startConfettiShower();
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'celebration',
+            payload: {
+                winners: podiumPlayers.map(p => ({
+                    username: p.username,
+                    rank: p.rank,
+                    wordsCompleted: p.wordsCompleted,
+                    coins: p.coins
+                }))
+            }
+        });
+    }, 1500);
+    
+    // Add home button
+    const homeButton = document.createElement('div');
+    homeButton.className = 'home-button-container';
+    homeButton.innerHTML = `
        <button class="start-button" onclick="finishCelebrationAndGoHome()">
            Return to Home
        </button>
    `;
-   document.body.appendChild(homeButtonContainer);
-   setTimeout(() => homeButtonContainer.classList.add('visible'), 2500);
+    document.body.appendChild(homeButton);
+    setTimeout(() => homeButton.classList.add('visible'), 2500);
+}
+
+// Add this function to protect against accidental progress resets
+function safeUpdateWordsCompleted(newValue, username) {
+    if (!username) return false;
+    
+    // Get current participant data
+    const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === username);
+    if (playerIndex === -1) return false;
+    
+    const player = currentArcadeSession.participants[playerIndex];
+    const currentProgress = player.wordsCompleted || 0;
+    
+    // Only allow progress to increase, never decrease (prevents accidental resets)
+    if (newValue < currentProgress) {
+        console.warn(`Prevented progress reset for ${username}: ${currentProgress} → ${newValue}`);
+        return false;
+    }
+    
+    // Update the progress
+    player.wordsCompleted = newValue;
+    return true;
 }
 
 function addWinnerEmojis(element, emojis, rank) {
