@@ -7106,17 +7106,6 @@ body.dark-theme {
 
 <script>
     
-    let currentUser = null;
-
-document.addEventListener("DOMContentLoaded", async () => {
-    const { data: user, error } = await supabase.auth.getUser();
-    if (user) {
-        currentUser = user;
-    } else {
-        console.error("User not found:", error);
-    }
-});
-
     document.addEventListener('progressSaved', (event) => {
   // If the stage-cascade screen is currently visible, refresh it
   const stageCascadeScreen = document.getElementById("stage-cascade-screen");
@@ -7841,14 +7830,12 @@ document.addEventListener('DOMContentLoaded', async () => {
        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
            // Request on first touch
            document.addEventListener('touchstart', function onFirstTouch() {
-               requestFullscreenMode();
                document.removeEventListener('touchstart', onFirstTouch);
            }, { once: true });
            
            // Request when clicking any button
            document.addEventListener('click', function(e) {
                if (e.target.tagName === 'BUTTON') {
-                   requestFullscreenMode();
                }
            });
            
@@ -8503,14 +8490,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
             // Request on first touch
             document.addEventListener('touchstart', function onFirstTouch() {
-                requestFullscreenMode();
                 document.removeEventListener('touchstart', onFirstTouch);
             }, { once: true });
             
             // Request when clicking any button
             document.addEventListener('click', function(e) {
                 if (e.target.tagName === 'BUTTON') {
-                    requestFullscreenMode();
                 }
             });
             
@@ -16052,33 +16037,7 @@ function updateArcadeCoinDisplay() {
   updatePowerupAvailability();
 }
 
-function requestFullscreenMode() {
-  // Exit immediately if not on a mobile device
-  if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return;
-  
-  const element = document.documentElement;
-  
-  // Check if already in fullscreen
-  if (document.fullscreenElement || document.webkitFullscreenElement || 
-      document.mozFullScreenElement || document.msFullscreenElement) {
-    return; // Already in fullscreen mode
-  }
-  
-  // Request fullscreen with fallbacks for different browsers
-  try {
-    if (element.requestFullscreen) {
-      element.requestFullscreen();
-    } else if (element.webkitRequestFullscreen) { // Safari
-      element.webkitRequestFullscreen();
-    } else if (element.mozRequestFullScreen) { // Firefox
-      element.mozRequestFullScreen();
-    } else if (element.msRequestFullscreen) { // IE/Edge
-      element.msRequestFullscreen();
-    }
-  } catch (error) {
-    console.log("Fullscreen request failed:", error);
-  }
-}
+
 
 function generateQRCode(otp) {
     // Get the base URL without any parameters or hash
@@ -24604,91 +24563,9 @@ window.debugUpgrade = function() {
   
   console.log("Upgrade screen visible:", document.getElementById('upgrade-screen').classList.contains('visible'));
   console.log("Upgrade form:", document.getElementById('upgradeForm'));
-  console.log("Current user:", currentUser);
+  
 }
 
-// Enhanced fullscreen mode management - MOBILE ONLY
-(function() {
-  // Function to detect if the device is mobile
-  function isMobileDevice() {
-    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  }
-  
-  // Enhanced fullscreen request function that ONLY applies to mobile
-  function requestFullscreenMode() {
-    // Exit immediately if not on a mobile device
-    if (!isMobileDevice()) return;
-    
-    const element = document.documentElement;
-    
-    // Check if already in fullscreen
-    if (document.fullscreenElement || document.webkitFullscreenElement || 
-        document.mozFullScreenElement || document.msFullscreenElement) {
-      return; // Already in fullscreen mode
-    }
-    
-    // Request fullscreen with fallbacks for different browsers
-    try {
-      if (element.requestFullscreen) {
-        element.requestFullscreen();
-      } else if (element.webkitRequestFullscreen) { // Safari
-        element.webkitRequestFullscreen();
-      } else if (element.mozRequestFullScreen) { // Firefox
-        element.mozRequestFullScreen();
-      } else if (element.msRequestFullscreen) { // IE/Edge
-        element.msRequestFullscreen();
-      }
-    } catch (error) {
-      console.log("Fullscreen request failed:", error);
-    }
-    
-    // Try to lock orientation to portrait if supported (mobile only)
-    if (isMobileDevice() && screen.orientation) {
-      try {
-        screen.orientation.lock('portrait').catch(() => {});
-      } catch (e) {}
-    }
-  }
-
-  // Only initialize fullscreen behavior for mobile devices
-  if (isMobileDevice()) {
-    // Try to enter fullscreen mode immediately (only on mobile)
-    requestFullscreenMode();
-    
-    // Also request fullscreen on page load (only on mobile)
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', requestFullscreenMode);
-    }
-    
-    // Ensure fullscreen mode on all user interactions (for iOS)
-    document.addEventListener('touchstart', requestFullscreenMode);
-    document.addEventListener('click', requestFullscreenMode);
-    
-    // Hook into screen transitions to maintain fullscreen
-    const originalShowScreen = window.showScreen;
-    if (typeof originalShowScreen === 'function') {
-      window.showScreen = function(screenId, forceRefresh = false) {
-        const result = originalShowScreen(screenId, forceRefresh);
-        setTimeout(requestFullscreenMode, 100); // Slight delay
-        return result;
-      };
-    }
-    
-    // Monitor fullscreen state changes
-    document.addEventListener('fullscreenchange', function() {
-      if (!document.fullscreenElement) setTimeout(requestFullscreenMode, 300);
-    });
-    document.addEventListener('webkitfullscreenchange', function() {
-      if (!document.webkitFullscreenElement) setTimeout(requestFullscreenMode, 300);
-    });
-    document.addEventListener('mozfullscreenchange', function() {
-      if (!document.mozFullScreenElement) setTimeout(requestFullscreenMode, 300);
-    });
-    document.addEventListener('MSFullscreenChange', function() {
-      if (!document.msFullscreenElement) setTimeout(requestFullscreenMode, 300);
-    });
-  }
-})();
 
 // ADD these functions
 function toggleNavigationMenu() {
