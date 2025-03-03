@@ -7106,6 +7106,17 @@ body.dark-theme {
 
 <script>
     
+    let currentUser = null;
+
+document.addEventListener("DOMContentLoaded", async () => {
+    const { data: user, error } = await supabase.auth.getUser();
+    if (user) {
+        currentUser = user;
+    } else {
+        console.error("User not found:", error);
+    }
+});
+
     document.addEventListener('progressSaved', (event) => {
   // If the stage-cascade screen is currently visible, refresh it
   const stageCascadeScreen = document.getElementById("stage-cascade-screen");

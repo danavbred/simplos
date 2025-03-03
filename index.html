@@ -7930,131 +7930,116 @@ function showJoinModal(otp = "") {
 }
 
 async function handleSignup() {
-  const email = document.getElementById("signupEmail").value;
-  const username = document.getElementById("signupUsername").value;
+  const email = document.getElementById("signupEmail").value.trim();
+  const username = document.getElementById("signupUsername").value.trim();
   const password = document.getElementById("signupPassword").value;
 
-  if (email && username && password) {
-    try {
-      // 1. Sign up the user
-      const { data: authData, error: authError } = await supabaseClient.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-          data: {
-            username: username,
-            full_name: username
-          }
-        }
-      });
-      
-      if (authError) throw authError;
-      
-      // 2. Create the user profile
-      const { error: profileError } = await supabaseClient
-        .from("user_profiles")
-        .upsert({
-          id: authData.user.id,
-          username: username,
-          email: email,
-          status: "free",
-          role: "student"
-        }, { onConflict: "id" });
-      
-      if (profileError) {
-        console.error("Profile upsert error:", profileError);
+  if (!email || !username || !password) {
+    alert("All fields are required");
+    return;
+  }
+
+  try {
+    // 1. Sign up the user
+    const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { username, full_name: username }
       }
-      
-      // 3. Check if game progress exists and create if needed
-      const { data: existingProgress, error: progressCheckError } = await supabaseClient
-        .from("game_progress")
-        .select("user_id")
-        .eq("user_id", authData.user.id)
-        .single();
-      
-      // Only insert if record doesn't exist
-      if (progressCheckError && progressCheckError.code === "PGRST116") {
-        const gameProgressData = {
-          user_id: authData.user.id,
-          stage: 1,
-          set_number: 1,
-          level: 1,
-          coins: 0,
-          perks: {},
-          unlocked_sets: {1: [1]},
-          unlocked_levels: {"1_1": [1]},
-          perfect_levels: [],
-          completed_levels: []
-        };
-        
-        const { error: insertProgressError } = await supabaseClient
-          .from("game_progress")
-          .insert([gameProgressData]);
-        
-        if (insertProgressError && insertProgressError.code !== "23505") {
-          // Log error but continue if it's not a duplicate key error
-          console.error("Game progress initialization error:", insertProgressError);
-        }
-      }
-      
-      // 4. Check if player stats exists and create if needed
-      const { data: existingStats, error: statsCheckError } = await supabaseClient
-        .from("player_stats")
-        .select("user_id")
-        .eq("user_id", authData.user.id)
-        .single();
-      
-      // Only insert if record doesn't exist
-      if (statsCheckError && statsCheckError.code === "PGRST116") {
-        const playerStatsData = {
-          user_id: authData.user.id,
-          total_levels_completed: 0,
-          unique_words_practiced: 0
-        };
-        
-        const { error: insertStatsError } = await supabaseClient
-          .from("player_stats")
-          .insert([playerStatsData]);
-        
-        if (insertStatsError && insertStatsError.code !== "23505") {
-          // Log error but continue if it's not a duplicate key error
-          console.error("Player stats initialization error:", insertStatsError);
-        }
-      }
-      
-      // 5. Sign in the user
-      const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
-        email: email,
-        password: password
-      });
-      
-      if (signInError) throw signInError;
-      
-      // 6. Update the UI and game state
-      hideAuthModal();
-      currentUser = signInData.user;
-      gameState.currentStage = 1;
-      gameState.currentSet = 1;
-      gameState.currentLevel = 1;
-      gameState.coins = 0;
-      gameState.perks = {};
-      gameState.unlockedSets = {1: new Set([1])};
-      gameState.unlockedLevels = {"1_1": new Set([1])};
-      gameState.perfectLevels = new Set;
-      gameState.completedLevels = new Set;
-      updateAuthUI();
-      showScreen("welcome-screen");
-      
-    } catch (error) {
-      console.error("Detailed signup error:", error);
-      if (error.message && error.message.includes("duplicate key")) {
-        alert("This username or email is already taken. Please try another.");
-      } else {
-        alert("Signup error: " + error.message);
+    });
+
+    if (authError) throw authError;
+    if (!authData.user) throw new Error("Signup failed. No user data returned.");
+
+    let userId = authData.user.id; // Changed from 'const' to 'let' to allow reassignment
+
+    // 2. Create the user profile
+    const { error: profileError } = await supabaseClient.from("user_profiles").upsert(
+      {
+        id: userId,
+        username,
+        email,
+        status: "free",
+        role: "student"
+      },
+      { onConflict: "id" }
+    );
+    if (profileError) console.error("Profile upsert error:", profileError);
+
+    // 3. Ensure game progress exists
+    const { data: existingProgress, error: progressCheckError } = await supabaseClient
+      .from("game_progress")
+      .select("user_id")
+      .eq("user_id", userId)
+      .single();
+
+    if (!existingProgress && (!progressCheckError || progressCheckError.code === "PGRST116")) {
+      const gameProgressData = {
+        user_id: userId,
+        stage: 1,
+        set_number: 1,
+        level: 1,
+        coins: 0,
+        perks: {},
+        unlocked_sets: { 1: [1] },
+        unlocked_levels: { "1_1": [1] },
+        perfect_levels: [],
+        completed_levels: []
+      };
+
+      const { error: insertProgressError } = await supabaseClient.from("game_progress").insert([gameProgressData]);
+      if (insertProgressError && insertProgressError.code !== "23505") {
+        console.error("Game progress initialization error:", insertProgressError);
       }
     }
-  } else {
-    alert("All fields are required");
+
+    // 4. Ensure player stats exist
+    const { data: existingStats, error: statsCheckError } = await supabaseClient
+      .from("player_stats")
+      .select("user_id")
+      .eq("user_id", userId)
+      .single();
+
+    if (!existingStats && (!statsCheckError || statsCheckError.code === "PGRST116")) {
+      const playerStatsData = {
+        user_id: userId,
+        total_levels_completed: 0,
+        unique_words_practiced: 0
+      };
+
+      const { error: insertStatsError } = await supabaseClient.from("player_stats").insert([playerStatsData]);
+      if (insertStatsError && insertStatsError.code !== "23505") {
+        console.error("Player stats initialization error:", insertStatsError);
+      }
+    }
+
+    // 5. Sign in the user
+    const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password
+    });
+    if (signInError) throw signInError;
+
+    // 6. Update UI and game state
+    hideAuthModal();
+    currentUser = signInData.user;
+    gameState = {
+      currentStage: 1,
+      currentSet: 1,
+      currentLevel: 1,
+      coins: 0,
+      perks: {},
+      unlockedSets: { 1: new Set([1]) },
+      unlockedLevels: { "1_1": new Set([1]) },
+      perfectLevels: new Set(),
+      completedLevels: new Set()
+    };
+    updateAuthUI();
+    showScreen("welcome-screen");
+  } catch (error) {
+    console.error("Detailed signup error:", error);
+    alert(error.message.includes("duplicate key") ? "This username or email is already taken." : "Signup error: " + error.message);
   }
 }
 
@@ -24232,6 +24217,13 @@ function handleUpgradeButtonClick(event) {
 }
 
 async function handleUpgradeSubmit(e) {
+    event.preventDefault();
+
+if (!currentUser || !currentUser.id) {
+    console.error("Upgrade Request Error: User not logged in.");
+    alert("You must be logged in to upgrade.");
+    return;
+}
     console.log("handleUpgradeSubmit called");
     
     if (e) {
@@ -24593,91 +24585,9 @@ window.debugUpgrade = function() {
   
   console.log("Upgrade screen visible:", document.getElementById('upgrade-screen').classList.contains('visible'));
   console.log("Upgrade form:", document.getElementById('upgradeForm'));
-  console.log("Current user:", currentUser);
+  
 }
 
-// Enhanced fullscreen mode management - MOBILE ONLY
-(function() {
-  // Function to detect if the device is mobile
-  function isMobileDevice() {
-    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  }
-  
-  // Enhanced fullscreen request function that ONLY applies to mobile
-  function requestFullscreenMode() {
-    // Exit immediately if not on a mobile device
-    if (!isMobileDevice()) return;
-    
-    const element = document.documentElement;
-    
-    // Check if already in fullscreen
-    if (document.fullscreenElement || document.webkitFullscreenElement || 
-        document.mozFullScreenElement || document.msFullscreenElement) {
-      return; // Already in fullscreen mode
-    }
-    
-    // Request fullscreen with fallbacks for different browsers
-    try {
-      if (element.requestFullscreen) {
-        element.requestFullscreen();
-      } else if (element.webkitRequestFullscreen) { // Safari
-        element.webkitRequestFullscreen();
-      } else if (element.mozRequestFullScreen) { // Firefox
-        element.mozRequestFullScreen();
-      } else if (element.msRequestFullscreen) { // IE/Edge
-        element.msRequestFullscreen();
-      }
-    } catch (error) {
-      console.log("Fullscreen request failed:", error);
-    }
-    
-    // Try to lock orientation to portrait if supported (mobile only)
-    if (isMobileDevice() && screen.orientation) {
-      try {
-        screen.orientation.lock('portrait').catch(() => {});
-      } catch (e) {}
-    }
-  }
-
-  // Only initialize fullscreen behavior for mobile devices
-  if (isMobileDevice()) {
-    // Try to enter fullscreen mode immediately (only on mobile)
-    requestFullscreenMode();
-    
-    // Also request fullscreen on page load (only on mobile)
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', requestFullscreenMode);
-    }
-    
-    // Ensure fullscreen mode on all user interactions (for iOS)
-    document.addEventListener('touchstart', requestFullscreenMode);
-    document.addEventListener('click', requestFullscreenMode);
-    
-    // Hook into screen transitions to maintain fullscreen
-    const originalShowScreen = window.showScreen;
-    if (typeof originalShowScreen === 'function') {
-      window.showScreen = function(screenId, forceRefresh = false) {
-        const result = originalShowScreen(screenId, forceRefresh);
-        setTimeout(requestFullscreenMode, 100); // Slight delay
-        return result;
-      };
-    }
-    
-    // Monitor fullscreen state changes
-    document.addEventListener('fullscreenchange', function() {
-      if (!document.fullscreenElement) setTimeout(requestFullscreenMode, 300);
-    });
-    document.addEventListener('webkitfullscreenchange', function() {
-      if (!document.webkitFullscreenElement) setTimeout(requestFullscreenMode, 300);
-    });
-    document.addEventListener('mozfullscreenchange', function() {
-      if (!document.mozFullScreenElement) setTimeout(requestFullscreenMode, 300);
-    });
-    document.addEventListener('MSFullscreenChange', function() {
-      if (!document.msFullscreenElement) setTimeout(requestFullscreenMode, 300);
-    });
-  }
-})();
 
 // ADD these functions
 function toggleNavigationMenu() {
