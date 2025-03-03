@@ -3444,11 +3444,29 @@ body {
     display: grid;
     grid-template-columns: 0.5fr 2fr 1fr 1fr;
     padding: 1rem 2rem;
-    background: rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     margin-bottom: 1rem;
-    font-weight: bold;
+    font-weight: 700;
     font-size: 1.1rem;
+}
+
+.leaderboard-entry {
+    display: grid;
+    grid-template-columns: 1fr 5fr 3fr;
+    align-items: center;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    transition: background-color 0.3s ease;
+    position: relative;
+}
+
+.leaderboard-entry, .leaderboard-header {
+    grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
+    font-size: 0.9rem;
+    padding: 0.75rem;
 }
 
 .leaderboard-header > div {
@@ -3506,12 +3524,123 @@ body {
     }
 }
 
-    .leaderboard-header, 
-    .leaderboard-entry {
-        grid-template-columns: 0.5fr 2fr 1fr 1fr 1fr;
-        font-size: 0.9rem;
+/* Improved Speedboard Styling */
+#leaderboard-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    min-height: 100vh;
+}
+
+#leaderboard-screen .welcome-title {
+    margin-bottom: 1.5rem;
+}
+
+#leaderboard-screen .leaderboard-container {
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 800px;
+    margin: 1rem auto;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+#leaderboard-entries {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+#leaderboard-screen .leaderboard-header,
+#leaderboard-screen .leaderboard-entry {
+    display: grid;
+    grid-template-columns: 0.5fr 2fr 1fr 1fr;
+    align-items: center;
+    text-align: center;
+}
+
+#leaderboard-screen .leaderboard-header {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 1rem;
+    border-radius: 10px;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+#leaderboard-screen .leaderboard-entry {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+#leaderboard-screen .leaderboard-entry:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+#leaderboard-screen .leaderboard-entry.you {
+    border: 1px solid var(--gold);
+    background: rgba(255, 215, 0, 0.1);
+}
+
+#leaderboard-screen .leaderboard-entry.rank-1 {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 215, 0, 0.05));
+    border: 1px solid var(--gold);
+}
+
+#leaderboard-screen .leaderboard-entry.rank-2 {
+    background: linear-gradient(135deg, rgba(192, 192, 192, 0.2), rgba(192, 192, 192, 0.05));
+    border: 1px solid var(--silver);
+}
+
+#leaderboard-screen .leaderboard-entry.rank-3 {
+    background: linear-gradient(135deg, rgba(205, 127, 50, 0.2), rgba(205, 127, 50, 0.05));
+    border: 1px solid var(--bronze);
+}
+
+/* Mobile optimization for the speedboard */
+@media (max-width: 768px) {
+    #leaderboard-screen {
+        padding: 1rem;
+    }
+    
+    #leaderboard-screen .leaderboard-header,
+    #leaderboard-screen .leaderboard-entry {
+        grid-template-columns: 0.5fr 2fr 1fr;
+        font-size: 0.85rem;
         padding: 0.75rem;
     }
+    
+    #leaderboard-screen .leaderboard-header div:nth-child(4),
+    #leaderboard-screen .leaderboard-entry div:nth-child(4) {
+        display: none; /* Hide the last column on mobile */
+    }
+    
+    #leaderboard-screen .leaderboard-entry:hover {
+        transform: none; /* Disable hover effect on mobile */
+    }
+}
+
+@media (max-width: 480px) {
+    #leaderboard-screen .leaderboard-header,
+    #leaderboard-screen .leaderboard-entry {
+        grid-template-columns: 0.5fr 1.5fr 1fr;
+        font-size: 0.8rem;
+        padding: 0.6rem;
+    }
+    
+    #leaderboard-screen .welcome-title {
+        font-size: 1.8rem;
+    }
+}
+
+
 
 .premium-celebration {
     position: fixed;
@@ -6738,21 +6867,16 @@ body.dark-theme {
     </div>
   </div>
 
-<div id="leaderboard-screen" class="screen">
-    
-    
+  <div id="leaderboard-screen" class="screen">
     <h1 class="welcome-title">Speedboard</h1>
-    
-    <div class="leaderboard-header">
-        <div>Rank</div>
-        <div>Player</div>
-        <div>Status</div>
-    </div>
-
-
-        <div id="leaderboard-entries">
-            <!-- Entries will be populated here -->
+    <div class="leaderboard-container">
+        <div class="leaderboard-header">
+            <div>Rank</div>
+            <div>Player</div>
+            <div>Levels</div>
+            <div>Words</div>
         </div>
+        <div id="leaderboard-entries"></div>
     </div>
 </div>
 
@@ -12939,80 +13063,80 @@ document.querySelectorAll('.home-button').forEach(button => {
 });
 
 async function showLeaderboard() {
-    showScreen('leaderboard-screen');
-    const entriesContainer = document.getElementById('leaderboard-entries');
+    showScreen("leaderboard-screen");
+    const entriesContainer = document.getElementById("leaderboard-entries");
     
     try {
-        async function fetchAndRenderLeaderboard() {
-            const { data: leaderboard, error } = await supabaseClient
-                .from('player_leaderboard')
-                .select('*');
-                    
+        async function updateLeaderboard() {
+            const { data, error } = await supabaseClient.from("player_leaderboard").select("*");
+            
             if (error) {
-                console.error('Leaderboard fetch error:', error);
+                console.error("Leaderboard fetch error:", error);
                 return;
             }
-
-            const currentEntries = entriesContainer.children;
             
-            // Store current positions
-            const oldPositions = {};
+            // Store current positions for animation
+            const currentEntries = entriesContainer.children;
+            const positions = {};
+            
             Array.from(currentEntries).forEach(entry => {
-                const username = entry.querySelector('[data-username]').dataset.username;
-                oldPositions[username] = entry.getBoundingClientRect();
+                const username = entry.querySelector("[data-username]").dataset.username;
+                positions[username] = entry.getBoundingClientRect();
             });
-
-            // Render new entries
-            entriesContainer.innerHTML = leaderboard.map((entry, index) => `
-                <div class="leaderboard-entry ${entry.username === currentUser?.user_metadata?.username ? 'you' : ''} ${index < 3 ? `rank-${index + 1}` : ''}"
-                     data-rank="${index + 1}">
-                    <div>${entry.player_rank}</div>
-                    <div data-username="${entry.username}">${entry.username || 'Anonymous'}</div>
-                    <div>${entry.total_levels_completed}</div>
-                    <div>${entry.total_words_learned}</div>
+            
+            // Update the leaderboard HTML
+            entriesContainer.innerHTML = data.map((player, index) => `
+                <div class="leaderboard-entry ${player.username === currentUser?.user_metadata?.username ? "you" : ""} ${index < 3 ? `rank-${index+1}` : ""}"
+                     data-rank="${index+1}">
+                    <div>${player.player_rank}</div>
+                    <div data-username="${player.username}">${player.username || "Anonymous"}</div>
+                    <div>${player.total_levels_completed}</div>
+                    <div>${player.total_words_learned}</div>
                 </div>
-            `).join('');
-
-            // Apply animations
+            `).join("");
+            
+            // Apply animations for position changes
             const newEntries = entriesContainer.children;
+            
             Array.from(newEntries).forEach(entry => {
-                const username = entry.querySelector('[data-username]').dataset.username;
-                if (oldPositions[username]) {
-                    const oldPos = oldPositions[username];
+                const username = entry.querySelector("[data-username]").dataset.username;
+                
+                if (positions[username]) {
+                    const oldPos = positions[username];
                     const newPos = entry.getBoundingClientRect();
-                    const diff = oldPos.top - newPos.top;
+                    const yDiff = oldPos.top - newPos.top;
                     
-                    if (diff > 0) {
-                        entry.classList.add('moving-up');
-                    } else if (diff < 0) {
-                        entry.classList.add('moving-down');
+                    if (yDiff > 0) {
+                        entry.classList.add("moving-up");
+                    } else if (yDiff < 0) {
+                        entry.classList.add("moving-down");
                     }
                     
-                    // Remove animation classes after completion
-                    entry.addEventListener('animationend', () => {
-                        entry.classList.remove('moving-up', 'moving-down');
+                    entry.addEventListener("animationend", () => {
+                        entry.classList.remove("moving-up", "moving-down");
                     }, { once: true });
                 }
             });
         }
-
-        // Initial load
-        await fetchAndRenderLeaderboard();
-
-        // Set up polling
-        const pollInterval = setInterval(fetchAndRenderLeaderboard, 10000);
-
-        // Store interval for cleanup
-        const leaderboardScreen = document.getElementById('leaderboard-screen');
-    if (leaderboardScreen) {
-        if (leaderboardScreen.dataset.pollInterval) {
-            clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
+        
+        // Initial update
+        await updateLeaderboard();
+        
+        // Set interval for polling updates
+        const pollInterval = setInterval(updateLeaderboard, 10000);
+        
+        // Store interval ID so we can clear it when needed
+        const leaderboardScreen = document.getElementById("leaderboard-screen");
+        if (leaderboardScreen) {
+            if (leaderboardScreen.dataset.pollInterval) {
+                clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
+            }
+            leaderboardScreen.dataset.pollInterval = pollInterval;
         }
-        leaderboardScreen.dataset.pollInterval = pollInterval;
-    }
-    } catch (error) {
-        console.error('Detailed leaderboard error:', error);
-        entriesContainer.innerHTML = `<p>Error loading leaderboard: ${error.message}</p>`;
+        
+    } catch (detailedError) {
+        console.error("Detailed leaderboard error:", detailedError);
+        entriesContainer.innerHTML = `<p>Error loading leaderboard: ${detailedError.message}</p>`;
     }
 }
 
