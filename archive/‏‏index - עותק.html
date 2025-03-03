@@ -2085,24 +2085,26 @@ body {
 }
 
 .level-announcement {
-    position: absolute;
-    z-index: 10000;
-    color: var(--text);
-    text-align: center;
-    opacity: 0;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    transform: scale(0.9);
-    background: rgba(0, 0, 0, 0.3);
-    padding: 2rem 3rem;
-    border-radius: 20px;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  z-index: 10000;
+  color: var(--text);
+  text-align: center;
+  opacity: 0;
+  transition: all .4s cubic-bezier(.4, 0, .2, 1);
+  background: rgba(0,0,0,.3);
+  padding: 2rem 3rem;
+  border-radius: 20px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,.1);
+  box-shadow: 0 10px 30px rgba(0,0,0,.3);
 }
 
 .level-announcement.show {
-    opacity: 1;
-    transform: scale(1);
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 .level-announcement h1 {
@@ -6209,6 +6211,9 @@ body.dark-theme {
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
   z-index: 2;
   animation: pulse-glow 1.5s infinite alternate;
+  width: auto;
+  min-width: 200px;
+  margin: 0 auto; /* Center horizontally */
 }
 
 .simple-level-transition.fade-out .level-announcement {
@@ -6275,6 +6280,49 @@ body.dark-theme {
   width: 0%;
   border-radius: 0 0 10px 10px;
   transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes carouselEnter {
+  0% { 
+    transform: translateZ(-100px) translateY(-20px) translateX(80px) scale(0.7); 
+    opacity: 0;
+    perspective: 1000px;
+  }
+  100% { 
+    transform: translateZ(0) translateY(0) translateX(0) scale(1); 
+    opacity: 1;
+    perspective: 1000px;
+  }
+}
+
+@keyframes carouselExit {
+  0% { 
+    transform: translateZ(0) translateY(0) translateX(0) scale(1); 
+    opacity: 1;
+    perspective: 1000px;
+  }
+  100% { 
+    transform: translateZ(-100px) translateY(-20px) translateX(-80px) scale(0.7); 
+    opacity: 0;
+    perspective: 1000px;
+  }
+}
+
+.question-screen {
+  perspective: 1000px;
+}
+
+.question-word {
+  transform-style: preserve-3d;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.question-word.exiting {
+  animation: carouselExit 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.question-word.entering {
+  animation: carouselEnter 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
 
 </style>
@@ -10388,113 +10436,113 @@ function updateNavigationIcons(screenId) {
 }
 
 function updateProgressCircle() {
-    const circle = document.querySelector('.progress-circle .progress');
-    const progressCircle = document.querySelector('.progress-circle');
-    
-    const radius = 54;
-    const circumference = 2 * Math.PI * radius;
-    
-    const progress = currentGame.currentIndex / currentGame.words.length;
-    
-    circle.style.strokeDasharray = `${circumference} ${circumference}`;
-    circle.style.strokeDashoffset = circumference * (1 - progress);
-    
-    // Advanced color progression
-    let hue, saturation, lightness;
-    
-    if (progress <= 0.2) {
-        // 0-20%: Dark Red
-        hue = 0;
-        saturation = 100;
-        lightness = 20;
-    } else if (progress <= 0.4) {
-        // 20-40%: Bright Red
-        hue = 0;
-        saturation = 100;
-        lightness = 50;
-    } else if (progress <= 0.6) {
-        // 40-60%: Orange
-        hue = 30;
-        saturation = 100;
-        lightness = 50;
-    } else if (progress <= 0.8) {
-        // 60-80%: Bright Green
-        hue = 120;
-        saturation = 100;
-        lightness = 40;
-    } else {
-        // 80-100%: Gold to Blue transition
-        const goldToBlueProgress = (progress - 0.8) * 5;
-        hue = 120 * (1 - goldToBlueProgress) + 60 * goldToBlueProgress;
-        saturation = 100;
-        lightness = 40 + (20 * goldToBlueProgress);
-    }
-    
-    circle.style.stroke = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-    
+  const progressCircle = document.querySelector('.progress-circle .progress');
+  const circumference = 2 * Math.PI * 54;
+  const progress = currentGame.currentIndex / currentGame.words.length;
+  
+  progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+  progressCircle.style.strokeDashoffset = circumference * (1 - progress);
+  
+  let hue, saturation, lightness;
+  
+  if (progress <= 0.2) {
+    // Dark red
+    hue = 0;
+    saturation = 100;
+    lightness = 20;
+  } else if (progress <= 0.4) {
+    // Bright red
+    hue = 0;
+    saturation = 100;
+    lightness = 45;
+  } else if (progress <= 0.6) {
+    // Orange
+    hue = 30;
+    saturation = 100;
+    lightness = 50;
+  } else if (progress <= 0.8) {
+    // Yellow
+    hue = 60;
+    saturation = 100;
+    lightness = 50;
+  } else {
+    // Green
+    hue = 120;
+    saturation = 100;
+    lightness = 40;
+  }
+  
+  progressCircle.style.stroke = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
 
 function loadNextQuestion() {
-    // Clear previous button states
-    document.querySelectorAll('.buttons button').forEach(button => {
-        button.classList.remove('correct', 'wrong');
-    });
+  // Clear any previous button classes
+  document.querySelectorAll('.buttons button').forEach(button => {
+    button.classList.remove('correct', 'wrong');
+  });
 
-    // Check if we've reached the end of the word list
-    if (currentGame.currentIndex >= currentGame.words.length) return;
+  // Check if there are any words left
+  if (currentGame.currentIndex >= currentGame.words.length) return;
 
-    const questionWordElement = document.getElementById('question-word');
-    
-    // Choose whether to show Hebrew or English based on game state or randomness 
-    const showTranslation = !![3, 6, 9, 10, 13, 16, 19, 20, 21].includes(gameState.currentLevel) && Math.random() < 0.5;
-    
-    const idx = currentGame.currentIndex;
-    const word = showTranslation ? currentGame.translations[idx] : currentGame.words[idx];
-    
-    // Generate answer options
-    const correctAnswer = showTranslation ? currentGame.words[idx] : currentGame.translations[idx];
-    const options = showTranslation ? currentGame.words : currentGame.translations;
-    const answerSet = new Set([correctAnswer]);
-    
-    // Add distractors until we have enough options
-    while (answerSet.size < 3) {
-        const distractor = options[Math.floor(Math.random() * options.length)];
-        if (distractor !== correctAnswer) {
-            answerSet.add(distractor);
-        }
+  const questionWordElement = document.getElementById('question-word');
+  
+  // Determine if we should show Hebrew or English based on level or random factor
+  const isSpecialLevel = [3, 6, 9, 10, 13, 16, 19, 20, 21].includes(gameState.currentLevel);
+  const isHebrewToEnglish = isSpecialLevel && Math.random() < 0.5;
+  
+  const index = currentGame.currentIndex;
+  const wordToDisplay = isHebrewToEnglish ? currentGame.translations[index] : currentGame.words[index];
+  const correctAnswer = isHebrewToEnglish ? currentGame.words[index] : currentGame.translations[index];
+  
+  // Get the pool of potential answers
+  const answerPool = isHebrewToEnglish ? currentGame.words : currentGame.translations;
+  
+  // Create a set to avoid duplicates, starting with the correct answer
+  const answerSet = new Set([correctAnswer]);
+  
+  // Add random incorrect answers until we have 3 options
+  while (answerSet.size < 3) {
+    const randomAnswer = answerPool[Math.floor(Math.random() * answerPool.length)];
+    if (randomAnswer !== correctAnswer) {
+      answerSet.add(randomAnswer);
     }
-    
-    // Shuffle answer options and create buttons
-    const buttons = document.getElementById('buttons');
-    buttons.innerHTML = '';
-    Array.from(answerSet).sort(() => Math.random() - 0.5).forEach(option => {
-        const button = document.createElement('button');
-        button.textContent = option;
-        button.onclick = () => handleAnswer(option === correctAnswer);
-        buttons.appendChild(button);
-    });
-
-    // Apply animation only after first question
-    if (currentGame.currentIndex > 0) {
-        // Add exit animation
-        questionWordElement.classList.add('exiting');
-        
-        // Wait for animation to complete before changing text and adding entrance animation
-        setTimeout(() => {
-            questionWordElement.textContent = word;
-            questionWordElement.classList.remove('exiting');
-            questionWordElement.classList.add('entering');
-            
-            // Remove entrance animation class after it completes
-            setTimeout(() => {
-                questionWordElement.classList.remove('entering');
-            }, 300); // Animation duration
-        }, 300); // Animation duration
-    } else {
-        // For the first word, just set it without animation
-        questionWordElement.textContent = word;
-    }
+  }
+  
+  // Generate buttons with the answers
+  const buttonsContainer = document.getElementById('buttons');
+  buttonsContainer.innerHTML = '';
+  
+  // Convert set to array and shuffle
+  const shuffledAnswers = Array.from(answerSet).sort(() => Math.random() - 0.5);
+  
+  // Create buttons for each answer
+  shuffledAnswers.forEach(answer => {
+    const button = document.createElement('button');
+    button.textContent = answer;
+    button.onclick = () => handleAnswer(answer === correctAnswer);
+    buttonsContainer.appendChild(button);
+  });
+  
+  // Apply 3D carousel animation
+  if (currentGame.currentIndex > 0) {
+    questionWordElement.classList.add('exiting');
+    setTimeout(() => {
+      questionWordElement.textContent = wordToDisplay;
+      questionWordElement.classList.remove('exiting');
+      questionWordElement.classList.add('entering');
+      setTimeout(() => {
+        questionWordElement.classList.remove('entering');
+      }, 500); // Match the animation duration
+    }, 500); // Match the animation duration
+  } else {
+    // First word just appears
+    questionWordElement.textContent = wordToDisplay;
+    questionWordElement.classList.add('entering');
+    setTimeout(() => {
+      questionWordElement.classList.remove('entering');
+    }, 500);
+  }
 }
 
 function showBossVictoryScreen() {
@@ -10999,6 +11047,9 @@ function stopLevelAndGoBack() {
   // Show a simple outro animation
   const outro = document.createElement('div');
   outro.className = 'simple-level-transition';
+  outro.style.display = 'flex';
+  outro.style.justifyContent = 'center';
+  outro.style.alignItems = 'center';
   
   // Create light streaks for animation
   for (let i = 0; i < 3; i++) {
@@ -11011,6 +11062,7 @@ function stopLevelAndGoBack() {
   
   const announcement = document.createElement('div');
   announcement.className = 'level-announcement simple';
+  announcement.style.position = 'relative'; // Ensure proper positioning
   
   announcement.innerHTML = `
     <div class="level-number">
@@ -11557,9 +11609,13 @@ function showLevelIntro(level, callback, forceFullIntro = false) {
                       forceFullIntro;
   
 // For level transitions in the same session, use simple fade
+// For level transitions in the same session, use simple fade
 if (!isNewSession) {
   const simpleTransition = document.createElement('div');
   simpleTransition.className = 'simple-level-transition';
+  simpleTransition.style.display = 'flex';
+  simpleTransition.style.justifyContent = 'center';
+  simpleTransition.style.alignItems = 'center';
   
   // Create light streaks for animation
   for (let i = 0; i < 3; i++) {
@@ -11572,6 +11628,7 @@ if (!isNewSession) {
   
   const announcement = document.createElement('div');
   announcement.className = 'level-announcement simple';
+  announcement.style.position = 'relative'; // Ensure proper positioning
   
   // Add a dynamic progress bar
   const progressBar = document.createElement('div');
@@ -15758,21 +15815,31 @@ function updateArcadeCoinDisplay() {
 }
 
 function requestFullscreenMode() {
-    const root = document.documentElement;
-    
-    // Check if the device is mobile
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
-    if (!isMobile) return; // Only proceed for mobile devices
-    
-    // Try different fullscreen methods
-    if (root.requestFullscreen) {
-        root.requestFullscreen().catch(err => console.log('Fullscreen request failed:', err));
-    } else if (root.webkitRequestFullscreen) {
-        root.webkitRequestFullscreen().catch(err => console.log('Fullscreen request failed:', err));
-    } else if (root.msRequestFullscreen) {
-        root.msRequestFullscreen().catch(err => console.log('Fullscreen request failed:', err));
+  // Exit immediately if not on a mobile device
+  if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return;
+  
+  const element = document.documentElement;
+  
+  // Check if already in fullscreen
+  if (document.fullscreenElement || document.webkitFullscreenElement || 
+      document.mozFullScreenElement || document.msFullscreenElement) {
+    return; // Already in fullscreen mode
+  }
+  
+  // Request fullscreen with fallbacks for different browsers
+  try {
+    if (element.requestFullscreen) {
+      element.requestFullscreen();
+    } else if (element.webkitRequestFullscreen) { // Safari
+      element.webkitRequestFullscreen();
+    } else if (element.mozRequestFullScreen) { // Firefox
+      element.mozRequestFullScreen();
+    } else if (element.msRequestFullscreen) { // IE/Edge
+      element.msRequestFullscreen();
     }
+  } catch (error) {
+    console.log("Fullscreen request failed:", error);
+  }
 }
 
 function generateQRCode(otp) {
@@ -16409,58 +16476,48 @@ function startBossLevel() {
 }
 
 function loadNextBossQuestion() {
-    console.log("Loading next boss question");
-    setTimeout(applyBossLevelStyles, 100);
-    createLightningEffect();
-    createBossRainingLetters();
-
-    const questionWordElement = document.getElementById('question-word');
-    
-    // Apply boss-specific styles
-    if (questionWordElement) {
-        questionWordElement.style.setProperty("color", "#ff3333", "important");
-        questionWordElement.style.setProperty("text-shadow", "0 0 10px rgba(255, 0, 0, 0.5)", "important");
-        questionWordElement.style.setProperty("animation", "pulseWord 2s infinite", "important");
-    }
-
-    try {
-        // Apply word transition animation
-        if (currentGame.currentIndex > 0 && questionWordElement) {
-            // Add exit animation
-            questionWordElement.classList.add('exiting');
-            
-            // Wait for animation to complete before loading next question
-            setTimeout(() => {
-                loadNextQuestion();
-                questionWordElement.classList.remove('exiting');
-                questionWordElement.classList.add('entering');
-                
-                // Remove entrance animation class after it completes
-                setTimeout(() => {
-                    questionWordElement.classList.remove('entering');
-                }, 300);
-            }, 300);
-        } else {
-            // For the first word, just load without animation
-            loadNextQuestion();
-        }
-        
-        // Update boss health bar
+  console.log('Loading next boss question');
+  setTimeout(applyBossLevelStyles, 100);
+  createLightningEffect();
+  createBossRainingLetters();
+  
+  const questionWordElement = document.getElementById('question-word');
+  if (questionWordElement) {
+    questionWordElement.style.setProperty('color', '#ff3333', 'important');
+    questionWordElement.style.setProperty('text-shadow', '0 0 10px rgba(255, 0, 0, 0.5)', 'important');
+    questionWordElement.style.setProperty('animation', 'pulseWord 2s infinite', 'important');
+  }
+  
+  try {
+    if (currentGame.currentIndex > 0 && questionWordElement) {
+      questionWordElement.classList.add('exiting');
+      setTimeout(() => {
+        loadNextQuestion();
+        questionWordElement.classList.remove('exiting');
+        questionWordElement.classList.add('entering');
         setTimeout(() => {
-            updateBossHealthBar();
-        }, 50);
-
-        // Randomly shuffle answer buttons for additional challenge
-        const buttonsContainer = document.getElementById('buttons');
-        if (buttonsContainer && Math.random() < 0.3) {
-            const buttons = Array.from(buttonsContainer.children);
-            buttons.sort(() => Math.random() - 0.5).forEach(button => {
-                buttonsContainer.appendChild(button);
-            });
-        }
-    } catch (error) {
-        console.error("Error loading boss question:", error);
+          questionWordElement.classList.remove('entering');
+        }, 500); // Match the animation duration
+      }, 500); // Match the animation duration
+    } else {
+      loadNextQuestion();
     }
+    
+    setTimeout(() => {
+      updateBossHealthBar();
+    }, 50);
+    
+    // Occasionally shuffle buttons to increase difficulty
+    const buttonsContainer = document.getElementById('buttons');
+    if (buttonsContainer && Math.random() < 0.3) {
+      const buttons = Array.from(buttonsContainer.children);
+      buttons.sort(() => Math.random() - 0.5).forEach(button => {
+        buttonsContainer.appendChild(button);
+      });
+    }
+  } catch (error) {
+    console.error('Error loading boss question:', error);
+  }
 }
 
 function restoreFromBossLevel() {
@@ -18412,7 +18469,7 @@ function createResurrectionParticles() {
         // Clean up after animation
         setTimeout(() => {
             particle.remove();
-        }, (duration + delay) * 1000 + 100);
+        }, (duration + delay) * 1000);
     }
 }
 
@@ -24301,6 +24358,89 @@ window.debugUpgrade = function() {
   console.log("Upgrade form:", document.getElementById('upgradeForm'));
   console.log("Current user:", currentUser);
 }
+
+// Enhanced fullscreen mode management - MOBILE ONLY
+(function() {
+  // Function to detect if the device is mobile
+  function isMobileDevice() {
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  }
+  
+  // Enhanced fullscreen request function that ONLY applies to mobile
+  function requestFullscreenMode() {
+    // Exit immediately if not on a mobile device
+    if (!isMobileDevice()) return;
+    
+    const element = document.documentElement;
+    
+    // Check if already in fullscreen
+    if (document.fullscreenElement || document.webkitFullscreenElement || 
+        document.mozFullScreenElement || document.msFullscreenElement) {
+      return; // Already in fullscreen mode
+    }
+    
+    // Request fullscreen with fallbacks for different browsers
+    try {
+      if (element.requestFullscreen) {
+        element.requestFullscreen();
+      } else if (element.webkitRequestFullscreen) { // Safari
+        element.webkitRequestFullscreen();
+      } else if (element.mozRequestFullScreen) { // Firefox
+        element.mozRequestFullScreen();
+      } else if (element.msRequestFullscreen) { // IE/Edge
+        element.msRequestFullscreen();
+      }
+    } catch (error) {
+      console.log("Fullscreen request failed:", error);
+    }
+    
+    // Try to lock orientation to portrait if supported (mobile only)
+    if (isMobileDevice() && screen.orientation) {
+      try {
+        screen.orientation.lock('portrait').catch(() => {});
+      } catch (e) {}
+    }
+  }
+
+  // Only initialize fullscreen behavior for mobile devices
+  if (isMobileDevice()) {
+    // Try to enter fullscreen mode immediately (only on mobile)
+    requestFullscreenMode();
+    
+    // Also request fullscreen on page load (only on mobile)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', requestFullscreenMode);
+    }
+    
+    // Ensure fullscreen mode on all user interactions (for iOS)
+    document.addEventListener('touchstart', requestFullscreenMode);
+    document.addEventListener('click', requestFullscreenMode);
+    
+    // Hook into screen transitions to maintain fullscreen
+    const originalShowScreen = window.showScreen;
+    if (typeof originalShowScreen === 'function') {
+      window.showScreen = function(screenId, forceRefresh = false) {
+        const result = originalShowScreen(screenId, forceRefresh);
+        setTimeout(requestFullscreenMode, 100); // Slight delay
+        return result;
+      };
+    }
+    
+    // Monitor fullscreen state changes
+    document.addEventListener('fullscreenchange', function() {
+      if (!document.fullscreenElement) setTimeout(requestFullscreenMode, 300);
+    });
+    document.addEventListener('webkitfullscreenchange', function() {
+      if (!document.webkitFullscreenElement) setTimeout(requestFullscreenMode, 300);
+    });
+    document.addEventListener('mozfullscreenchange', function() {
+      if (!document.mozFullScreenElement) setTimeout(requestFullscreenMode, 300);
+    });
+    document.addEventListener('MSFullscreenChange', function() {
+      if (!document.msFullscreenElement) setTimeout(requestFullscreenMode, 300);
+    });
+  }
+})();
 
 </script>
 </body>
