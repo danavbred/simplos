@@ -2592,22 +2592,18 @@ body {
 }
 
 
-/* Question screen specific styles */
 .question-screen {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.5rem;
-  height: 100vh;
-  padding: 1rem 1rem 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
     min-height: 100vh;
-    height: auto;
-    justify-content: space-between;
-    gap: 0.5rem;
-    justify-content: space-between;
-    padding: 1rem 1rem 2rem;
+    height: 100vh;
+    padding: 1rem 1rem 1.5rem;
     overflow: hidden;
+    gap: 0.75rem;
 }
+
 
 .question-word {
   font-size: 4rem;
@@ -3838,9 +3834,18 @@ body {
 
 /* Media Queries */
 @media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+  }
+  
   .question-screen {
-    padding-top: 2rem;
-    gap: 1rem;
+    height: 100vh;
+    max-height: -webkit-fill-available;
+    overflow: hidden;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    gap: 0.75rem;
+    justify-content: space-between;
   }
 
   .welcome-title {
@@ -3859,7 +3864,6 @@ body {
     padding: 0.75rem;
   }
   
-  
   .level {
     max-width: none;
     aspect-ratio: 1;
@@ -3867,22 +3871,26 @@ body {
   }
   
   .question-word {
-    font-size: 2.5rem;
-    margin: 0.5rem 0;
+    font-size: 2rem;
+    margin: 0.25rem 0;
+    padding: 0.5rem;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .progress-circle {
-    width: 150px;
-    height: 150px;
-    margin: 0.5rem 0;
+    width: 120px;
+    height: 120px;
+    margin: 0.25rem 0;
   }
   
   .progress-circle .timer-progress.warning {
     stroke: #f44336; /* This is the --error color */
     filter: drop-shadow(0 0 5px rgba(244, 67, 54, 0.5));
     transition: stroke 0.3s ease, stroke-dashoffset 1s linear;
-}
-
+  }
 
   .timer-value {
     font-size: 2.5rem;
@@ -3890,30 +3898,32 @@ body {
   
   .buttons {
     grid-template-columns: 1fr;
-    gap: 0.75rem;
+    gap: 0.5rem;
+    margin: 0.25rem auto 0.5rem;
   }
   
   .buttons button {
-    min-height: 3.5rem;
-    font-size: 1rem;
+    min-height: 3rem;
+    font-size: 0.9rem;
     padding: 0.75rem;
     line-height: 1.2;
   }
 
   .coins-header {
-    top: 1rem;
-    right: 1rem;
-    padding: 0.5rem 1rem;
+    top: 0.5rem;
+    right: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.9rem;
   }
 
   .perks-container {
-    padding: 0.5rem;
     gap: 0.5rem;
-    margin: 0.5rem 0;
+    margin: 0.25rem 0;
+    padding: 0.5rem;
   }
 
   .perk-button {
-    padding: 0.35rem;
+    padding: 0.25rem;
   }
 
   .perk-icon {
@@ -3922,6 +3932,56 @@ body {
 
   .perk-count {
     font-size: 0.7rem;
+  }
+  
+  .powerups-container {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .powerup-card {
+    width: calc(33% - 10px);
+    max-width: 80px;
+    height: 80px;
+    padding: 0.25rem;
+  }
+  
+  .powerup-icon {
+    font-size: 1.1rem;
+  }
+  
+  .powerup-name {
+    font-size: 0.7rem;
+    margin: 0.1rem 0;
+  }
+  
+  .powerup-cost {
+    width: 20px;
+    height: 20px;
+    font-size: 0.65rem;
+  }
+
+  .navigation-menu {
+    top: 60px;
+    right: 10px;
+  }
+
+  .navigation-button {
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+  }
+
+  .hamburger-button {
+    width: 45px;
+    height: 45px;
+  }
+
+  .victory-button {
+    padding: 0.85rem 2rem;
+    font-size: 1rem;
   }
 }
 
@@ -3940,27 +4000,54 @@ body {
     grid-template-columns: repeat(2, 1fr);
   }
   
-
   .question-word {
-    font-size: 2rem;
+    font-size: 1.75rem;
   }
 
   .progress-circle {
-    width: 120px;
-    height: 120px;
-    margin: 0.5rem 0;
+    width: 100px;
+    height: 100px;
+    margin: 0.25rem 0;
   }
 
   .timer-value {
     font-size: 2rem;
   }
+  
+  .buttons button {
+    min-height: 2.5rem;
+    padding: 0.5rem;
+  }
+  
+  .powerup-card {
+    width: calc(33% - 6px);
+    max-width: 70px;
+    height: 70px;
+  }
 }
 
-@supports(padding: max(0px)) {
-  .screen {
-    padding-left: max(2rem, env(safe-area-inset-left));
-    padding-right: max(2rem, env(safe-area-inset-right));
-    padding-bottom: max(2rem, env(safe-area-inset-bottom));
+@media (max-width: 380px) and (max-height: 667px) {
+  .question-screen {
+    padding: 0.75rem 0.5rem;
+  }
+  
+  .buttons button {
+    min-height: 2.5rem;
+    padding: 0.5rem;
+  }
+  
+  .progress-circle {
+    width: 90px;
+    height: 90px;
+  }
+}
+
+/* Add this to ensure proper handling of safe areas on notched phones */
+@supports (padding: max(0px)) {
+  .question-screen {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
 }
 
@@ -4224,111 +4311,7 @@ body {
 }
 
 
-.navigation-container {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    margin: 1rem 0;
-    background: var(--glass);
-    padding: 0.75rem;
-    border-radius: 25px;
-    backdrop-filter: blur(10px);
-    position: center;
-    top: 1rem;
-    left: 1rem;
-    z-index: 100;
-}
 
-.navigation-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    box-shadow: none;
-}
-
-.navigation-button:hover {
-    background: transparent !important;
-    box-shadow: none !important;
-    transform: none !important;
-}
-
-.navigation-button:hover svg {
-    fill: var(--text) !important;
-    stroke: var(--text) !important;
-}
-
-.navigation-icon {
-    font-size: 1.5rem;
-    color: var(--text);
-}
-
-/* Override any glow effects */
-.navigation-button.restart-level {
-    color: var(--text);
-    animation: none;
-}
-
-.navigation-button.restart-level:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateY(-2px);
-}
-
-.navigation-button.disabled {
-    cursor: pointer;
-    opacity: 0.3;
-}
-
-@keyframes blinkRed {
-    0%, 100% { background-color: transparent; }
-    50% { background-color: var(--error); }
-}
-
-@keyframes particleBurst {
-    0% { 
-        transform: translate(0, 0) scale(1); 
-        opacity: 1; 
-    }
-    100% { 
-        transform: translate(var(--x), var(--y)) scale(0.5); 
-        opacity: 0; 
-    }
-}
-
-.menu-button {
-    position: fixed;
-    top: 2rem;
-    right: 2rem;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background: var(--glass);
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(10px);
-    transition: all 0.3s ease;
-    z-index: 100;
-}
-
-.menu-button:hover {
-    transform: scale(1.1);
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.menu-button .navigation-icon {
-    color: var(--text);
-    font-size: 1.5rem;
-}
 
 .upgrade-prompt {
     position: fixed;
@@ -6325,23 +6308,63 @@ body.dark-theme {
   animation: carouselEnter 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
 
+/* REPLACE navigation-menu styles */
+.navigation-menu {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 100;
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    padding: 10px;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transform: translateX(calc(100% + 20px));
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.navigation-menu.open {
+    transform: translateX(0);
+}
+
+.navigation-button {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    font-size: 1.25rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.navigation-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.navigation-button:active {
+    transform: translateY(0);
+}
+
+/* Style for the hamburger button when menu is open */
+.hamburger-button.active {
+    background: var(--accent);
+}
+
 </style>
 </head>
 <body>
 
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9563715706895348"
-    crossorigin="anonymous"></script>
 
-<div id="qr-landing" class="screen" style="display: none;">
-    <div class="qr-landing-content">
-        <h2>Welcome to Simplos Arcade!</h2>
-        <p>Your game code is:</p>
-        <div class="game-code-display"></div>
-        <button class="join-game-button" onclick="proceedToGame()">
-            Join Game
-        </button>
-    </div>
-</div>
 
 
   <div id="welcome-screen" class="screen visible">
@@ -9557,6 +9580,10 @@ function showScreen(screenId, forceRefresh = false) {
     window.location.reload(true);
     return;
   }
+
+  if (["question-screen", "custom-practice-screen", "moderator-screen", "leaderboard-screen"].includes(screenId)) {
+        updateNavigationContainer();
+    }
   
   // Hide all screens
   document.querySelectorAll('.screen').forEach(screen => {
@@ -24519,6 +24546,147 @@ window.debugUpgrade = function() {
     });
   }
 })();
+
+// ADD these functions
+function toggleNavigationMenu() {
+    const menu = document.querySelector('.navigation-menu');
+    const hamburger = document.querySelector('.hamburger-button');
+    
+    if (menu) {
+        menu.classList.toggle('open');
+        hamburger.classList.toggle('active');
+    }
+}
+
+function navigateHome() {
+    toggleNavigationMenu();
+    showScreen("welcome-screen");
+}
+
+function toggleFullScreen() {
+    const element = document.documentElement;
+    const hamburger = document.querySelector('.hamburger-button i');
+    
+    if (!document.fullscreenElement) {
+        if (element.requestFullscreen) {
+            element.requestFullscreen().then(() => {
+                if (hamburger) {
+                    hamburger.classList.remove('fa-expand');
+                    hamburger.classList.add('fa-compress');
+                }
+            }).catch(e => {
+                console.log(`Error attempting to enable fullscreen: ${e.message}`);
+            });
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen().then(() => {
+                if (hamburger) {
+                    hamburger.classList.remove('fa-compress');
+                    hamburger.classList.add('fa-expand');
+                }
+            }).catch(e => {
+                console.log(`Error attempting to exit fullscreen: ${e.message}`);
+            });
+        }
+    }
+}
+
+// ADD this function to create and attach the navigation menu
+function updateNavigationContainer() {
+    // Remove existing navigation container if present
+    const existingNav = document.querySelector('.navigation-menu');
+    if (existingNav) {
+        existingNav.remove();
+    }
+    
+    // Create new navigation menu
+    const navMenu = document.createElement('div');
+    navMenu.className = 'navigation-menu';
+    navMenu.innerHTML = `
+        <button class="navigation-button home-button" title="Home">
+            <i class="fas fa-home navigation-icon"></i>
+        </button>
+        <button class="navigation-button fullscreen-button" title="Toggle Fullscreen">
+            <i class="fas fa-expand navigation-icon"></i>
+        </button>
+        <button class="navigation-button settings-button" title="Settings">
+            <i class="fas fa-cog navigation-icon"></i>
+        </button>
+    `;
+    document.body.appendChild(navMenu);
+    
+    // Get hamburger button or create it if it doesn't exist
+    let hamburger = document.querySelector('.hamburger-button');
+    if (!hamburger) {
+        hamburger = document.createElement('button');
+        hamburger.className = 'hamburger-button';
+        hamburger.innerHTML = '<i class="fas fa-bars"></i>';
+        document.body.appendChild(hamburger);
+    }
+    
+    // Add event listeners
+    hamburger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleNavigationMenu();
+    });
+    
+    // Add click event for other navigation buttons
+    const homeButton = navMenu.querySelector('.home-button');
+    const fullscreenButton = navMenu.querySelector('.fullscreen-button');
+    const settingsButton = navMenu.querySelector('.settings-button');
+    
+    homeButton.addEventListener('click', () => {
+        toggleNavigationMenu();
+        navigateHome();
+    });
+    
+    fullscreenButton.addEventListener('click', () => {
+        toggleFullScreen();
+    });
+    
+    settingsButton.addEventListener('click', () => {
+        console.log('Settings button clicked');
+        // Future functionality
+    });
+    
+    // Close menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!navMenu.contains(e.target) && !hamburger.contains(e.target)) {
+            navMenu.classList.remove('open');
+            hamburger.classList.remove('active');
+        }
+    });
+}
+
+// ADD this function to handle mobile optimization of the question screen
+function optimizeQuestionScreenForMobile() {
+  const questionScreen = document.getElementById('question-screen');
+  if (!questionScreen) return;
+  
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+    questionScreen.classList.add('mobile-optimized');
+  }
+}
+
+// Call this when showing the question screen
+document.addEventListener('DOMContentLoaded', function() {
+  // Run on existing showScreen function calls
+  const originalShowScreen = window.showScreen;
+  if (typeof originalShowScreen === 'function') {
+    window.showScreen = function(screenId, forceRefresh) {
+      originalShowScreen(screenId, forceRefresh);
+      if (screenId === 'question-screen') {
+        optimizeQuestionScreenForMobile();
+      }
+    };
+  }
+  
+  // Also apply when the question screen is already visible
+  if (document.getElementById('question-screen')?.classList.contains('visible')) {
+    optimizeQuestionScreenForMobile();
+  }
+});
 
 </script>
 </body>

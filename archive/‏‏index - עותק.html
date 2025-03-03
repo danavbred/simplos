@@ -6329,6 +6329,9 @@ body.dark-theme {
 </head>
 <body>
 
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9563715706895348"
+    crossorigin="anonymous"></script>
+
 <div id="qr-landing" class="screen" style="display: none;">
     <div class="qr-landing-content">
         <h2>Welcome to Simplos Arcade!</h2>
@@ -10360,35 +10363,42 @@ function setupGameState(levelConfig, vocabulary) {
 }
 
 function handleLevelProgression() {
-    // Flag to make sure we don't accidentally apply the boss reward twice
-    if (currentGame.isBossLevel && !currentGame.bossRewardApplied) {
-        // Mark it as applied to prevent duplicate rewards
-        currentGame.bossRewardApplied = true;
+  if (currentGame.isBossLevel && !currentGame.bossRewardApplied) {
+    currentGame.bossRewardApplied = true;
+  }
+
+  const stage = gameStructure.stages[gameState.currentStage - 1];
+  const isFinalLevel = gameState.currentLevel === stage.levelsPerSet;
+  const isFinalSet = gameState.currentSet === stage.numSets;
+  const userStatus = currentUser ? currentUser.status : "unregistered";
+
+  if (isFinalLevel) {
+    // If this is final level of Set 1 in Stages 2-5, check for premium
+    if (gameState.currentStage >= 2 && gameState.currentSet === 1 && userStatus !== "premium") {
+      showScreen("welcome-screen");
+      setTimeout(() => {
+        showUpgradePrompt();
+      }, 500);
+      return;
     }
     
-    const currentStage = gameStructure.stages[gameState.currentStage - 1];
-    const isLastLevel = gameState.currentLevel === currentStage.levelsPerSet;
-    const isLastSet = gameState.currentSet === currentStage.numSets;
-    
-    if (isLastLevel) {
-        if (isLastSet) {
-            if (gameState.currentStage < 5) {
-                gameState.currentStage++;
-                gameState.currentSet = 1;
-                startLevel(1);
-            } else {
-                showScreen('stage-screen');
-            }
-        } else {
-            gameState.currentSet++;
-            startLevel(1);
-        }
+    // Normal progression logic
+    if (isFinalSet) {
+      if (gameState.currentStage < 5) {
+        gameState.currentStage++;
+        gameState.currentSet = 1;
+        startLevel(1);
+      } else {
+        showScreen("stage-screen");
+      }
     } else {
-        startLevel(gameState.currentLevel + 1);
+      gameState.currentSet++;
+      startLevel(1);
     }
+  } else {
+    startLevel(gameState.currentLevel + 1);
+  }
 }
-
-
 
 function updateNavigationIcons(screenId) {
     // Remove existing navigation containers
@@ -11602,94 +11612,133 @@ function unlockNextStage() {
   }
 }
 
-function showLevelIntro(level, callback, forceFullIntro = false) {
-  // Check if this is a new session or just a level transition
-  const isNewSession = !gameState.sessionStartTime || 
-                      (Date.now() - gameState.sessionStartTime > 30 * 60 * 1000) || 
-                      forceFullIntro;
-  
-// For level transitions in the same session, use simple fade
-// For level transitions in the same session, use simple fade
-if (!isNewSession) {
-  const simpleTransition = document.createElement('div');
-  simpleTransition.className = 'simple-level-transition';
-  simpleTransition.style.display = 'flex';
-  simpleTransition.style.justifyContent = 'center';
-  simpleTransition.style.alignItems = 'center';
-  
-  // Create light streaks for animation
-  for (let i = 0; i < 3; i++) {
-    const streak = document.createElement('div');
-    streak.className = 'light-streak';
-    streak.style.top = `${20 + (i * 25)}%`;
-    streak.style.animationDelay = `${i * 0.2}s`;
-    simpleTransition.appendChild(streak);
-  }
-  
-  const announcement = document.createElement('div');
-  announcement.className = 'level-announcement simple';
-  announcement.style.position = 'relative'; // Ensure proper positioning
-  
-  // Add a dynamic progress bar
-  const progressBar = document.createElement('div');
-  progressBar.className = 'transition-progress';
-  
-  announcement.innerHTML = `
-    <div class="level-number">${level}</div>
-    <div class="level-text">Stage ${gameState.currentStage} - Set ${gameState.currentSet}</div>
-  `;
-  
-  announcement.appendChild(progressBar);
-  simpleTransition.appendChild(announcement);
-  document.body.appendChild(simpleTransition);
-  
-  // Animate progress bar
-  setTimeout(() => {
-    progressBar.style.width = '100%';
-  }, 50);
-  
-  setTimeout(() => {
-    simpleTransition.classList.add('fade-out');
+function showLevelIntro(level, callback, forceFull = false) {
+  // Skip the animation if we're in a continuous session unless forced
+  if (!(!gameState.sessionStartTime || (Date.now() - gameState.sessionStartTime > 1800000) || forceFull)) {
+    // Simple transition for continuous play
+    const transitionDiv = document.createElement('div');
+    transitionDiv.className = 'simple-level-transition';
+    transitionDiv.style.display = 'flex';
+    transitionDiv.style.justifyContent = 'center';
+    transitionDiv.style.alignItems = 'center';
+
+    // Create light streaks for effect
+    for (let i = 0; i < 3; i++) {
+      const streak = document.createElement('div');
+      streak.className = 'light-streak';
+      streak.style.top = (20 + 25 * i) + '%';
+      streak.style.animationDelay = (0.2 * i) + 's';
+      transitionDiv.appendChild(streak);
+    }
+
+    const announcementDiv = document.createElement('div');
+    announcementDiv.className = 'level-announcement simple';
+    announcementDiv.style.position = 'relative';
+
+    // Progress bar
+    const progressBar = document.createElement('div');
+    progressBar.className = 'transition-progress';
+
+    // Check if this is a custom practice level
+    if (currentGame && currentGame.isCustomPractice) {
+      if (currentGame.mixed) {
+        // Test level in custom practice
+        announcementDiv.innerHTML = `
+          <div class="level-number">Test</div>
+          <div class="level-text">Review Challenge</div>
+        `;
+      } else {
+        // Regular round in custom practice
+        announcementDiv.innerHTML = `
+          <div class="level-number">Round ${level}</div>
+          <div class="level-text">Custom Practice</div>
+        `;
+      }
+    } else {
+      // Regular game level
+      announcementDiv.innerHTML = `
+        <div class="level-number">${level}</div>
+        <div class="level-text">Stage ${gameState.currentStage} - Set ${gameState.currentSet}</div>
+      `;
+    }
+
+    announcementDiv.appendChild(progressBar);
+    transitionDiv.appendChild(announcementDiv);
+    document.body.appendChild(transitionDiv);
+    
+    // Animate progress bar
     setTimeout(() => {
-      callback();
-      document.body.removeChild(simpleTransition);
-    }, 300);
-  }, 800);
-  
-  return;
-}
-  
-  // For new sessions, use the fuller intro but optimized
-  const isTest = [3, 6, 9, 10, 13, 16, 19, 20].includes(level);
-  const isBoss = level === 21;
+      progressBar.style.width = '100%';
+    }, 50);
+
+    // Remove after animation completes
+    setTimeout(() => {
+      transitionDiv.classList.add('fade-out');
+      setTimeout(() => {
+        callback();
+        document.body.removeChild(transitionDiv);
+      }, 300);
+    }, 800);
+    return;
+  }
+
+  // Full animation for new sessions or when forced
+  const isTestLevel = [3, 6, 9, 10, 13, 16, 19, 20].includes(level);
+  const isBossLevel = level === 21;
   
   let levelClass = 'normal-level';
-  if (isTest) levelClass = 'test-level';
-  if (isBoss) levelClass = 'boss-level';
+  if (isTestLevel) levelClass = 'test-level';
+  if (isBossLevel) levelClass = 'boss-level';
+
+  const transitionDiv = document.createElement('div');
+  transitionDiv.className = 'level-transition';
+
+  // Custom practice level announcements
+  if (currentGame && currentGame.isCustomPractice) {
+    if (currentGame.mixed) {
+      // Test level in custom practice
+      transitionDiv.innerHTML = `
+        <div class="level-announcement ${levelClass}">
+          <h1>Test Challenge</h1>
+          <h2>Combined Words Review</h2>
+          <div class="test-badge">Review Challenge</div>
+        </div>
+      `;
+    } else {
+      // Regular round in custom practice
+      transitionDiv.innerHTML = `
+        <div class="level-announcement ${levelClass}">
+          <h1>Round ${level}</h1>
+          <h2>Custom Practice</h2>
+          ${isTestLevel ? '<div class="test-badge">Review Challenge</div>' : ''}
+        </div>
+      `;
+    }
+  } else {
+    // Regular game level announcement
+    transitionDiv.innerHTML = `
+      <div class="level-announcement ${levelClass}">
+        <h1>${isBossLevel ? 'BOSS FIGHT!' : `Stage ${gameState.currentStage}`}</h1>
+        <h2>${isBossLevel ? 'FINAL CHALLENGE' : `Level ${gameState.currentSet}-${level}`}</h2>
+        ${isTestLevel ? '<div class="test-badge">Review Challenge</div>' : ''}
+        ${isBossLevel ? '<div class="boss-badge">DANGER ZONE</div>' : ''}
+      </div>
+    `;
+  }
+
+  document.body.appendChild(transitionDiv);
+  const announcementElement = transitionDiv.querySelector('.level-announcement');
   
-  const transition = document.createElement('div');
-  transition.className = 'level-transition';
-  transition.innerHTML = `
-    <div class="level-announcement ${levelClass}">
-      <h1>${isBoss ? 'BOSS FIGHT!' : `Stage ${gameState.currentStage}`}</h1>
-      <h2>${isBoss ? 'FINAL CHALLENGE' : `Level ${gameState.currentSet}-${level}`}</h2>
-      ${isTest ? '<div class="test-badge">Review Challenge</div>' : ''}
-      ${isBoss ? '<div class="boss-badge">DANGER ZONE</div>' : ''}
-    </div>
-  `;
+  // Force reflow
+  transitionDiv.offsetHeight;
   
-  document.body.appendChild(transition);
-  const announcement = transition.querySelector('.level-announcement');
-  
-  // Force reflow to ensure animation works
-  transition.offsetHeight;
-  
-  transition.classList.add('show');
-  announcement.classList.add('show');
-  
-  // Add boss level styling if needed
-  if (isBoss) {
-    const announcementEl = transition.querySelector('.level-announcement');
+  // Add animation classes
+  transitionDiv.classList.add('show');
+  announcementElement.classList.add('show');
+
+  // Special styling for boss level
+  if (isBossLevel) {
+    const announcementEl = transitionDiv.querySelector('.level-announcement');
     if (announcementEl) {
       announcementEl.style.background = 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)';
       announcementEl.style.boxShadow = '0 0 30px rgba(255, 0, 0, 0.5)';
@@ -11701,14 +11750,14 @@ if (!isNewSession) {
       }
     }
   }
-  
+
+  // Remove after animation completes
   setTimeout(() => {
     callback();
-    transition.classList.remove('show');
-    announcement.classList.remove('show');
-    
+    transitionDiv.classList.remove('show');
+    announcementElement.classList.remove('show');
     setTimeout(() => {
-      document.body.removeChild(transition);
+      document.body.removeChild(transitionDiv);
     }, 400);
   }, 1500);
 }
@@ -14951,14 +15000,17 @@ function showPersonalVictoryScreen(rank) {
                     <strong>${rank}</strong>
                 </div>
             </div>
-            <button onclick="exitArcadeCompletion()" class="start-button">
-                Return to Welcome
-            </button>
+            <button class="victory-button" style="margin-top: 2rem;" onclick="closePersonalVictory()">
+            Continue
+        </button>
         </div>
     `;
     
-    document.body.appendChild(overlay);
-    requestAnimationFrame(() => overlay.classList.add('show'));
+    document.body.appendChild(t);
+    setTimeout(() => {
+        t.style.opacity = "1";
+        startPlayerConfetti();
+    }, 100);
 }
 
 function showModeratorVictoryScreen(players) {
@@ -16295,15 +16347,31 @@ function addBossLevelStyles() {
       gap: 1rem;
     }
     
-    .victory-button {
-      padding: 1rem 2rem;
-      border: none;
-      border-radius: 50px;
-      font-size: 1rem;
-      font-weight: bold;
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
+.victory-button {
+    background: var(--accent);
+    color: var(--text);
+    border: none;
+    padding: 1rem 2.5rem;
+    border-radius: 50px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
+    margin-top: 1.5rem;
+    min-width: 200px;
+}
+
+.victory-button:hover {
+    transform: translateY(-3px);
+    background: color-mix(in srgb, var(--accent) 80%, white);
+    box-shadow: 0 8px 20px rgba(30, 144, 255, 0.5);
+}
+
+.victory-button:active {
+    transform: translateY(1px);
+    box-shadow: 0 3px 10px rgba(30, 144, 255, 0.3);
+}
     
     .victory-button.continue {
       background: #4CAF50;
@@ -16316,10 +16384,7 @@ function addBossLevelStyles() {
       border: 2px solid white;
     }
     
-    .victory-button:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-    }
+   
     
     .incineration-effect {
       position: absolute;
@@ -18186,7 +18251,6 @@ function showCustomCompletionScreen() {
     const overlay = document.createElement('div');
     overlay.className = 'completion-overlay';
     
-    // Calculate coins earned
     const coinsEarned = gameState.coins - customGameState.startCoins;
     
     overlay.innerHTML = `
@@ -18202,10 +18266,11 @@ function showCustomCompletionScreen() {
                     <span>Coins Earned: ${coinsEarned}</span>
                 </div>
             </div>
-            <button onclick="exitCustomPractice()" class="start-button">Continue</button>
+            <button onclick="exitCustomPractice()" class="victory-button">
+                Continue
+            </button>
         </div>
     `;
-    
     document.body.appendChild(overlay);
 }
 
@@ -20520,46 +20585,55 @@ function showBossVictoryNotification() {
 }
 
 function handleBossVictoryContinue() {
-    console.log('Boss victory continue button clicked');
-    
-    const modal = document.querySelector('.arcade-completion-modal');
-    
-    // Just update displays but DO NOT add coins again
-    updateAllCoinDisplays();
-    
-    if (modal) {
-        modal.classList.remove('show');
+  console.log("Boss victory continue button clicked");
+  const modal = document.querySelector(".arcade-completion-modal");
+  updateAllCoinDisplays();
+  
+  if (modal) {
+    modal.classList.remove("show");
+    setTimeout(() => {
+      modal.remove();
+      
+      const bgTransition = document.querySelector(".background-transition-overlay");
+      
+      if (bgTransition) {
+        console.log("Using existing transition overlay for smooth transition");
+        bgTransition.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
+        resetBossStyles(true);
+      } else {
+        resetBossStyles();
+      }
+      
+      unlockNextSet();
+      
+      // ADD PREMIUM CHECK HERE
+      const nextSet = gameState.currentSet + 1;
+      const userStatus = currentUser ? currentUser.status : "unregistered";
+      
+      // If we're moving beyond Set 1 in Stages 2-5 and user is not premium, show upgrade prompt
+      if (gameState.currentStage >= 2 && nextSet > 1 && userStatus !== "premium") {
+        console.log("Non-premium user attempted to access premium set, showing upgrade prompt");
+        showScreen("welcome-screen");
         setTimeout(() => {
-            modal.remove();
-            
-            const transitionOverlay = document.querySelector('.background-transition-overlay');
-            if (transitionOverlay) {
-                console.log('Using existing transition overlay for smooth transition');
-                transitionOverlay.style.background = 'radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)';
-                resetBossStyles(true);
-            } else {
-                resetBossStyles();
-            }
-            
-            // Unlock next set without adding coins again
-            unlockNextSet();
-            
-            const nextSet = gameState.currentSet + 1;
-            gameState.currentSet = nextSet;
-            gameState.currentLevel = 1;
-            
-            // Update all displays but DO NOT add coins again
-            updateAllCoinDisplays();
-            
-            setTimeout(() => {
-                console.log('Starting next level');
-                if (transitionOverlay && transitionOverlay.parentNode) {
-                    transitionOverlay.parentNode.removeChild(transitionOverlay);
-                }
-                startLevel(1);
-            }, 500);
-        }, 300);
-    }
+          showUpgradePrompt();
+        }, 500);
+        return;
+      }
+      
+      // Continue with normal progression for premium users
+      gameState.currentSet = nextSet;
+      gameState.currentLevel = 1;
+      updateAllCoinDisplays();
+      
+      setTimeout(() => {
+        console.log("Starting next level");
+        if (bgTransition && bgTransition.parentNode) {
+          bgTransition.parentNode.removeChild(bgTransition);
+        }
+        startLevel(1);
+      }, 500);
+    }, 300);
+  }
 }
 
 function resetBossStyles(e = false) {
@@ -20604,30 +20678,34 @@ function resetBossStyles(e = false) {
 }
 
 function handleBossVictoryHome() {
-    console.log('Boss victory home button clicked');
-    
-    const modal = document.querySelector('.arcade-completion-modal');
-    
-    // Just update displays but DO NOT add coins again
-    updateAllCoinDisplays();
-    
-    if (modal) {
-        modal.classList.remove('show');
-        setTimeout(() => {
-            modal.remove();
-            resetBossStyles();
-            
-            // Unlock next set without adding coins again
-            unlockNextSet();
-            
-            const nextSet = gameState.currentSet + 1;
-            gameState.currentSet = nextSet;
-            gameState.currentLevel = 1;
-            
-            saveProgress();
-            showScreen('welcome-screen');
-        }, 300);
-    }
+  console.log("Boss victory home button clicked");
+  const modal = document.querySelector(".arcade-completion-modal");
+  updateAllCoinDisplays();
+  
+  if (modal) {
+    modal.classList.remove("show");
+    setTimeout(() => {
+      modal.remove();
+      resetBossStyles();
+      
+      unlockNextSet();
+      
+      // ADD PREMIUM CHECK HERE TOO
+      const nextSet = gameState.currentSet + 1;
+      const userStatus = currentUser ? currentUser.status : "unregistered";
+      
+      // Still update the gameState even when going to welcome screen, but show upgrade if needed
+      if (gameState.currentStage >= 2 && nextSet > 1 && userStatus !== "premium") {
+        showUpgradePrompt();
+      } else {
+        gameState.currentSet = nextSet;
+        gameState.currentLevel = 1;
+      }
+      
+      saveProgress();
+      showScreen("welcome-screen");
+    }, 300);
+  }
 }
 
 // ADD this function to check if the current user is the admin
