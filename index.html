@@ -9637,32 +9637,52 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function showScreen(screenId, forceRefresh = false) {
+  // Prevent unregistered users from seeing upgrade screen
+  if (screenId === "upgrade-screen" && !currentUser) {
+    console.log("Unregistered user attempt to access upgrade screen, redirecting to auth modal");
+    screenId = "welcome-screen"; // Redirect to welcome screen first
+    
+    // Show auth modal with signup form after a brief delay
+    setTimeout(() => {
+      showAuthModal();
+      // Switch to signup form
+      setTimeout(() => {
+        const loginForm = document.getElementById('loginForm');
+        const signupForm = document.getElementById('signupForm');
+        if (loginForm && signupForm) {
+          loginForm.classList.add('hidden');
+          signupForm.classList.remove('hidden');
+        }
+      }, 100);
+    }, 200);
+  }
+
   // When returning to welcome screen, clear game context
   if (screenId === "welcome-screen") {
     console.log("Returning to welcome screen, clearing game context");
     localStorage.removeItem("gameContext");
   }
-  
+   
   console.log("showScreen called with:", {
     screenId: screenId,
     forceRefresh: forceRefresh,
     currentUser: currentUser ? currentUser.id : "No user"
   });
-  
+   
   // Special handling for leaderboard screen cleanup
   if (document.querySelector('.screen.visible')?.id === 'leaderboard-screen') {
     cleanupLeaderboard();
   }
-  
+   
   // Get currently visible screen
   const currentScreen = document.querySelector('.screen.visible');
-  
+   
   // Cleanup if leaving question screen
   if (currentScreen && currentScreen.id === 'question-screen') {
     clearTimer();
     isFrozen = false;
   }
-  
+   
   // Handle force refresh
   if (forceRefresh && screenId === "welcome-screen") {
     console.log("Initiating full page reload");
@@ -9672,55 +9692,55 @@ function showScreen(screenId, forceRefresh = false) {
   }
 
   if (["question-screen", "custom-practice-screen", "moderator-screen", "leaderboard-screen"].includes(screenId)) {
-        updateNavigationContainer();
-    }
-  
+    updateNavigationContainer();
+  }
+   
   // Hide all screens
   document.querySelectorAll('.screen').forEach(screen => {
     screen.classList.remove('visible');
-    
+       
     // Remove particle containers
     const particleContainer = screen.querySelector('.particle-container');
     if (particleContainer) {
       particleContainer.remove();
     }
   });
-  
+   
   // Show requested screen
   const screenElement = document.getElementById(screenId);
   if (screenElement) {
     // Make screen visible
     screenElement.classList.add('visible');
-    
+       
     // Initialize particles for the screen
     initializeParticles(screenElement);
-    
+       
     // Update UI elements
     updateAllCoinDisplays();
-    
+       
     // Special handling for different screens
     switch (screenId) {
       case "question-screen":
         updatePerkButtons();
-        
+               
         // Check for admin user and add test button
         console.log("Question screen shown, checking for admin button");
         setTimeout(() => {
           addAdminTestButton();
         }, 100);
         break;
-        
+             
       case "welcome-screen":
         if (restoreGameContext()) {
           startGame();
         }
         break;
-        
+             
       case "stage-cascade-screen":
         // Handle the cascading stage screen specially
         return showStageCascadeScreen();
     }
-    
+       
     console.log(`Switched to screen: ${screenId}`);
   } else {
     console.error(`Screen with id ${screenId} not found`);
@@ -12231,23 +12251,34 @@ function hideUpgradePrompt() {
     }
 }
 
-/* REPLACE the showUpgradePrompt function with this version that always shows the form */
-function showUpgradePrompt(e) {
-    const t = {
-        screen: document.querySelector(".screen.visible")?.id,
-        stage: gameState.currentStage,
-        set: gameState.currentSet,
-        level: gameState.currentLevel
-    };
-    t.screen && localStorage.setItem("gameContext", JSON.stringify(t));
-    
-    // Remove any stored "skip" state to ensure form always shows
-    if (currentUser) {
-        localStorage.removeItem(`upgradeRequested_${currentUser.id}`);
-    }
-    
-    // Skip check for status and show the form directly
-    showScreen("upgrade-screen");
+function showUpgradePrompt(callback) {
+  // If user is not logged in, show auth modal with signup form
+  if (!currentUser) {
+    console.log("Unregistered user attempting to access premium content");
+    showAuthModal();
+    // Switch to signup form
+    setTimeout(() => {
+      const loginForm = document.getElementById('loginForm');
+      const signupForm = document.getElementById('signupForm');
+      if (loginForm && signupForm) {
+        loginForm.classList.add('hidden');
+        signupForm.classList.remove('hidden');
+      }
+    }, 100);
+    return;
+  }
+  
+  // Continue with upgrade prompt for logged in users
+  const t = {
+    screen: document.querySelector(".screen.visible")?.id,
+    stage: gameState.currentStage,
+    set: gameState.currentSet,
+    level: gameState.currentLevel
+  };
+  
+  t.screen && localStorage.setItem("gameContext", JSON.stringify(t));
+  currentUser && localStorage.removeItem(`upgradeRequested_${currentUser.id}`);
+  showScreen("upgrade-screen");
 }
 
 /* ADD this function to hide the upgrade prompt */
@@ -19036,12 +19067,26 @@ function isSetCompleted(stage, set) {
   return isComplete;
 }
 
-function handleCrownClick(event) {
-    // Stop the event from propagating to parent elements
-    event.stopPropagation();
-    // Always show the upgrade form, ignoring any previous skips
-    localStorage.removeItem(`upgradeRequested_${currentUser?.id || 'guest'}`);
+function handleCrownClick(e) {
+  e.stopPropagation();
+  
+  if (!currentUser) {
+    // Unregistered user - show signup form
+    showAuthModal();
+    // Switch to signup form
+    setTimeout(() => {
+      const loginForm = document.getElementById('loginForm');
+      const signupForm = document.getElementById('signupForm');
+      if (loginForm && signupForm) {
+        loginForm.classList.add('hidden');
+        signupForm.classList.remove('hidden');
+      }
+    }, 100);
+  } else {
+    // Logged in user - show upgrade form
+    localStorage.removeItem(`upgradeRequested_${currentUser.id}`);
     showUpgradePrompt();
+  }
 }
 
 function forceShowUpgradeForm() {
