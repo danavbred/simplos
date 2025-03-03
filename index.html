@@ -7952,7 +7952,7 @@ async function handleSignup() {
     if (authError) throw authError;
     if (!authData.user) throw new Error("Signup failed. No user data returned.");
 
-    let userId = authData.user.id; // Changed from 'const' to 'let' to allow reassignment
+    let userId = authData?.user?.id; // Changed from 'const' to 'let' to allow reassignment
 
     // 2. Create the user profile
     const { error: profileError } = await supabaseClient.from("user_profiles").upsert(
@@ -8042,6 +8042,7 @@ async function handleSignup() {
     alert(error.message.includes("duplicate key") ? "This username or email is already taken." : "Signup error: " + error.message);
   }
 }
+
 
 // Add this helper function to safely upsert records
 async function safeUpsertRecord(table, data, keyField = 'user_id') {
