@@ -1384,21 +1384,9 @@ body {
         width: 85%;
         padding: 1.5rem 1rem;
     }
-    
-    .hamburger-button.open {
-        right: 87%;
-    }
-    
+        
     .main-buttons {
         padding: 0 1rem;
-    }
-}
-
-/* Small Screen Optimization */
-@media (max-width: 360px) {
-    .side-panel {
-        width: 90%;
-        padding: 1.25rem 0.75rem;
     }
 }
 
@@ -1473,43 +1461,6 @@ body {
     color: var(--gold);
 }
 
-/* Hamburger Button */
-.hamburger-button {
-    position: fixed;
-    top: 1rem;
-    right: 1rem;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background: var(--glass);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(10px);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 1001;
-}
-
-.hamburger-button:hover {
-    transform: scale(1.1);
-    background: rgba(255, 255, 255, 0.15);
-}
-
-.hamburger-button.open {
-    right: 290px;
-}
-
-.hamburger-button i {
-    color: var(--text);
-    font-size: 1.25rem;
-    transition: transform 0.3s ease;
-}
-
-.hamburger-button.open i {
-    transform: rotate(90deg);
-}
 
 
 /* Welcome Screen Buttons */
@@ -1567,14 +1518,6 @@ body {
     .side-panel {
         width: 85%;
         padding: 1.5rem 1rem;
-    }
-    
-    .hamburger-button.open {
-        right: 87%;
-    }
-    
-    .main-buttons {
-        padding: 0 1rem;
     }
 }
 
@@ -3963,11 +3906,6 @@ body {
     font-size: 0.65rem;
   }
 
-  .navigation-menu {
-    top: 60px;
-    right: 10px;
-  }
-
   .hamburger-button {
     width: 45px;
     height: 45px;
@@ -4226,33 +4164,9 @@ body {
 
 
 
-.home-button i, .back-button i {
-    color: var(--text);
-    font-size: 1.5rem;
-}
-
-.home-button:hover, .back-button:hover {
-    background: var(--accent);
-    transform: scale(1.1);
-}
-
 .perk-button.disabled {
     opacity: 0.3;
     cursor: not-allowed;
-}
-
-.reset-button i {
-    color: var(--text);
-    font-size: 1.5rem;
-}
-
-.reset-button.warning {
-    animation: blinkRed 0.2s linear 5;
-}
-
-@keyframes blinkRed {
-    0%, 100% { background-color: transparent; }
-    50% { background-color: var(--error); }
 }
 
 
@@ -5748,35 +5662,6 @@ body {
   }
 }
 
-/* Add to the existing CSS in index.html */
-.accessibility-toggle {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    background: var(--primary);
-    border: 2px solid var(--accent);
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    z-index: 9999;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-    transition: all 0.3s ease;
-}
-
-.accessibility-toggle:hover {
-    transform: scale(1.1);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
-}
-
-.accessibility-toggle i {
-    font-size: 24px;
-}
-
 .accessibility-modal {
     position: fixed;
     top: 0;
@@ -6302,29 +6187,6 @@ body.dark-theme {
   animation: carouselEnter 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
 
-/* REPLACE navigation-menu styles */
-.navigation-menu {
-    position: fixed;
-    top: 70px;
-    right: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    z-index: 100;
-    background: var(--glass);
-    backdrop-filter: blur(10px);
-    padding: 10px;
-    border-radius: 15px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transform: translateX(calc(100% + 20px));
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.navigation-menu.open {
-    transform: translateX(0);
-}
-
 .navigation-button {
     width: 45px;
     height: 45px;
@@ -6426,11 +6288,119 @@ body.dark-theme {
   }
 }
 
+/* Vertical navigation container */
+.vertical-nav-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  z-index: 1001;
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* When side panel is open, move the container to align with panel edge */
+.vertical-nav-container.panel-open {
+  right: 335px; /* Adjust based on side-panel width + padding */
+}
+
+/* Unified button styling */
+.nav-button, .hamburger-button {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--glass);
+  border: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  color: var(--text);
+  font-size: 1.25rem;
+}
+
+.nav-button:hover, .hamburger-button:hover {
+  transform: scale(1.1);
+  background: rgba(255,255,255,0.15);
+}
+
+/* Remove the individual positioning for these buttons */
+.hamburger-button {
+  position: static;
+  top: auto;
+  right: auto;
+}
+
+.accessibility-toggle {
+  position: static;
+  top: auto;
+  right: auto;
+  bottom: auto;
+}
+
+/* Override the open class on hamburger button to not change position */
+.hamburger-button.open {
+  right: auto;
+  background: var(--accent);
+  color: var(--text);
+}
+
+@media (max-width: 768px) {
+  .vertical-nav-container {
+    right: 0.5rem;
+  }
+  
+  .vertical-nav-container.panel-open {
+    right: 85%; /* Adjust based on mobile side-panel width */
+  }
+  
+  .nav-button, .hamburger-button {
+    width: 45px;
+    height: 45px;
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-height: 600px) {
+  .vertical-nav-container {
+    gap: 0.5rem;
+  }
+  
+  .nav-button, .hamburger-button {
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+  }
+}
+
 </style>
 </head>
 <body>
 
 
+    <div class="vertical-nav-container">
+        <button class="hamburger-button">
+          <i class="fas fa-bars"></i>
+        </button>
+        <button class="nav-button home-button">
+          <i class="fas fa-home"></i>
+        </button>
+        <button class="nav-button fullscreen-button">
+          <i class="fas fa-expand"></i>
+        </button>
+        <button class="nav-button reset-button">
+          <i class="fas fa-trash-alt"></i>
+        </button>
+        <button class="nav-button settings-button">
+          <i class="fas fa-cog"></i>
+        </button>
+        <button class="nav-button accessibility-button">
+          <i class="fas fa-universal-access"></i>
+        </button>
+      </div>
 
 
   <div id="welcome-screen" class="screen visible">
@@ -6465,11 +6435,6 @@ body.dark-theme {
             </div>
         </div>
     </div>
-
-    <!-- Side Panel -->
-    <button class="hamburger-button" onclick="toggleSidePanel()">
-       <i class="fas fa-bars"></i>
-   </button>
 
    <div class="side-panel">
     <div class="side-panel-content">
@@ -6519,18 +6484,7 @@ body.dark-theme {
 
 <div id="stage-cascade-screen" class="screen">
     <div class="particle-container"></div>
-    <div class="navigation-container" style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); flex-direction: row; gap: 0.75rem; background: none; margin: 0;">
-        <button class="navigation-button home-button" onclick="navigateHome()">
-            <i class="fas fa-home navigation-icon"></i>
-        </button>
-        <button class="navigation-button reset-button" onclick="handleResetProgress()">
-            <i class="fas fa-trash-alt navigation-icon"></i>
-        </button>
-        <button class="navigation-button fullscreen-button" onclick="toggleFullScreen()">
-            <i class="fas fa-expand navigation-icon"></i>
-        </button>
     </div>
-    
     <div class="stages-container">
         <!-- Stages will be populated dynamically here -->
     </div>
@@ -6539,27 +6493,13 @@ body.dark-theme {
 <!-- REPLACE level-screen div -->
 <div id="level-screen" class="screen">
     <div class="particle-container"></div>
-    <div class="navigation-container">
-        <button class="navigation-button home-button" onclick="showScreen('stage-cascade-screen')">
-            <i class="fas fa-arrow-left navigation-icon"></i>
-        </button>
-        <button class="navigation-button fullscreen-button" onclick="toggleFullScreen()">
-            <i class="fas fa-expand navigation-icon"></i>
-        </button>
-    </div>
+    
     <div class="level-container" id="level-container"></div>
 </div>
 
 <div id="question-screen" class="screen">
     <div class="particle-container"></div>
-    <div class="navigation-container">
-        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-            <i class="fas fa-home navigation-icon"></i>
-        </button>
-    </div>
-
     
-
     <!-- Question Word -->
     <div class="question-word" id="question-word"></div>
 
@@ -6661,11 +6601,7 @@ body.dark-theme {
 </div>
 
 <div id="custom-practice-screen" class="screen">
-    <div class="navigation-container">
-        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-            <i class="fas fa-home navigation-icon"></i>
-        </button>
-    </div>
+    
 
     <div class="custom-practice-container">
         <div class="lists-section">
@@ -6803,11 +6739,7 @@ body.dark-theme {
   </div>
 
 <div id="leaderboard-screen" class="screen">
-    <div class="navigation-container">
-        <button class="navigation-button home-button" onclick="showScreen('welcome-screen')">
-            <i class="fas fa-home navigation-icon"></i>
-        </button>
-    </div>
+    
     
     <h1 class="welcome-title">Speedboard</h1>
     
@@ -6962,10 +6894,6 @@ body.dark-theme {
    </div>
 </div>
 
-<!-- Add before the closing </body> tag in index.html -->
-<button class="accessibility-toggle" aria-label="Open accessibility menu">
-    <i class="fas fa-universal-access"></i>
-</button>
 
 <div class="accessibility-modal">
     <div class="accessibility-content">
@@ -8439,13 +8367,12 @@ function setupDefaultUnlocks() {
     }
 }
 
-
-
 document.addEventListener('DOMContentLoaded', function() {
     currentUser = null;
     checkExistingSession().then(() => {
         initializeGame();
         updatePerkButtons();
+        updateNavigationContainer();
     });
 });
 
@@ -10566,45 +10493,32 @@ function updateNavigationIcons(screenId) {
 }
 
 function updateProgressCircle() {
-  const progressCircle = document.querySelector('.progress-circle .progress');
+  const progressElement = document.querySelector('.progress-circle .progress');
   const circumference = 2 * Math.PI * 54;
   const progress = currentGame.currentIndex / currentGame.words.length;
-  
-  progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
-  progressCircle.style.strokeDashoffset = circumference * (1 - progress);
-  
-  let hue, saturation, lightness;
-  
-  if (progress <= 0.2) {
-    // Dark red
-    hue = 0;
-    saturation = 100;
-    lightness = 20;
-  } else if (progress <= 0.4) {
-    // Bright red
-    hue = 0;
-    saturation = 100;
-    lightness = 45;
-  } else if (progress <= 0.6) {
-    // Orange
-    hue = 30;
-    saturation = 100;
-    lightness = 50;
-  } else if (progress <= 0.8) {
-    // Yellow
-    hue = 60;
-    saturation = 100;
-    lightness = 50;
-  } else {
-    // Green
-    hue = 120;
-    saturation = 100;
-    lightness = 40;
-  }
-  
-  progressCircle.style.stroke = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-}
 
+  progressElement.style.strokeDasharray = `${circumference} ${circumference}`;
+  progressElement.style.strokeDashoffset = circumference * (1 - progress);
+
+  // Create a smooth, logical color transition
+  if (progress <= 0.25) {
+    // Red to orange gradient (0-25%)
+    const hue = Math.floor(progress * 4 * 30); // 0 to 30
+    progressElement.style.stroke = `hsl(${hue}, 100%, 45%)`;
+  } else if (progress <= 0.5) {
+    // Orange to yellow-green gradient (25-50%)
+    const hue = 30 + Math.floor((progress - 0.25) * 4 * 40); // 30 to 70
+    progressElement.style.stroke = `hsl(${hue}, 100%, 45%)`;
+  } else if (progress <= 0.75) {
+    // Yellow-green to green gradient (50-75%)
+    const hue = 70 + Math.floor((progress - 0.5) * 4 * 40); // 70 to 110
+    progressElement.style.stroke = `hsl(${hue}, 100%, 40%)`;
+  } else {
+    // Green to bright green gradient (75-100%)
+    const hue = 110 + Math.floor((progress - 0.75) * 4 * 30); // 110 to 140
+    progressElement.style.stroke = `hsl(${hue}, 100%, 40%)`;
+  }
+}
 
 function loadNextQuestion() {
   // Clear any previous button classes
@@ -11333,28 +11247,29 @@ function handleResetProgress() {
 }
 
 function toggleFullScreen() {
-    const button = document.querySelector('.fullscreen-button i');
+    const docElement = document.documentElement;
+    const fullscreenButton = document.querySelector('.vertical-nav-container .fullscreen-button i');
     
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen()
-            .then(() => {
-                button.classList.remove('fa-expand');
-                button.classList.add('fa-compress');
-            })
-            .catch(err => {
-                console.log(`Error attempting to enable fullscreen: ${err.message}`);
-            });
-    } else {
+    if (document.fullscreenElement) {
         if (document.exitFullscreen) {
-            document.exitFullscreen()
-                .then(() => {
-                    button.classList.remove('fa-compress');
-                    button.classList.add('fa-expand');
-                })
-                .catch(err => {
-                    console.log(`Error attempting to exit fullscreen: ${err.message}`);
-                });
+            document.exitFullscreen().then(() => {
+                if (fullscreenButton) {
+                    fullscreenButton.classList.remove('fa-compress');
+                    fullscreenButton.classList.add('fa-expand');
+                }
+            }).catch(err => {
+                console.log(`Error attempting to exit fullscreen: ${err.message}`);
+            });
         }
+    } else if (docElement.requestFullscreen) {
+        docElement.requestFullscreen().then(() => {
+            if (fullscreenButton) {
+                fullscreenButton.classList.remove('fa-expand');
+                fullscreenButton.classList.add('fa-compress');
+            }
+        }).catch(err => {
+            console.log(`Error attempting to enable fullscreen: ${err.message}`);
+        });
     }
 }
 
@@ -15363,18 +15278,110 @@ function removePlayer(username) {
 function toggleSidePanel() {
     const sidePanel = document.querySelector('.side-panel');
     const hamburgerButton = document.querySelector('.hamburger-button');
+    const navContainer = document.querySelector('.vertical-nav-container');
     const modalOverlay = document.querySelector('.modal-overlay');
     
     if (sidePanel.classList.contains('open')) {
         sidePanel.classList.remove('open');
         hamburgerButton.classList.remove('open');
+        navContainer.classList.remove('panel-open');
         if (modalOverlay) modalOverlay.classList.remove('open');
     } else {
         sidePanel.classList.add('open');
         hamburgerButton.classList.add('open');
+        navContainer.classList.add('panel-open');
         if (modalOverlay) modalOverlay.classList.add('open');
     }
 }
+
+function initVerticalNavigation() {
+    // Find existing buttons on the page
+    const existingButtons = {
+        hamburger: document.querySelector('.hamburger-button:not(.vertical-nav-container .hamburger-button)'),
+        home: document.querySelector('.home-button:not(.vertical-nav-container .home-button)'),
+        fullscreen: document.querySelector('.fullscreen-button:not(.vertical-nav-container .fullscreen-button)'),
+        reset: document.querySelector('.reset-button:not(.vertical-nav-container .reset-button)'),
+        settings: document.querySelector('.settings-button:not(.vertical-nav-container .settings-button)'),
+        accessibility: document.querySelector('.accessibility-toggle')
+    };
+    
+    // Get or create the navigation container
+    let navContainer = document.querySelector('.vertical-nav-container');
+    if (!navContainer) {
+        navContainer = document.createElement('div');
+        navContainer.className = 'vertical-nav-container';
+        document.body.appendChild(navContainer);
+    }
+    
+    // Clear container
+    navContainer.innerHTML = '';
+    
+    // Create new buttons in the container with the same functionality
+    // Hamburger button
+    const hamburgerBtn = document.createElement('button');
+    hamburgerBtn.className = 'hamburger-button';
+    hamburgerBtn.id = 'nav-hamburger-btn';
+    hamburgerBtn.innerHTML = '<i class="fas fa-bars"></i>';
+    hamburgerBtn.onclick = toggleSidePanel;
+    navContainer.appendChild(hamburgerBtn);
+    
+    // Home button
+    const homeBtn = document.createElement('button');
+    homeBtn.className = 'nav-button home-button';
+    homeBtn.id = 'nav-home-btn';
+    homeBtn.innerHTML = '<i class="fas fa-home"></i>';
+    homeBtn.onclick = navigateHome || function() { showScreen('welcome-screen'); };
+    navContainer.appendChild(homeBtn);
+    
+    // Fullscreen button
+    const fullscreenBtn = document.createElement('button');
+    fullscreenBtn.className = 'nav-button fullscreen-button';
+    fullscreenBtn.id = 'nav-fullscreen-btn';
+    fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+    fullscreenBtn.onclick = toggleFullScreen;
+    navContainer.appendChild(fullscreenBtn);
+    
+    // Reset button
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'nav-button reset-button';
+    resetBtn.id = 'nav-reset-btn';
+    resetBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+    resetBtn.onclick = handleResetProgress;
+    navContainer.appendChild(resetBtn);
+    
+    // Settings button
+    const settingsBtn = document.createElement('button');
+    settingsBtn.className = 'nav-button settings-button';
+    settingsBtn.id = 'nav-settings-btn';
+    settingsBtn.innerHTML = '<i class="fas fa-cog"></i>';
+    settingsBtn.onclick = function() { 
+        // Replace with actual settings function if available
+        const accessibilityModal = document.querySelector('.accessibility-modal');
+        if (accessibilityModal) accessibilityModal.classList.add('show');
+    };
+    navContainer.appendChild(settingsBtn);
+    
+    // Accessibility button
+    const accessBtn = document.createElement('button');
+    accessBtn.className = 'nav-button accessibility-button';
+    accessBtn.id = 'nav-accessibility-btn';
+    accessBtn.innerHTML = '<i class="fas fa-universal-access"></i>';
+    accessBtn.onclick = function() { 
+        const accessibilityModal = document.querySelector('.accessibility-modal');
+        if (accessibilityModal) accessibilityModal.classList.add('show');
+    };
+    navContainer.appendChild(accessBtn);
+    
+    // Remove original buttons
+    Object.values(existingButtons).forEach(button => {
+        if (button && button.parentNode) {
+            button.parentNode.removeChild(button);
+        }
+    });
+}
+
+// Call this function when the DOM is loaded
+document.addEventListener('DOMContentLoaded', initVerticalNavigation);
 
 function showAuthModal() {
     const modal = document.getElementById('authModal');
@@ -24611,115 +24618,130 @@ window.debugUpgrade = function() {
   
 }
 
-
-// ADD these functions
-function toggleNavigationMenu() {
-    const menu = document.querySelector('.navigation-menu');
-    const hamburger = document.querySelector('.hamburger-button');
-    
-    if (menu) {
-        menu.classList.toggle('open');
-        hamburger.classList.toggle('active');
-    }
-}
-
-function navigateHome() {
-    toggleNavigationMenu();
-    showScreen("welcome-screen");
-}
-
 function toggleFullScreen() {
-    const element = document.documentElement;
-    const hamburger = document.querySelector('.hamburger-button i');
+    const root = document.documentElement;
+    const fullscreenIcon = document.querySelector('#nav-fullscreen-btn i');
     
-    if (!document.fullscreenElement) {
-        if (element.requestFullscreen) {
-            element.requestFullscreen().then(() => {
-                if (hamburger) {
-                    hamburger.classList.remove('fa-expand');
-                    hamburger.classList.add('fa-compress');
-                }
-            }).catch(e => {
-                console.log(`Error attempting to enable fullscreen: ${e.message}`);
-            });
-        }
-    } else {
+    if (document.fullscreenElement) {
         if (document.exitFullscreen) {
             document.exitFullscreen().then(() => {
-                if (hamburger) {
-                    hamburger.classList.remove('fa-compress');
-                    hamburger.classList.add('fa-expand');
+                if (fullscreenIcon) {
+                    fullscreenIcon.className = 'fas fa-expand';
                 }
-            }).catch(e => {
-                console.log(`Error attempting to exit fullscreen: ${e.message}`);
+            }).catch(err => {
+                console.log(`Error attempting to exit fullscreen: ${err.message}`);
             });
         }
+    } else if (root.requestFullscreen) {
+        root.requestFullscreen().then(() => {
+            if (fullscreenIcon) {
+                fullscreenIcon.className = 'fas fa-compress';
+            }
+        }).catch(err => {
+            console.log(`Error attempting to enable fullscreen: ${err.message}`);
+        });
     }
 }
 
-// ADD this function to create and attach the navigation menu
+document.addEventListener('fullscreenchange', function() {
+    const fullscreenIcon = document.querySelector('#nav-fullscreen-btn i');
+    if (fullscreenIcon) {
+        if (document.fullscreenElement) {
+            fullscreenIcon.className = 'fas fa-compress';
+        } else {
+            fullscreenIcon.className = 'fas fa-expand';
+        }
+    }
+});
+
 function updateNavigationContainer() {
-    // Remove existing navigation container if present
-    const existingNav = document.querySelector('.navigation-menu');
-    if (existingNav) {
-        existingNav.remove();
+    // Remove any existing navigation menu
+    const existingMenu = document.querySelector('.navigation-menu');
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+
+    // Use our vertical navigation container instead
+    let navContainer = document.querySelector('.vertical-nav-container');
+    
+    // If container doesn't exist, create it
+    if (!navContainer) {
+        navContainer = document.createElement('div');
+        navContainer.className = 'vertical-nav-container';
+        document.body.appendChild(navContainer);
+        
+        // Create hamburger button
+        const hamburgerBtn = document.createElement('button');
+        hamburgerBtn.className = 'hamburger-button';
+        hamburgerBtn.id = 'nav-hamburger-btn';
+        hamburgerBtn.innerHTML = '<i class="fas fa-bars"></i>';
+        hamburgerBtn.onclick = toggleSidePanel;
+        navContainer.appendChild(hamburgerBtn);
+        
+        // Create home button
+        const homeBtn = document.createElement('button');
+        homeBtn.className = 'nav-button home-button';
+        homeBtn.id = 'nav-home-btn';
+        homeBtn.innerHTML = '<i class="fas fa-home"></i>';
+        homeBtn.onclick = navigateHome || function() { showScreen('welcome-screen'); };
+        navContainer.appendChild(homeBtn);
+        
+        // Create fullscreen button
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'nav-button fullscreen-button';
+        fullscreenBtn.id = 'nav-fullscreen-btn';
+        fullscreenBtn.innerHTML = '<i class="fas fa-expand"></i>';
+        fullscreenBtn.onclick = toggleFullScreen;
+        navContainer.appendChild(fullscreenBtn);
+        
+        // Create reset button
+        const resetBtn = document.createElement('button');
+        resetBtn.className = 'nav-button reset-button';
+        resetBtn.id = 'nav-reset-btn';
+        resetBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+        resetBtn.onclick = handleResetProgress;
+        navContainer.appendChild(resetBtn);
+        
+        // Create settings button
+        const settingsBtn = document.createElement('button');
+        settingsBtn.className = 'nav-button settings-button';
+        settingsBtn.id = 'nav-settings-btn';
+        settingsBtn.innerHTML = '<i class="fas fa-cog"></i>';
+        settingsBtn.onclick = function() {
+            const accessibilityModal = document.querySelector('.accessibility-modal');
+            if (accessibilityModal) {
+                accessibilityModal.classList.add('show');
+            }
+        };
+        navContainer.appendChild(settingsBtn);
+        
+        // Create accessibility button
+        const accessBtn = document.createElement('button');
+        accessBtn.className = 'nav-button accessibility-button';
+        accessBtn.id = 'nav-accessibility-btn';
+        accessBtn.innerHTML = '<i class="fas fa-universal-access"></i>';
+        accessBtn.onclick = function() {
+            const accessibilityModal = document.querySelector('.accessibility-modal');
+            if (accessibilityModal) {
+                accessibilityModal.classList.add('show');
+            }
+        };
+        navContainer.appendChild(accessBtn);
     }
     
-    // Create new navigation menu
-    const navMenu = document.createElement('div');
-    navMenu.className = 'navigation-menu';
-    navMenu.innerHTML = `
-        <button class="navigation-button home-button" title="Home">
-            <i class="fas fa-home navigation-icon"></i>
-        </button>
-        <button class="navigation-button fullscreen-button" title="Toggle Fullscreen">
-            <i class="fas fa-expand navigation-icon"></i>
-        </button>
-        <button class="navigation-button settings-button" title="Settings">
-            <i class="fas fa-cog navigation-icon"></i>
-        </button>
-    `;
-    document.body.appendChild(navMenu);
+    // Remove any standalone buttons that might conflict
+    const existingButtons = {
+        hamburger: document.querySelector('.hamburger-button:not(.vertical-nav-container .hamburger-button)'),
+        home: document.querySelector('.home-button:not(.vertical-nav-container .home-button)'),
+        fullscreen: document.querySelector('.fullscreen-button:not(.vertical-nav-container .fullscreen-button)'),
+        reset: document.querySelector('.reset-button:not(.vertical-nav-container .reset-button)'),
+        settings: document.querySelector('.settings-button:not(.vertical-nav-container .settings-button)'),
+        accessibility: document.querySelector('.accessibility-toggle')
+    };
     
-    // Get hamburger button or create it if it doesn't exist
-    let hamburger = document.querySelector('.hamburger-button');
-    if (!hamburger) {
-        hamburger = document.createElement('button');
-        hamburger.className = 'hamburger-button';
-        hamburger.innerHTML = '<i class="fas fa-bars"></i>';
-        document.body.appendChild(hamburger);
-    }
-    
-    // Add event listeners
-    hamburger.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleNavigationMenu();
-    });
-    
-    // Add click event for other navigation buttons
-    const homeButton = navMenu.querySelector('.home-button');
-    const fullscreenButton = navMenu.querySelector('.fullscreen-button');
-    const settingsButton = navMenu.querySelector('.settings-button');
-    
-    homeButton.addEventListener('click', () => {
-        toggleNavigationMenu();
-        navigateHome();
-    });
-    
-    fullscreenButton.addEventListener('click', () => {
-        toggleFullScreen();
-    });
-    
-    settingsButton.addEventListener('click', () => {
-        console.log('Settings button clicked');
-        // Future functionality
-    });
-    
-    // Close menu when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!navMenu.contains(e.target) && !hamburger.contains(e.target)) {
-            navMenu.classList.remove('open');
-            hamburger.classList.remove('active');
+    Object.values(existingButtons).forEach(button => {
+        if (button && button.parentNode) {
+            button.parentNode.removeChild(button);
         }
     });
 }
