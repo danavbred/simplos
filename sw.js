@@ -6,9 +6,11 @@ const CACHE_NAME = `simplos-cache-${CACHE_VERSION}`;
 const urlsToCache = [
   '/',
   '/index.min.html',
+  '/styles.min.css',
+  '/script.min.js',
   '/vocabs.js',
   '/manifest.json',
-  '/icons/icon-192x192.png',
+  '/icons/icon-128x128.png',
   '/icons/icon-512x512.png'
 ];
 
