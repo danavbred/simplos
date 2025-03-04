@@ -142,65 +142,67 @@ const CoinsManager = {
 
     async updateCoins(amount) {
         try {
-          const oldTotal = gameState.coins;
-          const newTotal = oldTotal + amount;
-          gameState.coins = newTotal;
-      
-          this.displayElements.forEach(display => {
-            let currentValue = oldTotal;
-            const duration = 1000;
-            const startTime = performance.now();
-      
-            function animate(currentTime) {
-              const elapsed = currentTime - startTime;
-              const progress = Math.min(elapsed / duration, 1);
-              currentValue = oldTotal + (newTotal - oldTotal) * progress;
-              display.textContent = Math.round(currentValue);
-      
-              if (amount > 0) {
-                display.style.color = "var(--success)";
-              } else if (amount < 0) {
-                display.style.color = "var(--error)";
-              }
-      
-              if (progress < 1) {
+            const oldTotal = gameState.coins;
+            const newTotal = oldTotal + amount;
+            gameState.coins = newTotal;
+
+            // Animate all displays
+            this.displayElements.forEach(display => {
+                let currentValue = oldTotal;
+                const duration = 1000;
+                const startTime = performance.now();
+                
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    currentValue = oldTotal + (newTotal - oldTotal) * progress;
+                    display.textContent = Math.round(currentValue);
+                    
+                    if (amount > 0) {
+                        display.style.color = 'var(--success)';
+                    } else if (amount < 0) {
+                        display.style.color = 'var(--error)';
+                    }
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        display.textContent = newTotal;
+                        setTimeout(() => {
+                            display.style.color = 'var(--text)';
+                        }, 300);
+                    }
+                }
+                
                 requestAnimationFrame(animate);
-              } else {
-                display.textContent = newTotal;
-                setTimeout(() => {
-                  display.style.color = "var(--text)";
-                }, 300);
-              }
+            });
+
+            // Save to database/localStorage
+            if (currentUser) {
+                const { error } = await supabaseClient
+                    .from('game_progress')
+                    .update({ coins: newTotal })
+                    .eq('user_id', currentUser.id);
+
+                if (error) throw error;
+            } else {
+                localStorage.setItem('simploxCustomCoins', newTotal.toString());
             }
-      
-            requestAnimationFrame(animate);
-          });
-      
-          if (currentUser) {
-            const { error } = await supabaseClient
-              .from("game_progress")
-              .update({ coins: newTotal })
-              .eq("user_id", currentUser.id);
-      
-            if (error) throw error;
-          } else {
-            localStorage.setItem("simploxCustomCoins", newTotal.toString());
-          }
-      
-          // Update the shop screen coin display if it's visible
-          updateShopCoinDisplay();
-          
-          updatePerkButtons();
-          return true;
+
+            // Update perk buttons based on new coin total
+            updatePerkButtons();
+            return true;
+
         } catch (error) {
-          console.error("Failed to update coins:", error);
-          this.displayElements.forEach(display => {
-            display.textContent = gameState.coins - amount;
-          });
-          updatePerkButtons();
-          return false;
+            console.error('Failed to update coins:', error);
+            this.displayElements.forEach(display => {
+                display.textContent = gameState.coins - amount;
+            });
+            updatePerkButtons();  // Also update buttons on error
+            return false;
         }
-      },
+    },
 
     updateDisplays() {
         this.displayElements.forEach(display => {
@@ -1216,10 +1218,7 @@ async function handleLogin() {
 function initializeGame() {
     console.log("Initializing game state");
     
-    // Keep track of existing extended perks before reset
-    const existingExtendedPerks = gameState.extendedPerks;
-    
-    // Initialize basic game state
+    // Default initial values
     gameState.currentStage = 1;
     gameState.currentSet = 1;
     gameState.currentLevel = 1;
@@ -1227,103 +1226,87 @@ function initializeGame() {
     gameState.perks = {};
     gameState.unlockedSets = {};
     gameState.unlockedLevels = {};
-    gameState.perfectLevels = new Set;
-    gameState.completedLevels = new Set;
+    gameState.perfectLevels = new Set();
+    gameState.completedLevels = new Set();
     
-    // Try to load saved progress from localStorage
+    // Check localStorage for saved progress (for guest users or as backup)
     const savedProgress = localStorage.getItem("simploxProgress");
     if (savedProgress) {
-      try {
-        console.log("Found saved progress in localStorage");
-        const progress = JSON.parse(savedProgress);
-        
-        if (progress.stage) gameState.currentStage = progress.stage;
-        if (progress.set_number) gameState.currentSet = progress.set_number;
-        if (progress.level) gameState.currentLevel = progress.level;
-        if (progress.coins) gameState.coins = progress.coins;
-        if (progress.perks) gameState.perks = progress.perks;
-        
-        // Important: Load extended perks from saved progress
-        if (progress.extended_perks) {
-          gameState.extendedPerks = progress.extended_perks;
-          console.log("Loaded extended perks from progress:", gameState.extendedPerks);
+        try {
+            console.log("Found saved progress in localStorage");
+            const progress = JSON.parse(savedProgress);
+            
+            // Load basic game state
+            if (progress.stage) gameState.currentStage = progress.stage;
+            if (progress.set_number) gameState.currentSet = progress.set_number;
+            if (progress.level) gameState.currentLevel = progress.level;
+            if (progress.coins) gameState.coins = progress.coins;
+            if (progress.perks) gameState.perks = progress.perks;
+            
+            // Load unlocked sets
+            if (progress.unlocked_sets) {
+                Object.entries(progress.unlocked_sets).forEach(([stage, sets]) => {
+                    gameState.unlockedSets[stage] = new Set(Array.isArray(sets) ? sets : []);
+                });
+            }
+            
+            // Load unlocked levels
+            if (progress.unlocked_levels) {
+                Object.entries(progress.unlocked_levels).forEach(([setKey, levels]) => {
+                    gameState.unlockedLevels[setKey] = new Set(Array.isArray(levels) ? levels : []);
+                });
+            }
+            
+            // Load perfect and completed levels
+            if (progress.perfect_levels) {
+                gameState.perfectLevels = new Set(progress.perfect_levels);
+            }
+            
+            if (progress.completed_levels) {
+                gameState.completedLevels = new Set(progress.completed_levels);
+            }
+            
+            console.log("Loaded progress from localStorage:", {
+                currentStage: gameState.currentStage,
+                currentSet: gameState.currentSet,
+                currentLevel: gameState.currentLevel
+            });
+        } catch (e) {
+            console.error("Error parsing saved progress:", e);
         }
-        
-        if (progress.unlocked_sets) {
-          Object.entries(progress.unlocked_sets).forEach(([stage, sets]) => {
-            gameState.unlockedSets[stage] = new Set(Array.isArray(sets) ? sets : []);
-          });
-        }
-        
-        if (progress.unlocked_levels) {
-          Object.entries(progress.unlocked_levels).forEach(([setKey, levels]) => {
-            gameState.unlockedLevels[setKey] = new Set(Array.isArray(levels) ? levels : []);
-          });
-        }
-        
-        if (progress.perfect_levels) {
-          gameState.perfectLevels = new Set(progress.perfect_levels);
-        }
-        
-        if (progress.completed_levels) {
-          gameState.completedLevels = new Set(progress.completed_levels);
-        }
-        
-        console.log("Loaded progress from localStorage:", {
-          currentStage: gameState.currentStage,
-          currentSet: gameState.currentSet,
-          currentLevel: gameState.currentLevel
-        });
-      } catch (e) {
-        console.error("Error parsing saved progress:", e);
-      }
     }
     
-    // Try to load game context if available
+    // Check for game context which has precedence for the current level
     const savedContext = localStorage.getItem("gameContext");
     if (savedContext) {
-      try {
-        const context = JSON.parse(savedContext);
-        const timeSinceContext = Date.now() - (context.timestamp || 0);
-        
-        // Only use context if less than 24 hours old
-        if (timeSinceContext < 24 * 60 * 60 * 1000) {
-          console.log("Found recent game context, updating current location:", context);
-          if (context.stage) gameState.currentStage = context.stage;
-          if (context.set) gameState.currentSet = context.set;
-          if (context.level) gameState.currentLevel = context.level;
+        try {
+            const context = JSON.parse(savedContext);
+            const timeSinceContext = Date.now() - (context.timestamp || 0);
+            
+            // Only use context if it's less than 24 hours old
+            if (timeSinceContext < 24 * 60 * 60 * 1000) {
+                console.log("Found recent game context, updating current location:", context);
+                if (context.stage) gameState.currentStage = context.stage;
+                if (context.set) gameState.currentSet = context.set;
+                if (context.level) gameState.currentLevel = context.level;
+            }
+        } catch (e) {
+            console.error("Error parsing saved context:", e);
         }
-      } catch (e) {
-        console.error("Error parsing saved context:", e);
-      }
     }
     
-    // Fallback: If we didn't load extended perks from localStorage but had them before
-    if (!gameState.extendedPerks && existingExtendedPerks) {
-      console.log("Restoring extended perks from memory:", existingExtendedPerks);
-      gameState.extendedPerks = existingExtendedPerks;
-    }
-    
-    // Initialize the perk system if it's not already initialized
-    if (!gameState.extendedPerks) {
-      console.log("Initializing perk system in initializeGame");
-      initializePerkSystem();
-    }
-    
-    // Setup default stage/level unlocks
+    // Ensure we have default unlocks regardless
     setupDefaultUnlocks();
     
-    // Update UI
     updateAllCoinDisplays();
     updatePerkButtons();
     
     console.log("Game initialized with state:", {
-      currentStage: gameState.currentStage,
-      currentSet: gameState.currentSet,
-      currentLevel: gameState.currentLevel,
-      extendedPerks: gameState.extendedPerks
+        currentStage: gameState.currentStage,
+        currentSet: gameState.currentSet,
+        currentLevel: gameState.currentLevel
     });
-  }
+}
 
 function setupDefaultUnlocks() {
     // Stage 1: Level 1 of all sets should be unlocked
@@ -1430,170 +1413,153 @@ async function loadUserGameProgress(userId) {
     console.log("Loading game progress for user:", userId);
     
     try {
-      // Initialize with defaults
-      gameState.currentStage = 1;
-      gameState.currentSet = 1;
-      gameState.currentLevel = 1;
-      gameState.coins = 0;
-      gameState.perks = {};
-      gameState.unlockedSets = { 1: new Set([1]) };
-      gameState.unlockedLevels = { "1_1": new Set([1]) };
-      gameState.perfectLevels = new Set;
-      gameState.completedLevels = new Set;
-      
-      // Try to load from localStorage first
-      const localProgress = localStorage.getItem("simploxProgress");
-      if (localProgress) {
-        try {
-          const parsedProgress = JSON.parse(localProgress);
-          console.log("Found progress in localStorage:", parsedProgress);
-          
-          // Load standard fields
-          if (parsedProgress.stage) gameState.currentStage = parsedProgress.stage;
-          if (parsedProgress.set_number) gameState.currentSet = parsedProgress.set_number;
-          if (parsedProgress.level) gameState.currentLevel = parsedProgress.level;
-          if (parsedProgress.coins) gameState.coins = parsedProgress.coins;
-          if (parsedProgress.perks) gameState.perks = parsedProgress.perks;
-          
-          // Load extended perks if available
-          if (parsedProgress.extended_perks) {
-            gameState.extendedPerks = parsedProgress.extended_perks;
-          }
-          
-          // Load unlocked sets
-          if (parsedProgress.unlocked_sets) {
-            gameState.unlockedSets = {};
-            Object.entries(parsedProgress.unlocked_sets).forEach(([stage, sets]) => {
-              gameState.unlockedSets[stage] = new Set(sets);
-            });
-          }
-          
-          // Load unlocked levels
-          if (parsedProgress.unlocked_levels) {
-            gameState.unlockedLevels = {};
-            Object.entries(parsedProgress.unlocked_levels).forEach(([setKey, levels]) => {
-              gameState.unlockedLevels[setKey] = new Set(levels);
-            });
-          }
-          
-          // Load perfect levels and completed levels
-          if (parsedProgress.perfect_levels) {
-            gameState.perfectLevels = new Set(parsedProgress.perfect_levels);
-          }
-          
-          if (parsedProgress.completed_levels) {
-            gameState.completedLevels = new Set(parsedProgress.completed_levels);
-          }
-        } catch (e) {
-          console.error("Error parsing localStorage progress:", e);
-        }
-      }
-      
-      // Load from database
-      const { data, error } = await supabaseClient
-        .from("game_progress")
-        .select("*")
-        .eq("user_id", userId)
-        .single();
+        // Set up default values
+        gameState.currentStage = 1;
+        gameState.currentSet = 1;
+        gameState.currentLevel = 1;
+        gameState.coins = 0;
+        gameState.perks = {};
+        gameState.unlockedSets = { "1": new Set([1]) };
+        gameState.unlockedLevels = { "1_1": new Set([1]) };
+        gameState.perfectLevels = new Set();
+        gameState.completedLevels = new Set();
         
-      if (error) {
-        // Handle no record found
-        if (error.code === "PGRST116") {
-          console.log("No progress record found, creating initial progress");
-          const initialProgress = {
-            user_id: userId,
-            stage: gameState.currentStage,
-            set_number: gameState.currentSet,
-            level: gameState.currentLevel,
-            coins: gameState.coins
-          };
-          
-          const { error: insertError } = await supabaseClient
+        // First try to load from localStorage (this includes extended fields)
+        const localProgress = localStorage.getItem("simploxProgress");
+        if (localProgress) {
+            try {
+                const parsedProgress = JSON.parse(localProgress);
+                console.log("Found progress in localStorage:", parsedProgress);
+                
+                // Load basic fields
+                if (parsedProgress.stage) gameState.currentStage = parsedProgress.stage;
+                if (parsedProgress.set_number) gameState.currentSet = parsedProgress.set_number;
+                if (parsedProgress.level) gameState.currentLevel = parsedProgress.level;
+                if (parsedProgress.coins) gameState.coins = parsedProgress.coins;
+                if (parsedProgress.perks) gameState.perks = parsedProgress.perks;
+                
+                // Load unlocked sets
+                if (parsedProgress.unlocked_sets) {
+                    gameState.unlockedSets = {};
+                    Object.entries(parsedProgress.unlocked_sets).forEach(([stage, sets]) => {
+                        gameState.unlockedSets[stage] = new Set(sets);
+                    });
+                }
+                
+                // Load unlocked levels
+                if (parsedProgress.unlocked_levels) {
+                    gameState.unlockedLevels = {};
+                    Object.entries(parsedProgress.unlocked_levels).forEach(([setKey, levels]) => {
+                        gameState.unlockedLevels[setKey] = new Set(levels);
+                    });
+                }
+                
+                // Load completed and perfect levels
+                if (parsedProgress.perfect_levels) {
+                    gameState.perfectLevels = new Set(parsedProgress.perfect_levels);
+                }
+                
+                if (parsedProgress.completed_levels) {
+                    gameState.completedLevels = new Set(parsedProgress.completed_levels);
+                }
+            } catch (e) {
+                console.error("Error parsing localStorage progress:", e);
+            }
+        }
+        
+        // Then try to load from database (this might not include all fields)
+        const { data, error } = await supabaseClient
             .from("game_progress")
-            .insert([initialProgress]);
+            .select("*")
+            .eq("user_id", userId)
+            .single();
             
-          if (insertError) {
-            console.error("Error creating initial game progress:", insertError);
-          }
-        } else {
-          console.error("Error loading game progress:", error);
+        if (error) {
+            if (error.code === "PGRST116") {
+                console.log("No progress record found, creating initial progress");
+                
+                // Create a new record with minimal fields
+                const initialProgress = {
+                    user_id: userId,
+                    stage: gameState.currentStage,
+                    set_number: gameState.currentSet,
+                    level: gameState.currentLevel,
+                    coins: gameState.coins
+                };
+                
+                const { error: insertError } = await supabaseClient
+                    .from("game_progress")
+                    .insert([initialProgress]);
+                    
+                if (insertError) {
+                    console.error("Error creating initial game progress:", insertError);
+                }
+            } else {
+                console.error("Error loading game progress:", error);
+            }
+        } else if (data) {
+            // We found database data - prioritize this for core fields
+            console.log("Game progress loaded from database:", data);
+            
+            // Core fields - always use database values if present
+            gameState.currentStage = data.stage || gameState.currentStage;
+            gameState.currentSet = data.set_number || gameState.currentSet;
+            gameState.currentLevel = data.level || gameState.currentLevel;
+            gameState.coins = data.coins || gameState.coins;
+            
+            // Extended fields - only use if present in database
+            try {
+                // Perks
+                if (data.perks && Object.keys(data.perks).length > 0) {
+                    gameState.perks = data.perks;
+                }
+                
+                // Unlocked sets
+                if (data.unlocked_sets && Object.keys(data.unlocked_sets).length > 0) {
+                    gameState.unlockedSets = {};
+                    Object.entries(data.unlocked_sets).forEach(([stage, sets]) => {
+                        gameState.unlockedSets[stage] = new Set(sets);
+                    });
+                }
+                
+                // Unlocked levels
+                if (data.unlocked_levels && Object.keys(data.unlocked_levels).length > 0) {
+                    gameState.unlockedLevels = {};
+                    Object.entries(data.unlocked_levels).forEach(([setKey, levels]) => {
+                        gameState.unlockedLevels[setKey] = new Set(levels);
+                    });
+                }
+                
+                // Perfect levels
+                if (data.perfect_levels && data.perfect_levels.length > 0) {
+                    gameState.perfectLevels = new Set(data.perfect_levels);
+                }
+                
+                // Completed levels
+                if (data.completed_levels && data.completed_levels.length > 0) {
+                    gameState.completedLevels = new Set(data.completed_levels);
+                }
+            } catch (e) {
+                console.error("Error loading extended fields from database:", e);
+            }
         }
-      } else if (data) {
-        console.log("Game progress loaded from database:", data);
         
-        // Load standard fields
-        gameState.currentStage = data.stage || gameState.currentStage;
-        gameState.currentSet = data.set_number || gameState.currentSet;
-        gameState.currentLevel = data.level || gameState.currentLevel;
-        gameState.coins = data.coins || gameState.coins;
+        // Always setup default unlocks to ensure valid state
+        setupDefaultUnlocks();
         
-        try {
-          // Load perks
-          if (data.perks && Object.keys(data.perks).length > 0) {
-            gameState.perks = data.perks;
-          }
-          
-          // Load extended perks
-          if (data.extended_perks) {
-            gameState.extendedPerks = data.extended_perks;
-            console.log("Loaded extended perks from database:", gameState.extendedPerks);
-          }
-          
-          // Load unlocked sets
-          if (data.unlocked_sets && Object.keys(data.unlocked_sets).length > 0) {
-            gameState.unlockedSets = {};
-            Object.entries(data.unlocked_sets).forEach(([stage, sets]) => {
-              gameState.unlockedSets[stage] = new Set(sets);
-            });
-          }
-          
-          // Load unlocked levels
-          if (data.unlocked_levels && Object.keys(data.unlocked_levels).length > 0) {
-            gameState.unlockedLevels = {};
-            Object.entries(data.unlocked_levels).forEach(([setKey, levels]) => {
-              gameState.unlockedLevels[setKey] = new Set(levels);
-            });
-          }
-          
-          // Load perfect levels
-          if (data.perfect_levels && data.perfect_levels.length > 0) {
-            gameState.perfectLevels = new Set(data.perfect_levels);
-          }
-          
-          // Load completed levels
-          if (data.completed_levels && data.completed_levels.length > 0) {
-            gameState.completedLevels = new Set(data.completed_levels);
-          }
-        } catch (e) {
-          console.error("Error loading extended fields from database:", e);
-        }
-      }
-      
-      // Initialize perk system if missing
-      if (!gameState.extendedPerks) {
-        console.log("Initializing extended perks system");
-        initializePerkSystem();
-      } else {
-        console.log("Extended perks already initialized");
-      }
-      
-      // Setup default unlocks
-      setupDefaultUnlocks();
-      
-      console.log("Game state after loading progress:", {
-        currentStage: gameState.currentStage,
-        currentSet: gameState.currentSet,
-        currentLevel: gameState.currentLevel
-      });
-      
-      updateAllCoinDisplays();
-      
-      return true;
+        console.log("Game state after loading progress:", {
+            currentStage: gameState.currentStage,
+            currentSet: gameState.currentSet,
+            currentLevel: gameState.currentLevel
+        });
+        
+        updateAllCoinDisplays();
+        return true;
     } catch (err) {
-      console.error("Unexpected error in loadUserGameProgress:", err);
-      return false;
+        console.error("Unexpected error in loadUserGameProgress:", err);
+        return false;
     }
-  }
+}
 
 function debugUnlockState() {
     console.group('Current Game State');
@@ -1694,92 +1660,93 @@ function saveProgress() {
     console.log("Saving game progress");
     
     if (!gameState.currentStage) {
-      console.log("No game state to save");
-      return;
+        console.log("No game state to save");
+        return;
     }
     
-    // Core progress data
+    // Format the data for storage
     const progressData = {
-      stage: gameState.currentStage || 1,
-      set_number: gameState.currentSet || 1,
-      level: gameState.currentLevel || 1,
-      coins: gameState.coins || 0
+        stage: gameState.currentStage || 1,
+        set_number: gameState.currentSet || 1,
+        level: gameState.currentLevel || 1,
+        coins: gameState.coins || 0
     };
     
-    // Extended data
+    // Prepare the extended data that might be affected by schema cache
     const extendedData = {
-      perks: gameState.perks || {},
-      unlocked_sets: Object.fromEntries(
-        Object.entries(gameState.unlockedSets || {}).map(([stage, sets]) => 
-          [stage, Array.from(sets || [])]
-        )
-      ),
-      unlocked_levels: Object.fromEntries(
-        Object.entries(gameState.unlockedLevels || {}).map(([setKey, levels]) => 
-          [setKey, Array.from(levels || [])]
-        )
-      ),
-      perfect_levels: Array.from(gameState.perfectLevels || []),
-      completed_levels: Array.from(gameState.completedLevels || []),
-      extended_perks: gameState.extendedPerks || null  // Add this line
+        perks: gameState.perks || {},
+        unlocked_sets: Object.fromEntries(
+            Object.entries(gameState.unlockedSets || {}).map(([stage, sets]) => 
+                [stage, Array.from(sets || [])]
+            )
+        ),
+        unlocked_levels: Object.fromEntries(
+            Object.entries(gameState.unlockedLevels || {}).map(([setKey, levels]) => 
+                [setKey, Array.from(levels || [])]
+            )
+        ),
+        perfect_levels: Array.from(gameState.perfectLevels || []),
+        completed_levels: Array.from(gameState.completedLevels || [])
     };
     
-    // Save to localStorage
+    // Save full data to localStorage for backup
     localStorage.setItem("simploxProgress", JSON.stringify({
-      ...progressData,
-      ...extendedData
+        ...progressData,
+        ...extendedData
     }));
     
-    // Save game context
+    // Save current context for resuming
     const contextData = {
-      stage: gameState.currentStage,
-      set: gameState.currentSet,
-      level: gameState.currentLevel,
-      timestamp: Date.now()
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: gameState.currentLevel,
+        timestamp: Date.now()
     };
-    
     localStorage.setItem("gameContext", JSON.stringify(contextData));
     
-    // Save to Supabase if user is logged in
+    // If user is logged in, save to database
     if (currentUser) {
-      console.log("Saving progress to Supabase for user:", currentUser.id);
-      
-      // Save core progress
-      supabaseClient.from("game_progress")
-        .upsert({
-          user_id: currentUser.id,
-          ...progressData
-        })
-        .then(({ error: coreError }) => {
-          if (coreError) {
-            console.error("Error saving core progress:", coreError);
-          } else {
-            console.log("Core progress saved successfully");
-            
-            // Save extended fields
-            const saveExtendedField = (fieldName, fieldValue) => {
-              const updateData = { [fieldName]: fieldValue };
-              
-              supabaseClient.from("game_progress")
-                .update(updateData)
-                .eq("user_id", currentUser.id)
-                .then(({ error }) => {
-                  if (error) {
-                    console.warn(`Error saving ${fieldName}:`, error);
-                  } else {
-                    console.log(`${fieldName} saved successfully`);
-                  }
-                });
-            };
-            
-            // Save each extended field
-            Object.entries(extendedData).forEach(([field, value]) => {
-              saveExtendedField(field, value);
+        console.log("Saving progress to Supabase for user:", currentUser.id);
+        
+        // First try to save just the core fields - this should always work
+        supabaseClient
+            .from("game_progress")
+            .upsert({
+                user_id: currentUser.id,
+                ...progressData
+            })
+            .then(({ error: coreError }) => {
+                if (coreError) {
+                    console.error("Error saving core progress:", coreError);
+                } else {
+                    console.log("Core progress saved successfully");
+                    
+                    // Now try to save each extended field individually
+                    // This way if one field fails due to schema issues, others might still work
+                    const saveExtendedField = (fieldName, fieldValue) => {
+                        const updateData = { [fieldName]: fieldValue };
+                        
+                        supabaseClient
+                            .from("game_progress")
+                            .update(updateData)
+                            .eq("user_id", currentUser.id)
+                            .then(({ error }) => {
+                                if (error) {
+                                    console.warn(`Error saving ${fieldName}:`, error);
+                                } else {
+                                    console.log(`${fieldName} saved successfully`);
+                                }
+                            });
+                    };
+                    
+                    // Try each field separately
+                    Object.entries(extendedData).forEach(([field, value]) => {
+                        saveExtendedField(field, value);
+                    });
+                }
             });
-          }
-        });
     }
-  }
+}
 
 async function ensureCorrectSchema() {
     if (!currentUser) return false;
@@ -2563,122 +2530,115 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function showScreen(screenId, forceRefresh = false) {
-    // Prevent unregistered users from seeing upgrade screen
-    if (screenId === "upgrade-screen" && !currentUser) {
-      console.log("Unregistered user attempt to access upgrade screen, redirecting to auth modal");
-      screenId = "welcome-screen"; // Redirect to welcome screen first
-      
-      // Show auth modal with signup form after a brief delay
+  // Prevent unregistered users from seeing upgrade screen
+  if (screenId === "upgrade-screen" && !currentUser) {
+    console.log("Unregistered user attempt to access upgrade screen, redirecting to auth modal");
+    screenId = "welcome-screen"; // Redirect to welcome screen first
+    
+    // Show auth modal with signup form after a brief delay
+    setTimeout(() => {
+      showAuthModal();
+      // Switch to signup form
       setTimeout(() => {
-        showAuthModal();
-        // Switch to signup form
-        setTimeout(() => {
-          const loginForm = document.getElementById('loginForm');
-          const signupForm = document.getElementById('signupForm');
-          if (loginForm && signupForm) {
-            loginForm.classList.add('hidden');
-            signupForm.classList.remove('hidden');
-          }
-        }, 100);
-      }, 200);
-    }
-  
-    // When returning to welcome screen, clear game context
-    if (screenId === "welcome-screen") {
-      console.log("Returning to welcome screen, clearing game context");
-      localStorage.removeItem("gameContext");
-    }
-     
-    console.log("showScreen called with:", {
-      screenId: screenId,
-      forceRefresh: forceRefresh,
-      currentUser: currentUser ? currentUser.id : "No user"
-    });
-     
-    // Special handling for leaderboard screen cleanup
-    if (document.querySelector('.screen.visible')?.id === 'leaderboard-screen') {
-      cleanupLeaderboard();
-    }
-     
-    // Get currently visible screen
-    const currentScreen = document.querySelector('.screen.visible');
-     
-    // Cleanup if leaving question screen
-    if (currentScreen && currentScreen.id === 'question-screen') {
-      clearTimer();
-      isFrozen = false;
-    }
-     
-    // Handle force refresh
-    if (forceRefresh && screenId === "welcome-screen") {
-      console.log("Initiating full page reload");
-      saveProgress();
-      window.location.reload(true);
-      return;
-    }
-  
-    if (["question-screen", "custom-practice-screen", "moderator-screen", "leaderboard-screen"].includes(screenId)) {
-      updateNavigationContainer();
-    }
-     
-    // Hide all screens
-    document.querySelectorAll('.screen').forEach(screen => {
-      screen.classList.remove('visible');
-         
-      // Remove particle containers
-      const particleContainer = screen.querySelector('.particle-container');
-      if (particleContainer) {
-        particleContainer.remove();
-      }
-    });
-     
-    // Show requested screen
-    const screenElement = document.getElementById(screenId);
-    if (screenElement) {
-      // Make screen visible
-      screenElement.classList.add('visible');
-         
-      // Initialize particles for the screen
-      initializeParticles(screenElement);
-         
-      // Update UI elements
-      updateAllCoinDisplays();
-         
-      // Special handling for different screens
-      switch (screenId) {
-        case "question-screen":
-          updatePerkButtons();
-                 
-          // Check for admin user and add test button
-          console.log("Question screen shown, checking for admin button");
-          setTimeout(() => {
-            addAdminTestButton();
-          }, 100);
-          
-          // Add this new code to refresh perks when the question screen is shown
-          if (gameState.extendedPerks && !currentGame.isArcadeMode) {
-            updateExistingPerkButtons();
-            // Force a refresh of perk buttons after a short delay
-            setTimeout(forceRefreshPerkButtons, 100);
-          }
-          break;
-               
-        case "welcome-screen":
-          if (restoreGameContext()) {
-            startGame();
-          }
-          break;
-               
-        case "stage-cascade-screen":
-          // Handle the cascading stage screen specially
-          return showStageCascadeScreen();
-      }
-         
-      console.log(`Switched to screen: ${screenId}`);
-    } else {
-      console.error(`Screen with id ${screenId} not found`);
-    }
+        const loginForm = document.getElementById('loginForm');
+        const signupForm = document.getElementById('signupForm');
+        if (loginForm && signupForm) {
+          loginForm.classList.add('hidden');
+          signupForm.classList.remove('hidden');
+        }
+      }, 100);
+    }, 200);
   }
+
+  // When returning to welcome screen, clear game context
+  if (screenId === "welcome-screen") {
+    console.log("Returning to welcome screen, clearing game context");
+    localStorage.removeItem("gameContext");
+  }
+   
+  console.log("showScreen called with:", {
+    screenId: screenId,
+    forceRefresh: forceRefresh,
+    currentUser: currentUser ? currentUser.id : "No user"
+  });
+   
+  // Special handling for leaderboard screen cleanup
+  if (document.querySelector('.screen.visible')?.id === 'leaderboard-screen') {
+    cleanupLeaderboard();
+  }
+   
+  // Get currently visible screen
+  const currentScreen = document.querySelector('.screen.visible');
+   
+  // Cleanup if leaving question screen
+  if (currentScreen && currentScreen.id === 'question-screen') {
+    clearTimer();
+    isFrozen = false;
+  }
+   
+  // Handle force refresh
+  if (forceRefresh && screenId === "welcome-screen") {
+    console.log("Initiating full page reload");
+    saveProgress();
+    window.location.reload(true);
+    return;
+  }
+
+  if (["question-screen", "custom-practice-screen", "moderator-screen", "leaderboard-screen"].includes(screenId)) {
+    updateNavigationContainer();
+  }
+   
+  // Hide all screens
+  document.querySelectorAll('.screen').forEach(screen => {
+    screen.classList.remove('visible');
+       
+    // Remove particle containers
+    const particleContainer = screen.querySelector('.particle-container');
+    if (particleContainer) {
+      particleContainer.remove();
+    }
+  });
+   
+  // Show requested screen
+  const screenElement = document.getElementById(screenId);
+  if (screenElement) {
+    // Make screen visible
+    screenElement.classList.add('visible');
+       
+    // Initialize particles for the screen
+    initializeParticles(screenElement);
+       
+    // Update UI elements
+    updateAllCoinDisplays();
+       
+    // Special handling for different screens
+    switch (screenId) {
+      case "question-screen":
+        updatePerkButtons();
+               
+        // Check for admin user and add test button
+        console.log("Question screen shown, checking for admin button");
+        setTimeout(() => {
+          addAdminTestButton();
+        }, 100);
+        break;
+             
+      case "welcome-screen":
+        if (restoreGameContext()) {
+          startGame();
+        }
+        break;
+             
+      case "stage-cascade-screen":
+        // Handle the cascading stage screen specially
+        return showStageCascadeScreen();
+    }
+       
+    console.log(`Switched to screen: ${screenId}`);
+  } else {
+    console.error(`Screen with id ${screenId} not found`);
+  }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.home-button').forEach(button => {
@@ -3103,100 +3063,87 @@ function generateAnswerChoices(correctAnswer, vocabulary) {
 }
 
 function startLevel(level) {
-    gameState.currentLevel = level;
+  gameState.currentLevel = level;
+  
+  // Save game context
+  const gameContext = {
+    stage: gameState.currentStage,
+    set: gameState.currentSet,
+    level: level,
+    timestamp: Date.now()
+  };
+  
+  console.log("Setting game context at level start:", gameContext);
+  localStorage.setItem("gameContext", JSON.stringify(gameContext));
+  
+  // Reset game state
+  currentGame.wrongStreak = 0;
+  currentGame.correctAnswers = 0;
+  currentGame.levelStartTime = Date.now();
+  currentGame.firstAttempt = true;
+  currentGame.streakBonus = true;
+  updatePerkButtons();
+  
+  console.log("Current unlocked levels:", gameState.unlockedLevels);
+  
+  const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+  console.log(`Current set key: ${setKey}, unlocked levels in set:`, 
+    gameState.unlockedLevels[setKey] ? Array.from(gameState.unlockedLevels[setKey]) : "none");
+  
+  // Show/hide UI elements
+  const perksContainer = document.querySelector('.perks-container');
+  const powerupsContainer = document.querySelector('.powerups-container');
+  
+  if (perksContainer) perksContainer.style.display = 'flex';
+  if (powerupsContainer) powerupsContainer.style.display = 'none';
+  
+  const coinCount = document.querySelector('.coin-count');
+  if (coinCount) coinCount.textContent = gameState.coins || 0;
+  
+  const coinsContainer = document.querySelector('.coins-container');
+  if (coinsContainer) coinsContainer.style.display = 'flex';
+  
+  gameState.currentStage = gameState.currentStage || 1;
+  gameState.currentSet = gameState.currentSet || 1;
+  gameState.currentLevel = level;
+  
+  console.log(`Starting level: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${level}`);
+  addAdminTestButton();
+  
+  // Check if premium is required
+  const userStatus = currentUser ? currentUser.status : 'unregistered';
+  if ([2, 7, 11, 15, 20].includes(level) && userStatus !== 'premium') {
+    const currentLevel = level;
     
-    // Save game context at level start
-    const gameContext = {
-      stage: gameState.currentStage,
-      set: gameState.currentSet,
-      level: level,
-      timestamp: Date.now()
-    };
-    console.log("Setting game context at level start:", gameContext);
-    localStorage.setItem("gameContext", JSON.stringify(gameContext));
-    
-    // Reset game state for new level
-    currentGame.wrongStreak = 0;
-    currentGame.correctAnswers = 0;
-    currentGame.levelStartTime = Date.now();
-    currentGame.firstAttempt = true;
-    currentGame.streakBonus = true;
-    
-    // Ensure perks are properly initialized
-    if (!gameState.extendedPerks) {
-      console.log("Initializing perk system in startLevel");
-      initializePerkSystem();
+    if (!currentUser) {
+      return showUnregisteredWarning(() => {
+        proceedWithLevel(currentLevel);
+      });
     }
     
-    // Update UI for perks
-    updatePerkButtons();
-    updateExistingPerkButtons();
-    
-    console.log("Current unlocked levels:", gameState.unlockedLevels);
-    const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-    console.log(`Current set key: ${setKey}, unlocked levels in set:`, 
-      gameState.unlockedLevels[setKey] ? Array.from(gameState.unlockedLevels[setKey]) : "none");
-    
-    // Show/hide UI elements
-    const perksContainer = document.querySelector('.perks-container');
-    const powerupsContainer = document.querySelector('.powerups-container');
-    if (perksContainer) perksContainer.style.display = 'flex';
-    if (powerupsContainer) powerupsContainer.style.display = 'none';
-    
-    // Update coin display
-    const coinCount = document.querySelector('.coin-count');
-    if (coinCount) {
-      coinCount.textContent = gameState.coins || 0;
-      coinCount.style.display = 'block';
+    if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
+      return showUpgradePrompt(() => {
+        proceedWithLevel(currentLevel);
+      });
     }
-    
-    const coinsContainer = document.querySelector('.coins-container');
-    if (coinsContainer) coinsContainer.style.display = 'flex';
-    
-    // Set game state
-    gameState.currentStage = gameState.currentStage || 1;
-    gameState.currentSet = gameState.currentSet || 1;
-    gameState.currentLevel = level;
-    
-    console.log(`Starting level: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${level}`);
-    
-    // Check for admin user and add test button
-    addAdminTestButton();
-    
-    // Check premium status for certain levels
-    const userStatus = currentUser ? currentUser.status : 'unregistered';
-    if ([2, 7, 11, 15, 20].includes(level) && userStatus !== 'premium') {
-      const currentLevel = level;
-      if (!currentUser) {
-        return showUnregisteredWarning(() => {
-          proceedWithLevel(currentLevel);
-        });
-      }
-      
-      if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
-        return showUpgradePrompt(() => {
-          proceedWithLevel(currentLevel);
-        });
-      }
-    }
-    
-    // Check for boss level
-    if (level === 21) {
-      currentGame.isBossLevel = true;
-      console.log("Boss level detected");
-      setTimeout(applyBossLevelStyles, 100);
-      setTimeout(applyBossLevelStyles, 500);
-    } else {
-      currentGame.isBossLevel = false;
-    }
-    
-    // Force full intro for first level or boss level
-    const forceFullIntro = level === 21 || level === 1;
-    proceedWithLevel(level, forceFullIntro);
-    
-    // Force refresh perk buttons after a short delay
-    setTimeout(forceRefreshPerkButtons, 300);
   }
+  
+  // Determine if this is a boss level
+  if (level === 21) {
+    currentGame.isBossLevel = true;
+    console.log("Boss level detected");
+    setTimeout(applyBossLevelStyles, 100);
+    setTimeout(applyBossLevelStyles, 500);
+  } else {
+    currentGame.isBossLevel = false;
+  }
+  
+  // Determine if we need to show the full intro
+  // Force full intro for boss levels or first level of a set
+  const forceFullIntro = level === 21 || level === 1;
+  
+  proceedWithLevel(level, forceFullIntro);
+}
 
 function addAdminTestButton() {
   console.log("Checking for admin user...");
@@ -3682,25 +3629,26 @@ function pulseCoins(times = 1) {
 
 
 function updateAllCoinDisplays() {
-    const displays = document.querySelectorAll(".coin-count");
+    const displays = document.querySelectorAll('.coin-count');
     displays.forEach(display => {
-      const currentValue = parseInt(display.textContent) || 0;
-      let targetValue;
-      
-      if (window.location.pathname.includes("arcade")) {
-        targetValue = currentGame.coins || 0;
-      } else {
-        targetValue = gameState.coins || 0;
-      }
-      
-      const startNum = Number(currentValue);
-      const endNum = Number(targetValue);
-      animateNumber(display, startNum, endNum);
+        const currentValue = parseInt(display.textContent) || 0;
+        let targetValue;
+
+        // Determine the target value based on the context
+        if (window.location.pathname.includes('arcade')) {
+            targetValue = currentGame.coins || 0;
+        } else {
+            targetValue = gameState.coins || 0;
+        }
+
+        // Ensure we're using actual numeric values
+        const startNum = Number(currentValue);
+        const endNum = Number(targetValue);
+
+        animateNumber(display, startNum, endNum);
     });
-    
-    // Also update the shop screen
-    updateShopCoinDisplay();
-  }
+}
+
 
 
 
@@ -4500,47 +4448,42 @@ function findFurthestProgression() {
 function startGame() {
     console.log("Starting game");
     
-    // First check if we have existing progress
     if (!hasExistingProgress()) {
-      console.log("No existing progress found, showing grade selector");
-      showGradeLevelSelector();
-      return;
+        console.log("No existing progress found, showing grade selector");
+        showGradeLevelSelector();
+        return;
     }
     
-    // Try to restore saved game context
+    // Check for saved game context first
     const savedContext = localStorage.getItem("gameContext");
     if (savedContext) {
-      try {
-        const context = JSON.parse(savedContext);
-        if (context.stage && context.set && context.level) {
-          console.log("Found saved game context:", context);
-          gameState.currentStage = context.stage;
-          gameState.currentSet = context.set;
-          gameState.currentLevel = context.level;
-          startLevel(gameState.currentLevel);
-          return;
+        try {
+            const context = JSON.parse(savedContext);
+            if (context.stage && context.set && context.level) {
+                console.log("Found saved game context:", context);
+                
+                // Use context data for current level
+                gameState.currentStage = context.stage;
+                gameState.currentSet = context.set;
+                gameState.currentLevel = context.level;
+                
+                startLevel(gameState.currentLevel);
+                return;
+            }
+        } catch (e) {
+            console.error("Error parsing game context:", e);
         }
-      } catch (e) {
-        console.error("Error parsing game context:", e);
-      }
     }
     
-    // Ensure we initialize the perk system and load existing selections
-    if (!gameState.extendedPerks) {
-      console.log("Initializing perk system in startGame");
-      initializePerkSystem();
-    } else {
-      console.log("Using existing perk configuration:", gameState.extendedPerks);
-    }
-    
+    // If no context, use current game state
     console.log("Using current game state:", {
-      stage: gameState.currentStage,
-      set: gameState.currentSet,
-      level: gameState.currentLevel
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: gameState.currentLevel
     });
     
     startLevel(gameState.currentLevel);
-  }
+}
 
 function updateLevelProgress(stage, set, level, completed, perfect) {
     // Create a key to reference this specific level
@@ -5799,49 +5742,52 @@ function skipUpgrade() {
     hideUpgradePromptAndContinue();
 }
 
+// Find the updateUserStatusDisplay function and modify it
 function updateUserStatusDisplay(status) {
     const userProfileSection = document.querySelector('.user-profile-section');
-    const statusBadge = document.getElementById('userTierText');
+    const userTierText = document.getElementById('userTierText');
     
-    if (!userProfileSection || !statusBadge) {
-        console.warn('User profile elements not found');
-        return;
-    }
-    
-    // Clear existing classes
-    statusBadge.className = 'status-badge';
-    
-    if (!currentUser) {
-        statusBadge.classList.add('unregistered');
-        statusBadge.textContent = 'Unregistered';
-        userProfileSection.style.display = 'none';
-    } else {
+    if (userProfileSection && userTierText) {
+      userTierText.className = 'status-badge';
+      
+      if (currentUser) {
         userProfileSection.style.display = 'block';
-        
-        switch(status) {
-            case 'free':
-                statusBadge.classList.add('trial');
-                statusBadge.textContent = 'Trial Account';
-                break;
-            case 'pending':
-                statusBadge.classList.add('pending');
-                statusBadge.textContent = 'Premium Pending';
-                break;
-            case 'premium':
-                statusBadge.classList.add('premium');
-                statusBadge.textContent = 'Premium';
-                break;
-            default:
-                statusBadge.classList.add('trial');
-                statusBadge.textContent = 'Trial Account';
+        switch (status) {
+          case 'free':
+          default:
+            userTierText.classList.add('trial');
+            userTierText.textContent = 'Trial Account';
+            break;
+          case 'pending':
+            userTierText.classList.add('pending');
+            userTierText.textContent = 'Premium Pending';
+            break;
+          case 'premium':
+            userTierText.classList.add('premium');
+            userTierText.textContent = 'Premium';
+            break;
         }
-    }
-    
-    // Update stats if available
-    if (currentUser) {
+        
         updateUserStats();
+        
+        // Dispatch event for ad logic to respond to
+        document.dispatchEvent(new CustomEvent('userStatusChanged', { 
+          detail: { status: status } 
+        }));
+      } else {
+        userTierText.classList.add('unregistered');
+        userTierText.textContent = 'Unregistered';
+        userProfileSection.style.display = 'none';
+        
+        // Also dispatch for unregistered users
+        document.dispatchEvent(new CustomEvent('userStatusChanged', { 
+          detail: { status: 'unregistered' } 
+        }));
+      }
+    } else {
+      console.warn('User profile elements not found');
     }
-}
+  }
 
 async function updateUserStats() {
   try {
@@ -12897,73 +12843,69 @@ function resetAllAccessibilitySettings() {
 }
 
 async function trackWordEncounter(word, mode) {
-    if (!currentUser) return;
+  if (currentUser) {  // Remove status check - allow for all registered users
     try {
-      // Use encodeURIComponent to properly handle non-Latin characters
-      const wordKey = encodeURIComponent(word.replace(/\s+/g, "_"));
-      
-      // First try to check if the word exists using a POST request
-      const { data, error } = await supabaseClient
-        .from("word_practice_history")
+      // Check if word exists in history
+      const { data, error } = await supabaseClient.from("word_practice_history")
         .select("*")
         .eq("user_id", currentUser.id)
-        .filter("word", "eq", word) // Using filter instead of eq for the word
-        .maybeSingle();
-        
+        .eq("word", word)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        return console.error("Error fetching word history:", error);
+      }
+      
       let isNewWord = false;
       let coinReward = 0;
       
       if (data) {
-        // Word exists, update practice count
+        // Word exists, update count
         const newCount = data.practice_count + 1;
         coinReward = newCount <= 5 ? 3 : 1;
         
-        const { error: updateError } = await supabaseClient
-          .from("word_practice_history")
+        const { error } = await supabaseClient.from("word_practice_history")
           .update({
             practice_count: newCount,
             last_practiced_at: new Date().toISOString(),
             game_mode: mode,
             coins_earned: data.coins_earned + coinReward
           })
-          .eq("id", data.id); // Use id instead of word for update
+          .eq("user_id", currentUser.id)
+          .eq("word", word);
           
-        if (updateError) return console.error("Error updating word history:", updateError);
+        if (error) return console.error("Error updating word history:", error);
       } else {
         // New word, insert record
         isNewWord = true;
         coinReward = 3;
         
-        const { error: insertError } = await supabaseClient
-          .from("word_practice_history")
+        const { error } = await supabaseClient.from("word_practice_history")
           .insert([{
             user_id: currentUser.id,
-            word: word, // Store the original word
+            word: word,
             practice_count: 1,
             game_mode: mode,
             coins_earned: coinReward
           }]);
           
-        if (insertError) return console.error("Error inserting word history:", insertError);
+        if (error) return console.error("Error inserting word history:", error);
         
-        // Update player stats for unique words
-        const { data: statsData, error: statsError } = await supabaseClient
-          .from("player_stats")
+        // Update unique words count
+        const { data, error: statsError } = await supabaseClient.from("player_stats")
           .select("unique_words_practiced")
           .eq("user_id", currentUser.id)
           .single();
           
         if (!statsError) {
-          const newWordCount = (statsData?.unique_words_practiced || 0) + 1;
-          
-          const { error: updateStatsError } = await supabaseClient
-            .from("player_stats")
+          const newWordCount = (data?.unique_words_practiced || 0) + 1;
+          const { error } = await supabaseClient.from("player_stats")
             .update({ unique_words_practiced: newWordCount })
             .eq("user_id", currentUser.id);
             
-          if (updateStatsError) {
-            console.error("Error updating player stats:", updateStatsError);
-          } else {
+          if (error) console.error("Error updating player stats:", error);
+          else {
+            // Update UI word count immediately
             document.querySelectorAll("#totalWords").forEach(el => {
               animateNumber(el, parseInt(el.textContent) || 0, newWordCount);
             });
@@ -12975,14 +12917,12 @@ async function trackWordEncounter(word, mode) {
         await CoinsManager.updateCoins(coinReward);
       }
       
-      return {
-        isNewWord: isNewWord,
-        coinReward: coinReward
-      };
+      return { isNewWord, coinReward };
     } catch (e) {
       console.error("Error in trackWordEncounter:", e);
     }
   }
+}
 
 function createRainingParticles() {
   const questionScreen = document.getElementById('question-screen');
@@ -13561,67 +13501,6 @@ function showModernBossVictoryScreen() {
     });
 }
 
-// ADD THIS TO YOUR SCRIPT.JS
-function setupPerkTestingButton() {
-    // Only create button for admin user
-    if (!isAdminUser()) return;
-    
-    const existingButton = document.getElementById('perk-test-button');
-    if (existingButton) existingButton.remove();
-    
-    const testButton = document.createElement('button');
-    testButton.id = 'perk-test-button';
-    testButton.textContent = 'Unlock All Perks';
-    testButton.style.cssText = `
-      position: fixed;
-      top: 130px;
-      right: 20px;
-      background: #9c27b0;
-      color: white;
-      border: none;
-      padding: 10px 15px;
-      border-radius: 5px;
-      cursor: pointer;
-      z-index: 2000;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-      font-weight: bold;
-    `;
-    
-    testButton.onclick = function() {
-      // Initialize perk system if not already done
-      if (!gameState.extendedPerks) {
-        initializePerkSystem();
-      }
-      
-      // Unlock all perks
-      Object.keys(EXTENDED_PERK_CONFIG).forEach(perkId => {
-        gameState.extendedPerks.perkStates[perkId].unlocked = true;
-        
-        if (!gameState.extendedPerks.unlockedPerks.includes(perkId)) {
-          gameState.extendedPerks.unlockedPerks.push(perkId);
-        }
-      });
-      
-      // Add some coins
-      gameState.coins += 5000;
-      updateAllCoinDisplays();
-      
-      // Save progress
-      saveProgress();
-      
-      showNotification('All perks unlocked and 5000 coins added!', 'success');
-    };
-    
-    document.body.appendChild(testButton);
-  }
-  
-  // Hook into addAdminTestButton to also add our perk test button
-  const originalAddAdminTestButton = addAdminTestButton;
-  addAdminTestButton = function() {
-    originalAddAdminTestButton();
-    setupPerkTestingButton();
-  };
-
 // REPLACE showBossDefeatEffect function
 function showBossDefeatEffect() {
     console.log('Starting boss defeat effect sequence');
@@ -13645,7 +13524,7 @@ function showBossDefeatEffect() {
     // Apply coin reward if needed
     if (coinRewardNeeded) {
         targetCoins = originalCoins;
-        console.log(`Adding 1000 coins: ${originalCoins} -> ${targetCoins}`);
+        console.log(`Adding 100 coins: ${originalCoins} -> ${targetCoins}`);
         gameState.coins = targetCoins;
         saveProgress();
     } else {
@@ -17865,832 +17744,31 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-// Perk Shop System Implementation
-
-// Extended Perk Configuration
-const EXTENDED_PERK_CONFIG = {
-  // Original perks with additional properties
-  timeFreeze: {
-    name: "Time Freeze",
-    description: "Pause the timer for 5 seconds",
-    cost: 15,
-    buyCost: 100,
-    icon: "fa-clock",
-    duration: 5000,
-    category: "basic",
-    unlocked: true
-  },
-  skip: {
-    name: "Skip Question",
-    description: "Skip the current word without penalty",
-    cost: 1,
-    buyCost: 50,
-    icon: "fa-forward",
-    category: "basic",
-    unlocked: true
-  },
-  clue: {
-    name: "Eliminate Wrong Answer",
-    description: "Remove one incorrect answer",
-    cost: 35,
-    buyCost: 150,
-    icon: "fa-lightbulb",
-    category: "basic",
-    unlocked: true
-  },
-  reveal: {
-    name: "Reveal Correct Answer",
-    description: "Show the correct translation",
-    cost: 50,
-    buyCost: 200,
-    icon: "fa-eye",
-    category: "basic",
-    unlocked: true
-  },
-  
-  // New basic perks
-  doublePoints: {
-    name: "Double Points",
-    description: "Next correct answer gives double coins",
-    cost: 30,
-    buyCost: 120,
-    icon: "fa-coins",
-    category: "basic",
-    unlocked: false
-  },
-  secondChance: {
-    name: "Second Chance",
-    description: "Allows one mistake without losing streak bonus",
-    cost: 40,
-    buyCost: 180,
-    icon: "fa-heart",
-    category: "basic",
-    unlocked: false
-  },
-  timeExtension: {
-    name: "Time Extension",
-    description: "Add 10 seconds to the timer",
-    cost: 45,
-    buyCost: 200,
-    icon: "fa-hourglass-half",
-    category: "basic",
-    unlocked: false
-  },
-  
-  // Advanced perks
-  comboBooster: {
-    name: "Combo Booster",
-    description: "Each correct answer in sequence gives +1 extra coin",
-    cost: 100,
-    buyCost: 400,
-    icon: "fa-bolt",
-    category: "advanced",
-    unlocked: false
-  },
-  shield: {
-    name: "Shield",
-    description: "Prevents losing progress on the next wrong answer",
-    cost: 150,
-    buyCost: 500,
-    icon: "fa-shield-alt",
-    category: "advanced",
-    unlocked: false
-  },
-  timeSlow: {
-    name: "Time Slow",
-    description: "Timer moves at half speed for 15 seconds",
-    cost: 180,
-    buyCost: 600,
-    icon: "fa-stopwatch",
-    category: "advanced",
-    unlocked: false
-  },
-  progressLock: {
-    name: "Progress Lock",
-    description: "Prevents losing progress for the next 3 questions",
-    cost: 200,
-    buyCost: 650,
-    icon: "fa-lock",
-    category: "advanced",
-    unlocked: false
-  },
-  
-  // Premium perks
-  goldenEgg: {
-    name: "Golden Egg",
-    description: "Gives a random premium perk when used",
-    cost: 500,
-    buyCost: 1500,
-    icon: "fa-egg",
-    category: "premium",
-    unlocked: false
-  },
-  timeMachine: {
-    name: "Time Machine",
-    description: "Return to a previous question you got wrong",
-    cost: 350,
-    buyCost: 1000,
-    icon: "fa-history",
-    category: "premium",
-    unlocked: false
-  },
-  coinDoubler: {
-    name: "Coin Doubler",
-    description: "Doubles all coins earned in a level",
-    cost: 400,
-    buyCost: 1200,
-    icon: "fa-money-bill-wave",
-    category: "premium",
-    unlocked: false
-  },
-  rewind: {
-    name: "Rewind",
-    description: "Go back to the previous question",
-    cost: 300,
-    buyCost: 900,
-    icon: "fa-undo",
-    category: "premium",
-    unlocked: false
-  },
-  
-  // Special perks (unlocked through achievements)
-  phoenixRevival: {
-    name: "Phoenix Revival",
-    description: "After time runs out, gives 30 more seconds once per level",
-    cost: 0,
-    buyCost: 2000,
-    icon: "fa-phoenix-framework",
-    category: "special",
-    unlocked: false
-  },
-  momentum: {
-    name: "Momentum",
-    description: "Each correct answer speeds up timer, wrong answers slow it down",
-    cost: 0,
-    buyCost: 1800,
-    icon: "fa-tachometer-alt",
-    category: "special",
-    unlocked: false
-  },
-  masterFocus: {
-    name: "Master's Focus",
-    description: "Perfect accuracy for 10 seconds (all answers shown are correct)",
-    cost: 0,
-    buyCost: 2500,
-    icon: "fa-bullseye",
-    category: "special",
-    unlocked: false
-  }
-};
-
-function initializePerkSystem() {
-    // If extendedPerks doesn't exist at all, create it with defaults
-    if (!gameState.extendedPerks) {
-      console.log("Creating new extended perks configuration");
+function loadAdSenseIfNeeded() {
+    // Check if user is premium
+    const isPremium = (currentUser && currentUser.status === "premium");
+    
+    // Only load ads for non-premium users
+    if (!isPremium) {
+      const adScript = document.createElement('script');
+      adScript.async = true;
+      adScript.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9563715706895348";
+      adScript.crossOrigin = "anonymous";
+      document.head.appendChild(adScript);
       
-      gameState.extendedPerks = {
-        unlockedPerks: Object.keys(EXTENDED_PERK_CONFIG), // All perks unlocked
-        selectedPerks: ["timeFreeze", "skip", "clue", "reveal"], // Default loadout
-        perkStates: {}
-      };
-      
-      // Initialize all perks as unlocked
-      Object.keys(EXTENDED_PERK_CONFIG).forEach(perkId => {
-        gameState.extendedPerks.perkStates[perkId] = {
-          unlocked: true, // All perks unlocked by default
-          uses: 0,
-          lastUsed: 0
-        };
-      });
-      
-      saveProgress();
+      // Add a class to the body for ad styling
+      document.body.classList.add('show-ads');
     } else {
-      console.log("Using existing extended perks configuration:", gameState.extendedPerks);
-      
-      // Make sure all perks are unlocked for testing
-      Object.keys(EXTENDED_PERK_CONFIG).forEach(perkId => {
-        // Ensure all perks exist in perkStates
-        if (!gameState.extendedPerks.perkStates[perkId]) {
-          gameState.extendedPerks.perkStates[perkId] = {
-            unlocked: true,
-            uses: 0,
-            lastUsed: 0
-          };
-        } else {
-          // Make sure existing perks are unlocked
-          gameState.extendedPerks.perkStates[perkId].unlocked = true;
-        }
-        
-        // Ensure perk is in unlockedPerks array
-        if (!gameState.extendedPerks.unlockedPerks.includes(perkId)) {
-          gameState.extendedPerks.unlockedPerks.push(perkId);
-        }
-      });
-      
-      // Make sure selectedPerks array exists and has valid perks
-      if (!gameState.extendedPerks.selectedPerks || !Array.isArray(gameState.extendedPerks.selectedPerks) || gameState.extendedPerks.selectedPerks.length === 0) {
-        gameState.extendedPerks.selectedPerks = ["timeFreeze", "skip", "clue", "reveal"];
-      }
+      // Add a class for premium users (no ads)
+      document.body.classList.add('premium-no-ads');
     }
-    
-    // Log the current state
-    console.log("Extended perks initialized:", gameState.extendedPerks);
   }
 
-  function debugExtendedPerks() {
-    console.group("Extended Perks Debug");
-    console.log("Extended Perks Object:", gameState.extendedPerks);
-    console.log("Selected Perks:", gameState.extendedPerks?.selectedPerks);
-    console.log("Unlocked Perks:", gameState.extendedPerks?.unlockedPerks);
+  // Initialize ads after checking user status
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initial load
+    setTimeout(loadAdSenseIfNeeded, 1000); // Slight delay to ensure user data is loaded
     
-    console.log("Perk States:");
-    if (gameState.extendedPerks?.perkStates) {
-      Object.entries(gameState.extendedPerks.perkStates).forEach(([perkId, state]) => {
-        console.log(`${perkId}: unlocked=${state.unlocked}, uses=${state.uses}`);
-      });
-    }
-    
-    console.log("Storage Status:");
-    try {
-      const localProgress = JSON.parse(localStorage.getItem("simploxProgress") || "{}");
-      console.log("Extended Perks in localStorage:", localProgress.extended_perks);
-    } catch (e) {
-      console.error("Error parsing localStorage:", e);
-    }
-    console.groupEnd();
-    
-    return "Extended perks debug information logged to console";
-  }
-
-function showPerkShop() {
-    initializePerkSystem();
-    
-    updateShopCoinDisplay();
-    
-    const categoryButtons = document.querySelectorAll(".category-button");
-    categoryButtons.forEach(button => {
-      button.addEventListener("click", () => {
-        categoryButtons.forEach(btn => btn.classList.remove("active"));
-        button.classList.add("active");
-        displayPerksInCategory(button.dataset.category);
-      });
-    });
-    
-    const backButton = document.querySelector(".back-to-menu");
-    if (backButton) {
-      backButton.addEventListener("click", () => {
-        showScreen("welcome-screen");
-      });
-    }
-    
-    updatePerkLoadout();
-    displayPerksInCategory("basic");
-    showScreen("shop-screen");
-  }
-
-  function displayPerksInCategory(category) {
-    const shopItemsContainer = document.querySelector('.shop-items');
-    if (!shopItemsContainer) return;
-    
-    shopItemsContainer.innerHTML = "";
-    
-    const perksInCategory = Object.entries(EXTENDED_PERK_CONFIG)
-      .filter(([_, perk]) => perk.category === category)
-      .map(([id, perk]) => ({ id: id, ...perk }));
-    
-    perksInCategory.forEach(perk => {
-      const isSelected = gameState.extendedPerks.selectedPerks.includes(perk.id);
-      
-      const shopItem = document.createElement('div');
-      shopItem.className = `shop-item ${isSelected ? "selected" : ""}`;
-      shopItem.dataset.perkId = perk.id;
-      
-      shopItem.innerHTML = `
-        <div class="perk-category-badge ${perk.category}">${perk.category}</div>
-        <div class="shop-item-content">
-          <div class="shop-item-icon">
-            <i class="fas ${perk.icon}"></i>
-          </div>
-          <div class="shop-item-title">${perk.name}</div>
-          <div class="shop-item-description">${perk.description}</div>
-          <div class="shop-item-cost">
-            <i class="fas fa-coins"></i> ${perk.cost} per use
-          </div>
-          <div class="shop-item-actions">
-            <button class="shop-item-button ${isSelected ? "selected" : "select"}">
-              ${isSelected ? "Selected" : "Select"}
-            </button>
-          </div>
-        </div>
-      `;
-      
-      shopItemsContainer.appendChild(shopItem);
-      
-      const actionButton = shopItem.querySelector('.shop-item-button');
-      if (actionButton) {
-        actionButton.addEventListener('click', () => {
-          togglePerkSelection(perk.id);
-        });
-      }
-    });
-  }
-
-  function togglePerkSelection(perkId) {
-    console.log(`Toggling perk selection for: ${perkId}`);
-    
-    const selectedPerks = gameState.extendedPerks.selectedPerks;
-    const index = selectedPerks.indexOf(perkId);
-    
-    if (index === -1) {
-      if (selectedPerks.length >= 5) {
-        showNotification("Loadout is full. Remove a perk first.", "error");
-        return;
-      }
-      
-      selectedPerks.push(perkId);
-      console.log(`Added ${perkId} to selected perks. New selection:`, selectedPerks);
-    } else {
-      selectedPerks.splice(index, 1);
-      console.log(`Removed ${perkId} from selected perks. New selection:`, selectedPerks);
-    }
-    
-    // Update UI
-    updatePerkLoadout();
-    
-    // Update current category display
-    const activeCategory = document.querySelector('.category-button.active');
-    if (activeCategory) {
-      displayPerksInCategory(activeCategory.dataset.category);
-    }
-    
-    // Save immediately to ensure persistence
-    saveProgress();
-    
-    // Debug log current state
-    console.log("Current selected perks:", gameState.extendedPerks.selectedPerks);
-  }
-
-// Unlock a perk
-function unlockPerk(perkId) {
-  const perk = EXTENDED_PERK_CONFIG[perkId];
-  if (!perk) return;
-  
-  if (gameState.coins >= perk.buyCost) {
-    // Deduct coins
-    gameState.coins -= perk.buyCost;
-    
-    // Mark as unlocked
-    gameState.extendedPerks.perkStates[perkId].unlocked = true;
-    
-    // Add to unlocked perks list if not already there
-    if (!gameState.extendedPerks.unlockedPerks.includes(perkId)) {
-      gameState.extendedPerks.unlockedPerks.push(perkId);
-    }
-    
-    // Update UI
-    const coinCountElement = document.querySelector('#shop-screen .coin-count');
-    if (coinCountElement) {
-      coinCountElement.textContent = gameState.coins;
-    }
-    
-    // Show notification
-    showNotification(`${perk.name} unlocked!`, 'success');
-    
-    // Refresh the display
-    displayPerksInCategory(document.querySelector('.category-button.active').dataset.category);
-    saveProgress();
-    
-    // Animate the coin change
-    animateCoinsChange(coinCountElement, gameState.coins + perk.buyCost, gameState.coins);
-  } else {
-    showNotification(`Need ${perk.buyCost - gameState.coins} more coins!`, 'error');
-  }
-}
-
-// Update the perk loadout display
-function updatePerkLoadout() {
-  const loadoutContainer = document.querySelector('.loadout-perks');
-  if (!loadoutContainer) return;
-  
-  // Clear existing slot contents but keep the slots
-  const slots = loadoutContainer.querySelectorAll('.perk-slot');
-  slots.forEach((slot, index) => {
-    // Reset slot to empty state
-    slot.innerHTML = '<i class="fas fa-plus"></i>';
-    slot.classList.add('empty');
-    
-    // If there's a perk for this slot, populate it
-    if (index < gameState.extendedPerks.selectedPerks.length) {
-      const perkId = gameState.extendedPerks.selectedPerks[index];
-      const perk = EXTENDED_PERK_CONFIG[perkId];
-      
-      if (perk) {
-        slot.innerHTML = `
-          <i class="fas ${perk.icon} perk-icon"></i>
-          <div class="remove-perk"><i class="fas fa-times"></i></div>
-        `;
-        slot.classList.remove('empty');
-        slot.dataset.perkId = perkId;
-        
-        // Add event listener to remove button
-        const removeButton = slot.querySelector('.remove-perk');
-        if (removeButton) {
-          removeButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            togglePerkSelection(perkId);
-          });
-        }
-      }
-    }
-    
-    // Add click event to empty slots to show category selection
-    if (slot.classList.contains('empty')) {
-      slot.addEventListener('click', () => {
-        // Focus the category with the most unlocked perks that aren't in loadout
-        focusAvailableCategory();
-      });
-    }
+    // Listen for user status changes
+    document.addEventListener('userStatusChanged', loadAdSenseIfNeeded);
   });
-}
-
-// Focus on category with available perks
-function focusAvailableCategory() {
-  // Get counts of unlocked perks by category that aren't in loadout
-  const categoryCounts = {
-    basic: 0,
-    advanced: 0,
-    premium: 0,
-    special: 0
-  };
-  
-  Object.entries(EXTENDED_PERK_CONFIG).forEach(([perkId, perk]) => {
-    if (gameState.extendedPerks.perkStates[perkId]?.unlocked && 
-        !gameState.extendedPerks.selectedPerks.includes(perkId)) {
-      categoryCounts[perk.category]++;
-    }
-  });
-  
-  // Find category with most available perks
-  let maxCategory = 'basic';
-  let maxCount = -1;
-  
-  Object.entries(categoryCounts).forEach(([category, count]) => {
-    if (count > maxCount) {
-      maxCount = count;
-      maxCategory = category;
-    }
-  });
-  
-  // Click the category button
-  const categoryButtons = document.querySelectorAll('.category-button');
-  categoryButtons.forEach(button => {
-    if (button.dataset.category === maxCategory) {
-      button.click();
-    }
-  });
-}
-
-function enhancedBuyPerk(perkId) {
-    const perk = EXTENDED_PERK_CONFIG[perkId];
-    if (!perk) return false;
-    
-    if (!gameState.extendedPerks.perkStates[perkId]?.unlocked || 
-        !gameState.extendedPerks.selectedPerks.includes(perkId)) {
-      showNotification(`${perk.name} is not unlocked or selected`, "error");
-      return false;
-    }
-    
-    if (gameState.coins < perk.cost) {
-      showNotification(`Need ${perk.cost} coins!`, "error");
-      return false;
-    }
-    
-    gameState.coins -= perk.cost;
-    gameState.extendedPerks.perkStates[perkId].uses++;
-    gameState.extendedPerks.perkStates[perkId].lastUsed = Date.now();
-    
-    // Important: Update the display
-    updateAllCoinDisplays();
-    updatePerkButtons();
-    
-    // Add specific perk functionality here
-    switch(perkId) {
-      case "timeFreeze":
-        isFrozen = true;
-        setTimeout(() => { isFrozen = false; }, perk.duration);
-        break;
-      // ... (rest of the switch case remains the same)
-    }
-    
-    // Save progress to ensure persistence
-    saveProgress();
-    
-    // Update the specific perk button count display
-    const perkButton = document.getElementById(`${perkId}Perk`);
-    if (perkButton) {
-      const countDisplay = perkButton.querySelector('.perk-count');
-      if (countDisplay) {
-        const availablePurchases = Math.floor(gameState.coins / perk.cost);
-        countDisplay.textContent = availablePurchases;
-        
-        // Update visual styling if can no longer afford
-        if (availablePurchases <= 0) {
-          perkButton.disabled = true;
-          perkButton.style.opacity = "0.5";
-        }
-      }
-    }
-    
-    return true;
-  }
-
-  function updateShopCoinDisplay() {
-    const shopCoinCount = document.querySelector("#shop-screen .coin-count");
-    if (shopCoinCount) {
-      shopCoinCount.textContent = gameState.coins || 0;
-    }
-  }
-
-// Activate a random premium perk (for Golden Egg)
-function activateRandomPremiumPerk() {
-  const premiumPerks = Object.entries(EXTENDED_PERK_CONFIG)
-    .filter(([id, perk]) => 
-      perk.category === 'premium' && 
-      id !== 'goldenEgg' && 
-      gameState.extendedPerks.perkStates[id]?.unlocked
-    )
-    .map(([id]) => id);
-  
-  if (premiumPerks.length === 0) {
-    // If no premium perks are unlocked, give coins instead
-    const bonus = 200;
-    gameState.coins += bonus;
-    updateAllCoinDisplays();
-    showNotification(`Golden Egg gave you ${bonus} coins!`, "success");
-    return;
-  }
-  
-  const randomPerkId = premiumPerks[Math.floor(Math.random() * premiumPerks.length)];
-  showNotification(`Golden Egg activated: ${EXTENDED_PERK_CONFIG[randomPerkId].name}!`, "success");
-  
-  // Apply the random perk without cost
-  const originalCost = EXTENDED_PERK_CONFIG[randomPerkId].cost;
-  EXTENDED_PERK_CONFIG[randomPerkId].cost = 0;
-  enhancedBuyPerk(randomPerkId);
-  EXTENDED_PERK_CONFIG[randomPerkId].cost = originalCost;
-}
-
-// Modify the existing timer logic to account for time slow
-function updateTimerLogic() {
-  const originalUpdate = GameTimer.update;
-  
-  GameTimer.update = function(timestamp) {
-    if (currentGame.timeSlowActive && Date.now() < currentGame.timeSlowEnd) {
-      // Only update timer every other call during time slow
-      if (!this.slowCounter) this.slowCounter = 0;
-      this.slowCounter++;
-      
-      if (this.slowCounter % 2 === 0) {
-        originalUpdate.call(this, timestamp);
-      }
-    } else {
-      // Normal update
-      if (currentGame.timeSlowActive && Date.now() >= currentGame.timeSlowEnd) {
-        currentGame.timeSlowActive = false;
-        showNotification("Time slow effect ended", "info");
-      }
-      originalUpdate.call(this, timestamp);
-    }
-  };
-}
-
-function enhanceHandleAnswer() {
-    const originalHandleAnswer = handleAnswer;
-    window.handleAnswer = function(correct, isSkip = false, fromPerk = false) {
-      const currentIndex = currentGame.currentIndex;
-      
-      if (!isSkip) {
-        if (correct) {
-          if (currentGame.doublePointsActive) {
-            currentGame.doublePointsActive = false;
-            currentGame.doublePointsBonus = true;
-          }
-          
-          if (currentGame.comboBoosterActive) {
-            currentGame.comboCount = (currentGame.comboCount || 0) + 1;
-            showNotification(`Combo x${currentGame.comboCount}`, "success");
-          }
-          
-          if (currentGame.momentumActive) {
-            timeRemaining = Math.max(1, timeRemaining - 1);
-            updateTimerDisplay();
-          }
-        } else {
-          if (!currentGame.wrongAnswerHistory) currentGame.wrongAnswerHistory = [];
-          currentGame.wrongAnswerHistory.push(currentIndex);
-          
-          if (currentGame.secondChanceActive && !currentGame.secondChanceUsed) {
-            currentGame.secondChanceUsed = true;
-            currentGame.secondChanceActive = false;
-            currentGame.firstAttempt = true;
-            currentGame.streakBonus = true;
-            showNotification("Second chance used - streak preserved!", "success");
-          }
-          
-          if (currentGame.shieldActive) {
-            currentGame.shieldActive = false;
-            if (!fromPerk) {
-              originalHandleAnswer(correct, isSkip);
-            }
-            showNotification("Shield prevented progress loss!", "success");
-            return;
-          }
-          
-          if (currentGame.progressLockActive) {
-            currentGame.progressLockCount--;
-            if (currentGame.progressLockCount <= 0) {
-              currentGame.progressLockActive = false;
-              showNotification("Progress lock depleted", "info");
-            } else {
-              showNotification(`Progress lock: ${currentGame.progressLockCount} questions left`, "info");
-            }
-            if (!fromPerk) {
-              originalHandleAnswer(true, isSkip);
-            }
-            return;
-          }
-          
-          if (currentGame.momentumActive) {
-            timeRemaining += 2;
-            updateTimerDisplay();
-          }
-        }
-      }
-      
-      if (currentGame.masterFocusActive && Date.now() < currentGame.masterFocusEnd) {
-        if (!fromPerk) {
-          originalHandleAnswer(true, isSkip);
-        }
-        return;
-      }
-      
-      if (!fromPerk) {
-        originalHandleAnswer(correct, isSkip);
-      }
-      
-      if (correct && currentGame.doublePointsBonus) {
-        CoinsManager.updateCoins(3);
-        currentGame.doublePointsBonus = false;
-      }
-      
-      if (correct && currentGame.coinDoublerActive && !isSkip) {
-        const standardReward = currentGame.firstAttempt ? 3 : 1;
-        CoinsManager.updateCoins(standardReward);
-      }
-    };
-  }
-
-// Modify the game completion logic
-function enhanceLevelCompletion() {
-  const originalHandleLevelCompletion = handleLevelCompletion;
-  
-  window.handleLevelCompletion = function() {
-    // Reset perk states
-    currentGame.doublePointsActive = false;
-    currentGame.secondChanceActive = false;
-    currentGame.secondChanceUsed = false;
-    currentGame.comboBoosterActive = false;
-    currentGame.shieldActive = false;
-    currentGame.timeSlowActive = false;
-    currentGame.progressLockActive = false;
-    currentGame.coinDoublerActive = false;
-    currentGame.masterFocusActive = false;
-    currentGame.phoenixUsed = false;
-    currentGame.momentumActive = false;
-    
-    // Call original completion handler
-    originalHandleLevelCompletion();
-  };
-}
-
-// Initialize the enhanced perk system
-function initializeEnhancedPerkSystem() {
-  initializePerkSystem();
-  updateTimerLogic();
-  enhanceHandleAnswer();
-  enhanceLevelCompletion();
-  
-  // Add shop link to welcome screen
-  addShopButtonToMenu();
-}
-
-// Add shop button to welcome screen menu
-function addShopButtonToMenu() {
-  const mainButtons = document.querySelector('.main-buttons');
-  if (!mainButtons) return;
-  
-  // Check if shop button already exists
-  if (document.querySelector('.main-button.shop-button')) return;
-  
-  // Create new button
-  const shopButton = document.createElement('button');
-  shopButton.className = 'main-button shop-button';
-  shopButton.innerHTML = 'Perk Shop';
-  shopButton.onclick = function() {
-    showPerkShop();
-  };
-  
-  // Insert before the last button (Download App)
-  const buttons = mainButtons.querySelectorAll('.main-button');
-  if (buttons.length > 0) {
-    mainButtons.insertBefore(shopButton, buttons[buttons.length - 1]);
-  } else {
-    mainButtons.appendChild(shopButton);
-  }
-}
-
-function updateExistingPerkButtons() {
-    const perkButtonContainer = document.querySelector('.perks-container');
-    if (!perkButtonContainer) return;
-    
-    // Clear existing buttons
-    perkButtonContainer.innerHTML = "";
-    
-    // Add buttons for selected perks
-    gameState.extendedPerks.selectedPerks.forEach(perkId => {
-      const perk = EXTENDED_PERK_CONFIG[perkId];
-      if (!perk) return;
-      
-      const button = document.createElement('button');
-      button.className = 'perk-button';
-      button.id = `${perkId}Perk`;
-      
-      const availablePurchases = Math.floor(gameState.coins / perk.cost);
-      const canAfford = availablePurchases > 0;
-      
-      button.innerHTML = `
-        <i class="fas ${perk.icon} perk-icon"></i>
-        <span class="perk-count">${availablePurchases}</span>
-      `;
-      
-      button.disabled = !canAfford;
-      button.style.opacity = canAfford ? "1" : "0.5";
-      
-      button.onclick = function() {
-        enhancedBuyPerk(perkId);
-      };
-      
-      perkButtonContainer.appendChild(button);
-    });
-    
-    // Update visual state based on coins
-    updatePerkButtons();
-  }
-
-  function forceRefreshPerkButtons() {
-    // Make sure the perks container exists and is populated
-    const perkContainer = document.querySelector('.perks-container');
-    if (!perkContainer) return;
-    
-    // Force update of perk buttons based on selected perks
-    updateExistingPerkButtons();
-    
-    // Additional update to make sure counts are correct
-    updatePerkButtons();
-  }
-
-// Update the initializeGame function to set up extended perks
-function enhanceGameInitialization() {
-  const originalInitializeGame = initializeGame;
-  
-  window.initializeGame = function() {
-    // Call original initialization
-    originalInitializeGame();
-    
-    // Initialize extended perk system
-    initializeEnhancedPerkSystem();
-  };
-}
-
-// Initialize everything
-document.addEventListener('DOMContentLoaded', function() {
-  enhanceGameInitialization();
-});
-
-// Replace existing buyPerk function with the enhanced version
-window.buyPerk = enhancedBuyPerk;
-
-// Update perk buttons when showing question screen
-const originalShowScreen = window.showScreen;
-window.showScreen = function(screenId, forceRefresh = false) {
-  originalShowScreen(screenId, forceRefresh);
-  
-  if (screenId === 'question-screen' && !currentGame.isArcadeMode) {
-    // Update perk buttons with selected loadout
-    if (gameState.extendedPerks) {
-      updateExistingPerkButtons();
-    }
-  }
-};
-
-
