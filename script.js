@@ -17773,7 +17773,7 @@ function loadAdSenseIfNeeded() {
     document.addEventListener('userStatusChanged', loadAdSenseIfNeeded);
   });
 
-  // PWA Support
+// PWA Support
 let deferredPrompt;
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
@@ -17803,19 +17803,53 @@ function initializeAppDownloadButton() {
   // Add click handler based on device type
   downloadAppButton.addEventListener('click', async () => {
     if (isIOS) {
+      // On iOS, we must show instructions since there's no programmatic way to trigger install
       showIOSInstallInstructions();
     } else if (deferredPrompt) {
+      // This is the key part - it triggers the native install prompt on Android/Chrome
       deferredPrompt.prompt();
       
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        downloadAppButton.style.display = 'none';
-        localStorage.setItem('app_installed', 'true');
+      try {
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User response to the install prompt: ${outcome}`);
+        
+        if (outcome === 'accepted') {
+          console.log('User accepted the install prompt');
+          downloadAppButton.style.display = 'none';
+          localStorage.setItem('app_installed', 'true');
+        }
+      } catch(err) {
+        console.error('Error with install prompt:', err);
       }
       
+      // Clear the deferred prompt variable, since it can only be used once
       deferredPrompt = null;
     } else {
-      showGenericInstallInstructions();
+      // If deferredPrompt isn't available but we're not on iOS, use alternative method
+      if (navigator.getInstalledRelatedApps) {
+        try {
+          const relatedApps = await navigator.getInstalledRelatedApps();
+          const isInstalled = relatedApps.some(app => app.url === window.location.origin);
+          
+          if (!isInstalled) {
+            // Try to trigger installation via manifest
+            const manifestLink = document.querySelector('link[rel="manifest"]');
+            if (manifestLink) {
+              window.location.href = manifestLink.href;
+              setTimeout(() => {
+                showGenericInstallInstructions();
+              }, 1000);
+            } else {
+              showGenericInstallInstructions();
+            }
+          }
+        } catch(err) {
+          console.error('Error checking installed apps:', err);
+          showGenericInstallInstructions();
+        }
+      } else {
+        showGenericInstallInstructions();
+      }
     }
   });
 }
@@ -17827,13 +17861,17 @@ function showIOSInstallInstructions() {
   modal.innerHTML = `
     <div class="modal-content">
       <h3>Install Simplos App</h3>
+      <p>Follow these steps to add Simplos to your home screen:</p>
       <ol>
-        <li>Tap the Share button <i class="fas fa-share-square"></i> at the bottom of the screen</li>
+        <li>Tap the Share button <i class="fas fa-share-square"></i> at the bottom of your screen</li>
         <li>Scroll down and tap "Add to Home Screen" <i class="fas fa-plus-square"></i></li>
         <li>Tap "Add" in the top right corner</li>
       </ol>
+      <div class="instruction-image">
+        <img src="icons/ios-install-guide.png" alt="iOS Installation Steps" style="max-width: 100%; border-radius: 10px;">
+      </div>
       <p>Once installed, you'll be able to open Simplos from your home screen anytime!</p>
-      <button class="close-button main-button">Close</button>
+      <button class="close-button main-button">Got it!</button>
     </div>
   `;
   
@@ -17860,6 +17898,7 @@ function showIOSInstallInstructions() {
       border-radius: 20px;
       padding: 2rem;
       max-width: 90%;
+      width: 350px;
       text-align: center;
     }
     .ios-install-modal h3 {
@@ -17873,6 +17912,12 @@ function showIOSInstallInstructions() {
     .ios-install-modal li {
       margin-bottom: 1rem;
     }
+    .ios-install-modal .instruction-image {
+      margin: 1.5rem 0;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+      overflow: hidden;
+    }
     .ios-install-modal .close-button {
       margin-top: 1rem;
     }
@@ -17883,6 +17928,7 @@ function showIOSInstallInstructions() {
   modal.querySelector('.close-button').addEventListener('click', () => {
     document.body.removeChild(modal);
     document.head.removeChild(style);
+    // Mark as installed since the user has seen instructions
     localStorage.setItem('ios_instructions_shown', 'true');
   });
 }
@@ -17896,11 +17942,12 @@ function showGenericInstallInstructions() {
       <h3>Install Simplos App</h3>
       <p>To install this app on your device:</p>
       <ol>
-        <li>In your browser menu, select "Install App" or "Add to Home Screen"</li>
-        <li>Follow the on-screen instructions</li>
+        <li>Look for the install icon (<i class="fas fa-download"></i>) in your browser's menu</li>
+        <li>Select "Install Simplos" or "Add to Home Screen"</li>
+        <li>Confirm by tapping "Add" or "Install"</li>
       </ol>
       <p>Once installed, you'll be able to open Simplos from your home screen anytime!</p>
-      <button class="close-button main-button">Close</button>
+      <button class="close-button main-button">Got it!</button>
     </div>
   `;
   
@@ -17927,6 +17974,7 @@ function showGenericInstallInstructions() {
       border-radius: 20px;
       padding: 2rem;
       max-width: 90%;
+      width: 350px;
       text-align: center;
     }
     .install-modal h3 {
@@ -17968,11 +18016,13 @@ if ('serviceWorker' in navigator) {
 
 // Detect if the browser supports installation
 window.addEventListener('beforeinstallprompt', (e) => {
-  // Prevent Chrome 67+ from automatically showing the prompt
+  // Prevent default behavior
   e.preventDefault();
   
   // Stash the event so it can be triggered later
   deferredPrompt = e;
+  
+  console.log('Install prompt detected and saved');
   
   // Initialize the download button
   initializeAppDownloadButton();
@@ -17994,13 +18044,14 @@ window.addEventListener('appinstalled', (evt) => {
 
 // Initialize the download button
 document.addEventListener('DOMContentLoaded', () => {
-  initializeAppDownloadButton();
-  
-  // Also check installed status on page load
+  // Check for standalone mode immediately
   if (checkIfAppIsInstalled()) {
     const downloadAppButton = document.querySelector('.main-buttons .main-button[disabled]');
     if (downloadAppButton) {
       downloadAppButton.style.display = 'none';
     }
+  } else {
+    // If not in standalone mode, initialize the button
+    initializeAppDownloadButton();
   }
 });
