@@ -17786,7 +17786,7 @@ function checkIfAppIsInstalled() {
 
 // Initialize the app download button
 function initializeAppDownloadButton() {
-  const downloadAppButton = document.querySelector('.main-buttons .main-button[disabled]');
+  const downloadAppButton = document.querySelector('.main-button[disabled]');
   
   if (!downloadAppButton) return;
   
@@ -17800,16 +17800,25 @@ function initializeAppDownloadButton() {
   downloadAppButton.disabled = false;
   downloadAppButton.textContent = "Download the App";
   
-  // Add click handler based on device type
-  downloadAppButton.addEventListener('click', async () => {
+  // Add click handler
+  downloadAppButton.addEventListener('click', async (e) => {
+    // Prevent default action (important)
+    e.preventDefault();
+    
+    // Log for debugging
+    console.log('Download app button clicked');
+    console.log('iOS device?', isIOS);
+    console.log('Deferred prompt available?', !!deferredPrompt);
+    
     if (isIOS) {
-      // On iOS, we must show instructions since there's no programmatic way to trigger install
+      // On iOS, we must show instructions
       showIOSInstallInstructions();
     } else if (deferredPrompt) {
       // This is the key part - it triggers the native install prompt on Android/Chrome
-      deferredPrompt.prompt();
-      
       try {
+        console.log('Showing installation prompt');
+        deferredPrompt.prompt();
+        
         const { outcome } = await deferredPrompt.userChoice;
         console.log(`User response to the install prompt: ${outcome}`);
         
@@ -17820,36 +17829,15 @@ function initializeAppDownloadButton() {
         }
       } catch(err) {
         console.error('Error with install prompt:', err);
+        showGenericInstallInstructions();
       }
       
       // Clear the deferred prompt variable, since it can only be used once
       deferredPrompt = null;
     } else {
-      // If deferredPrompt isn't available but we're not on iOS, use alternative method
-      if (navigator.getInstalledRelatedApps) {
-        try {
-          const relatedApps = await navigator.getInstalledRelatedApps();
-          const isInstalled = relatedApps.some(app => app.url === window.location.origin);
-          
-          if (!isInstalled) {
-            // Try to trigger installation via manifest
-            const manifestLink = document.querySelector('link[rel="manifest"]');
-            if (manifestLink) {
-              window.location.href = manifestLink.href;
-              setTimeout(() => {
-                showGenericInstallInstructions();
-              }, 1000);
-            } else {
-              showGenericInstallInstructions();
-            }
-          }
-        } catch(err) {
-          console.error('Error checking installed apps:', err);
-          showGenericInstallInstructions();
-        }
-      } else {
-        showGenericInstallInstructions();
-      }
+      // If deferredPrompt isn't available, show instructions
+      console.log('No installation prompt available, showing instructions');
+      showGenericInstallInstructions();
     }
   });
 }
@@ -17867,9 +17855,6 @@ function showIOSInstallInstructions() {
         <li>Scroll down and tap "Add to Home Screen" <i class="fas fa-plus-square"></i></li>
         <li>Tap "Add" in the top right corner</li>
       </ol>
-      <div class="instruction-image">
-        <img src="icons/ios-install-guide.png" alt="iOS Installation Steps" style="max-width: 100%; border-radius: 10px;">
-      </div>
       <p>Once installed, you'll be able to open Simplos from your home screen anytime!</p>
       <button class="close-button main-button">Got it!</button>
     </div>
@@ -17912,12 +17897,6 @@ function showIOSInstallInstructions() {
     .ios-install-modal li {
       margin-bottom: 1rem;
     }
-    .ios-install-modal .instruction-image {
-      margin: 1.5rem 0;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 10px;
-      overflow: hidden;
-    }
     .ios-install-modal .close-button {
       margin-top: 1rem;
     }
@@ -17928,7 +17907,7 @@ function showIOSInstallInstructions() {
   modal.querySelector('.close-button').addEventListener('click', () => {
     document.body.removeChild(modal);
     document.head.removeChild(style);
-    // Mark as installed since the user has seen instructions
+    // Mark as seen since the user has seen instructions
     localStorage.setItem('ios_instructions_shown', 'true');
   });
 }
@@ -18016,7 +17995,7 @@ if ('serviceWorker' in navigator) {
 
 // Detect if the browser supports installation
 window.addEventListener('beforeinstallprompt', (e) => {
-  // Prevent default behavior
+  // Prevent Chrome 67+ from automatically showing the prompt
   e.preventDefault();
   
   // Stash the event so it can be triggered later
@@ -18033,7 +18012,7 @@ window.addEventListener('appinstalled', (evt) => {
   console.log('App was installed');
   
   // Hide the install button
-  const downloadAppButton = document.querySelector('.main-buttons .main-button[disabled]');
+  const downloadAppButton = document.querySelector('.main-button[disabled]');
   if (downloadAppButton) {
     downloadAppButton.style.display = 'none';
   }
@@ -18042,16 +18021,17 @@ window.addEventListener('appinstalled', (evt) => {
   localStorage.setItem('app_installed', 'true');
 });
 
-// Initialize the download button
+// Initialize the download button on page load
 document.addEventListener('DOMContentLoaded', () => {
   // Check for standalone mode immediately
   if (checkIfAppIsInstalled()) {
-    const downloadAppButton = document.querySelector('.main-buttons .main-button[disabled]');
+    const downloadAppButton = document.querySelector('.main-button[disabled]');
     if (downloadAppButton) {
       downloadAppButton.style.display = 'none';
     }
   } else {
     // If not in standalone mode, initialize the button
+    console.log('Setting up download app button');
     initializeAppDownloadButton();
   }
 });
