@@ -18035,3 +18035,87 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeAppDownloadButton();
   }
 });
+
+// Add this right after your existing DOMContentLoaded event listener
+window.checkPWAStatus = function() {
+    console.log('PWA status check:');
+    console.log('- In standalone mode:', window.matchMedia('(display-mode: standalone)').matches);
+    console.log('- In iOS standalone mode:', window.navigator.standalone);
+    
+    // Check if manifest is loaded
+    const manifestLink = document.querySelector('link[rel="manifest"]');
+    console.log('- Manifest link found:', !!manifestLink);
+    
+    if (manifestLink) {
+      fetch(manifestLink.href)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Manifest fetch error: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('- Manifest loaded successfully:', data);
+          
+          // Check icons
+          if (data.icons && data.icons.length) {
+            console.log('- Icons specified in manifest:', data.icons.length);
+            
+            // Check first icon
+            fetch(data.icons[0].src)
+              .then(response => {
+                console.log('- First icon accessible:', response.ok);
+              })
+              .catch(err => {
+                console.log('- First icon error:', err);
+              });
+          } else {
+            console.log('- No icons in manifest!');
+          }
+        })
+        .catch(err => {
+          console.log('- Manifest load error:', err);
+        });
+    }
+    
+    // Check service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations()
+        .then(registrations => {
+          console.log('- Service worker registrations:', registrations.length);
+        })
+        .catch(err => {
+          console.log('- Service worker check error:', err);
+        });
+    } else {
+      console.log('- Service worker not supported in this browser');
+    }
+    
+    // Check deferredPrompt
+    console.log('- Deferred prompt available:', !!window.deferredPrompt);
+  }
+  
+  // Run status check on page load with a slight delay
+  setTimeout(window.checkPWAStatus, 2000);
+
+  // Add this to the end of your DOMContentLoaded handler
+document.addEventListener('DOMContentLoaded', () => {
+    // Previous code remains the same
+    
+    // Add a debug button (only in development)
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      const debugBtn = document.createElement('button');
+      debugBtn.textContent = "Check PWA Status";
+      debugBtn.style.position = "fixed";
+      debugBtn.style.bottom = "10px";
+      debugBtn.style.left = "10px";
+      debugBtn.style.zIndex = "9999";
+      debugBtn.style.padding = "5px 10px";
+      debugBtn.style.background = "#007bff";
+      debugBtn.style.color = "white";
+      debugBtn.style.border = "none";
+      debugBtn.style.borderRadius = "4px";
+      debugBtn.onclick = window.checkPWAStatus;
+      document.body.appendChild(debugBtn);
+    }
+  });
