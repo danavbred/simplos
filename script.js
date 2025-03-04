@@ -18119,3 +18119,26 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.appendChild(debugBtn);
     }
   });
+
+  // ADD THIS SCRIPT TO YOUR JAVASCRIPT FILE
+// This ensures ads only load after the page is fully rendered
+window.addEventListener('load', function() {
+    // Delay AdSense initialization slightly to ensure containers are ready
+    setTimeout(function() {
+      try {
+        if (window.adsbygoogle && window.adsbygoogle.length > 0) {
+          // Push ads only if containers are visible and have width
+          document.querySelectorAll('.adsbygoogle').forEach(function(ad) {
+            // Check if ad container has width
+            if (ad.offsetWidth > 0) {
+              (adsbygoogle = window.adsbygoogle || []).push({});
+            } else {
+              console.log('Ad container has no width, skipping ad load');
+            }
+          });
+        }
+      } catch (e) {
+        console.log('Error initializing ads:', e);
+      }
+    }, 300);
+  });
