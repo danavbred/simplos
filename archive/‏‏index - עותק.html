@@ -2031,56 +2031,166 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%) scale(0.9);
+  transform: translate(-50%, -50%) scale(.9);
   z-index: 10000;
   color: var(--text);
   text-align: center;
   opacity: 0;
   transition: all .4s cubic-bezier(.4, 0, .2, 1);
-  background: rgba(0,0,0,.3);
-  padding: 2rem 3rem;
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255,255,255,.1);
-  box-shadow: 0 10px 30px rgba(0,0,0,.3);
+  background: rgba(0, 0, 0, .5);
+  padding: 3rem 4rem;
+  min-width: 360px;
+  width: 50%;
+  max-width: 600px;
+  border-radius: 24px;
+  backdrop-filter: blur(15px);
+  border: 2px solid rgba(255, 255, 255, .15);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, .4), inset 0 0 20px rgba(255, 255, 255, .05);
 }
 
 .level-announcement.show {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
+  animation: pulse-subtle 3s infinite alternate;
+}
+
+@keyframes pulse-subtle {
+  0% { box-shadow: 0 15px 40px rgba(0, 0, 0, .4), inset 0 0 20px rgba(255, 255, 255, .05); }
+  100% { box-shadow: 0 15px 50px rgba(0, 0, 0, .6), inset 0 0 30px rgba(255, 255, 255, .08); }
 }
 
 .level-announcement h1 {
-    font-size: 2.5rem;
-    background: linear-gradient(to right, var(--gold), #FFA500);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    margin-bottom: 1rem;
-    position: relative;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    font-weight: 700;
+  font-size: 3.5rem;
+  background: linear-gradient(to right, var(--gold), orange);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin-bottom: 1.5rem;
+  position: relative;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-weight: 800;
+  text-shadow: 0 2px 10px rgba(255, 215, 0, 0.3);
 }
 
 .level-announcement h1::after {
-    content: '';
-    position: absolute;
-    bottom: -5px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 50px;
-    height: 2px;
-    background: var(--gold);
-    box-shadow: 0 0 10px var(--gold);
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 3px;
+  background: linear-gradient(to right, var(--gold), orange);
+  box-shadow: 0 0 15px var(--gold);
+  border-radius: 3px;
 }
 
 .level-announcement h2 {
+  font-size: 2.4rem;
+  color: var(--text);
+  font-weight: 600;
+  opacity: .95;
+  letter-spacing: 1.5px;
+  margin-top: 1.5rem;
+}
+
+/* Special styles for boss level */
+.level-announcement.boss-level {
+  background: linear-gradient(135deg, rgba(255, 65, 108, 0.7), rgba(255, 75, 43, 0.7));
+  border: 2px solid rgba(255, 100, 100, 0.3);
+  box-shadow: 0 15px 40px rgba(255, 0, 0, 0.3), inset 0 0 20px rgba(255, 100, 100, 0.15);
+}
+
+.level-announcement.boss-level h1 {
+  background: linear-gradient(to right, #ffffff, #ffe0e0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: 0 2px 10px rgba(255, 100, 100, 0.5);
+}
+
+.level-announcement.boss-level h1::after {
+  background: linear-gradient(to right, #ffffff, #ffcccc);
+  box-shadow: 0 0 15px rgba(255, 100, 100, 0.8);
+}
+
+/* Test level badge styles */
+.test-badge {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0.7rem 1.5rem;
+  border-radius: 50px;
+  margin: 1.5rem auto 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  display: inline-block;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+  animation: badge-pulse 2s infinite alternate;
+}
+
+@keyframes badge-pulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.05); }
+}
+
+/* Boss badge styles */
+.boss-badge {
+  background: rgba(255, 100, 100, 0.3);
+  color: #ffffff;
+  padding: 0.7rem 1.5rem;
+  border-radius: 50px;
+  margin: 1.5rem auto 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  display: inline-block;
+  box-shadow: 0 3px 10px rgba(255, 0, 0, 0.3);
+  animation: boss-badge-pulse 1.5s infinite alternate;
+}
+
+@keyframes boss-badge-pulse {
+  0% { transform: scale(1); box-shadow: 0 3px 10px rgba(255, 0, 0, 0.3); }
+  100% { transform: scale(1.08); box-shadow: 0 5px 15px rgba(255, 0, 0, 0.5); }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .level-announcement {
+    padding: 2.5rem 2rem;
+    min-width: 300px;
+    width: 85%;
+  }
+  
+  .level-announcement h1 {
+    font-size: 2.8rem;
+  }
+  
+  .level-announcement h2 {
     font-size: 2rem;
-    color: var(--text);
-    font-weight: 500;
-    opacity: 0.9;
-    letter-spacing: 1px;
+  }
+}
+
+@media (max-width: 480px) {
+  .level-announcement {
+    padding: 2rem 1.5rem;
+    min-width: 280px;
+    width: 90%;
+  }
+  
+  .level-announcement h1 {
+    font-size: 2.2rem;
+  }
+  
+  .level-announcement h2 {
+    font-size: 1.6rem;
+  }
+  
+  .test-badge, .boss-badge {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
 }
 
 /* Add subtle edge glow */
