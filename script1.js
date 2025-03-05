@@ -3262,6 +3262,7 @@ async function trackWordEncounter(word, gameMode = 'standard') {
               practice_count: 1,
               game_mode: gameMode,
               coins_earned: coinReward,
+              // Remove first_practiced_at - it doesn't exist in schema
               last_practiced_at: new Date().toISOString()
             }]);
             
