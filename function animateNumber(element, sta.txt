@@ -1,0 +1,979 @@
+
+
+function animateNumber(element, start, end, duration = 500) {
+    // Ensure start and end are numbers
+    start = Number(start);
+    end = Number(end);
+    
+    // If start and end are the same, just set the value
+    if (start === end) {
+        element.textContent = end;
+        return;
+    }
+
+    const difference = end - start;
+    const frames = 30; // Increased for smoother animation
+    const step = difference / frames;
+    let current = start;
+    let frameCount = 0;
+    
+    function updateNumber() {
+        current += step;
+        frameCount++;
+        
+        // Round to handle floating point imprecision
+        if (frameCount >= frames || 
+            (step > 0 && current >= end) || 
+            (step < 0 && current <= end)) {
+            element.textContent = Math.round(end);
+            return;
+        }
+        
+        element.textContent = Math.round(current);
+        requestAnimationFrame(updateNumber);
+    }
+    
+    requestAnimationFrame(updateNumber);
+}
+
+function createParticles(x, y) {
+    // Detect mobile device
+    const isMobile = window.matchMedia("(max-width: 768px)").matches;
+    
+    // Define particle parameters based on device type
+    const particleConfig = isMobile 
+        ? {
+            count: 10,      // Fewer particles on mobile
+            size: 6,        // Smaller particles
+            distance: 50,   // Shorter spread
+            opacity: 0.7,   // Lower opacity
+            duration: 1000  // Shorter animation
+        }
+        : {
+            count: 40,      // More particles on desktop
+            size: 10,       // Standard particle size
+            distance: 150,  // Wider spread
+            opacity: 1,     // Full opacity
+            duration: 1500  // Longer animation
+        };
+
+    const colors = ['#ffd700', '#FFA500', '#4CAF50', '#FFD700'];
+    const container = document.body;
+    
+    for (let i = 0; i < particleConfig.count; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        
+        // Position relative to click point
+        particle.style.position = 'fixed';
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        
+        // Randomize particle properties
+        const angle = (Math.random() * Math.PI * 2);
+        const distance = particleConfig.distance + (Math.random() * 50);
+        
+        particle.style.width = `${particleConfig.size}px`;
+        particle.style.height = `${particleConfig.size}px`;
+        particle.style.opacity = `${particleConfig.opacity}`;
+        
+        particle.style.setProperty('--x', `${Math.cos(angle) * distance}px`);
+        particle.style.setProperty('--y', `${Math.sin(angle) * distance}px`);
+        
+        // Create adaptive animation
+        particle.style.animation = `particleBurst ${particleConfig.duration / 1000}s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`;
+        
+        container.appendChild(particle);
+        
+        // Remove particle after animation completes
+        setTimeout(() => {
+            container.removeChild(particle);
+        }, particleConfig.duration);
+    }
+}
+
+function createParticles(x, y, type) {
+    const particleCount = 15;
+    const colors = type === 'blessing' ? 
+        ['#3498db', '#2980b9', '#1abc9c'] : 
+        ['#e74c3c', '#c0392b', '#d35400'];
+    
+    for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = `particle ${type}`;
+        
+        const size = Math.random() * 8 + 4;
+        const angle = (Math.random() * Math.PI * 2);
+        const velocity = Math.random() * 100 + 50;
+        
+        particle.style.width = `${size}px`;
+        particle.style.height = `${size}px`;
+        particle.style.borderRadius = '50%';
+        particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        particle.style.position = 'fixed';
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        
+        document.body.appendChild(particle);
+        
+        const destinationX = x + Math.cos(angle) * velocity;
+        const destinationY = y + Math.sin(angle) * velocity;
+        
+        particle.animate([
+            { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+            { transform: `translate(${destinationX - x}px, ${destinationY - y}px) scale(0)`, opacity: 0 }
+        ], {
+            duration: 1000,
+            easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
+        }).onfinish = () => particle.remove();
+    }
+}
+
+
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `game-notification ${type}`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    requestAnimationFrame(() => notification.classList.add('show'));
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+function showNotification(message, type) {
+    const notification = document.createElement('div');
+    notification.className = `game-notification ${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.classList.add('show'), 10);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 2000);
+}
+
+function toggleFullScreen() {
+    const root = document.documentElement;
+    const fullscreenIcon = document.querySelector('#nav-fullscreen-btn i');
+    
+    if (document.fullscreenElement) {
+        if (document.exitFullscreen) {
+            document.exitFullscreen().then(() => {
+                if (fullscreenIcon) {
+                    fullscreenIcon.className = 'fas fa-expand';
+                }
+            }).catch(err => {
+                console.log(`Error attempting to exit fullscreen: ${err.message}`);
+            });
+        }
+    } else if (root.requestFullscreen) {
+        root.requestFullscreen().then(() => {
+            if (fullscreenIcon) {
+                fullscreenIcon.className = 'fas fa-compress';
+            }
+        }).catch(err => {
+            console.log(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+    }
+}
+
+function toggleFullScreen() {
+    const docElement = document.documentElement;
+    const fullscreenButton = document.querySelector('.vertical-nav-container .fullscreen-button i');
+    
+    if (document.fullscreenElement) {
+        if (document.exitFullscreen) {
+            document.exitFullscreen().then(() => {
+                if (fullscreenButton) {
+                    fullscreenButton.classList.remove('fa-compress');
+                    fullscreenButton.classList.add('fa-expand');
+                }
+            }).catch(err => {
+                console.log(`Error attempting to exit fullscreen: ${err.message}`);
+            });
+        }
+    } else if (docElement.requestFullscreen) {
+        docElement.requestFullscreen().then(() => {
+            if (fullscreenButton) {
+                fullscreenButton.classList.remove('fa-expand');
+                fullscreenButton.classList.add('fa-compress');
+            }
+        }).catch(err => {
+            console.log(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+    }
+}
+
+function toggleSidePanel() {
+    const sidePanel = document.querySelector('.side-panel');
+    const hamburgerButton = document.querySelector('.hamburger-button');
+    const modalOverlay = document.querySelector('.modal-overlay');
+    
+    if (sidePanel.classList.contains('open')) {
+        sidePanel.classList.remove('open');
+        hamburgerButton.classList.remove('open');
+        if (modalOverlay) modalOverlay.classList.remove('open');
+    } else {
+        sidePanel.classList.add('open');
+        hamburgerButton.classList.add('open');
+        if (modalOverlay) modalOverlay.classList.add('open');
+    }
+}
+
+function toggleSidePanel() {
+    const sidePanel = document.querySelector('.side-panel');
+    const hamburgerButton = document.querySelector('.hamburger-button');
+    const navContainer = document.querySelector('.vertical-nav-container');
+    const modalOverlay = document.querySelector('.modal-overlay');
+    
+    if (sidePanel.classList.contains('open')) {
+        sidePanel.classList.remove('open');
+        hamburgerButton.classList.remove('open');
+        navContainer.classList.remove('panel-open');
+        if (modalOverlay) modalOverlay.classList.remove('open');
+    } else {
+        sidePanel.classList.add('open');
+        hamburgerButton.classList.add('open');
+        navContainer.classList.add('panel-open');
+        if (modalOverlay) modalOverlay.classList.add('open');
+    }
+}
+
+
+async function handleLogout() {
+    try {
+        const { error } = await supabaseClient.auth.signOut();
+        
+        if (error) {
+            console.error('Supabase logout error:', error.message);
+        }
+
+        // Reset game state
+        gameState.coins = 0;
+        gameState.unlockedSets = {};
+        gameState.unlockedLevels = {};
+        gameState.perfectLevels = new Set();
+        gameState.completedLevels = new Set();
+
+
+        // Clear all input fields and UI state
+        clearCustomPracticeUI();
+
+        // Reset current user and update UI
+        currentUser = null;
+        updateAuthUI();
+        updateUserStatusDisplay(null);
+        updateGuestPlayButton(); // Add this line
+        
+        // Show welcome screen
+        showScreen('welcome-screen');
+
+    } catch (error) {
+        console.error('Unexpected error during logout:', error);
+        // Ensure UI is reset even if logout fails
+        currentUser = null;
+        updateAuthUI();
+        updateUserStatusDisplay(null);
+        updateGuestPlayButton(); // Add this line
+        showScreen('welcome-screen');
+    }
+}
+
+async function handleLogout() {
+    try {
+        const { error } = await supabaseClient.auth.signOut();
+        
+        if (error) {
+            console.error('Supabase logout error:', error.message);
+        }
+
+        currentUser = null;
+        updateAuthUI();
+        showScreen('welcome-screen');
+        
+        // Reload game progress from localStorage
+        initializeGame();
+
+    } catch (error) {
+        console.error('Unexpected error during logout:', error);
+    }
+}
+
+async function handleLogout() {
+    try {
+        const { error } = await supabaseClient.auth.signOut();
+        
+        if (error) {
+            console.error('Supabase logout error:', error.message);
+        }
+
+        currentUser = null;
+        updateAuthUI();
+        showScreen('welcome-screen');
+        
+        // Reload game progress from localStorage
+        initializeGame();
+
+    } catch (error) {
+        console.error('Unexpected error during logout:', error);
+    }
+}
+
+function showAuthModal() {
+    const modal = document.getElementById('authModal');
+    if (modal) {
+        modal.classList.add('open');
+    }
+}
+
+function showAuthModal() {
+    const modal = document.getElementById('authModal');
+    if (modal) {
+        modal.classList.add('show');
+    }
+}
+
+function updateAuthUI() {
+    const authBox = document.getElementById('authBox');
+    const userInfo = document.getElementById('userInfo');
+    const userEmailElement = document.getElementById('userEmail');
+    const logoutButton = document.querySelector('.logout-button');
+
+    if (currentUser) {
+        authBox.classList.add('hidden');
+        userInfo.classList.remove('hidden');
+        logoutButton.classList.remove('hidden');
+        
+        // Display username from metadata if available, fallback to email
+        userEmailElement.textContent = currentUser.user_metadata?.username || currentUser.email;
+        
+        // Get and display user status
+        supabaseClient
+            .from('user_profiles')
+            .select('status, username')
+            .eq('id', currentUser.id)
+            .single()
+            .then(({ data }) => {
+                if (data) {
+                    // If we have a username in the profile, use it
+                    if (data.username) {
+                        userEmailElement.textContent = data.username;
+                    }
+                    updateUserStatusDisplay(data.status);
+                }
+            })
+            .catch(error => console.error('Error fetching user status:', error));
+            
+    } else {
+        authBox.classList.remove('hidden');
+        userInfo.classList.add('hidden');
+        logoutButton.classList.add('hidden');
+        userEmailElement.textContent = '';
+    }
+}
+
+function updateAuthUI() {
+    const sidePanel = document.querySelector('.side-panel');
+    const userProfileSection = document.querySelector('.user-profile-section');
+    const userEmailElement = document.getElementById('userEmail');
+    const logoutButton = document.querySelector('.logout-button');
+    const mainLoginButton = document.querySelector('.main-button');
+
+    if (currentUser) {
+        // Show side panel elements
+        if (userProfileSection) userProfileSection.style.display = 'block';
+        if (logoutButton) logoutButton.style.display = 'block';
+        
+        // Update username/email display
+        if (userEmailElement) {
+            userEmailElement.textContent = currentUser.user_metadata?.username || currentUser.email;
+        }
+        
+        // Hide main login button
+        if (mainLoginButton) {
+            mainLoginButton.style.display = 'none';
+        }
+        
+        // Update stats
+        updateUserStats();
+    } else {
+        // Hide user info and logout in side panel
+        if (userProfileSection) userProfileSection.style.display = 'none';
+        if (logoutButton) logoutButton.style.display = 'none';
+        
+        // Show main login button
+        if (mainLoginButton) {
+            mainLoginButton.style.display = 'block';
+        }
+    }
+}
+
+
+function hideUpgradePrompt() {
+    const prompt = document.querySelector('.upgrade-prompt');
+    if (prompt) {
+        prompt.classList.remove('show');
+        setTimeout(() => prompt.remove(), 300);
+    }
+}
+
+
+
+/* ADD this function to hide the upgrade prompt */
+function hideUpgradePrompt() {
+    const prompt = document.querySelector('.upgrade-prompt');
+    const overlay = document.querySelector('.modal-backdrop');
+    
+    if (prompt) {
+        prompt.classList.remove('show');
+        setTimeout(() => prompt.remove(), 300);
+    }
+    
+    if (overlay) {
+        overlay.remove();
+    }
+}
+
+function hideUpgradePromptAndContinue() {
+  isFrozen = false;
+  clearTimer();
+  
+  // Remove all upgrade-related popups
+  document.querySelectorAll(".confirmation-popup").forEach(popup => {
+    if (popup) popup.remove();
+  });
+  
+  const upgradeScreen = document.getElementById("upgrade-screen");
+  if (upgradeScreen && upgradeScreen.classList.contains("visible")) {
+    upgradeScreen.classList.remove("visible");
+  }
+  
+  // Don't try to proceed with level, just go to welcome screen
+  showScreen("welcome-screen");
+}
+
+
+function continueAfterUpgrade() {
+  console.log("continueAfterUpgrade called");
+  
+  const popup = document.querySelector(".confirmation-popup");
+  if (popup) {
+    popup.style.opacity = "0";
+    popup.style.transform = "translate(-50%, -50%) scale(0.7)";
+    
+    setTimeout(() => {
+      if (popup.parentNode) {
+        popup.parentNode.removeChild(popup);
+      }
+    }, 300);
+  }
+
+  const upgradeScreen = document.getElementById("upgrade-screen");
+  if (upgradeScreen) {
+    upgradeScreen.classList.remove("visible");
+  }
+
+  const upgradeForm = document.getElementById("upgradeForm");
+  if (upgradeForm) {
+    upgradeForm.reset();
+  }
+
+  // Store the current game level/state before hiding for smooth transition
+  const currentLevel = gameState.currentLevel;
+  
+  hideUpgradePromptAndContinue();
+  
+  // If the player was in the middle of a level, ensure we return to it
+  if (currentLevel) {
+    console.log(`Resuming gameplay at level ${currentLevel}`);
+    setTimeout(() => {
+      // Check if we're in a level and resume from there
+      const gameContext = localStorage.getItem("gameContext");
+      if (gameContext) {
+        try {
+          const context = JSON.parse(gameContext);
+          if (context.level) {
+            gameState.currentLevel = context.level;
+            startLevel(context.level);
+          }
+        } catch (e) {
+          console.error("Error parsing game context:", e);
+        }
+      }
+    }, 500);
+  }
+  
+  console.log("Upgrade process completed");
+}
+
+function continueAfterUpgrade() {
+  console.log("continueAfterUpgrade called");
+  const popup = document.querySelector(".confirmation-popup");
+  if (popup) {
+    popup.style.opacity = "0";
+    popup.style.transform = "translate(-50%, -50%) scale(0.7)";
+    setTimeout(() => {
+      if (popup.parentNode) {
+        popup.parentNode.removeChild(popup);
+      }
+    }, 300);
+  }
+  
+  const upgradeScreen = document.getElementById("upgrade-screen");
+  if (upgradeScreen) {
+    upgradeScreen.classList.remove("visible");
+  }
+  
+  const upgradeForm = document.getElementById("upgradeForm");
+  if (upgradeForm) {
+    upgradeForm.reset();
+  }
+  
+  // Remove game context to prevent auto-resume
+  localStorage.removeItem("gameContext");
+  
+  // Go directly to welcome screen
+  hideUpgradePromptAndContinue();
+  showScreen("welcome-screen");
+  
+  console.log("Upgrade process completed, redirected to welcome screen");
+}
+
+function handlePremiumCelebrationComplete() {
+    const overlay = document.querySelector('.premium-celebration');
+    if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            overlay.remove();
+            // Refresh game state with new premium access
+            showScreen('welcome-screen');
+        }, 500);
+    }
+}
+
+
+function handlePremiumCelebrationComplete() {
+  const e = document.querySelector(".premium-celebration");
+  if (e) {
+    e.classList.remove("show");
+    
+    // Check if we need to unlock a set for a previously completed stage
+    const completedStage = localStorage.getItem("unlockNextSetForStage");
+    if (completedStage) {
+      const stageNum = parseInt(completedStage, 10);
+      if (!isNaN(stageNum) && stageNum >= 2 && stageNum <= 5) {
+        console.log(`Unlocking set 2 for previously completed stage ${stageNum}`);
+        
+        // Make sure the stage exists in unlockedSets
+        gameState.unlockedSets[stageNum] || (gameState.unlockedSets[stageNum] = new Set);
+        
+        // Add set 2 to the unlocked sets
+        gameState.unlockedSets[stageNum].add(2);
+        
+        // Make sure the set exists in unlockedLevels
+        const setKey = `${stageNum}_2`;
+        gameState.unlockedLevels[setKey] || (gameState.unlockedLevels[setKey] = new Set);
+        
+        // Add level 1 to the set
+        gameState.unlockedLevels[setKey].add(1);
+        
+        // Save progress
+        saveProgress();
+        
+        // Clear the flag
+        localStorage.removeItem("unlockNextSetForStage");
+      }
+    }
+    
+    setTimeout(() => {
+      e.remove();
+      showScreen("welcome-screen");
+    }, 500);
+  }
+}
+
+function saveProgress() {
+    console.log("Saving game progress");
+    
+    if (!gameState.currentStage) {
+        console.log("No game state to save");
+        return;
+    }
+    
+    // Format the data for storage
+    const progressData = {
+        stage: gameState.currentStage || 1,
+        set_number: gameState.currentSet || 1,
+        level: gameState.currentLevel || 1,
+        coins: gameState.coins || 0
+    };
+    
+    // Prepare the extended data that might be affected by schema cache
+    const extendedData = {
+        perks: gameState.perks || {},
+        unlocked_sets: Object.fromEntries(
+            Object.entries(gameState.unlockedSets || {}).map(([stage, sets]) => 
+                [stage, Array.from(sets || [])]
+            )
+        ),
+        unlocked_levels: Object.fromEntries(
+            Object.entries(gameState.unlockedLevels || {}).map(([setKey, levels]) => 
+                [setKey, Array.from(levels || [])]
+            )
+        ),
+        perfect_levels: Array.from(gameState.perfectLevels || []),
+        completed_levels: Array.from(gameState.completedLevels || [])
+    };
+    
+    // Save full data to localStorage for backup
+    localStorage.setItem("simploxProgress", JSON.stringify({
+        ...progressData,
+        ...extendedData
+    }));
+    
+    // Save current context for resuming
+    const contextData = {
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: gameState.currentLevel,
+        timestamp: Date.now()
+    };
+    localStorage.setItem("gameContext", JSON.stringify(contextData));
+    
+    // If user is logged in, save to database
+    if (currentUser) {
+        console.log("Saving progress to Supabase for user:", currentUser.id);
+        
+        // First try to save just the core fields - this should always work
+        supabaseClient
+            .from("game_progress")
+            .upsert({
+                user_id: currentUser.id,
+                ...progressData
+            })
+            .then(({ error: coreError }) => {
+                if (coreError) {
+                    console.error("Error saving core progress:", coreError);
+                } else {
+                    console.log("Core progress saved successfully");
+                    
+                    // Now try to save each extended field individually
+                    // This way if one field fails due to schema issues, others might still work
+                    const saveExtendedField = (fieldName, fieldValue) => {
+                        const updateData = { [fieldName]: fieldValue };
+                        
+                        supabaseClient
+                            .from("game_progress")
+                            .update(updateData)
+                            .eq("user_id", currentUser.id)
+                            .then(({ error }) => {
+                                if (error) {
+                                    console.warn(`Error saving ${fieldName}:`, error);
+                                } else {
+                                    console.log(`${fieldName} saved successfully`);
+                                }
+                            });
+                    };
+                    
+                    // Try each field separately
+                    Object.entries(extendedData).forEach(([field, value]) => {
+                        saveExtendedField(field, value);
+                    });
+                }
+            });
+    }
+}
+
+function saveProgress() {
+    if (currentUser) {
+        // Save to Supabase for logged in users
+        const progressToSave = {
+            stage: gameState.currentStage,
+            set_number: gameState.currentSet,
+            level: gameState.currentLevel,
+            coins: gameState.coins,
+            perks: gameState.perks,
+            unlocked_sets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlocked_levels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfect_levels: Array.from(gameState.perfectLevels),
+            completed_levels: Array.from(gameState.completedLevels)
+        };
+
+        supabaseClient
+            .from('game_progress')
+            .update(progressToSave)
+            .eq('user_id', currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error('Error saving game progress:', error);
+            });
+    } else {
+        // For guest users, save to localStorage
+        localStorage.setItem('simploxProgress', JSON.stringify({
+            unlockedSets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlockedLevels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfectLevels: Array.from(gameState.perfectLevels),
+            completedLevels: Array.from(gameState.completedLevels),
+            coins: gameState.coins,
+            perks: gameState.perks
+        }));
+    }
+}
+function saveProgress() {
+  console.log("Saving game progress");
+  
+  // Prepare the data to save
+  const progressData = {
+    stage: gameState.currentStage || 1,
+    set_number: gameState.currentSet || 1,
+    level: gameState.currentLevel || 1,
+    coins: gameState.coins || 0,
+    perks: gameState.perks || {}
+  };
+  
+  // Add unlocked sets
+  if (gameState.unlockedSets) {
+    progressData.unlocked_sets = {};
+    Object.entries(gameState.unlockedSets).forEach(([stage, sets]) => {
+      progressData.unlocked_sets[stage] = Array.from(sets || []);
+    });
+  }
+  
+  // Add unlocked levels
+  if (gameState.unlockedLevels) {
+    progressData.unlocked_levels = {};
+    Object.entries(gameState.unlockedLevels).forEach(([setKey, levels]) => {
+      progressData.unlocked_levels[setKey] = Array.from(levels || []);
+    });
+  }
+  
+  // Add completed and perfect levels
+  if (gameState.completedLevels && gameState.completedLevels.size > 0) {
+    progressData.completed_levels = Array.from(gameState.completedLevels);
+  }
+  
+  if (gameState.perfectLevels && gameState.perfectLevels.size > 0) {
+    progressData.perfect_levels = Array.from(gameState.perfectLevels);
+  }
+  
+  console.log("Progress data to save:", progressData);
+  
+  // Save to appropriate storage
+  if (currentUser) {
+    console.log("Saving progress to Supabase for user:", currentUser.id);
+    
+    // First check the database schema to ensure compatibility
+    supabaseClient.from("game_progress")
+      .select("*")
+      .eq("user_id", currentUser.id)
+      .single()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error checking progress schema:", error);
+          saveProgressToLocalStorage(progressData);
+          return;
+        }
+        
+        // Check for necessary columns
+        const hasPerfectLevels = 'perfect_levels' in data;
+        const hasCompletedLevels = 'completed_levels' in data;
+        
+        // Remove fields that aren't in the schema
+        if (!hasCompletedLevels) {
+          delete progressData.completed_levels;
+          console.warn("Database schema missing completed_levels column, removing from save data");
+        }
+        
+        if (!hasPerfectLevels) {
+          delete progressData.perfect_levels;
+          console.warn("Database schema missing perfect_levels column, removing from save data");
+        }
+        
+        // Save to database
+        supabaseClient.from("game_progress")
+          .update(progressData)
+          .eq("user_id", currentUser.id)
+          .then(({ data, error }) => {
+            if (error) {
+              console.error("Failed to save to database, using localStorage:", error);
+              saveProgressToLocalStorage(progressData);
+            } else {
+              console.log("Progress successfully saved to database");
+              saveProgressToLocalStorage(progressData);
+              
+              // Notify any open screens that might need to update
+              document.dispatchEvent(new CustomEvent('progressSaved', { 
+                detail: { gameState }
+              }));
+            }
+          });
+      });
+  } else {
+    console.log("Saving progress to localStorage (guest user)");
+    saveProgressToLocalStorage(progressData);
+  }
+  
+  // Save the current game context for quick reference
+  const gameContext = {
+    stage: gameState.currentStage,
+    set: gameState.currentSet,
+    level: gameState.currentLevel,
+    timestamp: Date.now()
+  };
+  
+  localStorage.setItem("gameContext", JSON.stringify(gameContext));
+  console.log("Game context saved:", gameContext);
+}
+
+// Helper function to save to localStorage
+function saveProgressToLocalStorage(progressData) {
+    localStorage.setItem("simploxProgress", JSON.stringify(progressData));
+}
+
+function setupDefaultUnlocks() {
+    console.log('Setting up default unlocks...');
+    console.log('Before setup:', gameState.unlockedSets, gameState.unlockedLevels);
+    
+    // Stage 1: Level 1 of all sets should be unlocked
+    if (!gameState.unlockedSets[1]) {
+        gameState.unlockedSets[1] = new Set();
+    }
+    
+    for (let i = 1; i <= 9; i++) {
+        gameState.unlockedSets[1].add(i);
+        const setKey = `1_${i}`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set([1]);
+        }
+    }
+
+    // Stages 2-5: Level 1 of Set 1 should be unlocked
+    for (let stage = 2; stage <= 5; stage++) {
+        if (!gameState.unlockedSets[stage]) {
+            gameState.unlockedSets[stage] = new Set([1]);
+        }
+        const setKey = `${stage}_1`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set([1]);
+        }
+    }
+    
+    // Handle progressed levels - ensure continuity
+    // If level 5 is unlocked, make sure 1-4 are also unlocked
+    Object.entries(gameState.unlockedLevels).forEach(([setKey, levels]) => {
+        const maxLevel = Math.max(...Array.from(levels));
+        for (let i = 1; i < maxLevel; i++) {
+            levels.add(i);
+        }
+    });
+    
+    console.log('After setup:', gameState.unlockedSets, gameState.unlockedLevels);
+}
+
+function setupDefaultUnlocks() {
+    // Stage 1: Level 1 of all sets should be unlocked
+    if (!gameState.unlockedSets[1]) {
+        gameState.unlockedSets[1] = new Set();
+    }
+    for (let i = 1; i <= 9; i++) {
+        gameState.unlockedSets[1].add(i);
+        const setKey = `1_${i}`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set([1]);
+        }
+    }
+
+    // Stages 2-5: Level 1 of Set 1 should be unlocked
+    for (let stage = 2; stage <= 5; stage++) {
+        if (!gameState.unlockedSets[stage]) {
+            gameState.unlockedSets[stage] = new Set([1]);
+        }
+        const setKey = `${stage}_1`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set([1]);
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+this reflects a minified version it must be corrected back into the full function form, in line with the rest of the code
+function animateCoinsChange(e, t, n) {
+  if (!e) return;
+  
+  // Convert to numbers and handle special cases
+  t = parseFloat(t) || 0;
+  n = parseFloat(n) || 0;
+  
+  // If values are the same, just set it and return
+  if (t === n) {
+    e.textContent = n;
+    return;
+  }
+  
+  // Animation frames calculation
+  const r = 1000 / (1000/60); // About 60 frames
+  const s = (n - t) / r;
+  
+  let o = 0;
+  let a = t;
+  
+  e.classList.add("animating");
+  
+  const animate = function() {
+    o++;
+    a += s;
+    
+    // Continue animation if not finished and we're still moving in the right direction
+    if (o <= r && ((s > 0 && a < n) || (s < 0 && a > n))) {
+      e.textContent = Math.round(a);
+      
+      // Set color based on increase/decrease
+      if (s > 0) {
+        e.style.color = "var(--success)";
+      } else if (s < 0) {
+        e.style.color = "var(--error)";
+      }
+      
+      requestAnimationFrame(animate);
+    } else {
+      // Finalize animation
+      e.textContent = n;
+      setTimeout(() => {
+        e.style.color = "var(--text)";
+        e.classList.remove("animating");
+      }, 300);
+    }
+  };
+  
+  requestAnimationFrame(animate);
+}
