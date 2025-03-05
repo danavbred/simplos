@@ -12989,87 +12989,175 @@ function resetAllAccessibilitySettings() {
     localStorage.removeItem('accessibilitySettings');
 }
 
-async function trackWordEncounter(word, mode) {
-  if (currentUser) {  // Remove status check - allow for all registered users
+async function trackWordEncounter(r, a) {
+    if (currentUser)
+      try {
+        // Sanitize the word input
+        const sanitizedWord = String(r).trim();
+        
+        // Make sure user has necessary tables initialized
+        await ensureUserInitialization(currentUser.id);
+        
+        // Attempt to get existing record
+        var { data: n, error: o } = await supabaseClient
+          .from("word_practice_history")
+          .select("*")
+          .eq("user_id", currentUser.id)
+          .eq("word", sanitizedWord)
+          .single();
+        
+        // If we got an error that's not a "not found" error
+        if (o && "PGRST116" !== o.code) {
+          console.error("Error fetching word history:", o);
+          // Try alternative approach with more direct filtering
+          try {
+            const response = await supabaseClient.rpc('get_word_history', {
+              p_user_id: currentUser.id,
+              p_word: sanitizedWord
+            });
+            if(!response.error && response.data) {
+              n = response.data;
+              o = null;
+            }
+          } catch (altError) {
+            console.error("Alternative fetch also failed:", altError);
+          }
+        }
+  
+        let e = !1, t = 0;
+        
+        if (n) {
+          // Existing record - update
+          var s = n.practice_count + 1;
+          t = s <= 5 ? 3 : 1;
+          var i = await supabaseClient
+            .from("word_practice_history")
+            .update({
+              practice_count: s,
+              last_practiced_at: new Date().toISOString(),
+              game_mode: a,
+              coins_earned: n.coins_earned + t
+            })
+            .eq("user_id", currentUser.id)
+            .eq("word", sanitizedWord);
+          
+          if (i.error) {
+            console.error("Error updating word history:", i.error);
+          }
+        } else {
+          // No existing record - insert new
+          e = !0;
+          t = 3;
+          var l = await supabaseClient
+            .from("word_practice_history")
+            .insert([{
+              user_id: currentUser.id,
+              word: sanitizedWord,
+              practice_count: 1,
+              game_mode: a,
+              coins_earned: t
+            }]);
+          
+          if (l.error) {
+            console.error("Error inserting word history:", l.error);
+          } else {
+            // Update player stats for the new word
+            var { data: c, error: d } = await supabaseClient
+              .from("player_stats")
+              .select("unique_words_practiced")
+              .eq("user_id", currentUser.id)
+              .single();
+            
+            if (!d) {
+              let t = (c?.unique_words_practiced || 0) + 1;
+              var u = await supabaseClient
+                .from("player_stats")
+                .update({ unique_words_practiced: t })
+                .eq("user_id", currentUser.id);
+              
+              if (u.error) {
+                console.error("Error updating player stats:", u.error);
+              } else {
+                document.querySelectorAll("#totalWords").forEach((e) => {
+                  animateNumber(e, parseInt(e.textContent) || 0, t);
+                });
+              }
+            }
+          }
+        }
+        
+        if (0 < t) {
+          await CoinsManager.updateCoins(t);
+        }
+        
+        return { isNewWord: e, coinReward: t };
+      } catch (e) {
+        console.error("Error in trackWordEncounter:", e);
+        return null;
+      }
+  }
+
+  async function ensureUserInitialization(userId) {
     try {
-      // Check if word exists in history
-      const { data, error } = await supabaseClient.from("word_practice_history")
-        .select("*")
-        .eq("user_id", currentUser.id)
-        .eq("word", word)
+      console.log("Ensuring proper user initialization for:", userId);
+      
+      // Check if player_stats exists
+      const { error: statsError } = await supabaseClient
+        .from("player_stats")
+        .select("user_id")
+        .eq("user_id", userId)
         .single();
       
-      if (error && error.code !== 'PGRST116') {
-        return console.error("Error fetching word history:", error);
-      }
-      
-      let isNewWord = false;
-      let coinReward = 0;
-      
-      if (data) {
-        // Word exists, update count
-        const newCount = data.practice_count + 1;
-        coinReward = newCount <= 5 ? 3 : 1;
-        
-        const { error } = await supabaseClient.from("word_practice_history")
-          .update({
-            practice_count: newCount,
-            last_practiced_at: new Date().toISOString(),
-            game_mode: mode,
-            coins_earned: data.coins_earned + coinReward
-          })
-          .eq("user_id", currentUser.id)
-          .eq("word", word);
-          
-        if (error) return console.error("Error updating word history:", error);
-      } else {
-        // New word, insert record
-        isNewWord = true;
-        coinReward = 3;
-        
-        const { error } = await supabaseClient.from("word_practice_history")
+      if (statsError && statsError.code === "PGRST116") {
+        console.log("Creating player_stats record for user");
+        const { error: createStatsError } = await supabaseClient
+          .from("player_stats")
           .insert([{
-            user_id: currentUser.id,
-            word: word,
-            practice_count: 1,
-            game_mode: mode,
-            coins_earned: coinReward
+            user_id: userId,
+            total_levels_completed: 0,
+            unique_words_practiced: 0
           }]);
-          
-        if (error) return console.error("Error inserting word history:", error);
         
-        // Update unique words count
-        const { data, error: statsError } = await supabaseClient.from("player_stats")
-          .select("unique_words_practiced")
-          .eq("user_id", currentUser.id)
-          .single();
-          
-        if (!statsError) {
-          const newWordCount = (data?.unique_words_practiced || 0) + 1;
-          const { error } = await supabaseClient.from("player_stats")
-            .update({ unique_words_practiced: newWordCount })
-            .eq("user_id", currentUser.id);
-            
-          if (error) console.error("Error updating player stats:", error);
-          else {
-            // Update UI word count immediately
-            document.querySelectorAll("#totalWords").forEach(el => {
-              animateNumber(el, parseInt(el.textContent) || 0, newWordCount);
-            });
-          }
+        if (createStatsError && createStatsError.code !== "23505") {
+          console.error("Error creating player_stats:", createStatsError);
         }
       }
       
-      if (coinReward > 0) {
-        await CoinsManager.updateCoins(coinReward);
+      // Check if game_progress exists
+      const { error: progressError } = await supabaseClient
+        .from("game_progress")
+        .select("user_id")
+        .eq("user_id", userId)
+        .single();
+      
+      if (progressError && progressError.code === "PGRST116") {
+        console.log("Creating game_progress record for user");
+        const { error: createProgressError } = await supabaseClient
+          .from("game_progress")
+          .insert([{
+            user_id: userId,
+            stage: 1,
+            set_number: 1,
+            level: 1,
+            coins: 0,
+            perks: {},
+            unlocked_sets: { 1: [1] },
+            unlocked_levels: { "1_1": [1] },
+            perfect_levels: [],
+            completed_levels: []
+          }]);
+        
+        if (createProgressError && createProgressError.code !== "23505") {
+          console.error("Error creating game_progress:", createProgressError);
+        }
       }
       
-      return { isNewWord, coinReward };
-    } catch (e) {
-      console.error("Error in trackWordEncounter:", e);
+      return true;
+    } catch (error) {
+      console.error("Error in ensureUserInitialization:", error);
+      return false;
     }
   }
-}
 
 function createRainingParticles() {
   const questionScreen = document.getElementById('question-screen');
