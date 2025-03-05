@@ -1718,134 +1718,7 @@ function updateTimerCircle(timeRemaining, totalTime) {
     }
 }
 
-async function handleSignup() {
-    const email = document.getElementById("signupEmail").value;
-    const username = document.getElementById("signupUsername").value;
-    const password = document.getElementById("signupPassword").value;
-  
-    if (email && username && password) {
-      try {
-        // 1. Sign up the user
-        const { data: authData, error: authError } = await supabaseClient.auth.signUp({
-          email: email,
-          password: password,
-          options: {
-            data: {
-              username: username,
-              full_name: username
-            }
-          }
-        });
-        
-        if (authError) throw authError;
-        
-        // 2. Create the user profile
-        const { error: profileError } = await supabaseClient
-          .from("user_profiles")
-          .upsert({
-            id: authData.user.id,
-            username: username,
-            email: email,
-            status: "free",
-            role: "student"
-          }, { onConflict: "id" });
-        
-        if (profileError) {
-          console.error("Profile upsert error:", profileError);
-        }
-        
-        // 3. Check if game progress exists and create if needed
-        const { data: existingProgress, error: progressCheckError } = await supabaseClient
-          .from("game_progress")
-          .select("user_id")
-          .eq("user_id", authData.user.id)
-          .single();
-        
-        // Only insert if record doesn't exist
-        if (progressCheckError && progressCheckError.code === "PGRST116") {
-          const gameProgressData = {
-            user_id: authData.user.id,
-            stage: 1,
-            set_number: 1,
-            level: 1,
-            coins: 0,
-            perks: {},
-            unlocked_sets: {1: [1]},
-            unlocked_levels: {"1_1": [1]},
-            perfect_levels: [],
-            completed_levels: []
-          };
-          
-          const { error: insertProgressError } = await supabaseClient
-            .from("game_progress")
-            .insert([gameProgressData]);
-          
-          if (insertProgressError && insertProgressError.code !== "23505") {
-            // Log error but continue if it's not a duplicate key error
-            console.error("Game progress initialization error:", insertProgressError);
-          }
-        }
-        
-        // 4. Check if player stats exists and create if needed
-        const { data: existingStats, error: statsCheckError } = await supabaseClient
-          .from("player_stats")
-          .select("user_id")
-          .eq("user_id", authData.user.id)
-          .single();
-        
-        // Only insert if record doesn't exist
-        if (statsCheckError && statsCheckError.code === "PGRST116") {
-          const playerStatsData = {
-            user_id: authData.user.id,
-            total_levels_completed: 0,
-            unique_words_practiced: 0
-          };
-          
-          const { error: insertStatsError } = await supabaseClient
-            .from("player_stats")
-            .insert([playerStatsData]);
-          
-          if (insertStatsError && insertStatsError.code !== "23505") {
-            // Log error but continue if it's not a duplicate key error
-            console.error("Player stats initialization error:", insertStatsError);
-          }
-        }
-        
-        // 5. Sign in the user
-        const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
-          email: email,
-          password: password
-        });
-        
-        if (signInError) throw signInError;
-        
-        // 6. Update the UI and game state
-        hideAuthModal();
-        currentUser = signInData.user;
-        gameState.currentStage = 1;
-        gameState.currentSet = 1;
-        gameState.currentLevel = 1;
-        gameState.coins = 0;
-        gameState.perks = {};
-        gameState.unlockedSets = {1: new Set([1])};
-        gameState.unlockedLevels = {"1_1": new Set([1])};
-        gameState.perfectLevels = new Set;
-        gameState.completedLevels = new Set;
-        updateAuthUI();
-        showScreen("welcome-screen");
-        
-      } catch (error) {
-        console.error("Detailed signup error:", error);
-        if (error.message && error.message.includes("duplicate key")) {
-          alert("This username or email is already taken. Please try another.");
-        } else {
-          alert("Signup error: " + error.message);
-        }
-      }
-    } else {
-      alert("All fields are required");
-    }
-  }
+
 
   async function handleLogin() {
     const loginInput = document.getElementById('loginUsername').value;
@@ -2218,14 +2091,27 @@ function updateUserStatusDisplay(status) {
 }
 
 function checkUpgradeStatus() {
-    if (!currentUser) return false;
+    const userStatus = currentUser ? currentUser.status : "unregistered";
     
-    const hasRequestedUpgrade = localStorage.getItem(`upgradeRequested_${currentUser.id}`);
-    const isPremium = currentUser.status === 'premium';
-    const isPending = currentUser.status === 'pending';
+    // If user is already premium, no need to check
+    if (userStatus === "premium") return true;
     
-    return hasRequestedUpgrade || isPremium || isPending;
-}
+    // Get stored user identifier for upgrade tracking
+    const userIdentifier = currentUser ? `upgradeRequested_${currentUser.id}` : 'upgradeRequested_guest';
+    
+    // Check if upgrade has been requested before
+    const upgradeRequested = localStorage.getItem(userIdentifier);
+    
+    // If this is the first visit to the page in this session, reset the flag
+    // This ensures users see the prompt at least once per session
+    if (!sessionStorage.getItem('upgradePromptShownThisSession')) {
+      sessionStorage.setItem('upgradePromptShownThisSession', 'true');
+      return false;
+    }
+    
+    // Return whether the user has already seen the upgrade prompt
+    return !!upgradeRequested;
+  }
 
 function showUpgradeScreen() {
     // Check if user already submitted upgrade request
@@ -2238,122 +2124,27 @@ function showUpgradeScreen() {
 }
 
 function showUpgradePrompt(callback) {
-    // If user is not logged in, show auth modal with signup form
-    if (!currentUser) {
-      console.log("Unregistered user attempting to access premium content");
-      showAuthModal();
-      // Switch to signup form
-      setTimeout(() => {
-        const loginForm = document.getElementById('loginForm');
-        const signupForm = document.getElementById('signupForm');
-        if (loginForm && signupForm) {
-          loginForm.classList.add('hidden');
-          signupForm.classList.remove('hidden');
-        }
-      }, 100);
-      return;
-    }
+    console.log("Showing upgrade prompt");
     
-    // Continue with upgrade prompt for logged in users
-    const t = {
-      screen: document.querySelector(".screen.visible")?.id,
+    // Store current game state for later
+    const gameContext = {
       stage: gameState.currentStage,
       set: gameState.currentSet,
-      level: gameState.currentLevel
+      level: gameState.currentLevel,
+      timestamp: Date.now()
     };
+    localStorage.setItem("gameContext", JSON.stringify(gameContext));
     
-    t.screen && localStorage.setItem("gameContext", JSON.stringify(t));
-    currentUser && localStorage.removeItem(`upgradeRequested_${currentUser.id}`);
+    // Show the upgrade screen
     showScreen("upgrade-screen");
+    
+    // If we have a callback, store it for later use
+    if (typeof callback === 'function') {
+      window.upgradeCallback = callback;
+    }
+    
+    return false;
   }
-
-  async function handleUpgradeSubmit(e) {
-    console.log("handleUpgradeSubmit called");
-    
-    if (e) {
-        e.preventDefault();
-    }
-    
-    const isAdult = document.getElementById("isAdult").checked;
-    
-    try {
-        // Form validation
-        if (isAdult) {
-            const fullName = document.getElementById("fullName");
-            const phone = document.getElementById("phone");
-            
-            if (!fullName.value.trim()) {
-                fullName.style.border = "2px solid #ff4444";
-                alert("Please enter your full name");
-                return false;
-            }
-            
-            if (!phone.value.trim()) {
-                phone.style.border = "2px solid #ff4444";
-                alert("Please enter your phone number");
-                return false;
-            }
-        } else {
-            const parentName = document.getElementById("parentName");
-            const parentPhone = document.getElementById("parentPhone");
-            
-            if (!parentName.value.trim()) {
-                parentName.style.border = "2px solid #ff4444";
-                alert("Please enter your parent's full name");
-                return false;
-            }
-            
-            if (!parentPhone.value.trim()) {
-                parentPhone.style.border = "2px solid #ff4444";
-                alert("Please enter your parent's phone number");
-                return false;
-            }
-        }
-        
-        // Create request data
-        let requestData = {
-            user_id: currentUser.id,
-            is_adult: isAdult,
-            full_name: isAdult ? document.getElementById("fullName").value : document.getElementById("parentName").value,
-            phone: isAdult ? document.getElementById("phone").value : document.getElementById("parentPhone").value,
-            parent_name: isAdult ? null : document.getElementById("parentName").value,
-            parent_phone: isAdult ? null : document.getElementById("parentPhone").value,
-            referral_source: document.getElementById("referralSource").value
-        };
-        
-        // Try to insert into upgrade_requests table
-        try {
-            const { data, error } = await supabaseClient
-                .from("upgrade_requests")
-                .insert([requestData])
-                .select();
-                
-            if (error) {
-                console.warn("Could not save to upgrade_requests table:", error.message);
-            }
-        } catch (err) {
-            console.warn("Error with upgrade_requests table, continuing:", err.message);
-        }
-        
-        // Update user profile status
-        const { error: updateError } = await supabaseClient
-            .from("user_profiles")
-            .update({ status: "pending" })
-            .eq("id", currentUser.id);
-            
-        if (updateError) throw updateError;
-        
-
-localStorage.setItem(`upgradeRequested_${currentUser.id}`, "true");
-updateUserStatusDisplay("pending");
-showUpgradeConfirmation();  // This will now use our new implementation
-return true;
-    } catch (error) {
-        console.error("Upgrade Request Error:", error);
-        alert("Error processing request. Please try again.");
-        return false;
-    }
-}
 
 function handleUpgradeButtonClick(event) {
     console.log("Upgrade button clicked directly");
@@ -4730,7 +4521,258 @@ function handleUpgradeClick() {
 
 
 
-function showUnregisteredWarning(callback) {
+
+
+
+
+function toggleParentPhone() {
+    const isAdult = document.getElementById('isAdult').checked;
+    const parentPhoneGroup = document.getElementById('parentPhoneGroup');
+    const parentPhoneInput = document.getElementById('parentPhone');
+    
+    parentPhoneGroup.style.display = isAdult ? 'none' : 'block';
+    parentPhoneInput.required = !isAdult;
+}
+
+
+function handleHashChange() {
+    console.log('Hash change detected:', window.location.hash);
+    
+    if (window.location.hash.startsWith('#join=')) {
+        const otp = window.location.hash.replace('#join=', '');
+        console.log('Join OTP detected:', otp);
+        
+        // Show landing page on mobile
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            const qrLanding = document.getElementById('qr-landing');
+            const codeDisplay = qrLanding.querySelector('.game-code-display');
+            
+            // Hide all other screens
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.style.display = 'none';
+            });
+            
+            // Show and populate landing page
+            qrLanding.style.display = 'flex';
+            codeDisplay.textContent = otp;
+            
+            // Store OTP for later use
+            qrLanding.dataset.otp = otp;
+        } else {
+            // Desktop behavior
+            history.pushState("", document.title, window.location.pathname);
+            showJoinModal(otp);
+        }
+    }
+}
+
+function updateUI() {
+    // Batch DOM updates
+    requestAnimationFrame(() => {
+        const fragment = document.createDocumentFragment();
+        // Add elements to fragment
+        document.body.appendChild(fragment);
+    });
+}
+
+
+function updateGuestPlayButton() {
+    const guestPlayButton = document.querySelector('.guest-play-button');
+    
+    if (!currentUser || (currentUser && currentUser.status === 'unregistered')) {
+        guestPlayButton.textContent = 'Play as Guest';
+    } else {
+        guestPlayButton.textContent = 'Start Game';
+    }
+}
+
+function toggleParentFields() {
+    const isAdult = document.getElementById('isAdult').checked;
+    const parentSection = document.getElementById('parentInfoSection');
+    const adultSection = document.getElementById('adultInfoSection');
+    
+    // Get input elements
+    const parentInputs = parentSection.querySelectorAll('input');
+    const adultInputs = adultSection.querySelectorAll('input');
+    
+    if (isAdult) {
+        parentSection.style.display = 'none';
+        adultSection.style.display = 'block';
+        
+        // Toggle required attributes
+        parentInputs.forEach(input => input.required = false);
+        adultInputs.forEach(input => input.required = true);
+    } else {
+        parentSection.style.display = 'block';
+        adultSection.style.display = 'none';
+        
+        // Toggle required attributes
+        parentInputs.forEach(input => input.required = true);
+        adultInputs.forEach(input => input.required = false);
+    }
+}
+
+
+// Add a debug helper function to check popup status
+function checkPopupStatus() {
+  const popups = document.querySelectorAll('.confirmation-popup');
+  if (popups.length === 0) {
+    console.log("No confirmation popups found in the DOM");
+    return;
+  }
+  
+  popups.forEach((popup, index) => {
+    console.log(`Popup ${index + 1}:`, {
+      visibility: window.getComputedStyle(popup).visibility,
+      opacity: window.getComputedStyle(popup).opacity,
+      display: window.getComputedStyle(popup).display,
+      zIndex: window.getComputedStyle(popup).zIndex,
+      transform: window.getComputedStyle(popup).transform,
+      position: window.getComputedStyle(popup).position
+    });
+  });
+}
+
+// Add a global debug function for the upgrade process
+window.debugUpgrade = function() {
+  checkPopupStatus();
+  console.log("Upgrade screen visible:", document.getElementById("upgrade-screen").classList.contains("visible"));
+  console.log("Upgrade form:", document.getElementById("upgradeForm"));
+  console.log("Current user:", currentUser);
+};
+
+
+function skipUpgrade() {
+    console.log("Skip upgrade button clicked");
+    
+    // Store that this user has seen the upgrade prompt to prevent repeated showings
+    if (currentUser && currentUser.id) {
+      localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
+    } else {
+      localStorage.setItem('upgradeRequested_guest', 'true');
+    }
+    
+    // Get the stored stage/set/level that the user was trying to access
+    const storedContext = localStorage.getItem("gameContext");
+    let targetStage = gameState.currentStage;
+    let targetSet = gameState.currentSet;
+    let targetLevel = gameState.currentLevel;
+    
+    if (storedContext) {
+      try {
+        const context = JSON.parse(storedContext);
+        if (context.stage) targetStage = context.stage;
+        if (context.set) targetSet = context.set;
+        if (context.level) targetLevel = context.level;
+      } catch (e) {
+        console.error("Error parsing saved context:", e);
+      }
+    }
+    
+    // Set the current game state
+    gameState.currentStage = targetStage;
+    gameState.currentSet = targetSet;
+    gameState.currentLevel = targetLevel;
+    
+    // Hide the upgrade screen
+    document.getElementById('upgrade-screen').classList.remove('visible');
+    
+    // Start the level directly
+    startLevel(gameState.currentLevel);
+  }
+
+  function handleUpgradeSubmit(event) {
+    event.preventDefault();
+    
+    // Mark that this user has requested an upgrade
+    if (currentUser && currentUser.id) {
+      localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
+    } else {
+      localStorage.setItem('upgradeRequested_guest', 'true');
+    }
+    
+    // Get form data
+    const form = document.getElementById('upgradeForm');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+    
+    // Log the request (you might want to send this to your backend)
+    console.log("Upgrade request data:", data);
+    
+    // Show a success message
+    showNotification("Thanks for your interest! We'll contact you soon.", "success");
+    
+    // Mark user as "pending" if they're logged in
+    if (currentUser && currentUser.id) {
+      updateUserStatus("pending").then(() => {
+        console.log("User status updated to pending");
+      }).catch(error => {
+        console.error("Failed to update user status:", error);
+      });
+    }
+    
+    // Hide the upgrade screen
+    document.getElementById('upgrade-screen').classList.remove('visible');
+    
+    // Get the stored stage/set/level that the user was trying to access
+    const storedContext = localStorage.getItem("gameContext");
+    let targetStage = gameState.currentStage;
+    let targetSet = gameState.currentSet;
+    let targetLevel = gameState.currentLevel;
+    
+    if (storedContext) {
+      try {
+        const context = JSON.parse(storedContext);
+        if (context.stage) targetStage = context.stage;
+        if (context.set) targetSet = context.set;
+        if (context.level) targetLevel = context.level;
+      } catch (e) {
+        console.error("Error parsing saved context:", e);
+      }
+    }
+    
+    // Set the current game state
+    gameState.currentStage = targetStage;
+    gameState.currentSet = targetSet;
+    gameState.currentLevel = targetLevel;
+    
+    // Execute callback if it exists (resume game)
+    if (typeof window.upgradeCallback === 'function') {
+      setTimeout(() => {
+        window.upgradeCallback();
+        window.upgradeCallback = null;
+      }, 500);
+    } else {
+      // Otherwise, just start the level
+      startLevel(gameState.currentLevel);
+    }
+  }
+
+  async function updateUserStatus(status) {
+    if (!currentUser || !currentUser.id) {
+      console.error("No user to update status");
+      return Promise.reject("No user logged in");
+    }
+    
+    try {
+      const { data, error } = await supabaseClient
+        .from("user_profiles")
+        .update({ status: status })
+        .eq("id", currentUser.id);
+        
+      if (error) throw error;
+      
+      // Update local user object
+      currentUser.status = status;
+      
+      return data;
+    } catch (error) {
+      console.error("Error updating user status:", error);
+      return Promise.reject(error);
+    }
+  }
+
+  function showUnregisteredWarning(callback) {
     // Prevent multiple popups in the same page load
     if (window.unregisteredWarningShown) {
         if (callback) callback();
@@ -4880,6 +4922,18 @@ function showUnregisteredWarning(callback) {
     `;
     document.head.appendChild(styleElement);
 
+    // Store that this user has seen the signup prompt
+    localStorage.setItem('upgradeRequested_guest', 'true');
+    
+    // Store current game context for later
+    const gameContext = {
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: gameState.currentLevel,
+        timestamp: Date.now()
+    };
+    localStorage.setItem("gameContext", JSON.stringify(gameContext));
+
     // Add event listeners
     const skipButton = fullscreenPrompt.querySelector('.skip-signup-button');
     const signupButton = fullscreenPrompt.querySelector('.signup-now-button');
@@ -4925,129 +4979,166 @@ function showUnregisteredWarning(callback) {
     });
 }
 
-
-
-function toggleParentPhone() {
-    const isAdult = document.getElementById('isAdult').checked;
-    const parentPhoneGroup = document.getElementById('parentPhoneGroup');
-    const parentPhoneInput = document.getElementById('parentPhone');
-    
-    parentPhoneGroup.style.display = isAdult ? 'none' : 'block';
-    parentPhoneInput.required = !isAdult;
-}
-
-
-function handleHashChange() {
-    console.log('Hash change detected:', window.location.hash);
-    
-    if (window.location.hash.startsWith('#join=')) {
-        const otp = window.location.hash.replace('#join=', '');
-        console.log('Join OTP detected:', otp);
-        
-        // Show landing page on mobile
-        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-            const qrLanding = document.getElementById('qr-landing');
-            const codeDisplay = qrLanding.querySelector('.game-code-display');
-            
-            // Hide all other screens
-            document.querySelectorAll('.screen').forEach(screen => {
-                screen.style.display = 'none';
-            });
-            
-            // Show and populate landing page
-            qrLanding.style.display = 'flex';
-            codeDisplay.textContent = otp;
-            
-            // Store OTP for later use
-            qrLanding.dataset.otp = otp;
-        } else {
-            // Desktop behavior
-            history.pushState("", document.title, window.location.pathname);
-            showJoinModal(otp);
-        }
-    }
-}
-
-function updateUI() {
-    // Batch DOM updates
-    requestAnimationFrame(() => {
-        const fragment = document.createDocumentFragment();
-        // Add elements to fragment
-        document.body.appendChild(fragment);
-    });
-}
-
-
-function updateGuestPlayButton() {
-    const guestPlayButton = document.querySelector('.guest-play-button');
-    
-    if (!currentUser || (currentUser && currentUser.status === 'unregistered')) {
-        guestPlayButton.textContent = 'Play as Guest';
-    } else {
-        guestPlayButton.textContent = 'Start Game';
-    }
-}
-
-function toggleParentFields() {
-    const isAdult = document.getElementById('isAdult').checked;
-    const parentSection = document.getElementById('parentInfoSection');
-    const adultSection = document.getElementById('adultInfoSection');
-    
-    // Get input elements
-    const parentInputs = parentSection.querySelectorAll('input');
-    const adultInputs = adultSection.querySelectorAll('input');
-    
-    if (isAdult) {
-        parentSection.style.display = 'none';
-        adultSection.style.display = 'block';
-        
-        // Toggle required attributes
-        parentInputs.forEach(input => input.required = false);
-        adultInputs.forEach(input => input.required = true);
-    } else {
-        parentSection.style.display = 'block';
-        adultSection.style.display = 'none';
-        
-        // Toggle required attributes
-        parentInputs.forEach(input => input.required = true);
-        adultInputs.forEach(input => input.required = false);
-    }
-}
-
-
-// Add a debug helper function to check popup status
-function checkPopupStatus() {
-  const popups = document.querySelectorAll('.confirmation-popup');
-  if (popups.length === 0) {
-    console.log("No confirmation popups found in the DOM");
-    return;
-  }
+async function handleSignup() {
+    const email = document.getElementById("signupEmail").value;
+    const username = document.getElementById("signupUsername").value;
+    const password = document.getElementById("signupPassword").value;
   
-  popups.forEach((popup, index) => {
-    console.log(`Popup ${index + 1}:`, {
-      visibility: window.getComputedStyle(popup).visibility,
-      opacity: window.getComputedStyle(popup).opacity,
-      display: window.getComputedStyle(popup).display,
-      zIndex: window.getComputedStyle(popup).zIndex,
-      transform: window.getComputedStyle(popup).transform,
-      position: window.getComputedStyle(popup).position
-    });
-  });
+    if (email && username && password) {
+      try {
+        // 1. Sign up the user
+        const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+          email: email,
+          password: password,
+          options: {
+            data: {
+              username: username,
+              full_name: username
+            }
+          }
+        });
+        
+        if (authError) throw authError;
+        
+        // 2. Create the user profile
+        const { error: profileError } = await supabaseClient
+          .from("user_profiles")
+          .upsert({
+            id: authData.user.id,
+            username: username,
+            email: email,
+            status: "free",
+            role: "student"
+          }, { onConflict: "id" });
+        
+        if (profileError) {
+          console.error("Profile upsert error:", profileError);
+        }
+        
+        // 3. Check if game progress exists and create if needed
+        const { data: existingProgress, error: progressCheckError } = await supabaseClient
+          .from("game_progress")
+          .select("user_id")
+          .eq("user_id", authData.user.id)
+          .single();
+        
+        // Only insert if record doesn't exist
+        if (progressCheckError && progressCheckError.code === "PGRST116") {
+          const gameProgressData = {
+            user_id: authData.user.id,
+            stage: 1,
+            set_number: 1,
+            level: 1,
+            coins: 0,
+            perks: {},
+            unlocked_sets: {1: [1]},
+            unlocked_levels: {"1_1": [1]},
+            perfect_levels: [],
+            completed_levels: []
+          };
+          
+          const { error: insertProgressError } = await supabaseClient
+            .from("game_progress")
+            .insert([gameProgressData]);
+          
+          if (insertProgressError && insertProgressError.code !== "23505") {
+            // Log error but continue if it's not a duplicate key error
+            console.error("Game progress initialization error:", insertProgressError);
+          }
+        }
+        
+        // 4. Check if player stats exists and create if needed
+        const { data: existingStats, error: statsCheckError } = await supabaseClient
+          .from("player_stats")
+          .select("user_id")
+          .eq("user_id", authData.user.id)
+          .single();
+        
+        // Only insert if record doesn't exist
+        if (statsCheckError && statsCheckError.code === "PGRST116") {
+          const playerStatsData = {
+            user_id: authData.user.id,
+            total_levels_completed: 0,
+            unique_words_practiced: 0
+          };
+          
+          const { error: insertStatsError } = await supabaseClient
+            .from("player_stats")
+            .insert([playerStatsData]);
+          
+          if (insertStatsError && insertStatsError.code !== "23505") {
+            // Log error but continue if it's not a duplicate key error
+            console.error("Player stats initialization error:", insertStatsError);
+          }
+        }
+        
+        // 5. Sign in the user
+        const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
+          email: email,
+          password: password
+        });
+        
+        if (signInError) throw signInError;
+        
+        // 6. Update the UI and game state
+        hideAuthModal();
+        currentUser = signInData.user;
+        gameState.currentStage = 1;
+        gameState.currentSet = 1;
+        gameState.currentLevel = 1;
+        gameState.coins = 0;
+        gameState.perks = {};
+        gameState.unlockedSets = {1: new Set([1])};
+        gameState.unlockedLevels = {"1_1": new Set([1])};
+        gameState.perfectLevels = new Set;
+        gameState.completedLevels = new Set;
+        updateAuthUI();
+        
+        // Get the stored game context
+        const storedContext = localStorage.getItem("gameContext");
+        if (storedContext) {
+          try {
+            const context = JSON.parse(storedContext);
+            // If we have stored context, restore and continue from where we left off
+            if (context.stage && context.set && context.level) {
+              gameState.currentStage = context.stage;
+              gameState.currentSet = context.set;
+              gameState.currentLevel = context.level;
+              
+              // Execute any pending callbacks
+              if (typeof window.signupCallback === 'function') {
+                setTimeout(() => {
+                  window.signupCallback();
+                  window.signupCallback = null;
+                }, 500);
+              } else {
+                // Otherwise start the level directly
+                setTimeout(() => {
+                  startLevel(gameState.currentLevel);
+                }, 500);
+              }
+              return;
+            }
+          } catch (e) {
+            console.error("Error parsing stored context:", e);
+          }
+        }
+        
+        // Default fallback - show welcome screen
+        showScreen("welcome-screen");
+        
+      } catch (error) {
+        console.error("Detailed signup error:", error);
+        if (error.message && error.message.includes("duplicate key")) {
+          alert("This username or email is already taken. Please try another.");
+        } else {
+          alert("Signup error: " + error.message);
+        }
+      }
+    } else {
+      alert("All fields are required");
+    }
 }
-
-// Add a global debug function for the upgrade process
-window.debugUpgrade = function() {
-  checkPopupStatus();
-  console.log("Upgrade screen visible:", document.getElementById("upgrade-screen").classList.contains("visible"));
-  console.log("Upgrade form:", document.getElementById("upgradeForm"));
-  console.log("Current user:", currentUser);
-};
-
-
-function skipUpgrade() {
-    hideUpgradePromptAndContinue();
-}
-
 
 async function updateUserStats() {
   try {
@@ -5443,4 +5534,78 @@ function isAdminUser() {
         }, duration * 1000);
       }
     }, 300);
-  }  
+  }
+  
+  /**
+ * Hides the upgrade prompt and continues with the user flow
+ * This function cleans up upgrade-related UI elements and continues gameplay
+ */
+function hideUpgradePromptAndContinue() {
+    console.log("Hiding upgrade prompt and continuing gameplay");
+    
+    // Hide upgrade screen if visible
+    const upgradeScreen = document.getElementById("upgrade-screen");
+    if (upgradeScreen) {
+      upgradeScreen.classList.remove("visible");
+    }
+    
+    // Reset upgrade form
+    const upgradeForm = document.getElementById("upgradeForm");
+    if (upgradeForm) {
+      upgradeForm.reset();
+    }
+    
+    // Remove any upgrade confirmation overlays
+    const confirmationOverlay = document.querySelector('.upgrade-confirmation-overlay');
+    if (confirmationOverlay) {
+      confirmationOverlay.remove();
+    }
+    
+    // Remove any confirmation popups
+    document.querySelectorAll(".confirmation-popup").forEach(popup => {
+      if (popup.parentNode) {
+        popup.parentNode.removeChild(popup);
+      }
+    });
+    
+    // Get stored game context for continuation
+    const gameContext = localStorage.getItem("gameContext");
+    let destination = "welcome-screen"; // Default fallback
+    
+    if (gameContext) {
+      try {
+        const context = JSON.parse(gameContext);
+        console.log("Resuming from stored game context:", context);
+        
+        // Check if we have a level to continue to
+        if (context.level) {
+          // Handle level continuation
+          if (typeof startLevel === 'function') {
+            setTimeout(() => {
+              startLevel(context.level);
+              return; // Skip showing welcome screen
+            }, 100);
+          } else if (context.screen && typeof showScreen === 'function') {
+            // If we can't directly start the level, show the last screen
+            destination = context.screen;
+          }
+        } else if (context.screen && typeof showScreen === 'function') {
+          // If no specific level but we have a screen, go there
+          destination = context.screen;
+        }
+      } catch (e) {
+        console.error("Error parsing game context:", e);
+      }
+    }
+    
+    // If we couldn't find a level to continue to, show the specified screen
+    if (typeof showScreen === 'function') {
+      showScreen(destination);
+    }
+    
+    // Don't clear the game context as it might be needed for resuming
+    // Only clear if we've successfully handled the continuation
+    if (destination !== "welcome-screen") {
+      localStorage.removeItem("gameContext");
+    }
+  }
