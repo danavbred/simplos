@@ -1,4 +1,27 @@
-
+// UPDATE CSS ANIMATION - Find the existing crown-glow-animation style and modify it
+if (!document.getElementById('crown-glow-animation')) {
+    const crownStyleElement = document.createElement('style');
+    crownStyleElement.id = 'crown-glow-animation';
+    crownStyleElement.textContent = `
+        @keyframes crownGlow {
+            0% {
+                text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+                filter: brightness(1) drop-shadow(0 0 3px rgba(255, 215, 0, 0.7));
+                transform: scale(1);
+            }
+            100% {
+                text-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+                filter: brightness(1.4) drop-shadow(0 0 5px rgba(255, 215, 0, 0.9));
+                transform: scale(1.1);
+            }
+        }
+        
+        .premium-crown {
+            animation: crownGlow 2s infinite alternate;
+        }
+    `;
+    document.head.appendChild(crownStyleElement);
+}
     
     document.addEventListener('progressSaved', (event) => {
   // If the stage-cascade screen is currently visible, refresh it
@@ -1925,32 +1948,40 @@ const gameState = {
     
 };
 
-// ADD this clean perk configuration
 const PERK_CONFIG = {
     timeFreeze: {
-        name: 'Time Freeze',
-        description: 'Pause the timer for 5 seconds',
+        name: "Time Freeze",
+        description: "Pause the timer for 5 seconds",
         cost: 15,
-        icon: 'fa-clock',
+        icon: "fa-clock",
         duration: 5000
     },
     skip: {
-        name: 'Skip Question',
-        description: 'Skip the current word without penalty',
+        name: "Skip Question",
+        description: "Skip the current word without penalty",
         cost: 1,
-        icon: 'fa-forward'
+        icon: "fa-forward"
     },
     clue: {
-        name: 'Eliminate Wrong Answer',
-        description: 'Remove one incorrect answer',
+        name: "Eliminate Wrong Answer",
+        description: "Remove one incorrect answer",
         cost: 35,
-        icon: 'fa-lightbulb'
+        icon: "fa-lightbulb"
     },
     reveal: {
-        name: 'Reveal Correct Answer',
-        description: 'Show the correct translation',
+        name: "Reveal Correct Answer",
+        description: "Show the correct translation",
         cost: 50,
-        icon: 'fa-eye'
+        icon: "fa-eye"
+    },
+    rewind: {
+        name: "Double Freeze",
+        description: "Pause the timer for 10 seconds",
+        cost: 1,
+        icon: "fa-snowflake",
+        duration: 2000,
+        requiresPremium: true,
+        requiresWordCount: 10
     }
 };
 
@@ -2021,22 +2052,109 @@ case 'reveal':
 }
 
 
+// ADD TO DOCUMENT HEAD
+const crownStyleElement = document.createElement('style');
+crownStyleElement.textContent = `
+    @keyframes crownGlow {
+        0% {
+            text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+            filter: brightness(1) drop-shadow(0 0 3px rgba(255, 215, 0, 0.7));
+        }
+        100% {
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+            filter: brightness(1.4) drop-shadow(0 0 5px rgba(255, 215, 0, 0.9));
+        }
+    }
+    
+    .premium-crown {
+        animation: crownGlow 2s infinite alternate;
+    }
+`;
+document.head.appendChild(crownStyleElement);
+
+
+// ADD NEW FUNCTION - This is what's being called but not defined
 function updatePerkButtons() {
-    Object.entries(PERK_CONFIG).forEach(([perkType, config]) => {
-        const button = document.getElementById(`${perkType}Perk`);
-        if (button) {
-            // Calculate number of times perk can be purchased
-            const availablePurchases = Math.floor(gameState.coins / config.cost);
-            const canAfford = availablePurchases > 0;
+    Object.entries(PERK_CONFIG).forEach(([perkId, perkConfig]) => {
+        const perkButton = document.getElementById(`${perkId}Perk`);
+        if (!perkButton) return;
+        
+        // Handle special perks with requirements
+        if (perkConfig.requiresWordCount) {
+            // Check word count condition
+            const wordCount = parseInt(document.getElementById("totalWords").textContent) || 0;
             
-            button.disabled = !canAfford;
-            button.classList.toggle('disabled', !canAfford);
-            
-            // Update counter to show number of purchasable perks
-            const countElement = button.querySelector('.perk-count');
-            if (countElement) {
-                countElement.textContent = canAfford ? availablePurchases.toString() : '0';
+            // Show or hide the perk based on word count
+            if (wordCount < perkConfig.requiresWordCount) {
+                perkButton.style.display = "none";
+                return;
+            } else {
+                perkButton.style.display = "flex";
             }
+            
+            // Handle premium requirement display
+            if (perkConfig.requiresPremium) {
+                const isPremium = currentUser && currentUser.status === "premium";
+                
+                // Update crown visibility
+                let crownIcon = perkButton.querySelector(".premium-crown");
+                
+                if (!isPremium) {
+                    // Add crown if not already present
+                    // UPDATE CROWN STYLING IN updatePerkButtons FUNCTION
+if (!crownIcon) {
+    crownIcon = document.createElement("i");
+    crownIcon.className = "fas fa-crown premium-crown";
+    crownIcon.style.cssText = `
+        position: absolute;
+        top: -10px;
+        right: -10px;
+        color: var(--gold);
+        font-size: 1.2rem;
+        filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7));
+        animation: crownGlow 2s infinite alternate;
+        background: rgba(0, 0, 0, 0.5);
+        padding: 5px;
+        border-radius: 50%;
+        z-index: 10;
+        border: 1px solid rgba(255, 215, 0, 0.5);
+    `;
+    perkButton.style.position = "relative";
+    perkButton.appendChild(crownIcon);
+    
+    // Override click handler to show premium message
+    const originalOnclick = perkButton.onclick;
+    perkButton.onclick = function() {
+        showNotification("Premium feature only!", "error");
+    };
+}
+                    
+                    // Disable button for non-premium users
+                    perkButton.disabled = true;
+                    perkButton.classList.add("disabled");
+                    const perkCount = perkButton.querySelector(".perk-count");
+                    if (perkCount) perkCount.textContent = "0";
+                    return;
+                } else {
+                    // Remove crown if present (e.g., user upgraded)
+                    if (crownIcon) {
+                        perkButton.removeChild(crownIcon);
+                    }
+                    
+                    // Reset click handler to default perk function
+                    perkButton.onclick = function() { buyPerk(perkId); };
+                }
+            }
+        }
+        
+        // Regular perk display logic
+        const coinCount = Math.floor(gameState.coins / perkConfig.cost);
+        const canAfford = coinCount > 0;
+        perkButton.disabled = !canAfford;
+        perkButton.classList.toggle("disabled", !canAfford);
+        const perkCount = perkButton.querySelector(".perk-count");
+        if (perkCount) {
+            perkCount.textContent = canAfford ? coinCount.toString() : "0";
         }
     });
 }
@@ -3694,22 +3812,39 @@ function revealCorrectAnswer() {
 }
 
 // REPLACE the buyPerk function with this improved version
-function buyPerk(e) {
-    const t = PERK_CONFIG[e];
+// REPLACE FULL FUNCTION
+function buyPerk(perkType) {
+    const perkConfig = PERK_CONFIG[perkType];
     
-    if (t) {
-        if (gameState.coins < t.cost) {
-            showNotification(`Need ${t.cost} coins!`, "error");
+    if (perkConfig) {
+        // Check premium requirement for special perks
+        if (perkConfig.requiresPremium && (!currentUser || currentUser.status !== "premium")) {
+            showNotification("Premium feature only!", "error");
+            return;
+        }
+        
+        // Check word count requirement
+        if (perkConfig.requiresWordCount) {
+            const wordCount = parseInt(document.getElementById("totalWords").textContent) || 0;
+            if (wordCount < perkConfig.requiresWordCount) {
+                showNotification(`Need ${perkConfig.requiresWordCount} words to unlock!`, "error");
+                return;
+            }
+        }
+        
+        if (gameState.coins < perkConfig.cost) {
+            showNotification(`Need ${perkConfig.cost} coins!`, "error");
         } else {
-            gameState.coins -= t.cost;
+            gameState.coins -= perkConfig.cost;
             updateAllCoinDisplays();
             
-            switch (e) {
+            switch (perkType) {
                 case "timeFreeze":
                     isFrozen = true;
+                    showNotification("Time frozen for 5 seconds!", "success");
                     setTimeout(() => {
                         isFrozen = false;
-                    }, t.duration);
+                    }, perkConfig.duration);
                     break;
                 case "skip":
                     // Check if it's custom practice mode
@@ -3720,20 +3855,31 @@ function buyPerk(e) {
                     }
                     break;
                 case "clue":
-                    const e = document.querySelectorAll(".buttons button");
-                    const n = currentGame.isHebrewToEnglish ? 
+                    const buttons = document.querySelectorAll(".buttons button");
+                    const correctAnswer = currentGame.isHebrewToEnglish ? 
                         currentGame.words[currentGame.currentIndex] : 
                         currentGame.translations[currentGame.currentIndex];
-                    const r = Array.from(e).filter((e => e.textContent !== n));
+                    const wrongButtons = Array.from(buttons).filter((btn => btn.textContent !== correctAnswer));
                     
-                    if (r.length > 0) {
-                        const e = r[Math.floor(Math.random() * r.length)];
-                        e.disabled = true;
-                        e.style.opacity = "0.5";
+                    if (wrongButtons.length > 0) {
+                        const randomWrongButton = wrongButtons[Math.floor(Math.random() * wrongButtons.length)];
+                        randomWrongButton.disabled = true;
+                        randomWrongButton.style.opacity = "0.5";
                     }
                     break;
                 case "reveal":
                     revealCorrectAnswer();
+                    break;
+                    case"rewind":
+                    // Add time to the timer (more time than timeFreeze)
+                    timeRemaining = Math.min(currentGame.totalTime, timeRemaining + 5);
+                    
+                    // Update visuals immediately
+                    updateTimerDisplay();
+                    updateTimerCircle(timeRemaining, currentGame.totalTime);
+                    
+                    // Show notification but DON'T freeze the timer
+                    showNotification("Time rewind! +5 seconds", "success");
                     break;
             }
             
@@ -3741,6 +3887,7 @@ function buyPerk(e) {
         }
     }
 }
+
 
 // New helper function for smooth number transition
 function animateNumberChange(element, startValue, endValue) {
