@@ -1,0 +1,569 @@
+function buyPerk(perkType) {
+    const perkConfig = PERK_CONFIG[perkType];
+    if (!perkConfig) return;
+
+    if (gameState.coins < perkConfig.cost) {
+        showNotification(`Need ${perkConfig.cost} coins!`, 'error');
+        return;
+    }
+
+    gameState.coins -= perkConfig.cost;
+    updateAllCoinDisplays();
+
+    switch(perkType) {
+        case 'timeFreeze':
+            isFrozen = true;
+            setTimeout(() => {
+                isFrozen = false;
+            }, perkConfig.duration);
+            break;
+
+        case 'skip':
+            handleAnswer(true, true);
+            break;
+
+        case 'clue':
+            const buttons = document.querySelectorAll('.buttons button');
+            const correctAnswer = currentGame.isHebrewToEnglish ? 
+                currentGame.words[currentGame.currentIndex] : 
+                currentGame.translations[currentGame.currentIndex];
+            
+            const wrongButtons = Array.from(buttons).filter(btn => 
+                btn.textContent !== correctAnswer);
+            
+            if (wrongButtons.length > 0) {
+                const buttonToDisable = wrongButtons[Math.floor(Math.random() * wrongButtons.length)];
+                buttonToDisable.disabled = true;
+                buttonToDisable.style.opacity = '0.5';
+            }
+            break;
+
+        // REPLACE the reveal case in buyPerk function
+case 'reveal':
+    const correctAns = currentGame.isHebrewToEnglish ? 
+        currentGame.words[currentGame.currentIndex] : 
+        currentGame.translations[currentGame.currentIndex];
+    
+    document.querySelectorAll('.buttons button').forEach(btn => {
+        if (btn.textContent === correctAns) {
+            btn.classList.add('correct');
+            // Store original background
+            const originalBackground = btn.style.background;
+            btn.style.background = 'var(--success)';
+            
+            // Reset after 5 seconds
+            setTimeout(() => {
+                btn.classList.remove('correct');
+                btn.style.background = originalBackground;
+            }, 5000);
+        }
+    });
+    break;
+    }
+
+    saveProgress();
+}
+
+
+function handleAnswer(isCorrect, skipMode = false) {
+  const now = Date.now();
+  if (now - (currentGame.lastAnswerTime || 0) < 1000) {
+    console.warn("Answer too quickly. Please wait a moment.");
+    return;
+  }
+  
+  if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
+    console.error("Invalid game state or index");
+    return;
+  }
+  
+  currentGame.lastAnswerTime = now;
+  currentGame.perks = currentGame.perks || { clue: 0, skip: 0, timeFreeze: 0, reveal: 0 };
+  
+  try {
+    if (isCorrect) {
+      currentGame.currentIndex++;
+      
+      if (currentGame.isBossLevel) {
+        const bossOrb = document.querySelector(".boss-orb-inner");
+        if (bossOrb) {
+          const colors = ["yellow", "purple", "turquoise", "darkgreen", "brown"];
+          const randomColor = colors[Math.floor(Math.random() * colors.length)];
+          const originalBackground = bossOrb.style.background;
+          bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColor}, #990000)`;
+          bossOrb.style.transform = "scale(1.3)";
+          bossOrb.style.filter = "brightness(1.5)";
+          setTimeout(() => {
+            bossOrb.style.transform = "";
+            bossOrb.style.filter = "";
+            bossOrb.style.background = originalBackground;
+          }, 300);
+        }
+        
+        // Check if this was the final boss hit
+        if (currentGame.currentIndex >= currentGame.words.length) {
+          console.log("Boss defeated - final hit!");
+          currentGame.bossDefeated = true; // Mark boss as defeated
+          clearTimer(); // Clear the timer
+          
+          // Force health bar to zero
+          const progressCircle = document.querySelector('.progress-circle');
+          if (progressCircle) {
+            const progress = progressCircle.querySelector('.progress');
+            if (progress) {
+              const circumference = 2 * Math.PI * 54;
+              progress.style.strokeDashoffset = circumference; // Set to full circumference (empty)
+            }
+          }
+          
+          // Direct call to defeat sequence with forced update
+          showBossDefeatEffect();
+          CoinsManager.updateCoins(100).then(() => {
+            updateAllCoinDisplays(); // Update coin display explicitly
+          });
+          
+          return; // Exit function early
+        }
+        
+        // Otherwise just update the health bar
+        updateBossHealthBar();
+      } else {
+        updateProgressCircle();
+      }
+      
+      if (!skipMode) {
+        let coinsEarned = 0;
+        const timeBonus = awardTimeBonus();
+        if (timeBonus > 0) {
+          coinsEarned += timeBonus;
+          pulseCoins(timeBonus);
+        }
+        
+        if (currentGame.firstAttempt) {
+          coinsEarned += 3;
+          pulseCoins(3);
+        } else {
+          coinsEarned += 1;
+          pulseCoins(1);
+        }
+        
+        CoinsManager.updateCoins(coinsEarned).then(() => {
+          updatePerkButtons();
+          updateAllCoinDisplays(); // Added to ensure coin display updates
+        }).catch(err => {
+          console.error("Error updating total coins:", err);
+        });
+        
+        currentGame.correctAnswers++;
+        
+        // Track word for any registered user without status check
+        if (currentUser) {
+          const wordIndex = currentGame.currentIndex - 1;
+          const word = currentGame.isHebrewToEnglish ? 
+            currentGame.words[wordIndex] : 
+            currentGame.translations[wordIndex];
+          
+          const gameMode = currentGame.isCustomPractice ? 'custom' : 
+                           currentGame.isArcadeMode ? 'arcade' : 'story';
+          
+          // Call trackWordEncounter without status check
+          trackWordEncounter(word, gameMode);
+        }
+      }
+    } else {
+      currentGame.firstAttempt = false;
+      currentGame.streakBonus = false;
+      currentGame.wrongStreak++;
+      
+      CoinsManager.updateCoins(-3).then(() => {
+        updatePerkButtons();
+        updateAllCoinDisplays(); // Added to ensure coin display updates
+      }).catch(err => {
+        console.error("Error updating coins:", err);
+      });
+      
+      if (currentGame.currentIndex > 0) {
+        currentGame.progressLost++;
+        currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
+        if (currentGame.isBossLevel) {
+          updateBossHealthBar();
+        }
+      }
+      
+      if (currentGame.wrongStreak >= 3) {
+        showGameOverOverlay();
+        return;
+      }
+    }
+    
+    // Clear previous visual indicators from all buttons
+    const allButtons = document.querySelectorAll(".buttons button");
+    
+    // Get current question's correct answer
+    const currentCorrectAnswer = currentGame.isHebrewToEnglish
+      ? currentGame.words[Math.max(0, currentGame.currentIndex - 1)]
+      : currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
+      
+    // Highlight current answer status (right or wrong)
+    allButtons.forEach((button) => {
+      if (button.textContent === currentCorrectAnswer) {
+        button.classList.add("correct");
+      } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
+        button.classList.add("wrong");
+      }
+    });
+    
+    saveProgress();
+    
+    // Use a promise to ensure proper timing and button state clearance
+    const transitionDelay = 500; // ms
+    
+    setTimeout(() => {
+      // Clear all button classes before loading next question
+      allButtons.forEach(btn => {
+        btn.classList.remove("correct", "wrong");
+      });
+      
+      // Check if game is still valid (not a defeated boss)
+      if (currentGame && (!currentGame.bossDefeated || !currentGame.isBossLevel)) {
+        if (currentGame.currentIndex < currentGame.words.length) {
+          startTimer(currentGame.words.length - currentGame.currentIndex);
+          
+          if (currentGame.isBossLevel) {
+            loadNextBossQuestion();
+          } else {
+            loadNextQuestion();
+          }
+          
+          updatePerkButtons();
+        } else if (!currentGame.isBossLevel) {
+          if (currentGame.isCustomPractice) {
+            handleCustomLevelCompletion();
+          } else {
+            handleLevelCompletion();
+          }
+        }
+      }
+    }, transitionDelay);
+    
+  } catch (err) {
+    console.error("Unexpected error in handleAnswer:", err);
+    console.error("Error details:", err.stack);
+    
+    try {
+      if (currentGame && currentGame.currentIndex < currentGame.words.length && !currentGame.bossDefeated) {
+        loadNextQuestion();
+      } else {
+        showScreen("welcome-screen");
+      }
+    } catch (err) {
+      console.error("Failed to recover from error:", err);
+      showScreen("welcome-screen");
+    }
+  }
+}
+
+// Progress Management
+function saveProgress() {
+    if (currentUser) {
+        // Save to Supabase for logged in users
+        const progressToSave = {
+            stage: gameState.currentStage,
+            set_number: gameState.currentSet,
+            level: gameState.currentLevel,
+            coins: gameState.coins,
+            perks: gameState.perks,
+            unlocked_sets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlocked_levels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfect_levels: Array.from(gameState.perfectLevels),
+            completed_levels: Array.from(gameState.completedLevels)
+        };
+
+        supabaseClient
+            .from('game_progress')
+            .update(progressToSave)
+            .eq('user_id', currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error('Error saving game progress:', error);
+            });
+    } else {
+        // For guest users, save to localStorage
+        localStorage.setItem('simploxProgress', JSON.stringify({
+            unlockedSets: Object.fromEntries(
+                Object.entries(gameState.unlockedSets).map(([k, v]) => [k, Array.from(v)])
+            ),
+            unlockedLevels: Object.fromEntries(
+                Object.entries(gameState.unlockedLevels).map(([k, v]) => [k, Array.from(v)])
+            ),
+            perfectLevels: Array.from(gameState.perfectLevels),
+            completedLevels: Array.from(gameState.completedLevels),
+            coins: gameState.coins,
+            perks: gameState.perks
+        }));
+    }
+}
+
+
+function saveProgress() {
+  console.log("Saving game progress");
+  
+  // Prepare the data to save
+  const progressData = {
+    stage: gameState.currentStage || 1,
+    set_number: gameState.currentSet || 1,
+    level: gameState.currentLevel || 1,
+    coins: gameState.coins || 0,
+    perks: gameState.perks || {}
+  };
+  
+  // Add unlocked sets
+  if (gameState.unlockedSets) {
+    progressData.unlocked_sets = {};
+    Object.entries(gameState.unlockedSets).forEach(([stage, sets]) => {
+      progressData.unlocked_sets[stage] = Array.from(sets || []);
+    });
+  }
+  
+  // Add unlocked levels
+  if (gameState.unlockedLevels) {
+    progressData.unlocked_levels = {};
+    Object.entries(gameState.unlockedLevels).forEach(([setKey, levels]) => {
+      progressData.unlocked_levels[setKey] = Array.from(levels || []);
+    });
+  }
+  
+  // Add completed and perfect levels
+  if (gameState.completedLevels && gameState.completedLevels.size > 0) {
+    progressData.completed_levels = Array.from(gameState.completedLevels);
+  }
+  
+  if (gameState.perfectLevels && gameState.perfectLevels.size > 0) {
+    progressData.perfect_levels = Array.from(gameState.perfectLevels);
+  }
+  
+  console.log("Progress data to save:", progressData);
+  
+  // Save to appropriate storage
+  if (currentUser) {
+    console.log("Saving progress to Supabase for user:", currentUser.id);
+    
+    // First check the database schema to ensure compatibility
+    supabaseClient.from("game_progress")
+      .select("*")
+      .eq("user_id", currentUser.id)
+      .single()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error checking progress schema:", error);
+          saveProgressToLocalStorage(progressData);
+          return;
+        }
+        
+        // Check for necessary columns
+        const hasPerfectLevels = 'perfect_levels' in data;
+        const hasCompletedLevels = 'completed_levels' in data;
+        
+        // Remove fields that aren't in the schema
+        if (!hasCompletedLevels) {
+          delete progressData.completed_levels;
+          console.warn("Database schema missing completed_levels column, removing from save data");
+        }
+        
+        if (!hasPerfectLevels) {
+          delete progressData.perfect_levels;
+          console.warn("Database schema missing perfect_levels column, removing from save data");
+        }
+        
+        // Save to database
+        supabaseClient.from("game_progress")
+          .update(progressData)
+          .eq("user_id", currentUser.id)
+          .then(({ data, error }) => {
+            if (error) {
+              console.error("Failed to save to database, using localStorage:", error);
+              saveProgressToLocalStorage(progressData);
+            } else {
+              console.log("Progress successfully saved to database");
+              saveProgressToLocalStorage(progressData);
+              
+              // Notify any open screens that might need to update
+              document.dispatchEvent(new CustomEvent('progressSaved', { 
+                detail: { gameState }
+              }));
+            }
+          });
+      });
+  } else {
+    console.log("Saving progress to localStorage (guest user)");
+    saveProgressToLocalStorage(progressData);
+  }
+  
+  // Save the current game context for quick reference
+  const gameContext = {
+    stage: gameState.currentStage,
+    set: gameState.currentSet,
+    level: gameState.currentLevel,
+    timestamp: Date.now()
+  };
+  
+  localStorage.setItem("gameContext", JSON.stringify(gameContext));
+  console.log("Game context saved:", gameContext);
+}
+
+function saveProgress() {
+    console.log("Saving game progress");
+    
+    if (!gameState.currentStage) {
+        console.log("No game state to save");
+        return;
+    }
+    
+    // Format the data for storage
+    const progressData = {
+        stage: gameState.currentStage || 1,
+        set_number: gameState.currentSet || 1,
+        level: gameState.currentLevel || 1,
+        coins: gameState.coins || 0
+    };
+    
+    // Prepare the extended data that might be affected by schema cache
+    const extendedData = {
+        perks: gameState.perks || {},
+        unlocked_sets: Object.fromEntries(
+            Object.entries(gameState.unlockedSets || {}).map(([stage, sets]) => 
+                [stage, Array.from(sets || [])]
+            )
+        ),
+        unlocked_levels: Object.fromEntries(
+            Object.entries(gameState.unlockedLevels || {}).map(([setKey, levels]) => 
+                [setKey, Array.from(levels || [])]
+            )
+        ),
+        perfect_levels: Array.from(gameState.perfectLevels || []),
+        completed_levels: Array.from(gameState.completedLevels || [])
+    };
+    
+    // Save full data to localStorage for backup
+    localStorage.setItem("simploxProgress", JSON.stringify({
+        ...progressData,
+        ...extendedData
+    }));
+    
+    // Save current context for resuming
+    const contextData = {
+        stage: gameState.currentStage,
+        set: gameState.currentSet,
+        level: gameState.currentLevel,
+        timestamp: Date.now()
+    };
+    localStorage.setItem("gameContext", JSON.stringify(contextData));
+    
+    // If user is logged in, save to database
+    if (currentUser) {
+        console.log("Saving progress to Supabase for user:", currentUser.id);
+        
+        // First try to save just the core fields - this should always work
+        supabaseClient
+            .from("game_progress")
+            .upsert({
+                user_id: currentUser.id,
+                ...progressData
+            })
+            .then(({ error: coreError }) => {
+                if (coreError) {
+                    console.error("Error saving core progress:", coreError);
+                } else {
+                    console.log("Core progress saved successfully");
+                    
+                    // Now try to save each extended field individually
+                    // This way if one field fails due to schema issues, others might still work
+                    const saveExtendedField = (fieldName, fieldValue) => {
+                        const updateData = { [fieldName]: fieldValue };
+                        
+                        supabaseClient
+                            .from("game_progress")
+                            .update(updateData)
+                            .eq("user_id", currentUser.id)
+                            .then(({ error }) => {
+                                if (error) {
+                                    console.warn(`Error saving ${fieldName}:`, error);
+                                } else {
+                                    console.log(`${fieldName} saved successfully`);
+                                }
+                            });
+                    };
+                    
+                    // Try each field separately
+                    Object.entries(extendedData).forEach(([field, value]) => {
+                        saveExtendedField(field, value);
+                    });
+                }
+            });
+    }
+}
+
+const PERK_CONFIG = {
+    timeFreeze: {
+        name: "Time Freeze",
+        description: "Pause the timer for 5 seconds",
+        cost: 15,
+        icon: "fa-clock",
+        duration: 5000
+    },
+    skip: {
+        name: "Skip Question",
+        description: "Skip the current word without penalty",
+        cost: 1,
+        icon: "fa-forward"
+    },
+    clue: {
+        name: "Eliminate Wrong Answer",
+        description: "Remove one incorrect answer",
+        cost: 35,
+        icon: "fa-lightbulb"
+    },
+    reveal: {
+        name: "Reveal Correct Answer",
+        description: "Show the correct translation",
+        cost: 50,
+        icon: "fa-eye"
+    },
+    rewind: {
+        name: "Double Freeze",
+        description: "Pause the timer for 10 seconds",
+        cost: 1,
+        icon: "fa-snowflake",
+        duration: 2000,
+        requiresPremium: true,
+        requiresWordCount: 10
+    },
+    // New perks
+    doubleCoins: {
+        name: "Double Coins",
+        description: "Double coin rewards for next 3 correct answers",
+        cost: 2,
+        icon: "fa-coins",
+        requiresPremium: true,
+        requiresWordCount: 10
+    },
+    goldenEgg: {
+        name: "Golden Egg",
+        description: "Skip entire level and move to next",
+        cost: 2,
+        icon: "fa-egg",
+        requiresPremium: true,
+        requiresWordCount: 10
+    },
+    doubleSkip: {
+        name: "Double Skip",
+        description: "Skip two questions instead of one",
+        cost: 1,
+        icon: "fa-forward-step",
+        requiresPremium: true,
+        requiresWordCount: 10
+    }
+};
