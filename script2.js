@@ -24,13 +24,14 @@ async function trackWordEncounter(word, gameMode = 'standard') {
       const startTime = performance.now();
       
       try {
-        // Try to get existing record
-        const { data, error } = await supabaseClient
-          .from("word_practice_history")
-          .select("*")
-          .eq("user_id", userId)
-          .eq("word", trimmedWord)
-          .single();
+        // Try to get existing record using RPC function instead of direct query
+        const { data, error } = await supabaseClient.rpc(
+          'get_word_history',
+          {
+            p_user_id: userId,
+            p_word: trimmedWord
+          }
+        );
         
         const requestTime = performance.now() - startTime;
         if (requestTime > 1000) {
@@ -41,27 +42,16 @@ async function trackWordEncounter(word, gameMode = 'standard') {
         let coinReward = 0;
         
         // Handle potential errors
-        if (error && error.code !== "PGRST116") {
+        if (error) {
           console.error("Error fetching word history:", error);
-          
-          // Try alternative approach if the regular one fails
-          try {
-            const result = await supabaseClient.rpc("get_word_history", {
-              p_user_id: userId,
-              p_word: trimmedWord
-            });
-            
-            if (!result.error && result.data) {
-              data = result.data;
-            }
-          } catch (e) {
-            console.error("Alternative fetch also failed:", e);
-          }
+          return { isNewWord: false, coinReward: 0, error };
         }
         
-        if (data) {
+        // Check if we got a record back
+        if (data && data.length > 0) {
           // Word exists, increment practice count
-          const newCount = (data.practice_count || 0) + 1;
+          const existingRecord = data[0];
+          const newCount = (existingRecord.practice_count || 0) + 1;
           coinReward = newCount <= 5 ? 3 : 1;
           
           const { error } = await supabaseClient
@@ -70,7 +60,7 @@ async function trackWordEncounter(word, gameMode = 'standard') {
               practice_count: newCount,
               last_practiced_at: new Date().toISOString(),
               game_mode: gameMode,
-              coins_earned: (data.coins_earned || 0) + coinReward
+              coins_earned: (existingRecord.coins_earned || 0) + coinReward
             })
             .eq("user_id", userId)
             .eq("word", trimmedWord);
@@ -91,7 +81,6 @@ async function trackWordEncounter(word, gameMode = 'standard') {
               practice_count: 1,
               game_mode: gameMode,
               coins_earned: coinReward,
-              first_practiced_at: new Date().toISOString(),
               last_practiced_at: new Date().toISOString()
             }]);
             
@@ -142,39 +131,7 @@ async function trackWordEncounter(word, gameMode = 'standard') {
       console.error("Error in trackWordEncounter outer try/catch:", outerError);
       return null;
     }
-  }
-
-// UPDATE CSS ANIMATION - Find the existing crown-glow-animation style and modify it
-if (!document.getElementById('crown-glow-animation')) {
-    const crownStyleElement = document.createElement('style');
-    crownStyleElement.id = 'crown-glow-animation';
-    crownStyleElement.textContent = `
-        @keyframes crownGlow {
-            0% {
-                text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
-                filter: brightness(1) drop-shadow(0 0 3px rgba(255, 215, 0, 0.7));
-                transform: scale(1);
-            }
-            100% {
-                text-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
-                filter: brightness(1.4) drop-shadow(0 0 5px rgba(255, 215, 0, 0.9));
-                transform: scale(1.1);
-            }
-        }
-        
-        .premium-crown {
-            animation: crownGlow 2s infinite alternate;
-        }
-    `;
-    document.head.appendChild(crownStyleElement);
 }
-
-    
-
-
-
-
-
 
 const currentArcadeSessionStructure = {
     eventId: null,
@@ -1503,7 +1460,7 @@ function startLevel(level) {
   
   // Check if premium is required
   const userStatus = currentUser ? currentUser.status : 'unregistered';
-  if ([2, 7, 11, 15, 20].includes(level) && userStatus !== 'premium') {
+  if ([2, 5, 8, 11, 14, 18, 20].includes(level) && userStatus !== 'premium') {
     const currentLevel = level;
     
     if (!currentUser) {
