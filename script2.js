@@ -4713,22 +4713,97 @@ function exitArcadeCompletion() {
 }
 
 function exitArcade() {
-    // Clean up
+    // Clean up channel subscription
     if (window.arcadeChannel) {
         window.arcadeChannel.unsubscribe();
     }
+    
+    // Different cleanup based on user status
+    if (!currentUser) {
+        // For unregistered users: completely wipe all arcade-related data
+        localStorage.removeItem("simploxCustomCoins");
+        localStorage.removeItem("simploxWordCount");
+        
+        // Reset coin and word displays
+        document.querySelectorAll(".coin-count, #totalCoins").forEach(el => {
+            el.textContent = "0";
+        });
+        
+        document.querySelectorAll("#totalWords").forEach(el => {
+            el.textContent = "0";
+        });
+        
+        // Reset game state
+        if (gameState) {
+            gameState.coins = 0;
+        }
+        
+        if (currentGame) {
+            currentGame.coins = 0;
+            currentGame.wordsCompleted = 0;
+        }
+    }
+    // For premium users, data is preserved
+    
+    // Clean up OTP modal for all users
+    resetArcadeModal();
+    
+    // Reset session state completely
     currentArcadeSession = {
         eventId: null,
         otp: null,
         wordPool: [],
         participants: [],
         teacherId: null,
-        wordGoal: 50
+        wordGoal: 50,
+        state: 'pre-start',
+        completedPlayers: [],
+        playerRank: null,
+        winnerScreenShown: false,
+        startTime: null,
+        endTime: null,
+        playerName: null
     };
     
     // Return to welcome screen
     showScreen('welcome-screen');
-    document.querySelector('.completion-overlay')?.remove();
+    
+    // Remove any completion overlays
+    const completionOverlay = document.querySelector('.completion-overlay');
+    if (completionOverlay) completionOverlay.remove();
+    
+    // Remove any arcade celebration overlays
+    const celebrationOverlay = document.querySelector('.arcade-completion-modal');
+    if (celebrationOverlay) celebrationOverlay.remove();
+}
+
+function resetArcadeModal() {
+    // Clear username input
+    const usernameInput = document.getElementById('arcadeUsername');
+    if (usernameInput) {
+        usernameInput.value = '';
+    }
+    
+    // Clear OTP input
+    const otpInput = document.getElementById('otpInput');
+    if (otpInput) {
+        otpInput.value = '';
+    }
+    
+    // Remove any username display that might have been added
+    const inputGroup = document.querySelector('.input-group');
+    if (inputGroup) {
+        const usernameDisplay = inputGroup.querySelector('.username-display');
+        if (usernameDisplay) {
+            usernameDisplay.remove();
+        }
+        
+        // Ensure username input is visible for next session
+        if (usernameInput) {
+            usernameInput.style.display = 'block';
+            usernameInput.readOnly = false;
+        }
+    }
 }
 
 function handleAnswer(isCorrect, skipMode = false) {
