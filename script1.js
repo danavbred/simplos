@@ -1,3 +1,26 @@
+document.addEventListener('DOMContentLoaded', function() {
+    const fields = ["fullName", "phone", "parentName", "parentPhone"];
+    
+    fields.forEach(field => {
+      const el = document.getElementById(field);
+      if (el) {
+        el.addEventListener('input', function() {
+          this.style.border = "1px solid rgba(255, 255, 255, 0.2)";
+        });
+      }
+    });
+    
+    // Also ensure the form has the submit handler directly attached
+    const form = document.getElementById('upgradeForm');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        console.log("Form submit event triggered");
+        handleUpgradeSubmit(e);
+      });
+    }
+  });
+
+  // Replace window.onload with:
 document.addEventListener('DOMContentLoaded', () => {
     gameInit.init();
 });
@@ -13,232 +36,238 @@ const supabaseClient = createClient(
     }
 );
 
-// ADD this function to consolidate all event listeners
-function initializeEventListeners() {
-    // Main DOMContentLoaded event
-    document.addEventListener('DOMContentLoaded', async function() {
-        try {
-            console.log('DOM fully loaded and parsed, initializing application...');
-            
-            // Initialize form field handlers
-            const formFields = ["fullName", "phone", "parentName", "parentPhone"];
-            formFields.forEach(field => {
-                const el = document.getElementById(field);
-                if (el) {
-                    el.addEventListener('input', function() {
-                        this.style.border = "1px solid rgba(255, 255, 255, 0.2)";
-                    });
-                }
-            });
-            
-            // Initialize upgrade form submit handler
-            const upgradeForm = document.getElementById('upgradeForm');
-            if (upgradeForm) {
-                upgradeForm.addEventListener('submit', function(e) {
-                    console.log("Form submit event triggered");
-                    handleUpgradeSubmit(e);
-                });
-            }
-            
-            // Initialize game
-            if (typeof gameInit !== 'undefined' && gameInit.init) {
-                gameInit.init();
-            }
-            
-            // Initialize CustomListsManager if not already defined
-            if (!window.CustomListsManager) {
-                // All CustomListsManager initialization code here
-                window.CustomListsManager = {
-                    lists: [],
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Define CustomListsManager first before any functions try to use it
+        if (!window.CustomListsManager) {
+            window.CustomListsManager = {
+                lists: [],
+                
+                async initialize() {
+                    if (currentUser) {
+                        await this.loadFromSupabase();
+                    } else {
+                        this.loadFromLocalStorage();
+                    }
+                },
+                
+                async loadFromSupabase() {
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('custom_lists')
+                            .select('*')
+                            .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
+                            
+                        if (error) throw error;
+                        
+                        this.lists = data.map(item => ({
+                            id: item.id,
+                            name: item.name,
+                            words: item.words || [],
+                            translations: item.translations || [],
+                            isShared: item.is_shared,
+                            sharedBy: item.shared_by,
+                            userId: item.user_id,
+                            createdAt: item.created_at
+                        }));
+                        
+                        console.log('Loaded lists from Supabase:', this.lists.length);
+                    } catch (error) {
+                        console.error('Error loading lists from Supabase:', error);
+                        this.lists = [];
+                    }
+                },
+                
+                loadFromLocalStorage() {
+                    try {
+                        const savedLists = localStorage.getItem('simploxCustomLists');
+                        this.lists = savedLists ? JSON.parse(savedLists) : [];
+                        console.log('Loaded lists from localStorage:', this.lists.length);
+                    } catch (error) {
+                        console.error('Error loading lists from localStorage:', error);
+                        this.lists = [];
+                    }
+                },
+                
+                async save(list) {
+                    if (!list) return null;
                     
-                    async initialize() {
-                        if (currentUser) {
-                            await this.loadFromSupabase();
-                        } else {
-                            this.loadFromLocalStorage();
-                        }
-                    },
-                    
-                    async loadFromSupabase() {
-                        try {
+                    if (currentUser) {
+                        return await this.saveToSupabase(list);
+                    } else {
+                        return this.saveToLocalStorage(list);
+                    }
+                },
+                
+                async saveToSupabase(list) {
+                    try {
+                        const listData = {
+                            name: list.name,
+                            words: list.words || [],
+                            translations: list.translations || [],
+                            user_id: currentUser.id
+                        };
+                        
+                        if (list.id && typeof list.id === 'string' && list.id.length === 36) {
                             const { data, error } = await supabaseClient
                                 .from('custom_lists')
-                                .select('*')
-                                .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
+                                .update(listData)
+                                .eq('id', list.id)
+                                .select()
+                                .single();
                                 
                             if (error) throw error;
-                            
-                            this.lists = data.map(item => ({
-                                id: item.id,
-                                name: item.name,
-                                words: item.words || [],
-                                translations: item.translations || [],
-                                isShared: item.is_shared,
-                                sharedBy: item.shared_by,
-                                userId: item.user_id,
-                                createdAt: item.created_at
-                            }));
-                            
-                            console.log('Loaded lists from Supabase:', this.lists.length);
-                        } catch (error) {
-                            console.error('Error loading lists from Supabase:', error);
-                            this.lists = [];
-                        }
-                    },
-                    
-                    loadFromLocalStorage() {
-                        try {
-                            const savedLists = localStorage.getItem('simploxCustomLists');
-                            this.lists = savedLists ? JSON.parse(savedLists) : [];
-                            console.log('Loaded lists from localStorage:', this.lists.length);
-                        } catch (error) {
-                            console.error('Error loading lists from localStorage:', error);
-                            this.lists = [];
-                        }
-                    },
-                    
-                    async save(list) {
-                        if (!list) return null;
-                        
-                        if (currentUser) {
-                            return await this.saveToSupabase(list);
+                            return data;
                         } else {
-                            return this.saveToLocalStorage(list);
-                        }
-                    },
-                    
-                    async saveToSupabase(list) {
-                        try {
-                            const listData = {
-                                name: list.name,
-                                words: list.words || [],
-                                translations: list.translations || [],
-                                user_id: currentUser.id
-                            };
-                            
-                            if (list.id && typeof list.id === 'string' && list.id.length === 36) {
-                                const { data, error } = await supabaseClient
-                                    .from('custom_lists')
-                                    .update(listData)
-                                    .eq('id', list.id)
-                                    .select()
-                                    .single();
-                                    
-                                if (error) throw error;
-                                return data;
-                            } else {
-                                const { data, error } = await supabaseClient
-                                    .from('custom_lists')
-                                    .insert(listData)
-                                    .select()
-                                    .single();
-                                    
-                                if (error) throw error;
+                            const { data, error } = await supabaseClient
+                                .from('custom_lists')
+                                .insert(listData)
+                                .select()
+                                .single();
                                 
-                                const index = this.lists.findIndex(l => 
-                                    l.id === list.id || 
-                                    (l.tempId && l.tempId === list.tempId));
-                                    
-                                if (index !== -1) {
-                                    this.lists[index] = {
-                                        ...data,
-                                        words: data.words || [],
-                                        translations: data.translations || []
-                                    };
-                                } else {
-                                    this.lists.push({
-                                        ...data,
-                                        words: data.words || [],
-                                        translations: data.translations || []
-                                    });
-                                }
-                                
-                                return data;
-                            }
-                        } catch (error) {
-                            console.error('Error saving list to Supabase:', error);
-                            return null;
-                        }
-                    },
-                    
-                    saveToLocalStorage(list) {
-                        try {
-                            const newList = {
-                                ...list,
-                                id: list.id || Date.now(),
-                                tempId: list.tempId || Date.now()
-                            };
+                            if (error) throw error;
                             
                             const index = this.lists.findIndex(l => 
                                 l.id === list.id || 
                                 (l.tempId && l.tempId === list.tempId));
                                 
                             if (index !== -1) {
-                                this.lists[index] = newList;
+                                this.lists[index] = {
+                                    ...data,
+                                    words: data.words || [],
+                                    translations: data.translations || []
+                                };
                             } else {
-                                this.lists.push(newList);
+                                this.lists.push({
+                                    ...data,
+                                    words: data.words || [],
+                                    translations: data.translations || []
+                                });
                             }
                             
-                            localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
-                            return newList;
-                        } catch (error) {
-                            console.error('Error saving list to localStorage:', error);
-                            return null;
+                            return data;
                         }
-                    },
-                    
-                    async delete(listId) {
-                        if (currentUser) {
-                            try {
-                                if (typeof listId === 'string' && listId.length === 36) {
-                                    const { error } = await supabaseClient
-                                        .from('custom_lists')
-                                        .delete()
-                                        .eq('id', listId);
-                                        
-                                    if (error) throw error;
-                                }
-                                
-                                this.lists = this.lists.filter(list => list.id !== listId);
-                                return true;
-                            } catch (error) {
-                                console.error('Error deleting list from Supabase:', error);
-                                return false;
-                            }
-                        } else {
-                            this.lists = this.lists.filter(list => list.id !== listId);
-                            localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
-                            return true;
-                        }
-                    },
-                    
-                    async share(listId, recipientId) {
-                        if (!currentUser) return false;
+                    } catch (error) {
+                        console.error('Error saving list to Supabase:', error);
+                        return null;
+                    }
+                },
+                
+                saveToLocalStorage(list) {
+                    try {
+                        const newList = {
+                            ...list,
+                            id: list.id || Date.now(),
+                            tempId: list.tempId || Date.now()
+                        };
                         
+                        const index = this.lists.findIndex(l => 
+                            l.id === list.id || 
+                            (l.tempId && l.tempId === list.tempId));
+                            
+                        if (index !== -1) {
+                            this.lists[index] = newList;
+                        } else {
+                            this.lists.push(newList);
+                        }
+                        
+                        localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
+                        return newList;
+                    } catch (error) {
+                        console.error('Error saving list to localStorage:', error);
+                        return null;
+                    }
+                },
+                
+                async delete(listId) {
+                    if (currentUser) {
                         try {
-                            const list = this.lists.find(l => l.id === listId);
-                            if (!list) return false;
+                            if (typeof listId === 'string' && listId.length === 36) {
+                                const { error } = await supabaseClient
+                                    .from('custom_lists')
+                                    .delete()
+                                    .eq('id', listId);
+                                    
+                                if (error) throw error;
+                            }
                             
-                            const result = await supabaseClient.rpc('insert_shared_list', {
-                                p_user_id: recipientId,
-                                p_name: `${list.name} (Shared by ${currentUser.user_metadata?.username || 'User'})`,
-                                p_words: list.words || [],
-                                p_translations: list.translations || [],
-                                p_is_shared: true,
-                                p_local_id: Date.now(),
-                                p_shared_with: [recipientId],
-                                p_shared_by: currentUser.id
-                            });
-                            
-                            return !result.error;
+                            this.lists = this.lists.filter(list => list.id !== listId);
+                            return true;
                         } catch (error) {
-                            console.error('Error sharing list:', error);
+                            console.error('Error deleting list from Supabase:', error);
                             return false;
                         }
-                    },
+                    } else {
+                        this.lists = this.lists.filter(list => list.id !== listId);
+                        localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
+                        return true;
+                    }
+                },
+                
+                async share(listId, recipientId) {
+                    if (!currentUser) return false;
                     
-                    getListLimits() {
-                        if (!currentUser) {
+                    try {
+                        const list = this.lists.find(l => l.id === listId);
+                        if (!list) return false;
+                        
+                        const result = await supabaseClient.rpc('insert_shared_list', {
+                            p_user_id: recipientId,
+                            p_name: `${list.name} (Shared by ${currentUser.user_metadata?.username || 'User'})`,
+                            p_words: list.words || [],
+                            p_translations: list.translations || [],
+                            p_is_shared: true,
+                            p_local_id: Date.now(),
+                            p_shared_with: [recipientId],
+                            p_shared_by: currentUser.id
+                        });
+                        
+                        return !result.error;
+                    } catch (error) {
+                        console.error('Error sharing list:', error);
+                        return false;
+                    }
+                },
+                
+                getListLimits() {
+                    if (!currentUser) {
+                        return {
+                            maxLists: 3,
+                            maxWords: 10,
+                            maxPlays: 5,
+                            canShare: false,
+                            playDisplay: '5'
+                        };
+                    }
+                    
+                    const userStatus = currentUser.status || 'free';
+                    
+                    switch(userStatus) {
+                        case 'premium':
+                            return {
+                                maxLists: 30,
+                                maxWords: 50,
+                                maxPlays: Infinity,
+                                canShare: true,
+                                playDisplay: '∞'
+                            };
+                        case 'pending':
+                            return {
+                                maxLists: 30,
+                                maxWords: 50,
+                                maxPlays: Infinity,
+                                canShare: false,
+                                playDisplay: '∞'
+                            };
+                        case 'free':
+                            return {
+                                maxLists: 5,
+                                maxWords: 20,
+                                maxPlays: 10,
+                                canShare: false,
+                                playDisplay: '10'
+                            };
+                        default:
                             return {
                                 maxLists: 3,
                                 maxWords: 10,
@@ -246,271 +275,295 @@ function initializeEventListeners() {
                                 canShare: false,
                                 playDisplay: '5'
                             };
-                        }
-                        
-                        const userStatus = currentUser.status || 'free';
-                        
-                        switch(userStatus) {
-                            case 'premium':
-                                return {
-                                    maxLists: 30,
-                                    maxWords: 50,
-                                    maxPlays: Infinity,
-                                    canShare: true,
-                                    playDisplay: '∞'
-                                };
-                            case 'pending':
-                                return {
-                                    maxLists: 30,
-                                    maxWords: 50,
-                                    maxPlays: Infinity,
-                                    canShare: false,
-                                    playDisplay: '∞'
-                                };
-                            case 'free':
-                                return {
-                                    maxLists: 5,
-                                    maxWords: 20,
-                                    maxPlays: 10,
-                                    canShare: false,
-                                    playDisplay: '10'
-                                };
-                            default:
-                                return {
-                                    maxLists: 3,
-                                    maxWords: 10,
-                                    maxPlays: 5,
-                                    canShare: false,
-                                    playDisplay: '5'
-                                };
-                        }
-                    },
-                    
-                    canCreateMoreLists() {
-                        const limits = this.getListLimits();
-                        return this.lists.length < limits.maxLists;
                     }
-                };
-            }
-            
-            // Initialize user session and game
-            currentUser = null;
-            await checkExistingSession();
-            initializeGame();
-            updatePerkButtons();
-            updateGuestPlayButton();
-            updateNavigationContainer();
-            
-            // Initialize managers
-            if (typeof CoinsManager !== 'undefined' && CoinsManager.initialize) {
-                CoinsManager.initialize();
-            }
-            
-            if (typeof WordsManager !== 'undefined' && WordsManager.initialize) {
-                WordsManager.initialize();
-            }
-            
-            if (window.CustomListsManager && CustomListsManager.initialize) {
-                await CustomListsManager.initialize();
-            }
-            
-            // Load user data if logged in
-            if (currentUser) {
-                // Load coins and words in parallel
-                const [coins, words] = await Promise.all([
-                    typeof CoinsManager !== 'undefined' ? CoinsManager.loadUserCoins() : 0,
-                    typeof WordsManager !== 'undefined' ? WordsManager.loadUserWords() : 0
-                ]);
+                },
                 
-                gameState.coins = coins;
-                
-                if (typeof CoinsManager !== 'undefined') {
-                    CoinsManager.updateDisplays();
+                canCreateMoreLists() {
+                    const limits = this.getListLimits();
+                    return this.lists.length < limits.maxLists;
                 }
-                
-                if (typeof WordsManager !== 'undefined') {
-                    WordsManager.updateDisplays(words);
-                }
-                
-                // Load custom lists
-                if (typeof loadCustomLists === 'function') {
-                    await loadCustomLists();
-                }
-                
-                // Initialize real-time channels
-                if (typeof setupUserStatusSubscription === 'function') {
-                    setupUserStatusSubscription();
-                }
-                
-                if (typeof initializeStatusCheck === 'function') {
-                    initializeStatusCheck();
-                }
-            }
-            
-            // Initialize welcome screen particles
-            const welcomeScreen = document.getElementById('welcome-screen');
-            if (welcomeScreen && typeof initializeParticles === 'function') {
-                initializeParticles(welcomeScreen);
-            }
-            
-            // Initialize OTP input handling
-            const otpInput = document.getElementById('otpInput');
-            if (otpInput) {
-                otpInput.addEventListener('input', function(e) {
-                    // Remove any non-numeric characters
-                    this.value = this.value.replace(/[^0-9]/g, '');
-                    
-                    // Limit to 4 digits
-                    if (this.value.length > 4) {
-                        this.value = this.value.slice(0, 4);
-                    }
-                });
-            }
-            
-            // Initialize logout button
-            const logoutButton = document.querySelector('.logout-button');
-            if (logoutButton) {
-                logoutButton.addEventListener('click', handleLogout);
-            }
-            
-            // Initialize game assets cache
-            window.gameAssets = {
-                stages: {}, // Cache stage data
-                currentWords: [], // Cache current level words
-                particles: new Set() // Reuse particle elements
             };
+        }
+        
+        // Next, check session and initialize the game
+        await checkExistingSession();
+        initializeGame();
+        updatePerkButtons();
+        updateGuestPlayButton();
+        
+        // Initialize managers in correct order
+        CoinsManager.initialize();
+        WordsManager.initialize();
+        await CustomListsManager.initialize();
+ 
+        // Load initial coins
+        if (currentUser) {
+            gameState.coins = await CoinsManager.loadUserCoins();
+            CoinsManager.updateDisplays();
             
-            // Check for admin user
-            if (document.getElementById('question-screen')?.classList.contains('visible')) {
-                console.log("Question screen is visible on load, adding admin button");
-                if (typeof addAdminTestButton === 'function') {
-                    addAdminTestButton();
+            const words = await WordsManager.loadUserWords();
+            WordsManager.updateDisplays(words);
+        }
+        
+        // Handle QR code joining
+        window.addEventListener('hashchange', handleHashChange);
+        window.addEventListener('load', handleHashChange);
+        
+        // Check for join hash on initial load
+        if (window.location.hash.startsWith('#join=')) {
+            console.log('Initial join hash detected');
+            const otp = window.location.hash.replace('#join=', '');
+            history.pushState("", document.title, window.location.pathname);
+            showJoinModal(otp);
+        }
+ 
+        // Ensure particles on welcome screen
+        const welcomeScreen = document.getElementById('welcome-screen');
+        initializeParticles(welcomeScreen);
+        
+        // Mobile fullscreen handling
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            // Request on first touch
+            document.addEventListener('touchstart', function onFirstTouch() {
+                document.removeEventListener('touchstart', onFirstTouch);
+            }, { once: true });
+            
+            // Request when clicking any button
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName === 'BUTTON') {
                 }
+            });
+            
+            // Screen orientation handling
+            if (screen.orientation) {
+                screen.orientation.lock('portrait')
+                    .catch(err => console.log('Failed to lock orientation:', err));
             }
-            
-            // Deferred admin check 
-            setTimeout(() => {
-                if (currentUser && currentUser.email === 'admin123@gmail.com') {
-                    console.log("Admin user detected on page load");
-                    if (typeof addAdminTestButton === 'function') {
-                        addAdminTestButton();
-                    }
+        }
+ 
+        // OTP input handling
+        const otpInput = document.getElementById('otpInput');
+        if (otpInput) {
+            otpInput.addEventListener('input', function(e) {
+                // Remove any non-numeric characters
+                this.value = this.value.replace(/[^0-9]/g, '');
+                
+                // Limit to 4 digits
+                if (this.value.length > 4) {
+                    this.value = this.value.slice(0, 4);
                 }
-            }, 2000);
+            });
+        }
+ 
+        // Initialize real-time channels if user is logged in
+        if (currentUser) {
+            setupUserStatusSubscription();
+            initializeStatusCheck();
+        }
+    } catch (error) {
+        console.error('Initialization error:', error);
+    }
+ });
+
+ document.addEventListener('DOMContentLoaded', function() {
+    currentUser = null;
+    checkExistingSession().then(() => {
+        initializeGame();
+        updatePerkButtons();
+        updateNavigationContainer();
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Immediately invoke an async function
+    (async () => {
+        await checkExistingSession();
+        initializeGame();
+        updatePerkButtons();
+        updateGuestPlayButton();
+        
+        CoinsManager.initialize();
+        WordsManager.initialize();
+        
+        // Load initial values if user is logged in
+        if (currentUser) {
+            const [coins, words] = await Promise.all([
+                CoinsManager.loadUserCoins(),
+                WordsManager.loadUserWords()
+            ]);
             
-            // Set up MutationObserver for dynamically added crown elements
-            const crownObserver = new MutationObserver(mutations => {
-                mutations.forEach(mutation => {
-                    if (mutation.addedNodes.length) {
-                        mutation.addedNodes.forEach(node => {
-                            if (node.nodeType === 1) { // Element node
-                                const crowns = node.querySelectorAll('.fa-crown');
-                                crowns.forEach(crown => {
-                                    crown.addEventListener('click', function(event) {
-                                        event.stopPropagation();
-                                        // Always force show the upgrade screen
-                                        if (typeof showScreen === 'function') {
-                                            showScreen("upgrade-screen");
-                                        }
-                                    });
-                                });
-                            }
+            gameState.coins = coins;
+            CoinsManager.updateDisplays();
+            WordsManager.updateDisplays(words);
+        }
+        
+        // Check for join hash on initial load
+        if (window.location.hash.startsWith('#join=')) {
+            console.log('Initial join hash detected');
+            const otp = window.location.hash.replace('#join=', '');
+            history.pushState("", document.title, window.location.pathname);
+            showJoinModal(otp);
+        }
+
+        // Ensure particles on welcome screen
+        const welcomeScreen = document.getElementById('welcome-screen');
+        initializeParticles(welcomeScreen);
+        
+        await loadCustomLists();
+
+        // Mobile fullscreen handling
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            // Request on first touch
+            document.addEventListener('touchstart', function onFirstTouch() {
+                document.removeEventListener('touchstart', onFirstTouch);
+            }, { once: true });
+            
+            // Request when clicking any button
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName === 'BUTTON') {
+                }
+            });
+            
+            // Screen orientation handling
+            if (screen.orientation) {
+                screen.orientation.lock('portrait')
+                    .catch(err => console.log('Failed to lock orientation:', err));
+            }
+        }
+
+        // Initialize real-time channels if user is logged in
+        if (currentUser) {
+            setupUserStatusSubscription();
+            initializeStatusCheck();
+        }
+    })().catch(error => {
+        console.error('Initialization error:', error);
+    });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Existing code...
+    
+    // Check for admin user and add test button if we're on the question screen
+    if (document.getElementById('question-screen').classList.contains('visible')) {
+      console.log("Question screen is visible on load, adding admin button");
+      addAdminTestButton();
+    }
+    
+    // Also add a direct check just to be safe
+    setTimeout(() => {
+      if (currentUser && currentUser.email === 'admin123@gmail.com') {
+        console.log("Admin user detected on page load");
+        addAdminTestButton();
+      }
+    }, 2000); // Give time for user to be loaded
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Set up a mutation observer to handle dynamically added crowns
+    const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+            if (mutation.addedNodes.length) {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType === 1) { // Element node
+                        const crowns = node.querySelectorAll('.fa-crown');
+                        crowns.forEach(crown => {
+                            crown.addEventListener('click', function(event) {
+                                event.stopPropagation();
+                                // Always force show the upgrade screen
+                                showScreen("upgrade-screen");
+                            });
                         });
                     }
                 });
-            });
-            
-            crownObserver.observe(document.body, { childList: true, subtree: true });
-            
-            console.log('Event listeners initialization completed successfully');
-        } catch (error) {
-            console.error('Error during event listener initialization:', error);
-        }
+            }
+        });
     });
     
-    // Hash change event for QR code joining
-    window.addEventListener('hashchange', handleHashChange);
-    window.addEventListener('load', handleHashChange);
-    
-    // Progress saved event
-    document.addEventListener('progressSaved', (event) => {
-        // If the stage-cascade screen is currently visible, refresh it
-        const stageCascadeScreen = document.getElementById("stage-cascade-screen");
-        if (stageCascadeScreen && stageCascadeScreen.classList.contains("visible")) {
-            console.log("Refreshing stage cascade screen after progress save");
-            if (typeof renderStageCascadeScreen === 'function') {
-                renderStageCascadeScreen();
-            }
-        }
-    });
-    
-    // Global click handlers
-    document.addEventListener('click', (e) => {
-        const target = e.target;
-        
-        // Side panel click outside handling
-        const sidePanel = document.querySelector('.side-panel');
-        const hamburgerButton = document.querySelector('.hamburger-button');
-        
-        if (sidePanel && sidePanel.classList.contains('open') && 
-            !sidePanel.contains(e.target) && 
-            !hamburgerButton?.contains(e.target)) {
-            if (typeof toggleSidePanel === 'function') {
-                toggleSidePanel();
-            }
-        }
-        
-        // Game button clicks
-        if (target.matches('.game-btn')) {
-            if (typeof handleButtonClick === 'function') {
-                handleButtonClick(target);
-            }
-        } else if (target.matches('.level')) {
-            if (typeof handleLevelClick === 'function') {
-                handleLevelClick(target);
-            }
-        }
-        
-        // Modal handling
-        const authModal = document.getElementById('authModal');
-        const authContent = authModal?.querySelector('.auth-modal-content');
-        const arcadeModal = document.getElementById('arcade-modal');
-        const arcadeContent = arcadeModal?.querySelector('.modal-content');
-        
-        // Handle auth modal outside clicks
-        if (authModal?.classList.contains('show') && 
-            !authContent?.contains(e.target) && 
-            !e.target.matches('.main-button')) {
-            if (typeof hideAuthModal === 'function') {
-                hideAuthModal();
-            }
-        }
-        
-        // Handle arcade modal outside clicks
-        if (arcadeModal?.style.display === 'block' && 
-            !arcadeContent?.contains(e.target) && 
-            !e.target.matches('.arcade-button')) {
-            arcadeModal.style.display = 'none';
-        }
-    });
-    
-    // Mobile-specific event handlers
-    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Touch start event for mobile
-        document.addEventListener('touchstart', function onFirstTouch() {
-            document.removeEventListener('touchstart', onFirstTouch);
-        }, { once: true });
-        
-        // Screen orientation handling
-        if (screen.orientation) {
-            screen.orientation.lock('portrait')
-                .catch(err => console.log('Failed to lock orientation:', err));
-        }
-    }
-}
+    observer.observe(document.body, { childList: true, subtree: true });
+});
 
-// Initialize all event listeners when this script runs
-initializeEventListeners();
+document.addEventListener('DOMContentLoaded', () => {
+    const otpInput = document.getElementById('otpInput');
+    if (otpInput) {
+        otpInput.addEventListener('input', function(e) {
+            // Remove any non-numeric characters
+            this.value = this.value.replace(/[^0-9]/g, '');
+            
+            // Limit to 4 digits
+            if (this.value.length > 4) {
+                this.value = this.value.slice(0, 4);
+            }
+        });
+    }
+});
+
+document.addEventListener('progressSaved', (event) => {
+    // If the stage-cascade screen is currently visible, refresh it
+    const stageCascadeScreen = document.getElementById("stage-cascade-screen");
+    if (stageCascadeScreen && stageCascadeScreen.classList.contains("visible")) {
+      console.log("Refreshing stage cascade screen after progress save");
+      renderStageCascadeScreen();
+    }
+  });
+     
+      document.addEventListener('DOMContentLoaded', () => {
+      const logoutButton = document.querySelector('.logout-button');
+      if (logoutButton) {
+          logoutButton.addEventListener('click', handleLogout);
+      }
+  });
+
+  document.addEventListener('click', (e) => {
+    const sidePanel = document.querySelector('.side-panel');
+    const hamburgerButton = document.querySelector('.hamburger-button');
+    
+    if (sidePanel.classList.contains('open') && 
+        !sidePanel.contains(e.target) && 
+        !hamburgerButton.contains(e.target)) {
+        toggleSidePanel();
+    }
+});
+
+    document.addEventListener('DOMContentLoaded', () => {
+    const gameAssets = {
+        stages: {}, // Cache stage data
+        currentWords: [], // Cache current level words
+        particles: new Set() // Reuse particle elements
+    };
+});
+
+
+document.addEventListener('click', (e) => {
+    const target = e.target;
+    
+    if (target.matches('.game-btn')) {
+        handleButtonClick(target);
+    } else if (target.matches('.level')) {
+        handleLevelClick(target);
+    }
+});
+
+document.addEventListener('click', (e) => {
+    const authModal = document.getElementById('authModal');
+    const authContent = authModal?.querySelector('.auth-modal-content');
+    const arcadeModal = document.getElementById('arcade-modal');
+    const arcadeContent = arcadeModal?.querySelector('.modal-content');
+    
+    // Handle auth modal
+    if (authModal?.classList.contains('show') && 
+        !authContent.contains(e.target) && 
+        !e.target.matches('.main-button')) {
+        hideAuthModal();
+    }
+    
+    // Handle arcade modal
+    if (arcadeModal?.style.display === 'block' && 
+        !arcadeContent.contains(e.target) && 
+        !e.target.matches('.arcade-button')) {
+        arcadeModal.style.display = 'none';
+    }
+});
 
 const ParticleSystem = {
     particlePool: [],
@@ -601,190 +654,61 @@ const shineColors = [
 
 
 const CoinsManager = {
-    displayElements: new Set(),
+    // Flag to prevent concurrent updates
+    isUpdating: false,
     
-    initialize() {
-        this.displayElements.clear();
-        document.querySelectorAll('.coin-count, #totalCoins').forEach(display => {
-            this.displayElements.add(display);
-        });
-    },
+    // Queue for pending updates
+    updateQueue: [],
     
-    async loadUserCoins() {
-        if (!currentUser) {
-            return parseInt(localStorage.getItem('simploxCustomCoins') || '0');
-        }
-
-        try {
-            const { data, error } = await supabaseClient
-                .from('game_progress')
-                .select('coins')
-                .eq('user_id', currentUser.id)
-                .single();
-
-            if (error) throw error;
-            return data.coins || 0;
-        } catch (error) {
-            console.error('Error loading coins:', error);
-            return 0;
-        }
-    },
-
-    async updateCoins(amount) {
-        try {
-            const oldTotal = gameState.coins;
-            const newTotal = oldTotal + amount;
-            gameState.coins = newTotal;
-
-            // Animate all displays
-            this.displayElements.forEach(display => {
-                let currentValue = oldTotal;
-                const duration = 1000;
-                const startTime = performance.now();
-                
-                function animate(currentTime) {
-                    const elapsed = currentTime - startTime;
-                    const progress = Math.min(elapsed / duration, 1);
-                    
-                    currentValue = oldTotal + (newTotal - oldTotal) * progress;
-                    display.textContent = Math.round(currentValue);
-                    
-                    if (amount > 0) {
-                        display.style.color = 'var(--success)';
-                    } else if (amount < 0) {
-                        display.style.color = 'var(--error)';
-                    }
-                    
-                    if (progress < 1) {
-                        requestAnimationFrame(animate);
-                    } else {
-                        display.textContent = newTotal;
-                        setTimeout(() => {
-                            display.style.color = 'var(--text)';
-                        }, 300);
-                    }
-                }
-                
-                requestAnimationFrame(animate);
+    updateCoins: async function(amount) {
+        // If already updating, add to queue
+        if (this.isUpdating) {
+            return new Promise((resolve, reject) => {
+                this.updateQueue.push({amount, resolve, reject});
             });
-
-            // Save to database/localStorage
-            if (currentUser) {
-                const { error } = await supabaseClient
-                    .from('game_progress')
-                    .update({ coins: newTotal })
-                    .eq('user_id', currentUser.id);
-
-                if (error) throw error;
-            } else {
-                localStorage.setItem('simploxCustomCoins', newTotal.toString());
-            }
-
-            // Update perk buttons based on new coin total
-            updatePerkButtons();
-            return true;
-
-        } catch (error) {
-            console.error('Failed to update coins:', error);
-            this.displayElements.forEach(display => {
-                display.textContent = gameState.coins - amount;
-            });
-            updatePerkButtons();  // Also update buttons on error
-            return false;
         }
-    },
-
-    updateDisplays() {
-        this.displayElements.forEach(display => {
-            display.textContent = gameState.coins;
-        });
-        updatePerkButtons();  // Update buttons whenever displays are updated
-    },
-    
-    async resetCoins() {
+        
+        this.isUpdating = true;
+        
         try {
-            // Reset in-memory coins
-            gameState.coins = 0;
+            // Get current coin value
+            const currentCoins = gameState.coins || 0;
+            const newCoins = currentCoins + amount;
             
-            // Reset for current game session if it exists
-            if (currentGame) {
-                currentGame.coins = 0;
-                if (currentGame.startingCoins) {
-                    currentGame.startingCoins = 0;
-                }
-            }
+            // Update the state
+            gameState.coins = newCoins;
             
-            // Reset any arcade session coins
-            if (currentArcadeSession) {
-                currentArcadeSession.initialCoins = 0;
-            }
-            
-            // Reset in database for logged in users
-            if (currentUser && currentUser.id) {
-                try {
-                    // First, get the current record to see available columns
-                    const { data: currentProgress } = await supabaseClient
-                        .from('game_progress')
-                        .select('*')
-                        .eq('user_id', currentUser.id)
-                        .single();
-                    
-                    // Create an update object with only the columns that exist
-                    const updateObject = { coins: 0 };
-                    
-                    // Only add total_coins if it exists
-                    if (currentProgress && 'total_coins' in currentProgress) {
-                        updateObject.total_coins = 0;
-                    }
-                    
-                    // Only add mode_coins if it exists
-                    if (currentProgress && 'mode_coins' in currentProgress) {
-                        updateObject.mode_coins = { "story": 0, "custom": 0, "arcade": 0 };
-                    }
-                    
-                    const { error } = await supabaseClient
-                        .from('game_progress')
-                        .update(updateObject)
-                        .eq('user_id', currentUser.id);
-                        
-                    if (error) throw error;
-                } catch (err) {
-                    console.error("Error checking or updating coins in database:", err);
-                }
-            } 
-            // For guest users, clear localStorage
-            else {
-                localStorage.removeItem('simploxCustomCoins');
-                localStorage.removeItem('simploxTotalCoins');
-                
-                // Clear any other coin-related localStorage items
-                Object.keys(localStorage).forEach(key => {
-                    if (key.startsWith('coins') || key.includes('Coins')) {
-                        localStorage.removeItem(key);
-                    }
-                });
-            }
-            
-            // Update all coin displays immediately (without animation)
-            this.displayElements.forEach(display => {
-                display.textContent = '0';
-                display.style.color = 'var(--text)';
+            // Animate all coin displays
+            const coinDisplays = document.querySelectorAll('.coin-count');
+            coinDisplays.forEach(el => {
+                animateCoinsChange(el, currentCoins, newCoins);
             });
             
-            // Make sure perk buttons are updated
+            // Visual pulse effect for immediate feedback
+            if (amount !== 0) {
+                pulseCoins(amount);
+            }
+            
+            // Save progress
+            await saveProgress();
+            
+            // Update UI that depends on coins
             updatePerkButtons();
             
-            return true;
+            // Process any queued updates
+            this.isUpdating = false;
+            if (this.updateQueue.length > 0) {
+                const nextUpdate = this.updateQueue.shift();
+                this.updateCoins(nextUpdate.amount)
+                    .then(nextUpdate.resolve)
+                    .catch(nextUpdate.reject);
+            }
+            
+            return newCoins;
         } catch (error) {
-            console.error('Error resetting coins:', error);
-            return false;
-        }
-    },
-    
-    // Helper method to update a specific coin element
-    updateElement(element, value) {
-        if (element) {
-            element.textContent = value;
+            this.isUpdating = false;
+            console.error("Error updating coins:", error);
+            throw error;
         }
     }
 };
