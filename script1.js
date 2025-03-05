@@ -658,7 +658,7 @@ const CoinsManager = {
     
     initialize() {
         this.displayElements.clear();
-        document.querySelectorAll('.coin-count').forEach(display => {
+        document.querySelectorAll('.coin-count, #totalCoins').forEach(display => {
             this.displayElements.add(display);
         });
     },
@@ -752,6 +752,93 @@ const CoinsManager = {
             display.textContent = gameState.coins;
         });
         updatePerkButtons();  // Update buttons whenever displays are updated
+    },
+    
+    async resetCoins() {
+        try {
+            // Reset in-memory coins
+            gameState.coins = 0;
+            
+            // Reset for current game session if it exists
+            if (currentGame) {
+                currentGame.coins = 0;
+                if (currentGame.startingCoins) {
+                    currentGame.startingCoins = 0;
+                }
+            }
+            
+            // Reset any arcade session coins
+            if (currentArcadeSession) {
+                currentArcadeSession.initialCoins = 0;
+            }
+            
+            // Reset in database for logged in users
+            if (currentUser && currentUser.id) {
+                try {
+                    // First, get the current record to see available columns
+                    const { data: currentProgress } = await supabaseClient
+                        .from('game_progress')
+                        .select('*')
+                        .eq('user_id', currentUser.id)
+                        .single();
+                    
+                    // Create an update object with only the columns that exist
+                    const updateObject = { coins: 0 };
+                    
+                    // Only add total_coins if it exists
+                    if (currentProgress && 'total_coins' in currentProgress) {
+                        updateObject.total_coins = 0;
+                    }
+                    
+                    // Only add mode_coins if it exists
+                    if (currentProgress && 'mode_coins' in currentProgress) {
+                        updateObject.mode_coins = { "story": 0, "custom": 0, "arcade": 0 };
+                    }
+                    
+                    const { error } = await supabaseClient
+                        .from('game_progress')
+                        .update(updateObject)
+                        .eq('user_id', currentUser.id);
+                        
+                    if (error) throw error;
+                } catch (err) {
+                    console.error("Error checking or updating coins in database:", err);
+                }
+            } 
+            // For guest users, clear localStorage
+            else {
+                localStorage.removeItem('simploxCustomCoins');
+                localStorage.removeItem('simploxTotalCoins');
+                
+                // Clear any other coin-related localStorage items
+                Object.keys(localStorage).forEach(key => {
+                    if (key.startsWith('coins') || key.includes('Coins')) {
+                        localStorage.removeItem(key);
+                    }
+                });
+            }
+            
+            // Update all coin displays immediately (without animation)
+            this.displayElements.forEach(display => {
+                display.textContent = '0';
+                display.style.color = 'var(--text)';
+            });
+            
+            // Make sure perk buttons are updated
+            updatePerkButtons();
+            
+            return true;
+        } catch (error) {
+            console.error('Error resetting coins:', error);
+            return false;
+        }
+    },
+    
+    // Helper method to update a specific coin element
+    updateElement(element, value) {
+        if (element) {
+            element.textContent = value;
+        }
     }
 };
 

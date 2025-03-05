@@ -2276,54 +2276,138 @@ function stopLevelAndGoBack() {
 }
 
 
-
-
 function handleResetProgress() { 
-    if (!isFirstResetAttempt) {
-        // Reset game state
-        gameState.currentStage = 1;
-        gameState.currentSet = 1;
-        gameState.currentLevel = 1;
-        gameState.coins = 0;
-        gameState.unlockedSets = { "1": new Set([1]) };
-        gameState.unlockedLevels = { "1_1": new Set([1]) };
-        gameState.perfectLevels = new Set();
-        gameState.completedLevels = new Set();
-
-        // Clear localStorage
-        localStorage.removeItem('simploxProgress');
-        localStorage.removeItem('simploxCustomCoins');
-        
-        // Update UI
-        updatePerkButtons();
-        updateAllCoinDisplays();
-        showScreen('welcome-screen');
-        
-        // Reset the first attempt flag
-        isFirstResetAttempt = true;
-        return;
-    }
-
-    // First attempt - show warning
+    // Show warning first time
     const resetButton = document.querySelector('.reset-button');
-    resetButton.classList.add('warning');
-    isFirstResetAttempt = false;
+    
+    // Always perform reset actions - no more double-click requirement
+    // Reset game state
+    gameState.currentStage = 1;
+    gameState.currentSet = 1;
+    gameState.currentLevel = 1;
+    gameState.coins = 0;
+    gameState.unlockedSets = { "1": new Set([1]) };
+    gameState.unlockedLevels = { "1_1": new Set([1]) };
+    gameState.perfectLevels = new Set();
+    gameState.completedLevels = new Set();
 
-    // Clear warning after animation
-    setTimeout(() => {
-        resetButton.classList.remove('warning');
-    }, 1000);
-
-    // Reset the attempt after 10 seconds
-    if (resetProgressTimeout) {
-        clearTimeout(resetProgressTimeout);
+    // Clear localStorage
+    localStorage.removeItem('simploxProgress');
+    localStorage.removeItem('gameContext');
+    localStorage.removeItem('simploxCustomCoins');
+    
+    // Reset word count in UI
+    document.querySelectorAll('#totalWords').forEach(el => {
+        el.textContent = '0';
+    });
+    
+    // Reset coins in UI
+    document.querySelectorAll('.coin-count, #totalCoins').forEach(el => {
+        el.textContent = '0';
+    });
+    
+    // Reset user progress in database if logged in
+    if (currentUser && currentUser.id) {
+        resetUserProgress(currentUser.id);
+    } else {
+        // Clear any list play counts and word history for guest users
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('listPlays_') || 
+                key.startsWith('simploxWord') || 
+                key.includes('Coins')) {
+                localStorage.removeItem(key);
+            }
+        });
     }
     
-    resetProgressTimeout = setTimeout(() => {
-        isFirstResetAttempt = true;
-    }, 10000);
+    // Update UI
+    updatePerkButtons();
+    showScreen('welcome-screen');
+    
+    // Show notification
+    showNotification('Progress reset successfully', 'success');
+    
+    // Give visual feedback on button
+    resetButton.classList.add('active');
+    setTimeout(() => {
+        resetButton.classList.remove('active');
+    }, 1000);
 }
 
+async function resetUserProgress(userId) {
+    try {
+        // Reset player stats (word count)
+        const { error: statsError } = await supabaseClient
+            .from('player_stats')
+            .update({
+                total_levels_completed: 0,
+                unique_words_practiced: 0,
+                last_updated: new Date().toISOString()
+            })
+            .eq('user_id', userId);
+        
+        if (statsError) {
+            console.error('Error resetting player stats:', statsError);
+        }
+        
+        // Reset game progress (check for columns first and only update what exists)
+        try {
+            // First, get the current record to see available columns
+            const { data: currentProgress } = await supabaseClient
+                .from('game_progress')
+                .select('*')
+                .eq('user_id', userId)
+                .single();
+            
+            // Create an update object with only the columns that exist
+            const updateObject = {
+                stage: 1,
+                set_number: 1,
+                level: 1,
+                coins: 0,
+                perks: {},
+                unlocked_sets: { "1": [1] },
+                unlocked_levels: { "1_1": [1] },
+                perfect_levels: [],
+                completed_levels: []
+            };
+            
+            // Only add total_coins if it exists
+            if (currentProgress && 'total_coins' in currentProgress) {
+                updateObject.total_coins = 0;
+            }
+            
+            // Only add mode_coins if it exists
+            if (currentProgress && 'mode_coins' in currentProgress) {
+                updateObject.mode_coins = { "story": 0, "custom": 0, "arcade": 0 };
+            }
+            
+            const { error: progressError } = await supabaseClient
+                .from('game_progress')
+                .update(updateObject)
+                .eq('user_id', userId);
+                
+            if (progressError) {
+                console.error('Error resetting game progress:', progressError);
+            }
+        } catch (err) {
+            console.error('Error checking or updating game progress:', err);
+        }
+        
+        // Clear word practice history
+        const { error: wordHistoryError } = await supabaseClient
+            .from('word_practice_history')
+            .delete()
+            .eq('user_id', userId);
+            
+        if (wordHistoryError) {
+            console.error('Error clearing word practice history:', wordHistoryError);
+        }
+        
+    } catch (error) {
+        console.error('Error in resetUserProgress:', error);
+    }
+}
 
 function handleRestartLevel() {
     // If no restarts remaining, ignore the click entirely
