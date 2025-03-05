@@ -5609,3 +5609,5 @@ function hideUpgradePromptAndContinue() {
       localStorage.removeItem("gameContext");
     }
   }
+
+  
