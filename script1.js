@@ -1,3 +1,873 @@
+document.addEventListener('DOMContentLoaded', function() {
+    const fields = ["fullName", "phone", "parentName", "parentPhone"];
+    
+    fields.forEach(field => {
+      const el = document.getElementById(field);
+      if (el) {
+        el.addEventListener('input', function() {
+          this.style.border = "1px solid rgba(255, 255, 255, 0.2)";
+        });
+      }
+    });
+    
+    // Also ensure the form has the submit handler directly attached
+    const form = document.getElementById('upgradeForm');
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        console.log("Form submit event triggered");
+        handleUpgradeSubmit(e);
+      });
+    }
+  });
+
+  // Replace window.onload with:
+document.addEventListener('DOMContentLoaded', () => {
+    gameInit.init();
+});
+
+const { createClient } = supabase;
+const supabaseClient = createClient(
+    'https://mczfgzffyyyacisrccqb.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jemZnemZmeXl5YWNpc3JjY3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzgzODYyMDQsImV4cCI6MjA1Mzk2MjIwNH0.rLga_B29Coz1LMeJzFTGLIhckdcojGXnD1ae1bw-QAI',
+    {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+    }
+);
+
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Define CustomListsManager first before any functions try to use it
+        if (!window.CustomListsManager) {
+            window.CustomListsManager = {
+                lists: [],
+                
+                async initialize() {
+                    if (currentUser) {
+                        await this.loadFromSupabase();
+                    } else {
+                        this.loadFromLocalStorage();
+                    }
+                },
+                
+                async loadFromSupabase() {
+                    try {
+                        const { data, error } = await supabaseClient
+                            .from('custom_lists')
+                            .select('*')
+                            .or(`user_id.eq.${currentUser.id},shared_with.cs.{${currentUser.id}}`);
+                            
+                        if (error) throw error;
+                        
+                        this.lists = data.map(item => ({
+                            id: item.id,
+                            name: item.name,
+                            words: item.words || [],
+                            translations: item.translations || [],
+                            isShared: item.is_shared,
+                            sharedBy: item.shared_by,
+                            userId: item.user_id,
+                            createdAt: item.created_at
+                        }));
+                        
+                        console.log('Loaded lists from Supabase:', this.lists.length);
+                    } catch (error) {
+                        console.error('Error loading lists from Supabase:', error);
+                        this.lists = [];
+                    }
+                },
+                
+                loadFromLocalStorage() {
+                    try {
+                        const savedLists = localStorage.getItem('simploxCustomLists');
+                        this.lists = savedLists ? JSON.parse(savedLists) : [];
+                        console.log('Loaded lists from localStorage:', this.lists.length);
+                    } catch (error) {
+                        console.error('Error loading lists from localStorage:', error);
+                        this.lists = [];
+                    }
+                },
+                
+                async save(list) {
+                    if (!list) return null;
+                    
+                    if (currentUser) {
+                        return await this.saveToSupabase(list);
+                    } else {
+                        return this.saveToLocalStorage(list);
+                    }
+                },
+                
+                async saveToSupabase(list) {
+                    try {
+                        const listData = {
+                            name: list.name,
+                            words: list.words || [],
+                            translations: list.translations || [],
+                            user_id: currentUser.id
+                        };
+                        
+                        if (list.id && typeof list.id === 'string' && list.id.length === 36) {
+                            const { data, error } = await supabaseClient
+                                .from('custom_lists')
+                                .update(listData)
+                                .eq('id', list.id)
+                                .select()
+                                .single();
+                                
+                            if (error) throw error;
+                            return data;
+                        } else {
+                            const { data, error } = await supabaseClient
+                                .from('custom_lists')
+                                .insert(listData)
+                                .select()
+                                .single();
+                                
+                            if (error) throw error;
+                            
+                            const index = this.lists.findIndex(l => 
+                                l.id === list.id || 
+                                (l.tempId && l.tempId === list.tempId));
+                                
+                            if (index !== -1) {
+                                this.lists[index] = {
+                                    ...data,
+                                    words: data.words || [],
+                                    translations: data.translations || []
+                                };
+                            } else {
+                                this.lists.push({
+                                    ...data,
+                                    words: data.words || [],
+                                    translations: data.translations || []
+                                });
+                            }
+                            
+                            return data;
+                        }
+                    } catch (error) {
+                        console.error('Error saving list to Supabase:', error);
+                        return null;
+                    }
+                },
+                
+                saveToLocalStorage(list) {
+                    try {
+                        const newList = {
+                            ...list,
+                            id: list.id || Date.now(),
+                            tempId: list.tempId || Date.now()
+                        };
+                        
+                        const index = this.lists.findIndex(l => 
+                            l.id === list.id || 
+                            (l.tempId && l.tempId === list.tempId));
+                            
+                        if (index !== -1) {
+                            this.lists[index] = newList;
+                        } else {
+                            this.lists.push(newList);
+                        }
+                        
+                        localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
+                        return newList;
+                    } catch (error) {
+                        console.error('Error saving list to localStorage:', error);
+                        return null;
+                    }
+                },
+                
+                async delete(listId) {
+                    if (currentUser) {
+                        try {
+                            if (typeof listId === 'string' && listId.length === 36) {
+                                const { error } = await supabaseClient
+                                    .from('custom_lists')
+                                    .delete()
+                                    .eq('id', listId);
+                                    
+                                if (error) throw error;
+                            }
+                            
+                            this.lists = this.lists.filter(list => list.id !== listId);
+                            return true;
+                        } catch (error) {
+                            console.error('Error deleting list from Supabase:', error);
+                            return false;
+                        }
+                    } else {
+                        this.lists = this.lists.filter(list => list.id !== listId);
+                        localStorage.setItem('simploxCustomLists', JSON.stringify(this.lists));
+                        return true;
+                    }
+                },
+                
+                async share(listId, recipientId) {
+                    if (!currentUser) return false;
+                    
+                    try {
+                        const list = this.lists.find(l => l.id === listId);
+                        if (!list) return false;
+                        
+                        const result = await supabaseClient.rpc('insert_shared_list', {
+                            p_user_id: recipientId,
+                            p_name: `${list.name} (Shared by ${currentUser.user_metadata?.username || 'User'})`,
+                            p_words: list.words || [],
+                            p_translations: list.translations || [],
+                            p_is_shared: true,
+                            p_local_id: Date.now(),
+                            p_shared_with: [recipientId],
+                            p_shared_by: currentUser.id
+                        });
+                        
+                        return !result.error;
+                    } catch (error) {
+                        console.error('Error sharing list:', error);
+                        return false;
+                    }
+                },
+                
+                getListLimits() {
+                    if (!currentUser) {
+                        return {
+                            maxLists: 3,
+                            maxWords: 10,
+                            maxPlays: 5,
+                            canShare: false,
+                            playDisplay: '5'
+                        };
+                    }
+                    
+                    const userStatus = currentUser.status || 'free';
+                    
+                    switch(userStatus) {
+                        case 'premium':
+                            return {
+                                maxLists: 30,
+                                maxWords: 50,
+                                maxPlays: Infinity,
+                                canShare: true,
+                                playDisplay: '∞'
+                            };
+                        case 'pending':
+                            return {
+                                maxLists: 30,
+                                maxWords: 50,
+                                maxPlays: Infinity,
+                                canShare: false,
+                                playDisplay: '∞'
+                            };
+                        case 'free':
+                            return {
+                                maxLists: 5,
+                                maxWords: 20,
+                                maxPlays: 10,
+                                canShare: false,
+                                playDisplay: '10'
+                            };
+                        default:
+                            return {
+                                maxLists: 3,
+                                maxWords: 10,
+                                maxPlays: 5,
+                                canShare: false,
+                                playDisplay: '5'
+                            };
+                    }
+                },
+                
+                canCreateMoreLists() {
+                    const limits = this.getListLimits();
+                    return this.lists.length < limits.maxLists;
+                }
+            };
+        }
+        
+        // Next, check session and initialize the game
+        await checkExistingSession();
+        initializeGame();
+        updatePerkButtons();
+        updateGuestPlayButton();
+        
+        // Initialize managers in correct order
+        CoinsManager.initialize();
+        WordsManager.initialize();
+        await CustomListsManager.initialize();
+ 
+        // Load initial coins
+        if (currentUser) {
+            gameState.coins = await CoinsManager.loadUserCoins();
+            CoinsManager.updateDisplays();
+            
+            const words = await WordsManager.loadUserWords();
+            WordsManager.updateDisplays(words);
+        }
+        
+        // Handle QR code joining
+        window.addEventListener('hashchange', handleHashChange);
+        window.addEventListener('load', handleHashChange);
+        
+        // Check for join hash on initial load
+        if (window.location.hash.startsWith('#join=')) {
+            console.log('Initial join hash detected');
+            const otp = window.location.hash.replace('#join=', '');
+            history.pushState("", document.title, window.location.pathname);
+            showJoinModal(otp);
+        }
+ 
+        // Ensure particles on welcome screen
+        const welcomeScreen = document.getElementById('welcome-screen');
+        initializeParticles(welcomeScreen);
+        
+        // Mobile fullscreen handling
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            // Request on first touch
+            document.addEventListener('touchstart', function onFirstTouch() {
+                document.removeEventListener('touchstart', onFirstTouch);
+            }, { once: true });
+            
+            // Request when clicking any button
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName === 'BUTTON') {
+                }
+            });
+            
+            // Screen orientation handling
+            if (screen.orientation) {
+                screen.orientation.lock('portrait')
+                    .catch(err => console.log('Failed to lock orientation:', err));
+            }
+        }
+ 
+        // OTP input handling
+        const otpInput = document.getElementById('otpInput');
+        if (otpInput) {
+            otpInput.addEventListener('input', function(e) {
+                // Remove any non-numeric characters
+                this.value = this.value.replace(/[^0-9]/g, '');
+                
+                // Limit to 4 digits
+                if (this.value.length > 4) {
+                    this.value = this.value.slice(0, 4);
+                }
+            });
+        }
+ 
+        // Initialize real-time channels if user is logged in
+        if (currentUser) {
+            setupUserStatusSubscription();
+            initializeStatusCheck();
+        }
+    } catch (error) {
+        console.error('Initialization error:', error);
+    }
+ });
+
+ document.addEventListener('DOMContentLoaded', function() {
+    currentUser = null;
+    checkExistingSession().then(() => {
+        initializeGame();
+        updatePerkButtons();
+        updateNavigationContainer();
+    });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Immediately invoke an async function
+    (async () => {
+        await checkExistingSession();
+        initializeGame();
+        updatePerkButtons();
+        updateGuestPlayButton();
+        
+        CoinsManager.initialize();
+        WordsManager.initialize();
+        
+        // Load initial values if user is logged in
+        if (currentUser) {
+            const [coins, words] = await Promise.all([
+                CoinsManager.loadUserCoins(),
+                WordsManager.loadUserWords()
+            ]);
+            
+            gameState.coins = coins;
+            CoinsManager.updateDisplays();
+            WordsManager.updateDisplays(words);
+        }
+        
+        // Check for join hash on initial load
+        if (window.location.hash.startsWith('#join=')) {
+            console.log('Initial join hash detected');
+            const otp = window.location.hash.replace('#join=', '');
+            history.pushState("", document.title, window.location.pathname);
+            showJoinModal(otp);
+        }
+
+        // Ensure particles on welcome screen
+        const welcomeScreen = document.getElementById('welcome-screen');
+        initializeParticles(welcomeScreen);
+        
+        await loadCustomLists();
+
+        // Mobile fullscreen handling
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            // Request on first touch
+            document.addEventListener('touchstart', function onFirstTouch() {
+                document.removeEventListener('touchstart', onFirstTouch);
+            }, { once: true });
+            
+            // Request when clicking any button
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName === 'BUTTON') {
+                }
+            });
+            
+            // Screen orientation handling
+            if (screen.orientation) {
+                screen.orientation.lock('portrait')
+                    .catch(err => console.log('Failed to lock orientation:', err));
+            }
+        }
+
+        // Initialize real-time channels if user is logged in
+        if (currentUser) {
+            setupUserStatusSubscription();
+            initializeStatusCheck();
+        }
+    })().catch(error => {
+        console.error('Initialization error:', error);
+    });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Existing code...
+    
+    // Check for admin user and add test button if we're on the question screen
+    if (document.getElementById('question-screen').classList.contains('visible')) {
+      console.log("Question screen is visible on load, adding admin button");
+      addAdminTestButton();
+    }
+    
+    // Also add a direct check just to be safe
+    setTimeout(() => {
+      if (currentUser && currentUser.email === 'admin123@gmail.com') {
+        console.log("Admin user detected on page load");
+        addAdminTestButton();
+      }
+    }, 2000); // Give time for user to be loaded
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Set up a mutation observer to handle dynamically added crowns
+    const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+            if (mutation.addedNodes.length) {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType === 1) { // Element node
+                        const crowns = node.querySelectorAll('.fa-crown');
+                        crowns.forEach(crown => {
+                            crown.addEventListener('click', function(event) {
+                                event.stopPropagation();
+                                // Always force show the upgrade screen
+                                showScreen("upgrade-screen");
+                            });
+                        });
+                    }
+                });
+            }
+        });
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const otpInput = document.getElementById('otpInput');
+    if (otpInput) {
+        otpInput.addEventListener('input', function(e) {
+            // Remove any non-numeric characters
+            this.value = this.value.replace(/[^0-9]/g, '');
+            
+            // Limit to 4 digits
+            if (this.value.length > 4) {
+                this.value = this.value.slice(0, 4);
+            }
+        });
+    }
+});
+
+document.addEventListener('progressSaved', (event) => {
+    // If the stage-cascade screen is currently visible, refresh it
+    const stageCascadeScreen = document.getElementById("stage-cascade-screen");
+    if (stageCascadeScreen && stageCascadeScreen.classList.contains("visible")) {
+      console.log("Refreshing stage cascade screen after progress save");
+      renderStageCascadeScreen();
+    }
+  });
+     
+      document.addEventListener('DOMContentLoaded', () => {
+      const logoutButton = document.querySelector('.logout-button');
+      if (logoutButton) {
+          logoutButton.addEventListener('click', handleLogout);
+      }
+  });
+
+  document.addEventListener('click', (e) => {
+    const sidePanel = document.querySelector('.side-panel');
+    const hamburgerButton = document.querySelector('.hamburger-button');
+    
+    if (sidePanel.classList.contains('open') && 
+        !sidePanel.contains(e.target) && 
+        !hamburgerButton.contains(e.target)) {
+        toggleSidePanel();
+    }
+});
+
+    document.addEventListener('DOMContentLoaded', () => {
+    const gameAssets = {
+        stages: {}, // Cache stage data
+        currentWords: [], // Cache current level words
+        particles: new Set() // Reuse particle elements
+    };
+});
+
+
+document.addEventListener('click', (e) => {
+    const target = e.target;
+    
+    if (target.matches('.game-btn')) {
+        handleButtonClick(target);
+    } else if (target.matches('.level')) {
+        handleLevelClick(target);
+    }
+});
+
+document.addEventListener('click', (e) => {
+    const authModal = document.getElementById('authModal');
+    const authContent = authModal?.querySelector('.auth-modal-content');
+    const arcadeModal = document.getElementById('arcade-modal');
+    const arcadeContent = arcadeModal?.querySelector('.modal-content');
+    
+    // Handle auth modal
+    if (authModal?.classList.contains('show') && 
+        !authContent.contains(e.target) && 
+        !e.target.matches('.main-button')) {
+        hideAuthModal();
+    }
+    
+    // Handle arcade modal
+    if (arcadeModal?.style.display === 'block' && 
+        !arcadeContent.contains(e.target) && 
+        !e.target.matches('.arcade-button')) {
+        arcadeModal.style.display = 'none';
+    }
+});
+
+const ParticleSystem = {
+    particlePool: [],
+    maxParticles: 20, // Reduced from 50
+    
+    init() {
+        // Pre-create fewer particles
+        for(let i = 0; i < this.maxParticles; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle mobile-particle'; // Add mobile class
+            this.particlePool.push(particle);
+        }
+    },
+    
+    createParticle(x, y) {
+        // Check if mobile before creating
+        if (window.innerWidth <= 768) {
+            return; // Skip particle creation on mobile
+        }
+        
+        const particle = this.particlePool.pop();
+        if (!particle) return;
+        
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        
+        setTimeout(() => {
+            this.particlePool.push(particle);
+        }, 500); // Reduced timeout
+    }
+};
+
+const crownStyleElement = document.createElement('style');
+crownStyleElement.textContent = `
+    @keyframes crownGlow {
+        0% {
+            text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+            filter: brightness(1) drop-shadow(0 0 3px rgba(255, 215, 0, 0.7));
+        }
+        100% {
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+            filter: brightness(1.4) drop-shadow(0 0 5px rgba(255, 215, 0, 0.9));
+        }
+    }
+    
+    .premium-crown {
+        animation: crownGlow 2s infinite alternate;
+    }
+`;
+document.head.appendChild(crownStyleElement);
+
+
+const readyPhrases = [
+    "Born Ready!",
+    "Ready to Roll!",
+    "All Set!",
+    "Locked & Loaded!",
+    "Ready Player!",
+    "Game Face On!",
+    "In Position!",
+    "Ready to Rock!",
+    "Standing By!",
+    "Powered Up!",
+    "Challenge Ready!",
+    "Mission Ready!",
+    "Ready to Shine!",
+    "Bring it On!",
+    "Ready to Rumble!",
+    "Set for Success!",
+    "Level Ready!",
+    "Shields Up!",
+    "Word Warrior Ready!",
+    "Let's Do This!"
+];
+
+const shineColors = [
+    '#1E90FF',  // Blue
+    '#FF1493',  // Deep Pink
+    '#00CED1',  // Dark Turquoise
+    '#9370DB',  // Medium Purple
+    '#FFD700',  // Gold
+    '#FF4500',  // Orange Red
+    '#32CD32',  // Lime Green
+    '#FF69B4',  // Hot Pink
+    '#4169E1',  // Royal Blue
+    '#8A2BE2'   // Blue Violet
+];
+
+
+const CoinsManager = {
+    displayElements: new Set(),
+    
+    initialize() {
+        this.displayElements.clear();
+        document.querySelectorAll('.coin-count').forEach(display => {
+            this.displayElements.add(display);
+        });
+    },
+    
+    async loadUserCoins() {
+        if (!currentUser) {
+            return parseInt(localStorage.getItem('simploxCustomCoins') || '0');
+        }
+
+        try {
+            const { data, error } = await supabaseClient
+                .from('game_progress')
+                .select('coins')
+                .eq('user_id', currentUser.id)
+                .single();
+
+            if (error) throw error;
+            return data.coins || 0;
+        } catch (error) {
+            console.error('Error loading coins:', error);
+            return 0;
+        }
+    },
+
+    async updateCoins(amount) {
+        try {
+            const oldTotal = gameState.coins;
+            const newTotal = oldTotal + amount;
+            gameState.coins = newTotal;
+
+            // Animate all displays
+            this.displayElements.forEach(display => {
+                let currentValue = oldTotal;
+                const duration = 1000;
+                const startTime = performance.now();
+                
+                function animate(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    currentValue = oldTotal + (newTotal - oldTotal) * progress;
+                    display.textContent = Math.round(currentValue);
+                    
+                    if (amount > 0) {
+                        display.style.color = 'var(--success)';
+                    } else if (amount < 0) {
+                        display.style.color = 'var(--error)';
+                    }
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        display.textContent = newTotal;
+                        setTimeout(() => {
+                            display.style.color = 'var(--text)';
+                        }, 300);
+                    }
+                }
+                
+                requestAnimationFrame(animate);
+            });
+
+            // Save to database/localStorage
+            if (currentUser) {
+                const { error } = await supabaseClient
+                    .from('game_progress')
+                    .update({ coins: newTotal })
+                    .eq('user_id', currentUser.id);
+
+                if (error) throw error;
+            } else {
+                localStorage.setItem('simploxCustomCoins', newTotal.toString());
+            }
+
+            // Update perk buttons based on new coin total
+            updatePerkButtons();
+            return true;
+
+        } catch (error) {
+            console.error('Failed to update coins:', error);
+            this.displayElements.forEach(display => {
+                display.textContent = gameState.coins - amount;
+            });
+            updatePerkButtons();  // Also update buttons on error
+            return false;
+        }
+    },
+
+    updateDisplays() {
+        this.displayElements.forEach(display => {
+            display.textContent = gameState.coins;
+        });
+        updatePerkButtons();  // Update buttons whenever displays are updated
+    }
+};
+
+const WordsManager = {
+  displayElements: new Set(),
+  
+  initialize() {
+    this.displayElements.clear();
+    document.querySelectorAll("#totalWords").forEach(el => {
+      this.displayElements.add(el);
+    });
+    
+    // Initialize word counts for logged-in users
+    if (currentUser) {
+      this.loadUserWords().then(wordCount => {
+        this.updateDisplays(wordCount);
+      });
+    }
+  },
+  
+  async loadUserWords() {
+    if (!currentUser) return 0;
+    
+    try {
+      const { data, error } = await supabaseClient
+        .from("player_stats")
+        .select("unique_words_practiced")
+        .eq("user_id", currentUser.id)
+        .single();
+        
+      if (error) throw error;
+      return data?.unique_words_practiced || 0;
+    } catch (err) {
+      console.error("Error loading words:", err);
+      return 0;
+    }
+  },
+  
+  async updateWords(count) {
+    try {
+      const currentCount = parseInt(document.getElementById("totalWords").textContent) || 0;
+      const newCount = currentCount + count;
+      
+      this.displayElements.forEach(el => {
+        let value = currentCount;
+        const startTime = performance.now();
+        
+        requestAnimationFrame(function updateValue(timestamp) {
+          const elapsed = timestamp - startTime;
+          const progress = Math.min(elapsed / 1000, 1);
+          
+          value = currentCount + (newCount - currentCount) * progress;
+          el.textContent = Math.round(value);
+          
+          if (progress < 1) {
+            requestAnimationFrame(updateValue);
+          } else {
+            el.textContent = newCount;
+          }
+        });
+      });
+      
+      if (currentUser) {
+        const { error } = await supabaseClient
+          .from("player_stats")
+          .update({ unique_words_practiced: newCount })
+          .eq("user_id", currentUser.id);
+          
+        if (error) throw error;
+      }
+      
+      return true;
+    } catch (err) {
+      console.error("Failed to update words:", err);
+      return false;
+    }
+  },
+  
+  updateDisplays(count) {
+    this.displayElements.forEach(el => {
+      el.textContent = count;
+    });
+  }
+};
+
+
+const perkButtons = {
+    timeFreeze: document.getElementById('timeFreezePerk'),
+    skip: document.getElementById('skipPerk'),
+    clue: document.getElementById('cluePerk'),
+    reveal: document.getElementById('revealPerk')
+};
+
+
+class RateLimiter {
+    constructor(maxRequests = 100, timeWindow = 60000) {
+        this.requests = new Map();
+    }
+    
+    checkLimit(userId) {
+        const now = Date.now();
+        const userRequests = this.requests.get(userId) || [];
+        const recentRequests = userRequests.filter(time => now - time < this.timeWindow);
+        
+        if (recentRequests.length >= this.maxRequests) {
+            return false;
+        }
+        
+        recentRequests.push(now);
+        this.requests.set(userId, recentRequests);
+        return true;
+    }
+}
+
+
+
 // Utility debounce function
 function debounce(func, wait) {
     let timeout;
@@ -3315,3 +4185,1262 @@ async function trackWordEncounter(word, gameMode = 'standard') {
     }
   }
 
+  function createResurrectionParticles() {
+    const container = document.querySelector('.resurrection-animation');
+    if (!container) return;
+    
+    // Get center of container
+    const rect = container.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // Create particles
+    for (let i = 0; i < 40; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'resurrection-particle';
+        
+        // Random angle and distance
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 100 + Math.random() * 150;
+        const duration = 1 + Math.random() * 1.5;
+        const delay = Math.random() * 0.5;
+        const size = 3 + Math.random() * 7;
+        
+        // Calculate end position
+        const endX = Math.cos(angle) * distance;
+        const endY = Math.sin(angle) * distance;
+        
+        // Set particle style
+        particle.style.cssText = `
+            position: fixed;
+            left: ${centerX}px;
+            top: ${centerY}px;
+            width: ${size}px;
+            height: ${size}px;
+            background: #FFD700;
+            border-radius: 50%;
+            opacity: 0;
+            z-index: 1001;
+            box-shadow: 0 0 ${size}px #FFD700;
+            transform: translate(-50%, -50%);
+            animation: particleFlow ${duration}s ease-out ${delay}s forwards;
+        `;
+        
+        // Set custom properties for animation
+        particle.style.setProperty('--end-x', `${endX}px`);
+        particle.style.setProperty('--end-y', `${endY}px`);
+        
+        document.body.appendChild(particle);
+        
+        // Clean up after animation
+        setTimeout(() => {
+            particle.remove();
+        }, (duration + delay) * 1000);
+    }
+}
+
+function updateSidePanelLink() {
+    const levelMapLink = document.querySelector('.nav-link[onclick*="stage-screen"]');
+    if (levelMapLink) {
+        levelMapLink.setAttribute('onclick', "showScreen('stage-cascade-screen'); return false;");
+    }
+}
+
+updateSidePanelLink();
+
+// Also call it when DOM is loaded to ensure it works
+document.addEventListener('DOMContentLoaded', () => {
+    updateSidePanelLink();
+});
+
+function showReviveOverlay() {
+    const overlay = document.createElement('div');
+    overlay.className = 'revive-overlay';
+    overlay.innerHTML = `
+        <div class="revive-content">
+            <div class="ankh-symbol">☥</div>
+            <h2 class="revive-title">Revive?</h2>
+            <div class="revive-timer">5</div>
+            <button class="revive-button">Revive</button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Fade in animation
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
+    
+    // Set up countdown
+    let seconds = 5;
+    const timerDisplay = overlay.querySelector('.revive-timer');
+    
+    const countdownInterval = setInterval(() => {
+        seconds--;
+        timerDisplay.textContent = seconds;
+        
+        if (seconds <= 0) {
+            clearInterval(countdownInterval);
+            handleReviveTimeout();
+        }
+    }, 1000);
+    
+    // Handle revive button click
+    const reviveButton = overlay.querySelector('.revive-button');
+    reviveButton.onclick = () => {
+        clearInterval(countdownInterval);
+        handleRevive();
+    };
+    
+    // Store interval for cleanup
+    overlay.dataset.intervalId = countdownInterval;
+}
+
+function handleReviveTimeout() {
+    const overlay = document.querySelector('.revive-overlay');
+    
+    if (overlay) {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            overlay.remove();
+            showScreen('welcome-screen');
+        }, 500);
+    }
+}
+
+function handleRevive() {
+    const overlay = document.querySelector('.revive-overlay');
+    
+    if (overlay) {
+        // First change content to show resurrection animation
+        const content = overlay.querySelector('.revive-content');
+        content.innerHTML = `
+            <div class="resurrection-animation">
+                <div class="progress-circle resurrection-circle">
+                    <svg width="100%" height="100%" viewBox="0 0 120 120">
+                        <circle class="bg" cx="60" cy="60" r="54" stroke-width="8"/>
+                        <circle class="resurrection-progress" cx="60" cy="60" r="54" stroke-width="8"/>
+                    </svg>
+                    <div class="ankh-symbol resurrection-ankh">☥</div>
+                </div>
+            </div>
+        `;
+        
+        // Start resurrection animation
+        const progressCircle = overlay.querySelector('.resurrection-progress');
+        const circumference = 2 * Math.PI * 54;
+        progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+        progressCircle.style.strokeDashoffset = circumference;
+        
+        // Create light particles effect
+        createResurrectionParticles();
+        
+        // Animate progress circle filling
+        setTimeout(() => {
+            progressCircle.style.transition = 'stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1)';
+            progressCircle.style.strokeDashoffset = '0';
+        }, 100);
+        
+        // After animation completes, restart level
+        setTimeout(() => {
+            overlay.classList.remove('show');
+            setTimeout(() => {
+                overlay.remove();
+                
+                // Reset game state
+                currentGame.wrongStreak = 0;
+                timeRemaining = currentGame.initialTimeRemaining;
+                
+                // If in custom practice, handle specially
+                if (currentGame.isCustomPractice) {
+                    startCustomLevel(currentGame.customLevel);
+                } else {
+                    startLevel(gameState.currentLevel);
+                }
+            }, 500);
+        }, 2500);
+    }
+}
+
+function createResurrectionParticles() {
+    const container = document.querySelector('.resurrection-animation');
+    if (!container) return;
+    
+    // Get center of container
+    const rect = container.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // Create particles
+    for (let i = 0; i < 40; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'resurrection-particle';
+        
+        // Random angle and distance
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 100 + Math.random() * 150;
+        const duration = 1 + Math.random() * 1.5;
+        const delay = Math.random() * 0.5;
+        const size = 3 + Math.random() * 7;
+        
+        // Calculate end position
+        const endX = Math.cos(angle) * distance;
+        const endY = Math.sin(angle) * distance;
+        
+        // Set particle style
+        particle.style.cssText = `
+            position: fixed;
+            left: ${centerX}px;
+            top: ${centerY}px;
+            width: ${size}px;
+            height: ${size}px;
+            background: #FFD700;
+            border-radius: 50%;
+            opacity: 0;
+            z-index: 1001;
+            box-shadow: 0 0 ${size}px #FFD700;
+            transform: translate(-50%, -50%);
+            animation: particleFlow ${duration}s ease-out ${delay}s forwards;
+        `;
+        
+        // Set custom properties for animation
+        particle.style.setProperty('--end-x', `${endX}px`);
+        particle.style.setProperty('--end-y', `${endY}px`);
+        
+        document.body.appendChild(particle);
+        
+        // Clean up after animation
+        setTimeout(() => {
+            particle.remove();
+        }, (duration + delay) * 1000);
+    }
+}
+
+function updateSidePanelLink() {
+    const levelMapLink = document.querySelector('.nav-link[onclick*="stage-screen"]');
+    if (levelMapLink) {
+        levelMapLink.setAttribute('onclick', "showScreen('stage-cascade-screen'); return false;");
+    }
+}
+
+
+function getStageIcon(stageId) {
+    const icons = {
+        1: 'fas fa-book',
+        2: 'fas fa-graduation-cap',
+        3: 'fas fa-school',
+        4: 'fas fa-university',
+        5: 'fas fa-brain'
+    };
+    return icons[stageId] || 'fas fa-star';
+}
+
+function getStageHebrewName(stageId) {
+    const names = {
+        1: 'מתחילים',
+        2: 'יסודי',
+        3: 'חטיבת ביניים',
+        4: 'תיכון',
+        5: 'אוניברסיטה'
+    };
+    return names[stageId] || `Stage ${stageId}`;
+}
+
+function getStageDescription(stageId) {
+    const descriptions = {
+        1: 'Beginner level words and simple phrases',
+        2: 'Elementary level vocabulary and structures',
+        3: 'Middle school level vocabulary',
+        4: 'High school level vocabulary',
+        5: 'University level vocabulary'
+    };
+    return descriptions[stageId] || 'Advanced vocabulary';
+}
+
+function getStageStatus(stageId, completedSets, totalSets) {
+    // For premium stages, show premium status for non-premium users
+    if (stageId > 2 && (!currentUser || currentUser.status !== 'premium')) {
+        return 'Premium Feature';
+    }
+    
+    // For unlocked stages, show completion status
+    return `${completedSets}/${totalSets} Sets Completed`;
+}
+
+function populateSetsGrid(e) {
+    const t = document.getElementById(`sets-grid-${e}`);
+    if (!t) return;
+    console.log(`Populating sets grid for stage ${e}`);
+    console.log("Unlocked sets:", gameState.unlockedSets);
+    const n = gameStructure.stages[e - 1],
+        r = gameState.unlockedSets[e] || new Set,
+        o = currentUser ? currentUser.status : "unregistered";
+    console.log(`Stage ${e} unlocked sets:`, Array.from(r));
+    t.innerHTML = "";
+    for (let s = 1; s <= n.numSets; s++) {
+        const n = document.createElement("div"),
+            a = r.has(s);
+        let i = !1;
+        e >= 2 && s > 1 && "premium" !== o && (i = !0);
+        n.className = "set-button";
+        a && !i ? n.classList.add("active") : n.classList.add("locked");
+        const c = isSetCompleted(e, s);
+        
+        n.innerHTML = `
+      <span>Set ${s}</span>
+      ${c ? '\n      <div class="completed-indicator">\n        <i class="fas fa-check-circle"></i>\n      </div>' : ""}
+      ${!a || i ? `
+      <div class="lock-icon">
+        <i class="fas ${i ? "fa-crown crown-premium" : "fa-lock"}"></i>
+      </div>` : ""}
+    `;
+        
+        if (a && !i) {
+            n.onclick = () => {
+                gameState.currentStage = e;
+                gameState.currentSet = s;
+                showLevelScreen(s);
+            };
+        } else if (i) {
+            // Make the whole button show upgrade prompt
+            n.onclick = () => showUpgradePrompt();
+            
+            // Add specific handler for the crown icon
+            setTimeout(() => {
+                const crownIcon = n.querySelector(".fa-crown");
+                if (crownIcon) {
+                    crownIcon.addEventListener("click", (event) => {
+                        event.stopPropagation();
+                        showUpgradePrompt();
+                    });
+                }
+            }, 0);
+        }
+        
+        t.appendChild(n);
+    }
+}
+
+function isSetCompleted(stage, set) {
+  const stageData = gameStructure.stages;
+  if (!stageData || !stageData[stage-1]) {
+    console.warn(`Invalid stage ${stage} in isSetCompleted`);
+    return false;
+  }
+  
+  const totalLevels = stageData[stage-1].levelsPerSet;
+  let completedCount = 0;
+  
+  console.log(`Checking if set ${stage}-${set} is completed. Total levels: ${totalLevels}`);
+  
+  for (let level = 1; level <= totalLevels; level++) {
+    const levelKey = `${stage}_${set}_${level}`;
+    if (gameState.completedLevels.has(levelKey) || gameState.perfectLevels.has(levelKey)) {
+      completedCount++;
+      console.log(`Level ${levelKey} is completed`);
+    }
+  }
+  
+  const isComplete = completedCount === totalLevels;
+  console.log(`Set ${stage}-${set} completion check: ${completedCount}/${totalLevels} = ${isComplete}`);
+  
+  return isComplete;
+}
+
+function handleCrownClick(e) {
+  e.stopPropagation();
+  
+  if (!currentUser) {
+    // Unregistered user - show signup form
+    showAuthModal();
+    // Switch to signup form
+    setTimeout(() => {
+      const loginForm = document.getElementById('loginForm');
+      const signupForm = document.getElementById('signupForm');
+      if (loginForm && signupForm) {
+        loginForm.classList.add('hidden');
+        signupForm.classList.remove('hidden');
+      }
+    }, 100);
+  } else {
+    // Logged in user - show upgrade form
+    localStorage.removeItem(`upgradeRequested_${currentUser.id}`);
+    showUpgradePrompt();
+  }
+}
+
+function forceShowUpgradeForm() {
+    // Remove the flag that prevents the form from showing again
+    if (currentUser) {
+        localStorage.removeItem(`upgradeRequested_${currentUser.id}`);
+    } else {
+        localStorage.removeItem('upgradeRequested_guest');
+    }
+    
+    // Show the upgrade form
+    showScreen("upgrade-screen");
+}
+
+/* ADD this code to ensure crowns are clickable after DOM loads */
+document.addEventListener('DOMContentLoaded', function() {
+    // Add click handlers to all crown icons
+    document.querySelectorAll('.fa-crown').forEach(crown => {
+        crown.addEventListener('click', handleCrownClick);
+    });
+    
+    // Set up a mutation observer to handle dynamically added crowns
+    const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+            if (mutation.addedNodes.length) {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType === 1) { // Element node
+                        const crowns = node.querySelectorAll('.fa-crown');
+                        crowns.forEach(crown => {
+                            crown.addEventListener('click', handleCrownClick);
+                        });
+                    }
+                });
+            }
+        });
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+});
+
+
+
+function addStageToggleListeners() {
+    document.querySelectorAll('.stage-wrapper .stage-button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const wrapper = button.closest('.stage-wrapper');
+            wrapper.classList.toggle('open');
+            e.stopPropagation(); // Prevent event bubbling
+        });
+    });
+}
+
+
+// Add to document ready function
+document.addEventListener('DOMContentLoaded', () => {
+    // Make sure all the necessary screens exist
+    ensureScreenExists('stage-cascade-screen');
+    
+    // Update navigation links
+    updateSidePanelLinks();
+    
+    // If any other initialization is needed for stage-cascade-screen
+    initializeStageCascadeScreen();
+});
+
+// Simple initialization function for the stage cascade screen
+function initializeStageCascadeScreen() {
+    const screen = document.getElementById('stage-cascade-screen');
+    if (!screen.querySelector('.stages-container')) {
+        const container = document.createElement('div');
+        container.className = 'stages-container';
+        screen.appendChild(container);
+    }
+}
+
+const SessionManager = {
+    maxInactiveTime: 30 * 60 * 1000, // 30 minutes
+    lastActivity: Date.now(),
+    
+    init() {
+        document.addEventListener('click', () => this.updateActivity());
+        document.addEventListener('keypress', () => this.updateActivity());
+        setInterval(() => this.checkSession(), 60000);
+    },
+    
+    updateActivity() {
+        this.lastActivity = Date.now();
+    },
+    
+    async checkSession() {
+        if (Date.now() - this.lastActivity > this.maxInactiveTime) {
+            await handleLogout();
+            modalSystem.show('timeout', {
+                title: "Session Expired",
+                message: "Please log in again"
+            });
+        }
+    }
+};
+
+const DataValidator = {
+    validateGameProgress(progress) {
+        const maxAllowedCoins = 100000;
+        const maxAllowedPerks = 100;
+        
+        return {
+            ...progress,
+            coins: Math.min(progress.coins, maxAllowedCoins),
+            perks: Object.fromEntries(
+                Object.entries(progress.perks).map(([key, value]) => 
+                    [key, Math.min(value, maxAllowedPerks)]
+                )
+            )
+        };
+    },
+    
+    validateCustomList(list) {
+        return {
+            ...list,
+            words: list.words.slice(0, 1000).map(sanitizeInput),
+            translations: list.translations.slice(0, 1000).map(sanitizeInput)
+        };
+    }
+};
+
+const ErrorHandler = {
+    async logError(error, context) {
+        if (currentUser) {
+            await supabaseClient
+                .from('error_logs')
+                .insert([{
+                    user_id: currentUser.id,
+                    error: error.message,
+                    stack: error.stack,
+                    context,
+                    timestamp: new Date()
+                }]);
+        }
+        console.error(`${context}:`, error);
+    },
+    
+    handleError(error, context) {
+        this.logError(error, context);
+        modalSystem.show('error', {
+            title: "Oops!",
+            message: "Something went wrong. Please try again."
+        });
+    }
+};
+
+
+function handleUpgradeClick() {
+    hideUpgradePrompt();
+    showPaymentScreen();
+}
+
+
+
+
+
+
+
+function showUnregisteredWarning(callback) {
+    // Prevent multiple popups in the same page load
+    if (window.unregisteredWarningShown) {
+        if (callback) callback();
+        return;
+    }
+
+    // Mark that the warning has been shown
+    window.unregisteredWarningShown = true;
+
+    // Create full-screen signup page
+    const fullscreenPrompt = document.createElement('div');
+    fullscreenPrompt.className = 'fullscreen-signup-page';
+    fullscreenPrompt.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: var(--gradient);
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 2rem;
+        animation: fadeIn 0.3s ease-in-out;
+    `;
+
+    // Create content container
+    fullscreenPrompt.innerHTML = `
+        <div class="signup-header" style="width: 100%; display: flex; justify-content: flex-start; margin-bottom: 2rem;">
+            <button class="skip-signup-button" style="
+                background: rgba(255,255,255,0.15);
+                border: none;
+                color: var(--text);
+                padding: 0.75rem 1.5rem;
+                border-radius: 50px;
+                font-size: 0.9rem;
+                cursor: pointer;
+                transition: all 0.3s ease;
+            ">
+                Skip
+            </button>
+        </div>
+        
+        <div class="signup-content" style="
+            text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            max-width: 600px;
+            width: 100%;
+        ">
+            <h2 style="
+                font-size: 2rem;
+                color: var(--gold);
+                margin-bottom: 1.5rem;
+                animation: floatAnimation 3s ease-in-out infinite;
+            ">Save Your Progress!</h2>
+            
+            <p style="
+                font-size: 1.2rem;
+                line-height: 1.6;
+                margin-bottom: 2rem;
+                color: var(--text);
+            ">Create a free account to track your vocabulary progress, earn rewards, and unlock more advanced content</p>
+            
+            <div class="features-list" style="
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+                margin-bottom: 3rem;
+                text-align: left;
+            ">
+                <div class="feature-item" style="
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                ">
+                    <i class="fas fa-check-circle" style="color: var(--gold); font-size: 1.5rem;"></i>
+                    <span>Track your learning progress</span>
+                </div>
+                <div class="feature-item" style="
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                ">
+                    <i class="fas fa-check-circle" style="color: var(--gold); font-size: 1.5rem;"></i>
+                    <span>Practice custom word lists</span>
+                </div>
+                <div class="feature-item" style="
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                ">
+                    <i class="fas fa-check-circle" style="color: var(--gold); font-size: 1.5rem;"></i>
+                    <span>Earn coins for premium content</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="signup-footer" style="
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            padding-bottom: 2rem;
+        ">
+            <button class="signup-now-button" style="
+                background: var(--gold);
+                color: var(--primary-dark);
+                border: none;
+                padding: 1.25rem 3rem;
+                border-radius: 50px;
+                font-size: 1.2rem;
+                font-weight: bold;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                box-shadow: 0 10px 20px rgba(255, 215, 0, 0.2);
+                animation: pulseAnimation 1.5s infinite ease-in-out;
+            ">
+                Sign Up Now
+            </button>
+        </div>
+    `;
+
+    // Add to body
+    document.body.appendChild(fullscreenPrompt);
+    
+    // Add animations CSS
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes floatAnimation {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        @keyframes pulseAnimation {
+            0%, 100% { transform: scale(1); box-shadow: 0 10px 20px rgba(255, 215, 0, 0.2); }
+            50% { transform: scale(1.05); box-shadow: 0 10px 30px rgba(255, 215, 0, 0.4); }
+        }
+    `;
+    document.head.appendChild(styleElement);
+
+    // Add event listeners
+    const skipButton = fullscreenPrompt.querySelector('.skip-signup-button');
+    const signupButton = fullscreenPrompt.querySelector('.signup-now-button');
+    
+    skipButton.addEventListener('click', function() {
+        // Remove the prompt
+        document.body.removeChild(fullscreenPrompt);
+        if (styleElement.parentNode) {
+            styleElement.parentNode.removeChild(styleElement);
+        }
+        
+        // Execute callback to continue game
+        if (callback) {
+            callback();
+        }
+    });
+    
+    signupButton.addEventListener('click', function() {
+        // Remove the prompt
+        document.body.removeChild(fullscreenPrompt);
+        if (styleElement.parentNode) {
+            styleElement.parentNode.removeChild(styleElement);
+        }
+        
+        // First, make sure we're on welcome screen since auth modal works best there
+        showScreen('welcome-screen');
+        
+        // Show the auth modal with signup form
+        setTimeout(function() {
+            const authModal = document.getElementById('authModal');
+            if (authModal) {
+                authModal.classList.add('show');
+                
+                // Switch to signup form
+                const signupForm = document.getElementById('signupForm');
+                const loginForm = document.getElementById('loginForm');
+                if (signupForm && loginForm) {
+                    signupForm.classList.remove('hidden');
+                    loginForm.classList.add('hidden');
+                }
+            }
+        }, 100); // Short delay to ensure welcome screen is visible first
+    });
+}
+
+
+
+function toggleParentPhone() {
+    const isAdult = document.getElementById('isAdult').checked;
+    const parentPhoneGroup = document.getElementById('parentPhoneGroup');
+    const parentPhoneInput = document.getElementById('parentPhone');
+    
+    parentPhoneGroup.style.display = isAdult ? 'none' : 'block';
+    parentPhoneInput.required = !isAdult;
+}
+
+
+function handleHashChange() {
+    console.log('Hash change detected:', window.location.hash);
+    
+    if (window.location.hash.startsWith('#join=')) {
+        const otp = window.location.hash.replace('#join=', '');
+        console.log('Join OTP detected:', otp);
+        
+        // Show landing page on mobile
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            const qrLanding = document.getElementById('qr-landing');
+            const codeDisplay = qrLanding.querySelector('.game-code-display');
+            
+            // Hide all other screens
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.style.display = 'none';
+            });
+            
+            // Show and populate landing page
+            qrLanding.style.display = 'flex';
+            codeDisplay.textContent = otp;
+            
+            // Store OTP for later use
+            qrLanding.dataset.otp = otp;
+        } else {
+            // Desktop behavior
+            history.pushState("", document.title, window.location.pathname);
+            showJoinModal(otp);
+        }
+    }
+}
+
+function updateUI() {
+    // Batch DOM updates
+    requestAnimationFrame(() => {
+        const fragment = document.createDocumentFragment();
+        // Add elements to fragment
+        document.body.appendChild(fragment);
+    });
+}
+
+
+function updateGuestPlayButton() {
+    const guestPlayButton = document.querySelector('.guest-play-button');
+    
+    if (!currentUser || (currentUser && currentUser.status === 'unregistered')) {
+        guestPlayButton.textContent = 'Play as Guest';
+    } else {
+        guestPlayButton.textContent = 'Start Game';
+    }
+}
+
+function toggleParentFields() {
+    const isAdult = document.getElementById('isAdult').checked;
+    const parentSection = document.getElementById('parentInfoSection');
+    const adultSection = document.getElementById('adultInfoSection');
+    
+    // Get input elements
+    const parentInputs = parentSection.querySelectorAll('input');
+    const adultInputs = adultSection.querySelectorAll('input');
+    
+    if (isAdult) {
+        parentSection.style.display = 'none';
+        adultSection.style.display = 'block';
+        
+        // Toggle required attributes
+        parentInputs.forEach(input => input.required = false);
+        adultInputs.forEach(input => input.required = true);
+    } else {
+        parentSection.style.display = 'block';
+        adultSection.style.display = 'none';
+        
+        // Toggle required attributes
+        parentInputs.forEach(input => input.required = true);
+        adultInputs.forEach(input => input.required = false);
+    }
+}
+
+
+// Add a debug helper function to check popup status
+function checkPopupStatus() {
+  const popups = document.querySelectorAll('.confirmation-popup');
+  if (popups.length === 0) {
+    console.log("No confirmation popups found in the DOM");
+    return;
+  }
+  
+  popups.forEach((popup, index) => {
+    console.log(`Popup ${index + 1}:`, {
+      visibility: window.getComputedStyle(popup).visibility,
+      opacity: window.getComputedStyle(popup).opacity,
+      display: window.getComputedStyle(popup).display,
+      zIndex: window.getComputedStyle(popup).zIndex,
+      transform: window.getComputedStyle(popup).transform,
+      position: window.getComputedStyle(popup).position
+    });
+  });
+}
+
+// Add a global debug function for the upgrade process
+window.debugUpgrade = function() {
+  checkPopupStatus();
+  console.log("Upgrade screen visible:", document.getElementById("upgrade-screen").classList.contains("visible"));
+  console.log("Upgrade form:", document.getElementById("upgradeForm"));
+  console.log("Current user:", currentUser);
+};
+
+
+function skipUpgrade() {
+    hideUpgradePromptAndContinue();
+}
+
+
+async function updateUserStats() {
+  try {
+    if (!currentUser) return;
+    
+    const { data: gameData } = await supabaseClient
+      .from("game_progress")
+      .select("coins")
+      .eq("user_id", currentUser.id)
+      .single();
+      
+    const { data: statsData } = await supabaseClient
+      .from("player_stats")
+      .select("unique_words_practiced")
+      .eq("user_id", currentUser.id)
+      .single();
+    
+    if (gameData) {
+      document.getElementById("totalCoins").textContent = gameData.coins || 0;
+    }
+    
+    if (statsData) {
+      document.getElementById("totalWords").textContent = statsData.unique_words_practiced || 0;
+    }
+    
+    // Add this to force UI refresh
+    updateAllCoinDisplays();
+    WordsManager.updateDisplays(statsData?.unique_words_practiced || 0);
+  } catch (err) {
+    console.error("Error updating user stats:", err);
+  }
+}
+
+
+
+
+function restoreGameContext() {
+    const savedContext = localStorage.getItem('gameContext');
+    if (savedContext) {
+        const context = JSON.parse(savedContext);
+        gameState.currentStage = context.stage || 1;
+        gameState.currentSet = context.set || 1;
+        gameState.currentLevel = context.level;
+        
+        // Clear the saved context
+        localStorage.removeItem('gameContext');
+        
+        return true;
+    }
+    return false;
+}
+
+
+
+function navigateHome() {
+    console.log('Navigating home with full refresh');
+    saveProgress();  // Ensure current state is saved
+    window.location.reload(true);
+}
+
+function forceReload() {
+    console.log('Force Reload Initiated');
+    
+    // Multiple reload strategies
+    if (window.location) {
+        window.location.href = window.location.href;  // Reload current page
+    }
+    
+    if (window.location.reload) {
+        window.location.reload(true);  // Hard reload with cache bypass
+    }
+    
+    // Fallback reload method
+    window.location.replace(window.location.pathname);
+}
+
+// Replace ALL home button onclick events with this
+document.querySelectorAll('.home-button').forEach(button => {
+    button.onclick = function() {
+        console.log('Home button clicked');
+        forceReload();
+    };
+});
+
+async function showLeaderboard() {
+    showScreen("leaderboard-screen");
+    const entriesContainer = document.getElementById("leaderboard-entries");
+    
+    try {
+        async function updateLeaderboard() {
+            const { data, error } = await supabaseClient.from("player_leaderboard").select("*");
+            
+            if (error) {
+                console.error("Leaderboard fetch error:", error);
+                return;
+            }
+            
+            // Store current positions for animation
+            const currentEntries = entriesContainer.children;
+            const positions = {};
+            
+            Array.from(currentEntries).forEach(entry => {
+                const username = entry.querySelector("[data-username]").dataset.username;
+                positions[username] = entry.getBoundingClientRect();
+            });
+            
+            // Update the leaderboard HTML
+            entriesContainer.innerHTML = data.map((player, index) => `
+                <div class="leaderboard-entry ${player.username === currentUser?.user_metadata?.username ? "you" : ""} ${index < 3 ? `rank-${index+1}` : ""}"
+                     data-rank="${index+1}">
+                    <div>${player.player_rank}</div>
+                    <div data-username="${player.username}">${player.username || "Anonymous"}</div>
+                    <div>${player.total_levels_completed}</div>
+                    <div>${player.total_words_learned}</div>
+                </div>
+            `).join("");
+            
+            // Apply animations for position changes
+            const newEntries = entriesContainer.children;
+            
+            Array.from(newEntries).forEach(entry => {
+                const username = entry.querySelector("[data-username]").dataset.username;
+                
+                if (positions[username]) {
+                    const oldPos = positions[username];
+                    const newPos = entry.getBoundingClientRect();
+                    const yDiff = oldPos.top - newPos.top;
+                    
+                    if (yDiff > 0) {
+                        entry.classList.add("moving-up");
+                    } else if (yDiff < 0) {
+                        entry.classList.add("moving-down");
+                    }
+                    
+                    entry.addEventListener("animationend", () => {
+                        entry.classList.remove("moving-up", "moving-down");
+                    }, { once: true });
+                }
+            });
+        }
+        
+        // Initial update
+        await updateLeaderboard();
+        
+        // Set interval for polling updates
+        const pollInterval = setInterval(updateLeaderboard, 10000);
+        
+        // Store interval ID so we can clear it when needed
+        const leaderboardScreen = document.getElementById("leaderboard-screen");
+        if (leaderboardScreen) {
+            if (leaderboardScreen.dataset.pollInterval) {
+                clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
+            }
+            leaderboardScreen.dataset.pollInterval = pollInterval;
+        }
+        
+    } catch (detailedError) {
+        console.error("Detailed leaderboard error:", detailedError);
+        entriesContainer.innerHTML = `<p>Error loading leaderboard: ${detailedError.message}</p>`;
+    }
+}
+
+function cleanupLeaderboard() {
+    const leaderboardScreen = document.getElementById('leaderboard-screen');
+    if (leaderboardScreen) {
+        // Cleanup channel
+        if (leaderboardScreen.dataset.channel) {
+            supabaseClient.removeChannel(leaderboardScreen.dataset.channel);
+            delete leaderboardScreen.dataset.channel;
+        }
+        // Cleanup interval
+        if (leaderboardScreen.dataset.pollInterval) {
+            clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
+            delete leaderboardScreen.dataset.pollInterval;
+        }
+    }
+}
+
+async function updatePlayerStats(levelTime, mistakes, currentStreak) {
+    if (currentUser && "premium" === currentUser.status) {
+        try {
+            // Get current player stats
+            const { data: currentStats, error: statsError } = 
+                await supabaseClient.from("player_stats")
+                    .select("*")
+                    .eq("user_id", currentUser.id)
+                    .single();
+
+            if (statsError && statsError.code !== "PGRST116") throw statsError;
+
+            // Calculate unique words (remove duplicates)
+            const uniqueWords = [...new Set(currentGame.words)];
+            const wordsToAdd = uniqueWords.length;
+
+            // Prepare update object
+            const statsUpdate = {
+                user_id: currentUser.id,
+                total_levels_completed: (currentStats?.total_levels_completed || 0) + 1,
+                unique_words_practiced: (currentStats?.unique_words_practiced || 0) + wordsToAdd,
+                last_updated: new Date().toISOString()
+            };
+
+            // Update database
+            const { error: upsertError } = 
+                await supabaseClient.from("player_stats")
+                    .upsert(statsUpdate, { onConflict: "user_id", returning: "minimal" });
+
+            if (upsertError) throw upsertError;
+
+            // Immediately update UI
+            await WordsManager.updateWords(wordsToAdd);
+
+        } catch (error) {
+            console.error("Error updating player stats:", error);
+        }
+    }
+}
+
+function addAdminTestButton() {
+    console.log("Checking for admin user...");
+    
+    // Remove any existing button
+    const existingButton = document.getElementById("admin-test-button");
+    if (existingButton) {
+      existingButton.remove();
+    }
+    
+    console.log("Current user:", currentUser ? currentUser.email : "No user");
+    
+    // Check if the current user is admin
+    if (!currentUser || (currentUser.email !== "admin123@gmail.com" && !currentUser.email?.includes("admin123"))) {
+      console.log("Not admin user, not adding button");
+      return;
+    }
+    
+    console.log("Admin user detected, adding test buttons");
+    
+    // Add level 20 button
+    const button = document.createElement("button");
+    button.id = "admin-test-button";
+    button.textContent = "Jump to Level 20";
+    button.style.cssText = `
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      background: #ff5722;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      z-index: 2000;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      font-weight: bold;
+    `;
+    
+    button.onclick = function() {
+      console.log("Admin button clicked, jumping to level 20");
+      gameState.currentLevel = 21;
+      startLevel(21);
+    };
+    
+    document.body.appendChild(button);
+    console.log("Admin test button added to body");
+    
+    // Now also add our skip button
+    addAdminSkipButton();
+  }
+
+  // ADD this function to check if the current user is the admin
+function isAdminUser() {
+    return currentUser && currentUser.email === "admin123@gmail.com";
+  }
+  
+  // ADD this function to create the admin skip button
+  function addAdminSkipButton() {
+    // Only add for admin user
+    if (!isAdminUser()) return;
+    
+    // Remove any existing admin skip button first
+    const existingButton = document.getElementById("admin-skip-10-button");
+    if (existingButton) existingButton.remove();
+    
+    // Create the admin skip button
+    const skipButton = document.createElement("button");
+    skipButton.id = "admin-skip-10-button";
+    skipButton.innerHTML = '<i class="fas fa-forward"></i> Skip 10';
+    skipButton.style.cssText = `
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      background: #9c27b0;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      z-index: 2000;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      font-weight: bold;
+    `;
+    
+    // Add the click handler
+    skipButton.onclick = function() {
+      console.log("Admin skip-10 button clicked");
+      handleAdminSkip10();
+    };
+    
+    // Add the button to the question screen
+    const questionScreen = document.getElementById("question-screen");
+    if (questionScreen) {
+      questionScreen.appendChild(skipButton);
+    }
+  }
+  
+  // ADD this function to handle the skip-10 action
+  function handleAdminSkip10() {
+    // Only work for admin user
+    if (!isAdminUser()) return;
+    
+    // Check if we're in an active game
+    if (!currentGame || !currentGame.words || !currentGame.words.length) {
+      console.error("No active game found");
+      return;
+    }
+    
+    // Skip 10 questions or all remaining if less than 10 left
+    const skipCount = Math.min(10, currentGame.words.length - currentGame.currentIndex);
+    console.log(`Skipping ${skipCount} questions`);
+    
+    // If this is a boss level, handle it differently
+    if (currentGame.isBossLevel) {
+      // For boss levels, we directly set the index near the end
+      // This will trigger the boss defeat sequence on the next answer
+      currentGame.currentIndex = Math.max(0, currentGame.words.length - 1);
+      updateBossHealthBar();
+      loadNextBossQuestion();
+      showNotification(`Boss almost defeated! One more hit!`, "success");
+      return;
+    }
+    
+    // For regular levels
+    currentGame.currentIndex += skipCount;
+    
+    // If we've reached the end of the level
+    if (currentGame.currentIndex >= currentGame.words.length) {
+      handleLevelCompletion();
+      return;
+    }
+    
+    // Otherwise update progress and load the next question
+    updateProgressCircle();
+    loadNextQuestion();
+    showNotification(`Skipped ${skipCount} questions!`, "success");
+  }
+  
+  function createRainingParticles() {
+    const questionScreen = document.getElementById('question-screen');
+    if (!questionScreen) return;
+    
+    const letters = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ",..."אבגדהוזחטיכלמנסעפצקרשת"];
+    const containerWidth = questionScreen.clientWidth;
+    
+    // Clear any existing interval
+    if (window.rainingLettersInterval) {
+      clearInterval(window.rainingLettersInterval);
+    }
+    
+    // Create raining letters
+    window.rainingLettersInterval = setInterval(() => {
+      // Create between 1 and 3 letters each interval
+      const count = Math.floor(Math.random() * 3) + 1;
+      
+      for (let i = 0; i < count; i++) {
+        const letter = document.createElement('div');
+        letter.className = 'raining-letter';
+        letter.textContent = letters[Math.floor(Math.random() * letters.length)];
+        
+        // Random position and speed
+        const left = Math.random() * containerWidth;
+        const duration = 5 + Math.random() * 5; // 5-10 seconds
+        
+        letter.style.left = `${left}px`;
+        letter.style.animationDuration = `${duration}s`;
+        
+        questionScreen.appendChild(letter);
+        
+        // Remove letter after animation completes
+        setTimeout(() => {
+          if (letter.parentNode === questionScreen) {
+            questionScreen.removeChild(letter);
+          }
+        }, duration * 1000);
+      }
+    }, 300);
+  }  
