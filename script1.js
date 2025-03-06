@@ -4831,10 +4831,13 @@ function updateUI() {
 function updateGuestPlayButton() {
     const guestPlayButton = document.querySelector('.guest-play-button');
     
-    if (!currentUser || (currentUser && currentUser.status === 'unregistered')) {
-        guestPlayButton.textContent = 'Play as Guest';
-    } else {
-        guestPlayButton.textContent = 'Start Game';
+    // Check if the button exists before trying to modify it
+    if (guestPlayButton) {
+        if (!currentUser || (currentUser && currentUser.status === 'unregistered')) {
+            guestPlayButton.textContent = 'Play as Guest';
+        } else {
+            guestPlayButton.textContent = 'Start Game';
+        }
     }
 }
 
