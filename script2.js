@@ -152,78 +152,6 @@ function handleArcadeAnswer(isCorrect) {
           const word = questionElement.textContent.trim();
           
           // Track word without adding coins (handled below)
-          trackWordEncounterWithoutCoins(word, 'arcade').catch(err => 
-            console.error('Error tracking word in arcade:', err)
-          );
-        }
-      }
-      
-      // Calculate coin reward
-      let coinReward = 5;
-      if (currentGame.correctStreak >= 3) {
-        coinReward += 5;
-      }
-      
-      // Premium users get extra coins in arcade mode
-      if (currentUser && currentUser.status === 'premium') {
-        coinReward += 2; // Add premium bonus directly here
-      }
-      
-      // Use the enhanced CoinsManager for consistent updates
-      CoinsManager.updateCoins(coinReward).then(() => {
-        // Update arcade powerups
-        updateArcadePowerups();
-        
-        // Update our rank display
-        updatePlayerRankDisplay();
-        
-        // Update arcade progress display
-        updateArcadeProgress();
-        
-        // Check if player has completed the word goal
-        if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
-          handlePlayerCompletedGoal(playerName);
-          // Return early to prevent loading next question
-          return;
-        }
-        
-        // Load the next question
-        loadNextArcadeQuestion();
-      });
-    } else {
-      // Handle incorrect answer
-      currentGame.correctStreak = 0;
-      currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
-      
-      // Load the next question
-      loadNextArcadeQuestion();
-    }
-}
-
-function handleArcadeAnswer(isCorrect) {
-    const now = Date.now();
-    if (now - (currentGame.lastAnswerTime || 0) < 1000) {
-      return; // Prevent rapid consecutive answers
-    }
-    
-    currentGame.lastAnswerTime = now;
-    
-    const playerName = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
-    
-    if (isCorrect) {
-      // Increment word count and update streak
-      currentGame.wordsCompleted = (currentGame.wordsCompleted || 0) + 1;
-      currentGame.correctStreak = (currentGame.correctStreak || 0) + 1;
-      currentGame.wrongStreak = 0;
-      
-      // For premium users, track the word encounter
-      if (currentUser && currentUser.status === 'premium') {
-        // Get the current word from the question
-        const questionElement = document.getElementById('question-word');
-        if (questionElement && questionElement.textContent) {
-          const word = questionElement.textContent.trim();
-          
-          // Track word without adding coins (handled below)
           trackWordEncounterWithoutCoins(word, 'arcade')
             .then(() => {
               // ADDED: Explicitly broadcast the updated word count for premium users
@@ -258,6 +186,10 @@ function handleArcadeAnswer(isCorrect) {
         // Update arcade progress display
         updateArcadeProgress();
         
+        // ADDED: Always broadcast progress updates after coins are updated
+        // This ensures moderators see consistent progress
+        broadcastCurrentParticipantData();
+        
         // Check if player has completed the word goal
         if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
           handlePlayerCompletedGoal(playerName);
@@ -273,10 +205,56 @@ function handleArcadeAnswer(isCorrect) {
       currentGame.correctStreak = 0;
       currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
       
+      // ADDED: Also broadcast on wrong answers so moderator stays updated
+      broadcastCurrentParticipantData();
+      
       // Load the next question
       loadNextArcadeQuestion();
     }
 }
+
+function setupArcadeProgressPolling() {
+    // Clear any existing interval
+    if (window.arcadeStatsInterval) {
+      clearInterval(window.arcadeStatsInterval);
+    }
+    
+    // Set up a regular interval to broadcast participant data
+    window.arcadeStatsInterval = setInterval(() => {
+      if (currentArcadeSession && 
+          currentArcadeSession.state === 'active' && 
+          currentArcadeSession.playerName) {
+        // Only broadcast if we have meaningful data to share
+        if (currentGame && (currentGame.wordsCompleted > 0 || currentGame.coins > 0)) {
+          broadcastCurrentParticipantData();
+        }
+      }
+    }, 5000); // Every 5 seconds
+    
+    return window.arcadeStatsInterval;
+  }
+
+  function setupArcadeProgressPolling() {
+    // Clear any existing interval
+    if (window.arcadeStatsInterval) {
+      clearInterval(window.arcadeStatsInterval);
+    }
+    
+    // Set up a regular interval to broadcast participant data
+    window.arcadeStatsInterval = setInterval(() => {
+      if (currentArcadeSession && 
+          currentArcadeSession.state === 'active' && 
+          currentArcadeSession.playerName) {
+        // Only broadcast if we have meaningful data to share
+        if (currentGame && (currentGame.wordsCompleted > 0 || currentGame.coins > 0)) {
+          broadcastCurrentParticipantData();
+        }
+      }
+    }, 5000); // Every 5 seconds
+    
+    return window.arcadeStatsInterval;
+  }
+
 
 const currentArcadeSessionStructure = {
     eventId: null,
@@ -977,16 +955,16 @@ function updatePlayerProgress(e) {
     
     window.lastProgressUpdate = timestamp;
     
-    // CRITICAL: Never allow external updates to modify our own display if:
-    // 1. It's our own username AND
-    // 2. It's not from a trusted source AND
-    // 3. It's within 1 second of our own update
+    // IMPROVED: Only ignore self-updates from untrusted sources
+    // This allows our own broadcast updates to go through
     if (e.username === currentArcadeSession.playerName) {
+      // Check for trusted sources - now handles all our known update sources
       const isTrustedSource = e.isTrusted === true || 
                              e.source === 'coinsManager' || 
-                             e.source === 'coinController';
+                             e.source === 'coinController' ||
+                             e.source === 'progressUpdate';
                              
-      const isRecentUpdate = Math.abs(timestamp - CoinsManager.lastUpdateTimestamp) < 1000;
+      const isRecentUpdate = Math.abs(timestamp - (CoinsManager.lastUpdateTimestamp || 0)) < 1000;
       
       if (!isTrustedSource && isRecentUpdate) {
         console.log(`Ignoring untrusted update for ${e.username}`);
@@ -1122,7 +1100,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-  function broadcastCurrentParticipantData() {
+function broadcastCurrentParticipantData() {
     if (!currentArcadeSession || !currentArcadeSession.playerName || !window.arcadeChannel) {
       return false;
     }
@@ -1142,7 +1120,8 @@ document.addEventListener('DOMContentLoaded', function() {
           username: playerName,
           wordsCompleted: currentWords,
           coins: currentCoins,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          source: 'progressUpdate' // Add source to identify this broadcast
         }
       });
       
@@ -3468,6 +3447,13 @@ function handleProgressionAfterCompletion(isLevelCompleted) {
     }
 }
 
+
+
+
+
+
+
+
 function createListItem(list) {
     return `
         <div class="list-item">
@@ -3476,6 +3462,8 @@ function createListItem(list) {
         </div>
     `;
 }
+
+
 
 async function checkExistingSession() {
     console.log("Checking for existing user session");
@@ -3490,13 +3478,12 @@ async function checkExistingSession() {
             // Fetch user profile data
             const { data: profileData } = await supabaseClient
                 .from("user_profiles")
-                .select("status, role")  // Added role here
+                .select("status")
                 .eq("id", currentUser.id)
                 .single();
                 
             if (profileData) {
                 currentUser.status = profileData.status;
-                currentUser.role = profileData.role;  // Store the role
                 updateUserStatusDisplay(profileData.status);
             }
             
@@ -4029,6 +4016,7 @@ async function initializeArcade() {
         }));
         
         updateAllPlayersProgress();
+        initializeModeratorInactivityTimer();
         
         await window.arcadeChannel.send({
             type: 'broadcast',
@@ -4107,7 +4095,8 @@ function showModeratorScreen() {
         if (endArcadeButton) endArcadeButton.classList.remove('visible');
     }
     
-
+    // Set up inactivity timer
+    initializeModeratorInactivityTimer();
     
     // Update player progress if needed
     setTimeout(() => {
@@ -4137,10 +4126,7 @@ function initializeLeaderboard() {
 }
 
 function updateAllPlayersProgress() {
-    const leaderboardEl = document.getElementById("arcade-leaderboard");
-    if (!leaderboardEl) return;
-    
-    // Request latest data if moderator
+    // IMPORTANT: For moderators, make sure we request the latest data from premium players
     if (currentUser?.id === currentArcadeSession.teacherId && currentArcadeSession.state === 'active') {
       try {
         window.arcadeChannel.send({
@@ -4155,93 +4141,145 @@ function updateAllPlayersProgress() {
         console.error("Error requesting latest stats:", err);
       }
     }
-    
-    // STEP 1: Store current positions for animation
-    const currentEntries = leaderboardEl.querySelectorAll(".leaderboard-entry");
-    const positions = {};
-    
-    Array.from(currentEntries).forEach(entry => {
-      const username = entry.querySelector("[data-username]")?.dataset.username;
-      if (username) {
-        positions[username] = entry.getBoundingClientRect();
+  
+    // Get current state from DOM for progress preservation
+    const currentProgressMap = {};
+    const currentCoinsMap = {}; // Add tracking for coins too
+    document.querySelectorAll(".leaderboard-entry").forEach(entry => {
+      const usernameEl = entry.querySelector("[data-username]");
+      const wordsEl = entry.querySelector("[data-words]");
+      const coinsEl = entry.querySelector("[data-coins]");
+      
+      if (usernameEl && wordsEl) {
+        const username = usernameEl.dataset.username;
+        const words = parseInt(wordsEl.textContent) || 0;
+        const coins = coinsEl ? (parseInt(coinsEl.textContent) || 0) : 0;
+        
+        currentProgressMap[username] = words;
+        currentCoinsMap[username] = coins;
       }
     });
     
-    // Sort participants by progress
-    const sortedParticipants = [...currentArcadeSession.participants]
-      .filter(p => p && p.username) // Filter out invalid entries
-      .sort((a, b) => b.wordsCompleted !== a.wordsCompleted ? 
-        b.wordsCompleted - a.wordsCompleted : 
-        b.coins - a.coins);
-    
-    // STEP 2: Prepare new HTML content
-    let headerHTML = `
-      <div class="leaderboard-header">
-        <div>Rank</div>
-        <div>Player</div>
-        <div>Words</div>
-        <div>Coins</div>
-      </div>
-    `;
-    
-    let entriesHTML = sortedParticipants.map((player, index) => {
-      const rank = index + 1;
-      const rankClass = rank <= 3 ? `rank-${rank}` : '';
-      const isCurrentPlayer = player.username === currentArcadeSession.playerName;
+    // Ensure participants maintain their highest progress values
+    currentArcadeSession.participants.forEach(participant => {
+      const username = participant.username;
       
-      return `
-        <div class="leaderboard-entry ${isCurrentPlayer ? "you" : ""} ${rankClass}" data-rank="${rank}">
-          <div class="rank">${rank}</div>
-          <div data-username="${player.username}" class="player-name">${player.username}</div>
-          <div data-words="${player.wordsCompleted || 0}" class="words">${player.wordsCompleted || 0}</div>
-          <div data-coins="${player.coins || 0}" class="coins">${player.coins || 0}</div>
-          ${currentUser?.id === currentArcadeSession.teacherId ? `
-            <div class="actions">
-              <button class="remove-player-btn" onclick="showRemovePlayerModal('${player.username}')">
-                <i class="fas fa-user-minus"></i>
-              </button>
-            </div>` : ''}
-        </div>
-      `;
+      // Preserve highest word count
+      if (currentProgressMap[username] && currentProgressMap[username] > participant.wordsCompleted) {
+        participant.wordsCompleted = currentProgressMap[username];
+        console.log(`Restored higher progress for ${username}: ${currentProgressMap[username]}`);
+      }
+      
+      // Preserve highest coin count
+      if (currentCoinsMap[username] && currentCoinsMap[username] > participant.coins) {
+        participant.coins = currentCoinsMap[username];
+        console.log(`Restored higher coins for ${username}: ${currentCoinsMap[username]}`);
+      }
+    });
+    
+    // Sort participants by progress (keep track of original indices for animation)
+    const sortedParticipants = currentArcadeSession.participants.map((p, idx) => ({
+      ...p, 
+      originalIndex: idx
+    })).sort((a, b) => {
+      // Primary sort by words completed
+      if (b.wordsCompleted !== a.wordsCompleted) {
+        return b.wordsCompleted - a.wordsCompleted;
+      }
+      // Secondary sort by coins
+      return b.coins - a.coins;
+    });
+    
+    // Get active leaderboard element
+    const leaderboardEl = document.getElementById("arcade-leaderboard");
+    if (!leaderboardEl) return;
+    
+    // Preserve the header from the leaderboard
+    const headerHTML = leaderboardEl.querySelector('.leaderboard-header')?.outerHTML || '';
+    
+    // Generate new entries markup with animation classes
+    const entriesHTML = sortedParticipants.map((player, index) => {
+      if (!player.username) return '';
+      
+      // Determine if this entry needs animation by comparing current and previous position
+      const prevPosition = player.originalIndex;
+      const newPosition = index;
+      
+      let animationClass = '';
+      if (prevPosition !== undefined && prevPosition !== newPosition) {
+        // Moving up
+        if (prevPosition > newPosition) {
+          animationClass = 'moving-up';
+        } 
+        // Moving down
+        else if (prevPosition < newPosition) {
+          animationClass = 'moving-down';
+        }
+      }
+      
+      return currentArcadeSession.state === "active" && player.username ? 
+        `<div class="leaderboard-entry ${animationClass} ${index < 3 ? `rank-${index+1}` : ""}"
+               data-rank="${index+1}" data-prev-rank="${prevPosition+1 || index+1}">
+            <div class="rank">${index+1}</div>
+            <div data-username="${player.username}" class="player-name">${player.username}</div>
+            <div data-words="${player.wordsCompleted || 0}" class="words">${player.wordsCompleted || 0}</div>
+            <div data-coins="${player.coins || 0}" class="coins">${player.coins || 0}</div>
+            ${currentUser?.id === currentArcadeSession.teacherId ? 
+              `<div class="actions">
+                <button class="remove-player-btn" onclick="showRemovePlayerModal('${player.username}')">
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>` : ''}
+        </div>` 
+      : 
+        `<div class="leaderboard-entry waiting ${animationClass} ${index < 3 ? `rank-${index+1}` : ""}"
+               data-rank="${index+1}" data-prev-rank="${prevPosition+1 || index+1}">
+            <div class="rank">${index+1}</div>
+            <div data-username="${player.username}" class="player-name">${player.username}</div>
+            <div class="player-status-waiting">
+                <span class="status-text" style="color: ${shineColors ? shineColors[Math.floor(Math.random() * shineColors.length)] : '#ffffff'}">${readyPhrases ? readyPhrases[Math.floor(Math.random() * readyPhrases.length)] : 'Ready'}</span>
+            </div>
+            <div class="waiting-indicator">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+            </div>
+        </div>`;
     }).join("");
     
-    // STEP 3: Replace all content at once
+    // Update the DOM with animation-ready entries
     leaderboardEl.innerHTML = headerHTML + entriesHTML;
     
-    // STEP 4: Apply animations for position changes
-    const newEntries = leaderboardEl.querySelectorAll(".leaderboard-entry");
-    
-    // Only animate every 10 seconds to prevent too frequent updates
-    const now = Date.now();
-    const lastUpdate = window.lastLeaderboardAnimationTime || 0;
-    const shouldAnimate = (now - lastUpdate) >= 10000; // 10 seconds
-    
-    if (shouldAnimate) {
-      window.lastLeaderboardAnimationTime = now;
-      
-      Array.from(newEntries).forEach(entry => {
-        const username = entry.querySelector("[data-username]")?.dataset.username;
-        
-        if (username && positions[username]) {
-          const oldPos = positions[username];
-          const newPos = entry.getBoundingClientRect();
-          const yDiff = oldPos.top - newPos.top;
-          
-          // Only animate if there's a significant position change
-          if (Math.abs(yDiff) > 5) {
-            if (yDiff > 0) {
-              entry.classList.add("moving-up");
-            } else if (yDiff < 0) {
-              entry.classList.add("moving-down");
-            }
-            
-            // Remove the animation class when animation ends
-            entry.addEventListener("animationend", () => {
-              entry.classList.remove("moving-up", "moving-down");
-            }, { once: true });
-          }
+    // Add animation styles if not already present
+    if (!document.getElementById('leaderboard-animation-styles')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'leaderboard-animation-styles';
+      styleEl.textContent = `
+        .leaderboard-entry {
+          transition: transform 0.5s ease-out, opacity 0.5s ease-out, background-color 0.5s ease-out;
         }
-      });
+        
+        .leaderboard-entry.moving-up {
+          animation: slide-up 0.5s ease-out forwards;
+        }
+        
+        .leaderboard-entry.moving-down {
+          animation: slide-down 0.5s ease-out forwards;
+        }
+        
+        @keyframes slide-up {
+          0% { transform: translateY(0); }
+          20% { transform: translateY(-5px); }
+          100% { transform: translateY(0); }
+        }
+        
+        @keyframes slide-down {
+          0% { transform: translateY(0); }
+          20% { transform: translateY(5px); }
+          100% { transform: translateY(0); }
+        }
+      `;
+      document.head.appendChild(styleEl);
     }
     
     // Update other display elements
@@ -4249,20 +4287,19 @@ function updateAllPlayersProgress() {
     if (countEl) countEl.textContent = sortedParticipants.length;
     
     const dateEl = document.getElementById("sessionDate");
-    if (dateEl && dateEl.textContent === '') {
-      dateEl.textContent = new Date().toLocaleDateString();
-    }
+    if (dateEl) dateEl.textContent = (new Date).toLocaleDateString();
     
     const timeEl = document.getElementById("sessionStartTime");
-    if (timeEl && timeEl.textContent === '') {
-      timeEl.textContent = new Date().toLocaleTimeString();
-    }
+    if (timeEl) timeEl.textContent = (new Date).toLocaleTimeString();
     
     const goalEl = document.getElementById("sessionWordGoal");
-    if (goalEl && goalEl.textContent === '') {
-      goalEl.textContent = currentArcadeSession.wordGoal;
-    }
+    if (goalEl) goalEl.textContent = currentArcadeSession.wordGoal;
+    
+    // Store the last update timestamp
+    window.lastLeaderboardUpdate = Date.now();
   }
+
+  
 
 async function startArcade() {
     // Get selected stages
@@ -5098,9 +5135,7 @@ function exitArcadeCompletion() {
 
 function exitArcade() {
     // Clean up
-    if (window.arcadeChannel) {
-        window.arcadeChannel.unsubscribe();
-    }
+    cleanupArcadeMode();
 
     if (window.arcadeChannel) {
         window.arcadeChannel.unsubscribe();
@@ -5685,6 +5720,18 @@ function showPersonalVictoryScreen(rank) {
     }, 100);
 }
 
+function showModeratorVictoryScreen(players) {
+    // Clean up any inactivity timers
+    if (moderatorActivityTimer) clearTimeout(moderatorActivityTimer);
+    if (countdownTimer) clearInterval(countdownTimer);
+    
+    // Hide inactivity overlay if present
+    const overlay = document.querySelector('.inactivity-overlay');
+    if (overlay) overlay.remove();
+    
+    // Use the confetti celebration instead
+    startLeaderboardCelebration(players);
+}
 
 
 function showPlayerFinalResults(players) {
@@ -7089,6 +7136,8 @@ async function handlePlayerCompletedGoal(username) {
 }
 
 function endArcade() {
+    // Disable game activity monitoring
+    moderatorInactivity.isGameActive = false;
     
     // Mark celebration as triggered to prevent duplicate celebrations
     currentArcadeSession.celebrationTriggered = true;
@@ -7271,7 +7320,6 @@ function resetArcadeSession() {
     console.log('Arcade session completely reset with new OTP:', newOtp);
 }
 
-// REPLACE finishCelebrationAndGoHome function
 function finishCelebrationAndGoHome() {
     // Clean up UI elements
     document.querySelector(".celebration-overlay")?.remove();
@@ -7288,23 +7336,12 @@ function finishCelebrationAndGoHome() {
     // Update stats before returning home
     updatePlayerStatsAfterArcade().then(() => {
       // Clean up monitoring and reset session
+      cleanupModeratorInactivityMonitoring();
       resetArcadeSession();
       
       // Return to welcome screen
       showScreen("welcome-screen");
     });
-  }
-
-function showModeratorVictoryScreen(players) {
-    // Clean up any inactivity timers (disabled but clean up any remnants)
-    clearModeratorInactivityMonitoring();
-    
-    // Hide any inactivity overlay if present
-    const overlay = document.querySelector('.inactivity-overlay');
-    if (overlay) overlay.remove();
-    
-    // Use the confetti celebration for the leaderboard
-    startLeaderboardCelebration(players);
 }
 
 function handleGameEnd(payload) {
@@ -7341,7 +7378,6 @@ function hidePersonalVictoryScreen() {
 }
 
 async function endArcadeForAll() {
-    // Mark session as ended
     currentArcadeSession.state = "ended";
     currentArcadeSession.endTime = Date.now();
     
@@ -7365,25 +7401,6 @@ async function endArcadeForAll() {
         
         // Sort by rank (not by words or coins)
         podiumPlayers.sort((a, b) => a.rank - b.rank);
-    } else {
-        // Sort participants by words and coins
-        const sortedParticipants = [...currentArcadeSession.participants]
-            .sort((a, b) => {
-                if (b.wordsCompleted !== a.wordsCompleted) {
-                    return b.wordsCompleted - a.wordsCompleted;
-                }
-                return b.coins - a.coins;
-            });
-        
-        // Add top 3 players to podium
-        sortedParticipants.slice(0, 3).forEach((player, index) => {
-            podiumPlayers.push({
-                username: player.username,
-                wordsCompleted: player.wordsCompleted || 0,
-                coins: player.coins || 0,
-                rank: index + 1
-            });
-        });
     }
     
     // Fill up to 3 places if needed
@@ -7403,7 +7420,6 @@ async function endArcadeForAll() {
         wordsCompleted: p.wordsCompleted
     })));
     
-    // Broadcast game end to all players
     await window.arcadeChannel.send({
         type: "broadcast",
         event: "game_end",
@@ -7415,12 +7431,9 @@ async function endArcadeForAll() {
         }
     });
     
-    // Show appropriate screens for moderator and players
     if (currentUser?.id === currentArcadeSession.teacherId) {
-        // Use startLeaderboardCelebration which is already defined in the code
-        startLeaderboardCelebration(podiumPlayers);
+        showModeratorVictoryScreen(podiumPlayers);
     } else {
-        // For players - show appropriate completion screen
         showFinalResultsForPlayer(podiumPlayers);
     }
 }
@@ -7440,6 +7453,110 @@ function getOrdinal(n) {
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+function initializeModeratorIdleDetection() {
+    // Function intentionally disabled to prevent moderator from being removed from arcade session
+    console.log("Moderator idle detection disabled - arcade will continue until manually ended");
+    
+    // Return empty handlers for cleanup
+    return {
+        clearIdleTimer: () => {},
+        idleCheckInterval: null
+    };
+}
+
+// Global variables for inactivity tracking
+let moderatorActivityTimer = null;
+let countdownTimer = null;
+let lastLeaderboardUpdate = Date.now();
+let isCountingDown = false;
+
+function initializeModeratorInactivityTimer() {
+    // Only proceed if we're on the moderator screen and game has been initialized
+    if (!isModeratorScreenActive() || !currentArcadeSession.isInitialized) {
+        return;
+    }
+    
+    // Set game as active
+    moderatorInactivity.isGameActive = true;
+    
+    // Clear any existing timers
+    clearModeratorTimers();
+    
+    // Reset state
+    moderatorInactivity.lastLeaderboardUpdate = Date.now();
+    moderatorInactivity.isCountingDown = false;
+    moderatorInactivity.isInitialized = true;
+    
+    // Create overlay if it doesn't exist
+    createModeratorInactivityOverlay();
+    
+    // Start monitoring for inactivity
+    startModeratorInactivityMonitoring();
+    
+    // Start leaderboard update tracking
+    trackModeratorLeaderboardUpdates();
+    
+    console.log('Moderator inactivity timer initialized');
+}
+
+function createInactivityOverlay() {
+    // Remove any existing overlay
+    const existingOverlay = document.querySelector('.inactivity-overlay');
+    if (existingOverlay) existingOverlay.remove();
+    
+    // Create new overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'inactivity-overlay';
+    overlay.innerHTML = `
+        <div class="countdown-timer">5</div>
+        <div class="inactivity-message">No activity detected. Redirecting...</div>
+        <div class="countdown-progress">
+            <div class="countdown-bar"></div>
+        </div>
+        <button class="countdown-cancel">Cancel</button>
+    `;
+    
+    // Add event handler for cancel button
+    overlay.querySelector('.countdown-cancel').addEventListener('click', cancelCountdown);
+    
+    // Append to body
+    document.body.appendChild(overlay);
+}
+
+function startInactivityMonitoring() {
+    // Reset the timer whenever there's activity
+    const moderatorScreen = document.getElementById('moderator-screen');
+    
+    // Activity events to monitor
+    const events = ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'];
+    
+    // Add all event listeners
+    events.forEach(event => {
+        moderatorScreen.addEventListener(event, resetInactivityTimer);
+    });
+    
+    // Start the initial timer
+    resetInactivityTimer();
+}
+
+function resetInactivityTimer() {
+    // If already counting down, don't reset
+    if (isCountingDown) return;
+    
+    // Clear existing timer
+    if (moderatorActivityTimer) clearTimeout(moderatorActivityTimer);
+    
+    // Set new timer - 3 seconds of inactivity
+    moderatorActivityTimer = setTimeout(() => {
+        // Check if leaderboard has been updated recently
+        const timeSinceLastUpdate = Date.now() - lastLeaderboardUpdate;
+        
+        // If no updates for 5 seconds, start countdown
+        if (timeSinceLastUpdate > 5000) {
+            startCountdown();
+        }
+    }, 3000);
+}
 
 function trackLeaderboardUpdates() {
     // Get leaderboard element
@@ -7463,6 +7580,498 @@ function trackLeaderboardUpdates() {
         attributes: true,
         characterData: true
     });
+}
+
+function startCountdown() {
+    isCountingDown = true;
+    
+    // Show the overlay
+    const overlay = document.querySelector('.inactivity-overlay');
+    if (overlay) overlay.classList.add('visible');
+    
+    // Initialize countdown
+    let secondsLeft = 5;
+    const timerDisplay = overlay.querySelector('.countdown-timer');
+    const progressBar = overlay.querySelector('.countdown-bar');
+    
+    // Update initial display
+    timerDisplay.textContent = secondsLeft;
+    progressBar.style.transform = 'scaleX(1)';
+    
+    // Start countdown
+    countdownTimer = setInterval(() => {
+        secondsLeft--;
+        
+        // Update display
+        timerDisplay.textContent = secondsLeft;
+        progressBar.style.transform = `scaleX(${secondsLeft / 5})`;
+        
+        // Check if countdown is complete
+        if (secondsLeft <= 0) {
+            clearInterval(countdownTimer);
+            handleCountdownComplete();
+        }
+    }, 1000);
+}
+
+function cancelCountdown() {
+    // Hide overlay
+    const overlay = document.querySelector('.inactivity-overlay');
+    if (overlay) overlay.classList.remove('visible');
+    
+    // Reset state
+    isCountingDown = false;
+    if (countdownTimer) clearInterval(countdownTimer);
+    
+    // Restart inactivity monitoring
+    resetInactivityTimer();
+}
+
+function handleCountdownComplete() {
+    // Check if we have podium winners
+    const hasPodiumWinners = currentArcadeSession.completedPlayers && 
+                             currentArcadeSession.completedPlayers.length >= 3;
+    
+    if (hasPodiumWinners) {
+        // Extract podium players
+        const podiumPlayers = [];
+        
+        if (currentArcadeSession.podiumRanks) {
+            // Get players by ranks
+            Object.entries(currentArcadeSession.podiumRanks).forEach(([username, data]) => {
+                const playerData = currentArcadeSession.participants.find(p => p.username === username);
+                if (playerData) {
+                    podiumPlayers.push({
+                        username: playerData.username,
+                        wordsCompleted: playerData.wordsCompleted || 0,
+                        coins: playerData.coins || 0,
+                        rank: data.rank
+                    });
+                }
+            });
+            
+            // Sort by rank
+            podiumPlayers.sort((a, b) => a.rank - b.rank);
+        } else {
+            // No explicit ranks, sort by words completed
+            const sortedPlayers = [...currentArcadeSession.participants]
+                .sort((a, b) => b.wordsCompleted - a.wordsCompleted)
+                .slice(0, 3);
+                
+            // Assign ranks
+            sortedPlayers.forEach((player, index) => {
+                podiumPlayers.push({
+                    ...player,
+                    rank: index + 1
+                });
+            });
+        }
+        
+        // Show victory screen
+        showModeratorVictoryScreen(podiumPlayers);
+    } else {
+        // No winners yet, just go back to welcome screen
+        showScreen('welcome-screen');
+    }
+}
+
+// Variables specific to moderator screen
+const moderatorInactivity = {
+    activityTimer: null,
+    countdownTimer: null,
+    lastLeaderboardUpdate: Date.now(),
+    isCountingDown: false,
+    isInitialized: false,
+    isGameActive: false
+};
+
+function initializeModeratorInactivityTimer() {
+    // Only proceed if we're on the moderator screen and game has been initialized
+    if (!isModeratorScreenActive() || !currentArcadeSession.isInitialized) {
+        return;
+    }
+    
+    // Set game as active
+    moderatorInactivity.isGameActive = true;
+    
+    // Clear any existing timers
+    clearModeratorTimers();
+    
+    // Reset state
+    moderatorInactivity.lastLeaderboardUpdate = Date.now();
+    moderatorInactivity.isCountingDown = false;
+    moderatorInactivity.isInitialized = true;
+    
+    // Create overlay if it doesn't exist
+    createModeratorInactivityOverlay();
+    
+    // Start monitoring for inactivity
+    startModeratorInactivityMonitoring();
+    
+    // Start leaderboard update tracking
+    trackModeratorLeaderboardUpdates();
+    
+    console.log('Moderator inactivity timer initialized');
+}
+
+function isModeratorScreenActive() {
+    const moderatorScreen = document.getElementById('moderator-screen');
+    return moderatorScreen && moderatorScreen.classList.contains('visible');
+}
+
+function clearModeratorTimers() {
+    if (moderatorInactivity.activityTimer) {
+        clearTimeout(moderatorInactivity.activityTimer);
+        moderatorInactivity.activityTimer = null;
+    }
+    if (moderatorInactivity.countdownTimer) {
+        clearInterval(moderatorInactivity.countdownTimer);
+        moderatorInactivity.countdownTimer = null;
+    }
+}
+
+function createModeratorInactivityOverlay() {
+    // Remove any existing overlay
+    const existingOverlay = document.querySelector('.moderator-inactivity-overlay');
+    if (existingOverlay) existingOverlay.remove();
+    
+    // Create new overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'moderator-inactivity-overlay';
+    overlay.innerHTML = `
+        <div class="moderator-countdown-timer">5</div>
+        <div class="moderator-inactivity-message">No leaderboard activity detected. Redirecting...</div>
+        <div class="moderator-countdown-progress">
+            <div class="moderator-countdown-bar"></div>
+        </div>
+        <button class="moderator-countdown-cancel">Cancel</button>
+    `;
+    
+    // Add event handler for cancel button
+    overlay.querySelector('.moderator-countdown-cancel').addEventListener('click', cancelModeratorCountdown);
+    
+    // Append to moderator screen specifically
+    const moderatorScreen = document.getElementById('moderator-screen');
+    if (moderatorScreen) {
+        moderatorScreen.appendChild(overlay);
+    }
+}
+
+function startModeratorInactivityMonitoring() {
+    const moderatorScreen = document.getElementById('moderator-screen');
+    if (!moderatorScreen) return;
+    
+    // Activity events to monitor (only on moderator screen)
+    const events = ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'];
+    
+    // Add all event listeners
+    events.forEach(event => {
+        moderatorScreen.addEventListener(event, resetModeratorInactivityTimer);
+    });
+    
+    // Add screen change listener
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden || !isModeratorScreenActive()) {
+            // Stop monitoring when page is hidden or moderator screen is not active
+            clearModeratorTimers();
+        } else if (moderatorInactivity.isGameActive && isModeratorScreenActive()) {
+            // Restart when returning to visible state and on moderator screen
+            resetModeratorInactivityTimer();
+        }
+    });
+    
+    // Start the initial timer
+    resetModeratorInactivityTimer();
+}
+
+function resetModeratorInactivityTimer() {
+    // Only proceed if on moderator screen, game is active, and not already counting down
+    if (!isModeratorScreenActive() || !moderatorInactivity.isGameActive || moderatorInactivity.isCountingDown) {
+        return;
+    }
+    
+    // Clear existing timer
+    if (moderatorInactivity.activityTimer) {
+        clearTimeout(moderatorInactivity.activityTimer);
+    }
+    
+    // Set new timer - 3 seconds of inactivity
+    moderatorInactivity.activityTimer = setTimeout(() => {
+        // Check if leaderboard has been updated recently
+        const timeSinceLastUpdate = Date.now() - moderatorInactivity.lastLeaderboardUpdate;
+        
+        // If no updates for 5 seconds, start countdown
+        if (timeSinceLastUpdate > 5000 && isModeratorScreenActive()) {
+            // ADDED: Check if we should allow the inactivity timer
+            const playerCount = currentArcadeSession.participants.length;
+            let allowTimer = true;
+            
+            if (playerCount <= 3) {
+                // Check if all players have reached their word goals
+                const allReachedGoal = currentArcadeSession.participants.every(player => 
+                    player.wordsCompleted >= currentArcadeSession.wordGoal
+                );
+                
+                // Only allow timer if all have reached goals
+                allowTimer = allReachedGoal;
+                
+                if (!allowTimer) {
+                    console.log("Inactivity timer prevented: some players still working toward word goal");
+                    // Reset last update time to prevent immediate re-trigger
+                    moderatorInactivity.lastLeaderboardUpdate = Date.now();
+                }
+            }
+            
+            if (allowTimer) {
+                startModeratorCountdown();
+            }
+        }
+    }, 3000);
+}
+
+function checkAllPlayersCompleted() {
+    if (!currentArcadeSession || !currentArcadeSession.participants) {
+        return false;
+    }
+    
+    const playerCount = currentArcadeSession.participants.length;
+    
+    // If no players, consider it not completed
+    if (playerCount === 0) {
+        return false;
+    }
+    
+    // Check if all players have reached their goals
+    return currentArcadeSession.participants.every(player => 
+        player.wordsCompleted >= currentArcadeSession.wordGoal
+    );
+}
+
+function updateModeratorStatus() {
+    // Only run on the moderator screen
+    if (!isModeratorScreenActive()) {
+        return;
+    }
+    
+    const playerCount = currentArcadeSession.participants.length;
+    const completedPlayers = currentArcadeSession.participants.filter(p => 
+        p.wordsCompleted >= currentArcadeSession.wordGoal
+    ).length;
+    
+    // Find or create status element
+    let statusElement = document.getElementById('moderator-player-status');
+    if (!statusElement) {
+        statusElement = document.createElement('div');
+        statusElement.id = 'moderator-player-status';
+        statusElement.style.cssText = `
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            font-size: 0.9rem;
+            z-index: 100;
+        `;
+        document.getElementById('moderator-screen').appendChild(statusElement);
+    }
+    
+    // Update content
+    let statusText = '';
+    
+    if (playerCount <= 3) {
+        // For small games, show detailed status
+        statusText = `<strong>Player Progress:</strong> ${completedPlayers}/${playerCount} completed`;
+        
+        if (completedPlayers < playerCount) {
+            statusText += ' <span style="color:#ff9966">(Waiting for all players to finish)</span>';
+        } else {
+            statusText += ' <span style="color:#66ff99">(All players finished!)</span>';
+        }
+    } else {
+        // For larger games, show summary
+        statusText = `<strong>Player Progress:</strong> ${completedPlayers}/${playerCount} completed`;
+    }
+    
+    statusElement.innerHTML = statusText;
+}
+
+function trackModeratorLeaderboardUpdates() {
+    // Get leaderboard element
+    const leaderboard = document.getElementById('arcade-leaderboard');
+    if (!leaderboard) return;
+    
+    // Create mutation observer to detect changes
+    const observer = new MutationObserver(() => {
+        // Only track updates if moderator screen is active and game is initialized
+        if (isModeratorScreenActive() && moderatorInactivity.isGameActive) {
+            moderatorInactivity.lastLeaderboardUpdate = Date.now();
+            
+            // If countdown is active, cancel it since we have activity
+            if (moderatorInactivity.isCountingDown) {
+                cancelModeratorCountdown();
+            }
+        }
+    });
+    
+    // Start observing
+    observer.observe(leaderboard, { 
+        childList: true, 
+        subtree: true, 
+        attributes: true,
+        characterData: true
+    });
+}
+
+function startModeratorCountdown() {
+    // Only proceed if on moderator screen and game is active
+    if (!isModeratorScreenActive() || !moderatorInactivity.isGameActive) {
+        return;
+    }
+    
+    // ADDED: Check if we need to prevent inactivity timer
+    const playerCount = currentArcadeSession.participants.length;
+    
+    if (playerCount <= 3) {
+        // For small games (1-3 players), check if all players have reached word goal
+        const allReachedGoal = currentArcadeSession.participants.every(player => 
+            player.wordsCompleted >= currentArcadeSession.wordGoal
+        );
+        
+        // If not all players have reached their goals, don't start countdown
+        if (!allReachedGoal) {
+            console.log("Inactivity timer prevented: not all players have reached their word goals yet");
+            // Reset the timer state to allow activity to continue
+            moderatorInactivity.lastLeaderboardUpdate = Date.now();
+            return;
+        }
+    }
+    
+    // Continue with normal countdown if we passed the check
+    moderatorInactivity.isCountingDown = true;
+    
+    // Show the overlay
+    const overlay = document.querySelector('.moderator-inactivity-overlay');
+    if (overlay) overlay.classList.add('visible');
+    
+    // Initialize countdown
+    let secondsLeft = 5;
+    const timerDisplay = overlay.querySelector('.moderator-countdown-timer');
+    const progressBar = overlay.querySelector('.moderator-countdown-bar');
+    
+    // Update initial display
+    timerDisplay.textContent = secondsLeft;
+    progressBar.style.transform = 'scaleX(1)';
+    
+    // Start countdown
+    moderatorInactivity.countdownTimer = setInterval(() => {
+        // Stop if we're no longer on the moderator screen
+        if (!isModeratorScreenActive()) {
+            cancelModeratorCountdown();
+            return;
+        }
+        
+        secondsLeft--;
+        
+        // Update display
+        timerDisplay.textContent = secondsLeft;
+        progressBar.style.transform = `scaleX(${secondsLeft / 5})`;
+        
+        // Check if countdown is complete
+        if (secondsLeft <= 0) {
+            clearInterval(moderatorInactivity.countdownTimer);
+            handleModeratorCountdownComplete();
+        }
+    }, 1000);
+}
+
+function cancelModeratorCountdown() {
+    // Hide overlay
+    const overlay = document.querySelector('.moderator-inactivity-overlay');
+    if (overlay) overlay.classList.remove('visible');
+    
+    // Reset state
+    moderatorInactivity.isCountingDown = false;
+    if (moderatorInactivity.countdownTimer) {
+        clearInterval(moderatorInactivity.countdownTimer);
+        moderatorInactivity.countdownTimer = null;
+    }
+    
+    // Restart inactivity monitoring if still on moderator screen
+    if (isModeratorScreenActive() && moderatorInactivity.isGameActive) {
+        resetModeratorInactivityTimer();
+    }
+}
+
+function handleModeratorCountdownComplete() {
+   // Skip if celebration already triggered
+   if (currentArcadeSession.celebrationTriggered) {
+       return;
+   }
+   
+   // Check if we have podium winners
+   const completedPlayers = currentArcadeSession.participants.filter(
+       p => p.wordsCompleted >= currentArcadeSession.wordGoal
+   );
+   
+   const hasPodiumWinners = completedPlayers && 
+                            completedPlayers.length >= 3;
+   
+   currentArcadeSession.celebrationTriggered = true;
+   
+   if (hasPodiumWinners) {
+       // Extract podium players
+       const podiumPlayers = [];
+       
+       if (currentArcadeSession.podiumRanks) {
+           // Get players by ranks
+           Object.entries(currentArcadeSession.podiumRanks).forEach(([username, data]) => {
+               const playerData = currentArcadeSession.participants.find(p => p.username === username);
+               if (playerData) {
+                   podiumPlayers.push({
+                       username: playerData.username,
+                       wordsCompleted: playerData.wordsCompleted || 0,
+                       coins: playerData.coins || 0,
+                       rank: data.rank
+                   });
+               }
+           });
+           
+           // Sort by rank
+           podiumPlayers.sort((a, b) => a.rank - b.rank);
+       } else {
+           // No explicit ranks, sort by words completed
+           const sortedPlayers = [...currentArcadeSession.participants]
+               .sort((a, b) => b.wordsCompleted - a.wordsCompleted)
+               .slice(0, 3);
+               
+           // Assign ranks
+           sortedPlayers.forEach((player, index) => {
+               podiumPlayers.push({
+                   ...player,
+                   rank: index + 1
+               });
+           });
+       }
+       
+       // Show victory screen
+       startLeaderboardCelebration(podiumPlayers);
+   } else {
+       // No winners yet, just go back to welcome screen
+       showScreen('welcome-screen');
+   }
+}
+
+function cleanupModeratorInactivityMonitoring() {
+    // Clean up any references to inactivity monitoring
+    // No actual timers to clean up since they're disabled
+    console.log("Cleaning up moderator activity monitoring (disabled)");
+    
+    if (moderatorInactivity) {
+        moderatorInactivity.isGameActive = false;
+        moderatorInactivity.isInitialized = false;
+    }
 }
 
 function startLeaderboardCelebration(podiumPlayers) {
@@ -11314,120 +11923,129 @@ async function loadCustomLists() {
   }
 }
 
+/**
+ * Show modal to share a list with other users
+ * @param {string|number} listId - The ID of the list to share
+ */
 function showShareModal(listId) {
-    console.log("Opening share modal for list:", listId);
-    
-    // Remove existing modal if any
-    const existingModal = document.querySelector(".share-modal");
-    const existingBackdrop = document.querySelector(".modal-backdrop");
-    if (existingModal) existingModal.remove();
-    if (existingBackdrop) existingBackdrop.remove();
-    
-    // Create backdrop
-    const backdrop = document.createElement("div");
-    backdrop.className = "modal-backdrop";
-    backdrop.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      z-index: 1000;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    `;
-    backdrop.onclick = closeShareModal;
-    document.body.appendChild(backdrop);
-    
-    // Create modal
-    const modal = document.createElement("div");
-    modal.className = "share-modal";
-    modal.style.cssText = `
-      background-color: var(--glass);
-      backdrop-filter: blur(10px);
-      border-radius: 10px;
-      padding: 20px;
-      max-width: 400px;
-      width: 90%;
-      max-height: 80vh;
-      overflow-y: auto;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-      animation: modalFadeIn 0.3s ease;
-    `;
-    
-    // Add modal animation if not already defined
-    if (!document.getElementById('modal-animations')) {
-      const styleEl = document.createElement('style');
-      styleEl.id = 'modal-animations';
-      styleEl.textContent = `
-        @keyframes modalFadeIn {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
-        }
-      `;
-      document.head.appendChild(styleEl);
+  console.log("Opening share modal for list:", listId);
+  
+  // Remove any existing modals
+  const existingModal = document.querySelector(".share-modal-container");
+  if (existingModal) existingModal.remove();
+  
+  // Create modal container with backdrop
+  const modalContainer = document.createElement("div");
+  modalContainer.className = "share-modal-container";
+  modalContainer.style.position = "fixed";
+  modalContainer.style.top = "0";
+  modalContainer.style.left = "0";
+  modalContainer.style.width = "100%";
+  modalContainer.style.height = "100%";
+  modalContainer.style.backgroundColor = "rgba(0,0,0,0.7)";
+  modalContainer.style.display = "flex";
+  modalContainer.style.justifyContent = "center";
+  modalContainer.style.alignItems = "center";
+  modalContainer.style.zIndex = "1000";
+  
+  // Create actual modal content
+  const modal = document.createElement("div");
+  modal.className = "share-modal";
+  modal.style.backgroundColor = "#1e1e2e";
+  modal.style.borderRadius = "10px";
+  modal.style.padding = "20px";
+  modal.style.maxWidth = "400px";
+  modal.style.width = "90%";
+  modal.style.maxHeight = "80vh";
+  modal.style.overflowY = "auto";
+  
+  modal.innerHTML = `
+    <h3 style="text-align: center; margin-bottom: 20px; color: white;">Share List</h3>
+    <div id="share-users-list" style="margin-bottom: 15px;">Loading users...</div>
+    <button id="close-share-modal" style="width: 100%; padding: 10px; background-color: #7e3ab3; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px;">Close</button>
+  `;
+  
+  modalContainer.appendChild(modal);
+  document.body.appendChild(modalContainer);
+  
+  // Close button functionality
+  document.getElementById("close-share-modal").onclick = function() {
+    modalContainer.remove();
+  };
+  
+  // Also close when clicking backdrop, but not when clicking the modal itself
+  modalContainer.addEventListener("click", function(event) {
+    if (event.target === modalContainer) {
+      modalContainer.remove();
     }
-    
-    modal.innerHTML = `
-      <h3 class="share-modal-header" style="text-align: center; margin-bottom: 20px; color: var(--text);">Share List</h3>
-      <div class="users-list" style="margin-bottom: 15px;">Loading users...</div>
-      <button class="start-button modal-close" onclick="closeShareModal()">Cancel</button>
-    `;
-    
-    backdrop.appendChild(modal);
-    
-    // Now load the users list
-    const usersList = modal.querySelector(".users-list");
-    
-    supabaseClient.from("user_profiles")
-      .select("id, username")
-      .neq("id", currentUser.id)
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("Error fetching users:", error);
-          usersList.innerHTML = '<div class="user-item"><span>Error loading users</span></div>';
-          return;
-        }
-        
-        if (!data || data.length === 0) {
-          usersList.innerHTML = '<div class="user-item"><span>No other users available</span></div>';
-          return;
-        }
-        
-        usersList.innerHTML = data.map(user => `
-          <div class="user-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); color: var(--text);">
-            <span>${user.username || "Unnamed User"}</span>
-            <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}"
-                    style="padding: 5px 10px; border-radius: 5px; cursor: pointer;">
-              <i class="fas fa-share-alt"></i> Share
+  });
+  
+  // Show users
+  const usersList = document.getElementById("share-users-list");
+  
+  if (!currentUser) {
+    usersList.innerHTML = '<div style="padding: 10px; color: white;">You must be logged in to share lists</div>';
+    return;
+  }
+  
+  // Fetch users to share with
+  supabaseClient
+    .from("user_profiles")
+    .select("id, username, email")
+    .neq("id", currentUser.id)
+    .then(({ data, error }) => {
+      if (error) {
+        console.error("Error fetching users:", error);
+        usersList.innerHTML = '<div style="padding: 10px; color: white;">Error loading users</div>';
+        return;
+      }
+      
+      if (!data || data.length === 0) {
+        usersList.innerHTML = '<div style="padding: 10px; color: white;">No other users found</div>';
+        return;
+      }
+      
+      // Render users
+      let html = '';
+      data.forEach(user => {
+        const displayName = user.username || user.email || user.id.substring(0, 8);
+        html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); color: white;">
+            <span>${displayName}</span>
+            <button 
+              class="share-with-user-btn" 
+              data-user-id="${user.id}" 
+              style="padding: 5px 10px; background-color: #7e3ab3; color: white; border: none; border-radius: 5px; cursor: pointer;">
+              Share
             </button>
           </div>
-        `).join("");
-        
-        // Add click handlers to share buttons
-        modal.querySelectorAll(".share-with-user-btn").forEach(btn => {
-          btn.onclick = async () => {
-            const userId = btn.getAttribute("data-user-id");
-            btn.disabled = true;
-            
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
-            
-            const success = await shareListWithUser(listId, userId);
-            
-            if (!success) {
-              btn.disabled = false;
-              btn.innerHTML = originalText;
-            } else {
-              btn.innerHTML = '<i class="fas fa-check"></i> Shared';
-              btn.style.backgroundColor = "var(--success)";
-            }
-          };
-        });
+        `;
       });
-  }
+      
+      usersList.innerHTML = html;
+      
+      // Add click handlers
+      document.querySelectorAll(".share-with-user-btn").forEach(button => {
+        button.onclick = async function() {
+          const userId = this.getAttribute("data-user-id");
+          const originalText = this.innerText;
+          
+          this.innerText = "Sharing...";
+          this.disabled = true;
+          
+          const success = await shareCustomList(listId, userId);
+          
+          if (success) {
+            this.innerText = "Shared ✓";
+            this.style.backgroundColor = "#28a745";
+          } else {
+            this.innerText = originalText;
+            this.disabled = false;
+          }
+        };
+      });
+    });
+}
 
 /**
  * Exit the custom practice mode and return to the list screen
@@ -12520,76 +13138,84 @@ const CoinController = {
     lastUpdateTimestamp: 0,
     
     // Single source of truth for updating coins
-    updateLocalCoins: function(newCoins, animate = true) {
-        if (this.updateLock) {
-            // Queue the update to be processed later
-            this.pendingUpdates.push({newCoins, animate});
-            return false;
+    // Inside CoinController object, replace the updateLocalCoins method
+updateLocalCoins: function(newCoins, animate = true) {
+    if (this.updateLock) {
+        // Queue the update to be processed later
+        this.pendingUpdates.push({newCoins, animate});
+        return false;
+    }
+    
+    try {
+        this.updateLock = true;
+        this.lastUpdateTimestamp = Date.now();
+        
+        // Store current value for animation
+        const oldCoins = currentGame?.coins || 0;
+        
+        // Update to new value
+        if (currentGame) {
+            currentGame.coins = newCoins;
         }
         
-        try {
-            this.updateLock = true;
-            this.lastUpdateTimestamp = Date.now();
-            
-            // Store current value for animation
-            const oldCoins = currentGame?.coins || 0;
-            
-            // Update to new value
-            if (currentGame) {
-                currentGame.coins = newCoins;
+        // Update all coin displays
+        document.querySelectorAll('.coin-count').forEach(el => {
+            if (animate) {
+                this.animateCoinDisplay(el, oldCoins, newCoins);
+            } else {
+                el.textContent = newCoins;
             }
+        });
+        
+        // Update participant data for arcade mode
+        if (currentArcadeSession?.playerName) {
+            const index = currentArcadeSession.participants.findIndex(
+                p => p.username === currentArcadeSession.playerName
+            );
             
-            // Update all coin displays
-            document.querySelectorAll('.coin-count').forEach(el => {
-                if (animate) {
-                    this.animateCoinDisplay(el, oldCoins, newCoins);
-                } else {
-                    el.textContent = newCoins;
+            if (index !== -1) {
+                currentArcadeSession.participants[index].coins = newCoins;
+            }
+        }
+        
+        // ALWAYS broadcast updates in arcade mode
+        if (window.arcadeChannel && 
+            currentArcadeSession?.playerName && 
+            currentArcadeSession.state === 'active' &&
+            window.arcadeChannel.subscription?.state === "SUBSCRIBED") {
+            
+            window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'progress_update',
+                payload: {
+                    username: currentArcadeSession.playerName,
+                    wordsCompleted: currentGame?.wordsCompleted || 0,
+                    coins: newCoins,
+                    timestamp: Date.now(),
+                    source: 'coinController'
                 }
             });
-            
-            // Update participant data for arcade mode
-            if (currentArcadeSession?.playerName) {
-                const index = currentArcadeSession.participants.findIndex(
-                    p => p.username === currentArcadeSession.playerName
-                );
-                
-                if (index !== -1) {
-                    currentArcadeSession.participants[index].coins = newCoins;
-                }
-            }
-            
-            // Broadcast update to others with source indicator
-            if (window.arcadeChannel && 
-                currentArcadeSession?.playerName &&
-                window.arcadeChannel.subscription?.state === "SUBSCRIBED") {
-                window.arcadeChannel.send({
-                    type: 'broadcast',
-                    event: 'progress_update',
-                    payload: {
-                        username: currentArcadeSession.playerName,
-                        wordsCompleted: currentGame?.wordsCompleted || 0,
-                        coins: newCoins,
-                        timestamp: Date.now(),
-                        source: 'coinController'
-                    }
-                });
-            }
-            
-            return true;
-        } finally {
-            // Always unlock after a delay, even if there's an error
-            setTimeout(() => {
-                this.updateLock = false;
-                
-                // Process any pending updates
-                if (this.pendingUpdates.length > 0) {
-                    const nextUpdate = this.pendingUpdates.shift();
-                    this.updateLocalCoins(nextUpdate.newCoins, nextUpdate.animate);
-                }
-            }, 300);
         }
-    },
+        
+        // Always update powerups when coins change
+        if (typeof updateArcadePowerups === 'function') {
+            updateArcadePowerups();
+        }
+        
+        return true;
+    } finally {
+        // Always unlock after a delay, even if there's an error
+        setTimeout(() => {
+            this.updateLock = false;
+            
+            // Process any pending updates
+            if (this.pendingUpdates.length > 0) {
+                const nextUpdate = this.pendingUpdates.shift();
+                this.updateLocalCoins(nextUpdate.newCoins, nextUpdate.animate);
+            }
+        }, 300);
+    }
+},
     
     // Enhanced animation with proper cancellation
     animateCoinDisplay: function(element, startValue, endValue) {
@@ -12670,6 +13296,20 @@ const CoinController = {
         return currentGame?.coins || 0;
     }
 };
+
+function cleanupArcadeMode() {
+    // Clear any arcade intervals
+    if (window.arcadeStatsInterval) {
+      clearInterval(window.arcadeStatsInterval);
+      window.arcadeStatsInterval = null;
+    }
+    
+    // Clear any timeout
+    if (window.arcadeTimeouts) {
+      window.arcadeTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+      window.arcadeTimeouts = [];
+    }
+  }
 
 function updateAllCoinDisplays() {
     const displays = document.querySelectorAll('.coin-count');
@@ -12755,4 +13395,3 @@ async function updateUserCoins(amount) {
     
     return true;
 }
-
