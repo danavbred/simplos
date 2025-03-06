@@ -4841,6 +4841,13 @@ function updateGuestPlayButton() {
     }
 }
 
+function openAccessibilitySettings() {
+    const accessibilityModal = document.querySelector('.accessibility-modal');
+    if (accessibilityModal) {
+        accessibilityModal.classList.add('show');
+    }
+}
+
 function toggleParentFields() {
     const isAdult = document.getElementById('isAdult').checked;
     const parentSection = document.getElementById('parentInfoSection');

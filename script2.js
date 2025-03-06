@@ -2408,50 +2408,82 @@ function stopLevelAndGoBack() {
 
 
 
-function handleResetProgress() { 
-    if (!isFirstResetAttempt) {
+function handleResetProgress() {
+    // Show confirmation dialog before resetting
+    if (!confirm('Are you sure you want to reset your progress? This will clear all game progress, word count, and coins.')) {
+        return;
+    }
+    
+    try {
         // Reset game state
         gameState.currentStage = 1;
         gameState.currentSet = 1;
         gameState.currentLevel = 1;
         gameState.coins = 0;
+        gameState.perks = {};
         gameState.unlockedSets = { "1": new Set([1]) };
         gameState.unlockedLevels = { "1_1": new Set([1]) };
         gameState.perfectLevels = new Set();
         gameState.completedLevels = new Set();
-
-        // Clear localStorage
-        localStorage.removeItem('simploxProgress');
-        localStorage.removeItem('simploxCustomCoins');
         
         // Update UI
-        updatePerkButtons();
         updateAllCoinDisplays();
-        showScreen('welcome-screen');
         
-        // Reset the first attempt flag
-        isFirstResetAttempt = true;
-        return;
+        // Clear localStorage
+        localStorage.removeItem("simploxProgress");
+        localStorage.removeItem("simploxCustomCoins");
+        
+        // For registered users, update database
+        if (currentUser) {
+            // Reset game progress
+            supabaseClient
+                .from("game_progress")
+                .update({
+                    stage: 1,
+                    set_number: 1,
+                    level: 1,
+                    coins: 0,
+                    perks: {},
+                    unlocked_sets: { "1": [1] },
+                    unlocked_levels: { "1_1": [1] },
+                    perfect_levels: [],
+                    completed_levels: []
+                })
+                .eq("user_id", currentUser.id)
+                .then(({ error }) => {
+                    if (error) console.error("Error resetting progress:", error);
+                });
+            
+            // Reset player stats including word count
+            supabaseClient
+                .from("player_stats")
+                .update({
+                    total_levels_completed: 0,
+                    unique_words_practiced: 0
+                })
+                .eq("user_id", currentUser.id)
+                .then(({ error }) => {
+                    if (error) console.error("Error resetting stats:", error);
+                    
+                    // Update word count display
+                    document.querySelectorAll("#totalWords").forEach(el => {
+                        el.textContent = "0";
+                    });
+                });
+        }
+        
+        // Show success message
+        showNotification("Progress has been reset successfully", "success");
+        
+        // Refresh the screen
+        setTimeout(() => {
+            showScreen('welcome-screen', true);
+        }, 1000);
+        
+    } catch (error) {
+        console.error("Error in handleResetProgress:", error);
+        showNotification("Failed to reset progress", "error");
     }
-
-    // First attempt - show warning
-    const resetButton = document.querySelector('.reset-button');
-    resetButton.classList.add('warning');
-    isFirstResetAttempt = false;
-
-    // Clear warning after animation
-    setTimeout(() => {
-        resetButton.classList.remove('warning');
-    }, 1000);
-
-    // Reset the attempt after 10 seconds
-    if (resetProgressTimeout) {
-        clearTimeout(resetProgressTimeout);
-    }
-    
-    resetProgressTimeout = setTimeout(() => {
-        isFirstResetAttempt = true;
-    }, 10000);
 }
 
 
