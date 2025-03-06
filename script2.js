@@ -4029,7 +4029,6 @@ async function initializeArcade() {
         }));
         
         updateAllPlayersProgress();
-        initializeModeratorInactivityTimer();
         
         await window.arcadeChannel.send({
             type: 'broadcast',
@@ -4108,8 +4107,7 @@ function showModeratorScreen() {
         if (endArcadeButton) endArcadeButton.classList.remove('visible');
     }
     
-    // Set up inactivity timer
-    initializeModeratorInactivityTimer();
+
     
     // Update player progress if needed
     setTimeout(() => {
@@ -4139,7 +4137,10 @@ function initializeLeaderboard() {
 }
 
 function updateAllPlayersProgress() {
-    // IMPORTANT: For moderators, make sure we request the latest data from premium players
+    const leaderboardEl = document.getElementById("arcade-leaderboard");
+    if (!leaderboardEl) return;
+    
+    // Request latest data if moderator
     if (currentUser?.id === currentArcadeSession.teacherId && currentArcadeSession.state === 'active') {
       try {
         window.arcadeChannel.send({
@@ -4154,87 +4155,93 @@ function updateAllPlayersProgress() {
         console.error("Error requesting latest stats:", err);
       }
     }
-  
-    // Get current state from DOM for progress preservation
-    const currentProgressMap = {};
-    const currentCoinsMap = {}; // Add tracking for coins too
-    document.querySelectorAll(".leaderboard-entry").forEach(entry => {
-      const usernameEl = entry.querySelector("[data-username]");
-      const wordsEl = entry.querySelector("[data-words]");
-      const coinsEl = entry.querySelector("[data-coins]");
-      
-      if (usernameEl && wordsEl) {
-        const username = usernameEl.dataset.username;
-        const words = parseInt(wordsEl.textContent) || 0;
-        const coins = coinsEl ? (parseInt(coinsEl.textContent) || 0) : 0;
-        
-        currentProgressMap[username] = words;
-        currentCoinsMap[username] = coins;
-      }
-    });
     
-    // Ensure participants maintain their highest progress values
-    currentArcadeSession.participants.forEach(participant => {
-      const username = participant.username;
-      
-      // Preserve highest word count
-      if (currentProgressMap[username] && currentProgressMap[username] > participant.wordsCompleted) {
-        participant.wordsCompleted = currentProgressMap[username];
-        console.log(`Restored higher progress for ${username}: ${currentProgressMap[username]}`);
-      }
-      
-      // Preserve highest coin count
-      if (currentCoinsMap[username] && currentCoinsMap[username] > participant.coins) {
-        participant.coins = currentCoinsMap[username];
-        console.log(`Restored higher coins for ${username}: ${currentCoinsMap[username]}`);
+    // STEP 1: Store current positions for animation
+    const currentEntries = leaderboardEl.querySelectorAll(".leaderboard-entry");
+    const positions = {};
+    
+    Array.from(currentEntries).forEach(entry => {
+      const username = entry.querySelector("[data-username]")?.dataset.username;
+      if (username) {
+        positions[username] = entry.getBoundingClientRect();
       }
     });
     
     // Sort participants by progress
-    const sortedParticipants = [...currentArcadeSession.participants].sort((a, b) => 
-      b.wordsCompleted !== a.wordsCompleted ? 
+    const sortedParticipants = [...currentArcadeSession.participants]
+      .filter(p => p && p.username) // Filter out invalid entries
+      .sort((a, b) => b.wordsCompleted !== a.wordsCompleted ? 
         b.wordsCompleted - a.wordsCompleted : 
-        b.coins - a.coins
-    );
+        b.coins - a.coins);
     
-    // Build updated leaderboard HTML
-    const leaderboardHtml = `
-        <div class="leaderboard-header">
-            <div>Rank</div>
-            <div>Player</div>
-            <div>Words</div>
-            <div>Coins</div>
-        </div>
-        ${sortedParticipants.map((player, index) => 
-          "active" === currentArcadeSession.state && player.username ? 
-            `<div class="leaderboard-entry ${index < 3 ? `rank-${index+1}` : ""}"
-                   data-rank="${index+1}">
-                <div class="rank">${index+1}</div>
-                <div data-username="${player.username}" class="player-name">${player.username}</div>
-                <div data-words="${player.wordsCompleted || 0}" class="words">${player.wordsCompleted || 0}</div>
-                <div data-coins="${player.coins || 0}" class="coins">${player.coins || 0}</div>
-            </div>` 
-          : 
-            `<div class="leaderboard-entry waiting ${index < 3 ? `rank-${index+1}` : ""}"
-                   data-rank="${index+1}">
-                <div class="rank">${index+1}</div>
-                <div data-username="${player.username}" class="player-name">${player.username}</div>
-                <div class="player-status-waiting">
-                    <span class="status-text" style="color: ${shineColors[Math.floor(Math.random() * shineColors.length)]}">${readyPhrases[Math.floor(Math.random() * readyPhrases.length)]}</span>
-                </div>
-                <div class="waiting-indicator">
-                    <span class="dot"></span>
-                    <span class="dot"></span>
-                    <span class="dot"></span>
-                </div>
-            </div>`
-        ).join("")}
+    // STEP 2: Prepare new HTML content
+    let headerHTML = `
+      <div class="leaderboard-header">
+        <div>Rank</div>
+        <div>Player</div>
+        <div>Words</div>
+        <div>Coins</div>
+      </div>
     `;
     
-    // Update the DOM
-    const leaderboardEl = document.getElementById("arcade-leaderboard");
-    if (leaderboardEl) {
-      leaderboardEl.innerHTML = leaderboardHtml;
+    let entriesHTML = sortedParticipants.map((player, index) => {
+      const rank = index + 1;
+      const rankClass = rank <= 3 ? `rank-${rank}` : '';
+      const isCurrentPlayer = player.username === currentArcadeSession.playerName;
+      
+      return `
+        <div class="leaderboard-entry ${isCurrentPlayer ? "you" : ""} ${rankClass}" data-rank="${rank}">
+          <div class="rank">${rank}</div>
+          <div data-username="${player.username}" class="player-name">${player.username}</div>
+          <div data-words="${player.wordsCompleted || 0}" class="words">${player.wordsCompleted || 0}</div>
+          <div data-coins="${player.coins || 0}" class="coins">${player.coins || 0}</div>
+          ${currentUser?.id === currentArcadeSession.teacherId ? `
+            <div class="actions">
+              <button class="remove-player-btn" onclick="showRemovePlayerModal('${player.username}')">
+                <i class="fas fa-user-minus"></i>
+              </button>
+            </div>` : ''}
+        </div>
+      `;
+    }).join("");
+    
+    // STEP 3: Replace all content at once
+    leaderboardEl.innerHTML = headerHTML + entriesHTML;
+    
+    // STEP 4: Apply animations for position changes
+    const newEntries = leaderboardEl.querySelectorAll(".leaderboard-entry");
+    
+    // Only animate every 10 seconds to prevent too frequent updates
+    const now = Date.now();
+    const lastUpdate = window.lastLeaderboardAnimationTime || 0;
+    const shouldAnimate = (now - lastUpdate) >= 10000; // 10 seconds
+    
+    if (shouldAnimate) {
+      window.lastLeaderboardAnimationTime = now;
+      
+      Array.from(newEntries).forEach(entry => {
+        const username = entry.querySelector("[data-username]")?.dataset.username;
+        
+        if (username && positions[username]) {
+          const oldPos = positions[username];
+          const newPos = entry.getBoundingClientRect();
+          const yDiff = oldPos.top - newPos.top;
+          
+          // Only animate if there's a significant position change
+          if (Math.abs(yDiff) > 5) {
+            if (yDiff > 0) {
+              entry.classList.add("moving-up");
+            } else if (yDiff < 0) {
+              entry.classList.add("moving-down");
+            }
+            
+            // Remove the animation class when animation ends
+            entry.addEventListener("animationend", () => {
+              entry.classList.remove("moving-up", "moving-down");
+            }, { once: true });
+          }
+        }
+      });
     }
     
     // Update other display elements
@@ -4242,13 +4249,19 @@ function updateAllPlayersProgress() {
     if (countEl) countEl.textContent = sortedParticipants.length;
     
     const dateEl = document.getElementById("sessionDate");
-    if (dateEl) dateEl.textContent = (new Date).toLocaleDateString();
+    if (dateEl && dateEl.textContent === '') {
+      dateEl.textContent = new Date().toLocaleDateString();
+    }
     
     const timeEl = document.getElementById("sessionStartTime");
-    if (timeEl) timeEl.textContent = (new Date).toLocaleTimeString();
+    if (timeEl && timeEl.textContent === '') {
+      timeEl.textContent = new Date().toLocaleTimeString();
+    }
     
     const goalEl = document.getElementById("sessionWordGoal");
-    if (goalEl) goalEl.textContent = currentArcadeSession.wordGoal;
+    if (goalEl && goalEl.textContent === '') {
+      goalEl.textContent = currentArcadeSession.wordGoal;
+    }
   }
 
 async function startArcade() {
@@ -5672,18 +5685,6 @@ function showPersonalVictoryScreen(rank) {
     }, 100);
 }
 
-function showModeratorVictoryScreen(players) {
-    // Clean up any inactivity timers
-    if (moderatorActivityTimer) clearTimeout(moderatorActivityTimer);
-    if (countdownTimer) clearInterval(countdownTimer);
-    
-    // Hide inactivity overlay if present
-    const overlay = document.querySelector('.inactivity-overlay');
-    if (overlay) overlay.remove();
-    
-    // Use the confetti celebration instead
-    startLeaderboardCelebration(players);
-}
 
 
 function showPlayerFinalResults(players) {
@@ -7088,8 +7089,6 @@ async function handlePlayerCompletedGoal(username) {
 }
 
 function endArcade() {
-    // Disable game activity monitoring
-    moderatorInactivity.isGameActive = false;
     
     // Mark celebration as triggered to prevent duplicate celebrations
     currentArcadeSession.celebrationTriggered = true;
@@ -7272,28 +7271,40 @@ function resetArcadeSession() {
     console.log('Arcade session completely reset with new OTP:', newOtp);
 }
 
+// REPLACE finishCelebrationAndGoHome function
 function finishCelebrationAndGoHome() {
-    // Clean up UI elements
-    document.querySelector(".celebration-overlay")?.remove();
-    document.querySelector(".home-button-container")?.remove();
+  // Clean up UI elements
+  document.querySelector(".celebration-overlay")?.remove();
+  document.querySelector(".home-button-container")?.remove();
+  
+  if (window.celebrationConfettiInterval) {
+    clearInterval(window.celebrationConfettiInterval);
+  }
+  
+  document.querySelectorAll(".confetti, .celebration-emoji, .winner-entry.celebrating").forEach(
+    element => element.remove()
+  );
+  
+  // Update stats before returning home
+  updatePlayerStatsAfterArcade().then(() => {
+    // Clean up monitoring and reset session
+    resetArcadeSession();
     
-    if (window.celebrationConfettiInterval) {
-      clearInterval(window.celebrationConfettiInterval);
-    }
+    // Return to welcome screen
+    showScreen("welcome-screen");
+  });
+}
+
+function showModeratorVictoryScreen(players) {
+    // Clean up any inactivity timers (disabled but clean up any remnants)
+    clearModeratorInactivityMonitoring();
     
-    document.querySelectorAll(".confetti, .celebration-emoji, .winner-entry.celebrating").forEach(
-      element => element.remove()
-    );
+    // Hide any inactivity overlay if present
+    const overlay = document.querySelector('.inactivity-overlay');
+    if (overlay) overlay.remove();
     
-    // Update stats before returning home
-    updatePlayerStatsAfterArcade().then(() => {
-      // Clean up monitoring and reset session
-      cleanupModeratorInactivityMonitoring();
-      resetArcadeSession();
-      
-      // Return to welcome screen
-      showScreen("welcome-screen");
-    });
+    // Use the confetti celebration for the leaderboard
+    startLeaderboardCelebration(players);
 }
 
 function handleGameEnd(payload) {
@@ -7330,6 +7341,7 @@ function hidePersonalVictoryScreen() {
 }
 
 async function endArcadeForAll() {
+    // Mark session as ended
     currentArcadeSession.state = "ended";
     currentArcadeSession.endTime = Date.now();
     
@@ -7353,6 +7365,25 @@ async function endArcadeForAll() {
         
         // Sort by rank (not by words or coins)
         podiumPlayers.sort((a, b) => a.rank - b.rank);
+    } else {
+        // Sort participants by words and coins
+        const sortedParticipants = [...currentArcadeSession.participants]
+            .sort((a, b) => {
+                if (b.wordsCompleted !== a.wordsCompleted) {
+                    return b.wordsCompleted - a.wordsCompleted;
+                }
+                return b.coins - a.coins;
+            });
+        
+        // Add top 3 players to podium
+        sortedParticipants.slice(0, 3).forEach((player, index) => {
+            podiumPlayers.push({
+                username: player.username,
+                wordsCompleted: player.wordsCompleted || 0,
+                coins: player.coins || 0,
+                rank: index + 1
+            });
+        });
     }
     
     // Fill up to 3 places if needed
@@ -7372,6 +7403,7 @@ async function endArcadeForAll() {
         wordsCompleted: p.wordsCompleted
     })));
     
+    // Broadcast game end to all players
     await window.arcadeChannel.send({
         type: "broadcast",
         event: "game_end",
@@ -7383,9 +7415,12 @@ async function endArcadeForAll() {
         }
     });
     
+    // Show appropriate screens for moderator and players
     if (currentUser?.id === currentArcadeSession.teacherId) {
-        showModeratorVictoryScreen(podiumPlayers);
+        // Use startLeaderboardCelebration which is already defined in the code
+        startLeaderboardCelebration(podiumPlayers);
     } else {
+        // For players - show appropriate completion screen
         showFinalResultsForPlayer(podiumPlayers);
     }
 }
@@ -7405,290 +7440,6 @@ function getOrdinal(n) {
     return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-// Add this to moderator screen initialization
-function initializeModeratorIdleDetection() {
-    let lastUpdateTimestamp = Date.now();
-    let idleTimerActive = false;
-    let idleCountdown = null;
-    let overlayElement = null;
-    
-    // Function to update the timestamp whenever leaderboard changes
-    function updateTimestamp() {
-        lastUpdateTimestamp = Date.now();
-        
-        // If idle timer was active, clear it
-        if (idleTimerActive) {
-            clearIdleTimer();
-        }
-    }
-    
-    // Monitor progress updates and player movements
-    function setupActivityMonitoring() {
-        // Watch for DOM changes in the leaderboard
-        const leaderboardObserver = new MutationObserver(() => {
-            updateTimestamp();
-        });
-        
-        const leaderboard = document.getElementById('arcade-leaderboard');
-        if (leaderboard) {
-            leaderboardObserver.observe(leaderboard, { 
-                childList: true, 
-                subtree: true,
-                attributes: true,
-                characterData: true
-            });
-        }
-        
-        // Also update timestamp when new progress events come in
-        window.arcadeChannel.on('broadcast', { event: 'progress_update' }, () => {
-            updateTimestamp();
-        });
-    }
-    
-    // Check for inactivity periodically
-    const idleCheckInterval = setInterval(() => {
-        // Only run if game is active and this is the moderator
-        if (currentArcadeSession.state !== 'active' || 
-            currentUser?.id !== currentArcadeSession.teacherId) {
-            clearInterval(idleCheckInterval);
-            return;
-        }
-        
-        const currentTime = Date.now();
-        const timeSinceLastUpdate = currentTime - lastUpdateTimestamp;
-        
-        // If no updates for 5 seconds and timer not already active, start idle timer
-        if (timeSinceLastUpdate > 5000 && !idleTimerActive) {
-            startIdleTimer();
-        }
-    }, 1000);
-    
-    // Create and start the visible countdown timer
-    function startIdleTimer() {
-        idleTimerActive = true;
-        let secondsRemaining = 5;
-        
-        // Create overlay with timer
-        overlayElement = document.createElement('div');
-        overlayElement.className = 'idle-timer-overlay';
-        overlayElement.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-            pointer-events: none;
-        `;
-        
-        const timerContent = document.createElement('div');
-        timerContent.style.cssText = `
-            background: var(--primary-dark);
-            padding: 2rem;
-            border-radius: 20px;
-            border: 2px solid var(--gold);
-            text-align: center;
-        `;
-        
-        const timerTitle = document.createElement('h2');
-        timerTitle.textContent = 'Game Inactive';
-        timerTitle.style.color = 'var(--gold)';
-        
-        const timerDisplay = document.createElement('div');
-        timerDisplay.className = 'countdown-timer';
-        timerDisplay.textContent = secondsRemaining;
-        timerDisplay.style.cssText = `
-            font-size: 5rem;
-            color: var(--gold);
-            margin: 1rem 0;
-            font-weight: bold;
-        `;
-        
-        const timerMessage = document.createElement('p');
-        timerMessage.textContent = 'No activity detected. Returning to welcome screen...';
-        
-        timerContent.appendChild(timerTitle);
-        timerContent.appendChild(timerDisplay);
-        timerContent.appendChild(timerMessage);
-        overlayElement.appendChild(timerContent);
-        document.body.appendChild(overlayElement);
-        
-        // Start countdown
-        idleCountdown = setInterval(() => {
-            secondsRemaining--;
-            timerDisplay.textContent = secondsRemaining;
-            
-            if (secondsRemaining <= 0) {
-                handleIdleTimeout();
-            }
-        }, 1000);
-    }
-    
-    // Clear the idle timer
-    function clearIdleTimer() {
-        idleTimerActive = false;
-        
-        if (idleCountdown) {
-            clearInterval(idleCountdown);
-            idleCountdown = null;
-        }
-        
-        if (overlayElement) {
-            document.body.removeChild(overlayElement);
-            overlayElement = null;
-        }
-    }
-    
-    // Handle what happens when timer reaches zero
-    function handleIdleTimeout() {
-        clearIdleTimer();
-        
-        // Count completed players
-        const completedPlayers = currentArcadeSession.participants.filter(
-            p => p.wordsCompleted >= currentArcadeSession.wordGoal
-        );
-        
-        // Case 2: If there are three podium winners, show victory screen
-        if (completedPlayers.length >= 3) {
-            // Sort players by words completed and coins
-            const topPlayers = [...completedPlayers]
-                .sort((a, b) => {
-                    if (b.wordsCompleted !== a.wordsCompleted) {
-                        return b.wordsCompleted - a.wordsCompleted;
-                    }
-                    return b.coins - a.coins;
-                })
-                .slice(0, 3)
-                .map((player, index) => ({
-                    ...player,
-                    rank: index + 1
-                }));
-                
-            // Mark game as ended
-            currentArcadeSession.state = 'ended';
-            
-            // Show victory screen
-            showModeratorVictoryScreen(topPlayers);
-        } 
-        // Case 1: Otherwise, return to welcome screen
-        else {
-            showScreen('welcome-screen');
-        }
-    }
-    
-    // Start monitoring
-    setupActivityMonitoring();
-    
-    return {
-        clearIdleTimer,
-        idleCheckInterval
-    };
-}
-
-// Global variables for inactivity tracking
-let moderatorActivityTimer = null;
-let countdownTimer = null;
-let lastLeaderboardUpdate = Date.now();
-let isCountingDown = false;
-
-function initializeModeratorInactivityTimer() {
-    // Clear any existing timers
-    if (moderatorActivityTimer) {
-        clearTimeout(moderatorActivityTimer);
-    }
-    
-    if (countdownTimer) {
-        clearInterval(countdownTimer);
-    }
-    
-    // Reset timer state
-    lastLeaderboardUpdate = Date.now();
-    isCountingDown = false;
-    
-    // Create inactivity overlay
-    createInactivityOverlay();
-    
-    // Start monitoring for activity
-    startInactivityMonitoring();
-    
-    // Track leaderboard updates
-    trackLeaderboardUpdates();
-    
-    // Make sure buttons are in correct state based on session initialization
-    const initializeButton = document.querySelector('.initialize-button');
-    const endArcadeButton = document.querySelector('.end-arcade-button');
-    
-    if (currentArcadeSession.isInitialized && currentArcadeSession.state === 'active') {
-        if (initializeButton) initializeButton.style.display = 'none';
-        if (endArcadeButton) endArcadeButton.classList.add('visible');
-    } else {
-        if (initializeButton) initializeButton.style.display = 'block';
-        if (endArcadeButton) endArcadeButton.classList.remove('visible');
-    }
-}
-
-function createInactivityOverlay() {
-    // Remove any existing overlay
-    const existingOverlay = document.querySelector('.inactivity-overlay');
-    if (existingOverlay) existingOverlay.remove();
-    
-    // Create new overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'inactivity-overlay';
-    overlay.innerHTML = `
-        <div class="countdown-timer">5</div>
-        <div class="inactivity-message">No activity detected. Redirecting...</div>
-        <div class="countdown-progress">
-            <div class="countdown-bar"></div>
-        </div>
-        <button class="countdown-cancel">Cancel</button>
-    `;
-    
-    // Add event handler for cancel button
-    overlay.querySelector('.countdown-cancel').addEventListener('click', cancelCountdown);
-    
-    // Append to body
-    document.body.appendChild(overlay);
-}
-
-function startInactivityMonitoring() {
-    // Reset the timer whenever there's activity
-    const moderatorScreen = document.getElementById('moderator-screen');
-    
-    // Activity events to monitor
-    const events = ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'];
-    
-    // Add all event listeners
-    events.forEach(event => {
-        moderatorScreen.addEventListener(event, resetInactivityTimer);
-    });
-    
-    // Start the initial timer
-    resetInactivityTimer();
-}
-
-function resetInactivityTimer() {
-    // If already counting down, don't reset
-    if (isCountingDown) return;
-    
-    // Clear existing timer
-    if (moderatorActivityTimer) clearTimeout(moderatorActivityTimer);
-    
-    // Set new timer - 3 seconds of inactivity
-    moderatorActivityTimer = setTimeout(() => {
-        // Check if leaderboard has been updated recently
-        const timeSinceLastUpdate = Date.now() - lastLeaderboardUpdate;
-        
-        // If no updates for 5 seconds, start countdown
-        if (timeSinceLastUpdate > 5000) {
-            startCountdown();
-        }
-    }, 3000);
-}
 
 function trackLeaderboardUpdates() {
     // Get leaderboard element
@@ -7714,405 +7465,23 @@ function trackLeaderboardUpdates() {
     });
 }
 
-function startCountdown() {
-    isCountingDown = true;
-    
-    // Show the overlay
-    const overlay = document.querySelector('.inactivity-overlay');
-    if (overlay) overlay.classList.add('visible');
-    
-    // Initialize countdown
-    let secondsLeft = 5;
-    const timerDisplay = overlay.querySelector('.countdown-timer');
-    const progressBar = overlay.querySelector('.countdown-bar');
-    
-    // Update initial display
-    timerDisplay.textContent = secondsLeft;
-    progressBar.style.transform = 'scaleX(1)';
-    
-    // Start countdown
-    countdownTimer = setInterval(() => {
-        secondsLeft--;
-        
-        // Update display
-        timerDisplay.textContent = secondsLeft;
-        progressBar.style.transform = `scaleX(${secondsLeft / 5})`;
-        
-        // Check if countdown is complete
-        if (secondsLeft <= 0) {
-            clearInterval(countdownTimer);
-            handleCountdownComplete();
-        }
-    }, 1000);
-}
-
-function cancelCountdown() {
-    // Hide overlay
-    const overlay = document.querySelector('.inactivity-overlay');
-    if (overlay) overlay.classList.remove('visible');
-    
-    // Reset state
-    isCountingDown = false;
-    if (countdownTimer) clearInterval(countdownTimer);
-    
-    // Restart inactivity monitoring
-    resetInactivityTimer();
-}
-
-function handleCountdownComplete() {
-    // Check if we have podium winners
-    const hasPodiumWinners = currentArcadeSession.completedPlayers && 
-                             currentArcadeSession.completedPlayers.length >= 3;
-    
-    if (hasPodiumWinners) {
-        // Extract podium players
-        const podiumPlayers = [];
-        
-        if (currentArcadeSession.podiumRanks) {
-            // Get players by ranks
-            Object.entries(currentArcadeSession.podiumRanks).forEach(([username, data]) => {
-                const playerData = currentArcadeSession.participants.find(p => p.username === username);
-                if (playerData) {
-                    podiumPlayers.push({
-                        username: playerData.username,
-                        wordsCompleted: playerData.wordsCompleted || 0,
-                        coins: playerData.coins || 0,
-                        rank: data.rank
-                    });
-                }
-            });
-            
-            // Sort by rank
-            podiumPlayers.sort((a, b) => a.rank - b.rank);
-        } else {
-            // No explicit ranks, sort by words completed
-            const sortedPlayers = [...currentArcadeSession.participants]
-                .sort((a, b) => b.wordsCompleted - a.wordsCompleted)
-                .slice(0, 3);
-                
-            // Assign ranks
-            sortedPlayers.forEach((player, index) => {
-                podiumPlayers.push({
-                    ...player,
-                    rank: index + 1
-                });
-            });
-        }
-        
-        // Show victory screen
-        showModeratorVictoryScreen(podiumPlayers);
-    } else {
-        // No winners yet, just go back to welcome screen
-        showScreen('welcome-screen');
-    }
-}
-
-// Variables specific to moderator screen
-const moderatorInactivity = {
-    activityTimer: null,
-    countdownTimer: null,
-    lastLeaderboardUpdate: Date.now(),
-    isCountingDown: false,
-    isInitialized: false,
-    isGameActive: false
-};
-
-function initializeModeratorInactivityTimer() {
-    // Only proceed if we're on the moderator screen and game has been initialized
-    if (!isModeratorScreenActive() || !currentArcadeSession.isInitialized) {
-        return;
-    }
-    
-    // Set game as active
-    moderatorInactivity.isGameActive = true;
-    
-    // Clear any existing timers
-    clearModeratorTimers();
-    
-    // Reset state
-    moderatorInactivity.lastLeaderboardUpdate = Date.now();
-    moderatorInactivity.isCountingDown = false;
-    moderatorInactivity.isInitialized = true;
-    
-    // Create overlay if it doesn't exist
-    createModeratorInactivityOverlay();
-    
-    // Start monitoring for inactivity
-    startModeratorInactivityMonitoring();
-    
-    // Start leaderboard update tracking
-    trackModeratorLeaderboardUpdates();
-    
-    console.log('Moderator inactivity timer initialized');
-}
-
-function isModeratorScreenActive() {
-    const moderatorScreen = document.getElementById('moderator-screen');
-    return moderatorScreen && moderatorScreen.classList.contains('visible');
-}
-
-function clearModeratorTimers() {
-    if (moderatorInactivity.activityTimer) {
-        clearTimeout(moderatorInactivity.activityTimer);
-        moderatorInactivity.activityTimer = null;
-    }
-    if (moderatorInactivity.countdownTimer) {
-        clearInterval(moderatorInactivity.countdownTimer);
-        moderatorInactivity.countdownTimer = null;
-    }
-}
-
-function createModeratorInactivityOverlay() {
-    // Remove any existing overlay
-    const existingOverlay = document.querySelector('.moderator-inactivity-overlay');
-    if (existingOverlay) existingOverlay.remove();
-    
-    // Create new overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'moderator-inactivity-overlay';
-    overlay.innerHTML = `
-        <div class="moderator-countdown-timer">5</div>
-        <div class="moderator-inactivity-message">No leaderboard activity detected. Redirecting...</div>
-        <div class="moderator-countdown-progress">
-            <div class="moderator-countdown-bar"></div>
-        </div>
-        <button class="moderator-countdown-cancel">Cancel</button>
-    `;
-    
-    // Add event handler for cancel button
-    overlay.querySelector('.moderator-countdown-cancel').addEventListener('click', cancelModeratorCountdown);
-    
-    // Append to moderator screen specifically
-    const moderatorScreen = document.getElementById('moderator-screen');
-    if (moderatorScreen) {
-        moderatorScreen.appendChild(overlay);
-    }
-}
-
-function startModeratorInactivityMonitoring() {
-    const moderatorScreen = document.getElementById('moderator-screen');
-    if (!moderatorScreen) return;
-    
-    // Activity events to monitor (only on moderator screen)
-    const events = ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'];
-    
-    // Add all event listeners
-    events.forEach(event => {
-        moderatorScreen.addEventListener(event, resetModeratorInactivityTimer);
-    });
-    
-    // Add screen change listener
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden || !isModeratorScreenActive()) {
-            // Stop monitoring when page is hidden or moderator screen is not active
-            clearModeratorTimers();
-        } else if (moderatorInactivity.isGameActive && isModeratorScreenActive()) {
-            // Restart when returning to visible state and on moderator screen
-            resetModeratorInactivityTimer();
-        }
-    });
-    
-    // Start the initial timer
-    resetModeratorInactivityTimer();
-}
-
-function resetModeratorInactivityTimer() {
-    // Only proceed if on moderator screen, game is active, and not already counting down
-    if (!isModeratorScreenActive() || !moderatorInactivity.isGameActive || moderatorInactivity.isCountingDown) {
-        return;
-    }
-    
-    // Clear existing timer
-    if (moderatorInactivity.activityTimer) {
-        clearTimeout(moderatorInactivity.activityTimer);
-    }
-    
-    // Set new timer - 3 seconds of inactivity
-    moderatorInactivity.activityTimer = setTimeout(() => {
-        // Check if leaderboard has been updated recently
-        const timeSinceLastUpdate = Date.now() - moderatorInactivity.lastLeaderboardUpdate;
-        
-        // If no updates for 5 seconds, start countdown
-        if (timeSinceLastUpdate > 5000 && isModeratorScreenActive()) {
-            startModeratorCountdown();
-        }
-    }, 3000);
-}
-
-function trackModeratorLeaderboardUpdates() {
-    // Get leaderboard element
-    const leaderboard = document.getElementById('arcade-leaderboard');
-    if (!leaderboard) return;
-    
-    // Create mutation observer to detect changes
-    const observer = new MutationObserver(() => {
-        // Only track updates if moderator screen is active and game is initialized
-        if (isModeratorScreenActive() && moderatorInactivity.isGameActive) {
-            moderatorInactivity.lastLeaderboardUpdate = Date.now();
-            
-            // If countdown is active, cancel it since we have activity
-            if (moderatorInactivity.isCountingDown) {
-                cancelModeratorCountdown();
-            }
-        }
-    });
-    
-    // Start observing
-    observer.observe(leaderboard, { 
-        childList: true, 
-        subtree: true, 
-        attributes: true,
-        characterData: true
-    });
-}
-
-function startModeratorCountdown() {
-    // Only proceed if on moderator screen and game is active
-    if (!isModeratorScreenActive() || !moderatorInactivity.isGameActive) {
-        return;
-    }
-    
-    moderatorInactivity.isCountingDown = true;
-    
-    // Show the overlay
-    const overlay = document.querySelector('.moderator-inactivity-overlay');
-    if (overlay) overlay.classList.add('visible');
-    
-    // Initialize countdown
-    let secondsLeft = 5;
-    const timerDisplay = overlay.querySelector('.moderator-countdown-timer');
-    const progressBar = overlay.querySelector('.moderator-countdown-bar');
-    
-    // Update initial display
-    timerDisplay.textContent = secondsLeft;
-    progressBar.style.transform = 'scaleX(1)';
-    
-    // Start countdown
-    moderatorInactivity.countdownTimer = setInterval(() => {
-        // Stop if we're no longer on the moderator screen
-        if (!isModeratorScreenActive()) {
-            cancelModeratorCountdown();
-            return;
-        }
-        
-        secondsLeft--;
-        
-        // Update display
-        timerDisplay.textContent = secondsLeft;
-        progressBar.style.transform = `scaleX(${secondsLeft / 5})`;
-        
-        // Check if countdown is complete
-        if (secondsLeft <= 0) {
-            clearInterval(moderatorInactivity.countdownTimer);
-            handleModeratorCountdownComplete();
-        }
-    }, 1000);
-}
-
-function cancelModeratorCountdown() {
-    // Hide overlay
-    const overlay = document.querySelector('.moderator-inactivity-overlay');
-    if (overlay) overlay.classList.remove('visible');
-    
-    // Reset state
-    moderatorInactivity.isCountingDown = false;
-    if (moderatorInactivity.countdownTimer) {
-        clearInterval(moderatorInactivity.countdownTimer);
-        moderatorInactivity.countdownTimer = null;
-    }
-    
-    // Restart inactivity monitoring if still on moderator screen
-    if (isModeratorScreenActive() && moderatorInactivity.isGameActive) {
-        resetModeratorInactivityTimer();
-    }
-}
-
-function handleModeratorCountdownComplete() {
-   // Skip if celebration already triggered
-   if (currentArcadeSession.celebrationTriggered) {
-       return;
-   }
-   
-   // Check if we have podium winners
-   const completedPlayers = currentArcadeSession.participants.filter(
-       p => p.wordsCompleted >= currentArcadeSession.wordGoal
-   );
-   
-   const hasPodiumWinners = completedPlayers && 
-                            completedPlayers.length >= 3;
-   
-   currentArcadeSession.celebrationTriggered = true;
-   
-   if (hasPodiumWinners) {
-       // Extract podium players
-       const podiumPlayers = [];
-       
-       if (currentArcadeSession.podiumRanks) {
-           // Get players by ranks
-           Object.entries(currentArcadeSession.podiumRanks).forEach(([username, data]) => {
-               const playerData = currentArcadeSession.participants.find(p => p.username === username);
-               if (playerData) {
-                   podiumPlayers.push({
-                       username: playerData.username,
-                       wordsCompleted: playerData.wordsCompleted || 0,
-                       coins: playerData.coins || 0,
-                       rank: data.rank
-                   });
-               }
-           });
-           
-           // Sort by rank
-           podiumPlayers.sort((a, b) => a.rank - b.rank);
-       } else {
-           // No explicit ranks, sort by words completed
-           const sortedPlayers = [...currentArcadeSession.participants]
-               .sort((a, b) => b.wordsCompleted - a.wordsCompleted)
-               .slice(0, 3);
-               
-           // Assign ranks
-           sortedPlayers.forEach((player, index) => {
-               podiumPlayers.push({
-                   ...player,
-                   rank: index + 1
-               });
-           });
-       }
-       
-       // Show victory screen
-       startLeaderboardCelebration(podiumPlayers);
-   } else {
-       // No winners yet, just go back to welcome screen
-       showScreen('welcome-screen');
-   }
-}
-
-function cleanupModeratorInactivityMonitoring() {
-    // Clean up all timers and state
-    clearModeratorTimers();
-    moderatorInactivity.isGameActive = false;
-    moderatorInactivity.isInitialized = false;
-    moderatorInactivity.isCountingDown = false;
-    
-    // Remove overlay if exists
-    const overlay = document.querySelector('.moderator-inactivity-overlay');
-    if (overlay) overlay.remove();
-}
-
 function startLeaderboardCelebration(podiumPlayers) {
-    const celebrationOverlay = document.querySelector('.moderator-inactivity-overlay');
-    if (celebrationOverlay) {
-        celebrationOverlay.classList.remove('visible');
+    // First, remove any existing inactivity overlay
+    const inactivityOverlay = document.querySelector('.moderator-inactivity-overlay');
+    if (inactivityOverlay) {
+        inactivityOverlay.classList.remove('visible');
     }
     
-    // Create celebration overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'celebration-overlay';
-    document.body.appendChild(overlay);
-    setTimeout(() => overlay.classList.add('visible'), 10);
+    // Create celebration overlay if it doesn't exist
+    let celebrationOverlay = document.querySelector('.celebration-overlay');
+    if (!celebrationOverlay) {
+        celebrationOverlay = document.createElement('div');
+        celebrationOverlay.className = 'celebration-overlay';
+        document.body.appendChild(celebrationOverlay);
+    }
     
-    // Get leaderboard entries
-    const leaderboardEntries = document.getElementById('arcade-leaderboard').querySelectorAll('.leaderboard-entry');
-    const entryPositions = new Map();
+    // Show the overlay with transition
+    setTimeout(() => celebrationOverlay.classList.add('visible'), 10);
     
     // Ensure all podium players have valid ranks (1, 2, 3)
     podiumPlayers.forEach((player, index) => {
@@ -8122,103 +7491,187 @@ function startLeaderboardCelebration(podiumPlayers) {
         }
     });
     
-    // Create winner elements based on strict podium ranks
-    podiumPlayers.forEach(player => {
+    // IMPORTANT: Sort players by rank (1st, 2nd, 3rd) before displaying
+    podiumPlayers.sort((a, b) => a.rank - b.rank);
+    
+    // Create winner elements for each player, in correct rank order
+    // First place = position 0, Second place = position 1, Third place = position 2
+    podiumPlayers.forEach((player, positionIndex) => {
         if (!player || !player.username) return;
         
-        // Log all entries to debug
-        console.log("Creating celebration for player:", player.username, "with rank:", player.rank);
-        console.log("Available leaderboard entries:", Array.from(leaderboardEntries).map(e => {
-            const usernameEl = e.querySelector('[data-username]');
-            return usernameEl ? usernameEl.dataset.username : 'unknown';
-        }));
+        // Calculate vertical position based on rank (1st at top)
+        const verticalPosition = positionIndex * 190 + 100; // Spacing between entries
         
-        leaderboardEntries.forEach(entry => {
-            const usernameEl = entry.querySelector('[data-username]');
-            if (!usernameEl) return;
-            
-            const username = usernameEl.dataset.username;
-            if (username === player.username) {
-                const rect = entry.getBoundingClientRect();
-                entryPositions.set(username, {
-                    left: rect.left,
-                    top: rect.top,
-                    width: rect.width,
-                    height: rect.height
-                });
-                
-                // Create winner entry
-                const winnerEntry = entry.cloneNode(true);
-                winnerEntry.classList.add('winner-entry', 'celebrating');
-                
-                // Add appropriate class based on rank (not position in array)
-                if (player.rank === 1) {
-                    winnerEntry.classList.add('first-place');
-                    const winnerLabel = document.createElement('div');
-                    winnerLabel.className = 'winner-label';
-                    winnerLabel.textContent = 'CHAMPION';
-                    winnerEntry.appendChild(winnerLabel);
-                    addWinnerEmojis(winnerEntry, ['👑', '🏆', '🌟'], player.rank);
-                } else if (player.rank === 2) {
-                    winnerEntry.classList.add('second-place');
-                    const winnerLabel = document.createElement('div');
-                    winnerLabel.className = 'winner-label';
-                    winnerLabel.textContent = 'RUNNER-UP';
-                    winnerEntry.appendChild(winnerLabel);
-                    addWinnerEmojis(winnerEntry, ['🥈', '✨'], player.rank);
-                } else if (player.rank === 3) {
-                    winnerEntry.classList.add('third-place');
-                    const winnerLabel = document.createElement('div');
-                    winnerLabel.className = 'winner-label';
-                    winnerLabel.textContent = 'BRONZE MEDAL';
-                    winnerEntry.appendChild(winnerLabel);
-                    addWinnerEmojis(winnerEntry, ['🥉', '🎉'], player.rank);
-                }
-                
-                // Position and style the winner entry
-                winnerEntry.style.position = 'fixed';
-                winnerEntry.style.left = `${rect.left}px`;
-                winnerEntry.style.top = `${rect.top}px`;
-                winnerEntry.style.width = `${rect.width}px`;
-                winnerEntry.style.height = `${rect.height}px`;
-                winnerEntry.style.zIndex = 103 - player.rank;
-                
-                // Add to the document
-                document.body.appendChild(winnerEntry);
-                setTimeout(() => {
-                    winnerEntry.classList.add('centered');
-                }, 50);
-            }
-        });
+        // Create winner entry directly without using leaderboard entries
+        const winnerEntry = document.createElement('div');
+        winnerEntry.className = 'winner-entry celebrating';
+        
+        // Add appropriate class and label based on rank
+        let rankLabel = '';
+        let bgColor = '';
+        let emojis = [];
+        
+        if (player.rank === 1) {
+            rankLabel = 'CHAMPION';
+            bgColor = 'linear-gradient(90deg, rgba(255,215,0,0.8) 0%, rgba(255,215,0,0.9) 100%)';
+            emojis = ['👑', '🏆', '🌟'];
+            winnerEntry.classList.add('first-place');
+        } else if (player.rank === 2) {
+            rankLabel = 'RUNNER-UP';
+            bgColor = 'linear-gradient(90deg, rgba(192,192,192,0.8) 0%, rgba(169,169,169,0.9) 100%)';
+            emojis = ['🥈', '✨'];
+            winnerEntry.classList.add('second-place');
+        } else {
+            rankLabel = 'BRONZE MEDAL';
+            bgColor = 'linear-gradient(90deg, rgba(205,127,50,0.8) 0%, rgba(184,115,51,0.9) 100%)';
+            emojis = ['🥉', '🎉'];
+            winnerEntry.classList.add('third-place');
+        }
+        
+        // Style the winner entry
+        winnerEntry.style.cssText = `
+            position: fixed;
+            left: 50%;
+            top: ${verticalPosition}px;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 800px;
+            height: 80px;
+            background: ${bgColor};
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 30px;
+            box-shadow: 0 0 20px rgba(255,255,255,0.3);
+            z-index: ${103 - positionIndex};
+            color: white;
+            font-size: 1.5rem;
+            text-align: center;
+        `;
+        
+        // Create inner content container for better alignment
+        const innerContainer = document.createElement('div');
+        innerContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        `;
+        
+        // Create rank display
+        const rankDisplay = document.createElement('div');
+        rankDisplay.style.cssText = `
+            font-size: 2rem;
+            font-weight: bold;
+            color: white;
+            min-width: 50px;
+            text-align: center;
+        `;
+        rankDisplay.textContent = player.rank;
+        innerContainer.appendChild(rankDisplay);
+        
+        // Create username display
+        const usernameDisplay = document.createElement('div');
+        usernameDisplay.style.cssText = `
+            font-size: 2rem;
+            font-weight: bold;
+            flex-grow: 1;
+            margin: 0 20px;
+            text-align: center;
+        `;
+        usernameDisplay.textContent = player.username;
+        innerContainer.appendChild(usernameDisplay);
+        
+        // Scores container for words and coins
+        const scoresContainer = document.createElement('div');
+        scoresContainer.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            min-width: 200px;
+            gap: 20px;
+        `;
+        
+        // Create words completed
+        const wordsDisplay = document.createElement('div');
+        wordsDisplay.style.cssText = `
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4FC3F7;
+        `;
+        wordsDisplay.textContent = player.wordsCompleted || 0;
+        scoresContainer.appendChild(wordsDisplay);
+        
+        // Create coins display
+        const coinsDisplay = document.createElement('div');
+        coinsDisplay.style.cssText = `
+            font-size: 2rem;
+            font-weight: bold;
+            color: #FFD700;
+        `;
+        coinsDisplay.textContent = player.coins || 0;
+        scoresContainer.appendChild(coinsDisplay);
+        
+        innerContainer.appendChild(scoresContainer);
+        winnerEntry.appendChild(innerContainer);
+        
+        // Add rank label
+        const winnerLabel = document.createElement('div');
+        winnerLabel.className = 'winner-label';
+        winnerLabel.style.cssText = `
+            position: absolute;
+            top: -25px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 0 10px rgba(0,0,0,0.5);
+        `;
+        winnerLabel.textContent = rankLabel;
+        winnerEntry.appendChild(winnerLabel);
+        
+        // Add to the document
+        document.body.appendChild(winnerEntry);
+        
+        // Add emojis animation
+        addWinnerEmojis(winnerEntry, emojis, player.rank);
     });
     
     // Start celebration effects
     setTimeout(() => {
         startConfettiShower();
-        window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'celebration',
-            payload: {
-                winners: podiumPlayers.map(p => ({
-                    username: p.username,
-                    rank: p.rank,
-                    wordsCompleted: p.wordsCompleted,
-                    coins: p.coins
-                }))
-            }
-        });
+        if (window.arcadeChannel) {
+            window.arcadeChannel.send({
+                type: 'broadcast',
+                event: 'celebration',
+                payload: {
+                    winners: podiumPlayers.map(p => ({
+                        username: p.username,
+                        rank: p.rank,
+                        wordsCompleted: p.wordsCompleted,
+                        coins: p.coins
+                    }))
+                }
+            });
+        }
     }, 1500);
     
-    // Add home button
-    const homeButton = document.createElement('div');
-    homeButton.className = 'home-button-container';
-    homeButton.innerHTML = `
-       <button class="start-button" onclick="finishCelebrationAndGoHome()">
-           Return to Home
-       </button>
-   `;
-    document.body.appendChild(homeButton);
-    setTimeout(() => homeButton.classList.add('visible'), 2500);
+    // Add home button if it doesn't exist
+    let homeButton = document.querySelector('.home-button-container');
+    if (!homeButton) {
+        homeButton = document.createElement('div');
+        homeButton.className = 'home-button-container';
+        homeButton.innerHTML = `
+            <button class="start-button" onclick="finishCelebrationAndGoHome()">
+                Return to Home
+            </button>
+        `;
+        document.body.appendChild(homeButton);
+        setTimeout(() => homeButton.classList.add('visible'), 2500);
+    }
 }
 
 function safeUpdateWordsCompleted(newValue, username) {
