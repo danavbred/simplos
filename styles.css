@@ -6780,7 +6780,7 @@
 .icon-carousel {
     position: relative;
     width: 100%;
-    height: 200px; /* Increased height to accommodate the 3D positioning */
+    height: 200px; /* Increased height for the 3D effect */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -6789,30 +6789,31 @@
     margin-bottom: 1.5rem;
 }
 
-/* Updated carousel item styles with wider rectangles and 3D positioning */
+/* Updated carousel item styles with wider rectangles */
 .carousel-item {
     position: absolute;
-    width: 140px; /* Increased width for better text fitting, especially for "Fullscreen" */
-    height: 70px; /* Maintained height */
+    width: 140px; /* Increased width for better text fitting */
+    height: 80px; /* Increased height for vertical layout */
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.5s cubic-bezier(0.33, 1, 0.68, 1);
-    transform: translateX(150px) translateY(-25px) scale(0.7); /* Raised side items */
+    transform: translateX(150px) translateY(-25px) scale(0.7); /* Higher position for side items */
     z-index: 1;
     opacity: 0.6;
     cursor: pointer;
     user-select: none;
     touch-action: pan-y;
+    will-change: transform, opacity; /* Performance optimization */
 }
 
 .carousel-item:nth-child(1) {
-    transform: translateX(-150px) translateY(-25px) scale(0.7); /* Raised left items */
+    transform: translateX(-150px) translateY(-25px) scale(0.7);
 }
 
-/* Make the central icon bigger and lower to appear closer */
+/* Make the central icon bigger and lower (closer) */
 .carousel-item.active {
-    transform: translateX(0) translateY(15px) scale(1.8); /* Lowered center item */
+    transform: translateX(0) translateY(0) scale(1.8); /* No Y offset for center item */
     z-index: 2;
     opacity: 1;
 }
@@ -6840,16 +6841,16 @@
 }
 
 @keyframes slideRight {
-    from { transform: translateX(0) translateY(15px) scale(1.8); opacity: 1; z-index: 2; }
+    from { transform: translateX(0) translateY(0) scale(1.8); opacity: 1; z-index: 2; }
     to { transform: translateX(150px) translateY(-25px) scale(0.7); opacity: 0.6; z-index: 1; }
 }
 
 @keyframes slideLeft {
-    from { transform: translateX(0) translateY(15px) scale(1.8); opacity: 1; z-index: 2; }
+    from { transform: translateX(0) translateY(0) scale(1.8); opacity: 1; z-index: 2; }
     to { transform: translateX(-150px) translateY(-25px) scale(0.7); opacity: 0.6; z-index: 1; }
 }
 
-/* Updated spacey/video gamey icon container as wider horizontal rectangle */
+/* Updated icon container with vertical layout (text on top, icon below) */
 .icon-container {
     width: 100%;
     height: 100%;
@@ -6857,16 +6858,16 @@
     border-radius: 15px; /* Rounded corners */
     backdrop-filter: blur(5px);
     display: flex;
-    flex-direction: row; /* Horizontal layout */
+    flex-direction: column; /* Changed to column for vertical layout */
     align-items: center;
     justify-content: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
     border: 2px solid rgba(30, 144, 255, 0.3);
     box-shadow: 0 0 15px rgba(30, 144, 255, 0.2), inset 0 0 8px rgba(30, 144, 255, 0.1);
     transition: all 0.3s ease;
     overflow: hidden;
     position: relative;
-    padding: 0 0.85rem; /* Increased horizontal padding for text */
+    padding: 0.5rem;
 }
 
 /* Add a subtle glow effect */
@@ -6907,45 +6908,45 @@
     opacity: 0.1;
 }
 
-/* Adjust icon and label positioning for horizontal layout */
+/* Adjust icon and label positioning for vertical layout */
 .icon-container i {
     font-size: 1.8rem;
     color: var(--text);
     transition: color 0.3s ease;
     margin: 0;
-    min-width: 1.8rem; /* Ensure consistent spacing */
+    order: 2; /* Icon comes second in vertical layout */
 }
 
 .carousel-item.active .icon-container i {
     color: var(--gold);
     text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
     font-size: 2.2rem;
-    min-width: 2.2rem;
 }
 
 .icon-label {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: var(--text);
     opacity: 0.9;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     white-space: nowrap;
-    flex: 1;
     text-align: center;
+    order: 1; /* Label comes first in vertical layout */
+    font-weight: 500;
 }
 
 .carousel-item.active .icon-label {
-    font-size: 1rem;
+    font-size: 1.1rem;
     font-weight: 600;
 }
 
-/* Add pulsing animation to active item */
+/* Add pulsing animation to active item with reduced intensity for performance */
 @keyframes activeItemPulse {
     0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.2); }
     50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.4); }
 }
 
 .carousel-item.active .icon-container {
-    animation: activeItemPulse 2s infinite;
+    animation: activeItemPulse 3s infinite; /* Slower animation for better performance */
 }
 
 .carousel-indicators {
@@ -6968,76 +6969,87 @@
     background: var(--gold);
 }
 
-/* Mobile responsiveness adjustments */
+/* Performance optimizations for mobile */
 @media (max-width: 768px) {
     .icon-carousel {
-        height: 200px; /* Maintained height for 3D effect */
+        height: 180px;
     }
     
     .carousel-item {
-        width: 130px; /* Wider for mobile */
-        height: 60px;
-        transform: translateX(140px) translateY(-25px) scale(0.7);
+        width: 120px; /* Wider for mobile */
+        height: 70px;
+        transform: translateX(140px) translateY(-20px) scale(0.7);
+        /* Reduce hover effects on mobile for better performance */
+        transition: transform 0.4s ease-out, opacity 0.4s ease-out;
     }
     
     .carousel-item:nth-child(1) {
-        transform: translateX(-140px) translateY(-25px) scale(0.7);
+        transform: translateX(-140px) translateY(-20px) scale(0.7);
     }
     
     .carousel-item.active {
-        transform: translateX(0) translateY(15px) scale(1.6);
+        transform: translateX(0) translateY(0) scale(1.6);
+    }
+    
+    .icon-container {
+        /* Simplified effects for better mobile performance */
+        backdrop-filter: none;
     }
     
     .icon-container i {
         font-size: 1.6rem;
-        min-width: 1.6rem;
     }
     
     .icon-label {
-        font-size: 0.7rem;
+        font-size: 0.75rem;
     }
     
     .carousel-description {
         font-size: 1.1rem;
     }
     
+    /* Simplify animations for mobile */
     @keyframes slideRight {
-        from { transform: translateX(0) translateY(15px) scale(1.6); opacity: 1; z-index: 2; }
-        to { transform: translateX(140px) translateY(-25px) scale(0.7); opacity: 0.6; z-index: 1; }
+        from { transform: translateX(0) translateY(0) scale(1.6); opacity: 1; }
+        to { transform: translateX(140px) translateY(-20px) scale(0.7); opacity: 0.6; }
     }
 
     @keyframes slideLeft {
-        from { transform: translateX(0) translateY(15px) scale(1.6); opacity: 1; z-index: 2; }
-        to { transform: translateX(-140px) translateY(-25px) scale(0.7); opacity: 0.6; z-index: 1; }
+        from { transform: translateX(0) translateY(0) scale(1.6); opacity: 1; }
+        to { transform: translateX(-140px) translateY(-20px) scale(0.7); opacity: 0.6; }
+    }
+    
+    /* Use a simpler animation for active items on mobile */
+    .carousel-item.active .icon-container {
+        animation: none; /* Remove animation on mobile for better performance */
     }
 }
 
 @media (max-width: 480px) {
     .icon-carousel {
-        height: 180px;
+        height: 160px;
     }
     
     .carousel-item {
-        width: 120px; /* Wider for small mobile */
-        height: 50px;
-        transform: translateX(120px) translateY(-20px) scale(0.7);
+        width: 110px; /* Wider for small mobile */
+        height: 65px;
+        transform: translateX(120px) translateY(-15px) scale(0.7);
     }
     
     .carousel-item:nth-child(1) {
-        transform: translateX(-120px) translateY(-20px) scale(0.7);
+        transform: translateX(-120px) translateY(-15px) scale(0.7);
     }
     
     .carousel-item.active {
-        transform: translateX(0) translateY(10px) scale(1.5);
+        transform: translateX(0) translateY(0) scale(1.5);
     }
     
     .icon-container i {
         font-size: 1.4rem;
-        min-width: 1.4rem;
     }
     
     .icon-label {
-        font-size: 0.65rem;
+        font-size: 0.7rem;
     }
     
     .carousel-description {
@@ -7046,13 +7058,13 @@
     }
     
     @keyframes slideRight {
-        from { transform: translateX(0) translateY(10px) scale(1.5); opacity: 1; z-index: 2; }
-        to { transform: translateX(120px) translateY(-20px) scale(0.7); opacity: 0.6; z-index: 1; }
+        from { transform: translateX(0) translateY(0) scale(1.5); opacity: 1; }
+        to { transform: translateX(120px) translateY(-15px) scale(0.7); opacity: 0.6; }
     }
 
     @keyframes slideLeft {
-        from { transform: translateX(0) translateY(10px) scale(1.5); opacity: 1; z-index: 2; }
-        to { transform: translateX(-120px) translateY(-20px) scale(0.7); opacity: 0.6; z-index: 1; }
+        from { transform: translateX(0) translateY(0) scale(1.5); opacity: 1; }
+        to { transform: translateX(-120px) translateY(-15px) scale(0.7); opacity: 0.6; }
     }
 }
 

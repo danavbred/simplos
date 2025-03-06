@@ -5965,11 +5965,12 @@ function initializeCarousel() {
     const carousel = document.querySelector('.icon-carousel');
     if (!carousel) return;
     
+    // Initialize particles for welcome screen
     const welcomeScreen = document.getElementById('welcome-screen');
     if (welcomeScreen) {
         initializeParticles(welcomeScreen);
     }
-
+    
     const items = Array.from(carousel.querySelectorAll('.carousel-item'));
     const description = document.getElementById('carousel-description');
     const indicators = document.querySelectorAll('.carousel-indicators .indicator');
@@ -5979,7 +5980,10 @@ function initializeCarousel() {
     let isDragging = false;
     let canClick = true;
     let isAnimating = false;
-    let clickedItemIndex = -1; // Track which item was clicked
+    let clickedItemIndex = -1;
+    
+    // Detect if we're on a mobile device
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     // Set initial state
     updateCarouselState();
@@ -6104,18 +6108,20 @@ function initializeCarousel() {
             indicators[currentIndex].classList.remove('active');
         }
         
-        // Set new active item with animation
+        // Set new active item with animation - use less complex animation for mobile
         setTimeout(() => {
             items[currentIndex].classList.remove(`transition-${direction}`);
             
             // Update index
             currentIndex = index;
             
-            // Add opposite animation to new active
-            items[currentIndex].classList.add(`transition-${oppositeDirection}`);
-            
-            // Force reflow to restart animation
-            void items[currentIndex].offsetWidth;
+            // Add opposite animation to new active - simpler for mobile
+            if (!isMobile) {
+                items[currentIndex].classList.add(`transition-${oppositeDirection}`);
+                
+                // Force reflow to restart animation
+                void items[currentIndex].offsetWidth;
+            }
             
             // Set as active and remove animation class
             items[currentIndex].classList.remove(`transition-${oppositeDirection}`);
@@ -6132,44 +6138,77 @@ function initializeCarousel() {
             // Reposition items
             updateCarouselState();
             
-            // Reset animating flag after animation completes
+            // Reset animating flag after animation completes - longer on mobile
             setTimeout(() => {
                 isAnimating = false;
-            }, 500); // Match this with the CSS transition duration
-        }, 50);
+            }, isMobile ? 400 : 500); // Shorter timeout for mobile
+        }, isMobile ? 30 : 50); // Shorter delay for mobile
     }
     
     function updateCarouselState() {
         // Calculate positions for all items based on circular logic
         items.forEach((item, index) => {
             item.classList.remove('active');
-            item.style.zIndex = 1;
-            item.style.opacity = '0.6';
             
             // Position items in a circular manner relative to current
             const relativePosition = getCircularPosition(currentIndex, index, totalItems);
             
-            if (relativePosition === 0) {
-                // Current item (center)
-                item.classList.add('active');
-                item.style.transform = 'translateX(0) translateY(0) scale(1.8)';
-                item.style.zIndex = 2;
-                item.style.opacity = '1';
-            } else if (relativePosition === -1) {
-                // Item to the left
-                item.style.transform = 'translateX(-150px) translateY(-15px) scale(0.7)';
-            } else if (relativePosition === 1) {
-                // Item to the right
-                item.style.transform = 'translateX(150px) translateY(-15px) scale(0.7)';
-            } else if (relativePosition < -1) {
-                // Items further left (hidden)
-                item.style.transform = 'translateX(-300px) translateY(-15px) scale(0.4)';
-                item.style.opacity = '0';
-            } else if (relativePosition > 1) {
-                // Items further right (hidden)
-                item.style.transform = 'translateX(300px) translateY(-15px) scale(0.4)';
-                item.style.opacity = '0';
-            }
+            // Use requestAnimationFrame for smoother animations
+            requestAnimationFrame(() => {
+                if (relativePosition === 0) {
+                    // Current item (center)
+                    item.classList.add('active');
+                    item.style.zIndex = 2;
+                    item.style.opacity = '1';
+                    
+                    if (isMobile) {
+                        // Simplified transform for mobile
+                        item.style.transform = 'translateX(0) translateY(0) scale(1.5)';
+                    } else {
+                        item.style.transform = 'translateX(0) translateY(0) scale(1.8)';
+                    }
+                } else if (relativePosition === -1) {
+                    // Item to the left
+                    item.style.zIndex = 1;
+                    item.style.opacity = '0.6';
+                    
+                    if (isMobile) {
+                        item.style.transform = 'translateX(-120px) translateY(-15px) scale(0.7)';
+                    } else {
+                        item.style.transform = 'translateX(-150px) translateY(-25px) scale(0.7)';
+                    }
+                } else if (relativePosition === 1) {
+                    // Item to the right
+                    item.style.zIndex = 1;
+                    item.style.opacity = '0.6';
+                    
+                    if (isMobile) {
+                        item.style.transform = 'translateX(120px) translateY(-15px) scale(0.7)';
+                    } else {
+                        item.style.transform = 'translateX(150px) translateY(-25px) scale(0.7)';
+                    }
+                } else if (relativePosition < -1) {
+                    // Items further left (hidden)
+                    item.style.zIndex = 0;
+                    item.style.opacity = '0';
+                    
+                    if (isMobile) {
+                        item.style.transform = 'translateX(-200px) translateY(-15px) scale(0.4)';
+                    } else {
+                        item.style.transform = 'translateX(-300px) translateY(-25px) scale(0.4)';
+                    }
+                } else if (relativePosition > 1) {
+                    // Items further right (hidden)
+                    item.style.zIndex = 0;
+                    item.style.opacity = '0';
+                    
+                    if (isMobile) {
+                        item.style.transform = 'translateX(200px) translateY(-15px) scale(0.4)';
+                    } else {
+                        item.style.transform = 'translateX(300px) translateY(-25px) scale(0.4)';
+                    }
+                }
+            });
         });
         
         // Update indicators
@@ -6214,7 +6253,11 @@ function initializeCarousel() {
         const action = item.getAttribute('data-action');
         if (action) {
             // Use Function to safely execute the action string
-            (new Function(action))();
+            try {
+                (new Function(action))();
+            } catch (e) {
+                console.error('Error executing action:', e);
+            }
         }
     }
     
