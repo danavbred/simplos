@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+
+  
   // Replace window.onload with:
 document.addEventListener('DOMContentLoaded', () => {
     gameInit.init();
@@ -3579,10 +3581,10 @@ function updateAuthUI() {
     const userEmailElement = document.getElementById('userEmail');
     const logoutButton = document.querySelector('.logout-button');
     const userProfileSection = document.querySelector('.user-profile-section');
-    const mainLoginButton = document.querySelector('.main-button');
+    const avatarButton = document.getElementById('login-avatar-btn');
 
     if (currentUser) {
-        // Hide the auth box and show user info
+        // User is logged in
         if (authBox) {
             authBox.classList.add('hidden');
         }
@@ -3600,9 +3602,19 @@ function updateAuthUI() {
             userProfileSection.style.display = 'block';
         }
         
-        // Hide main login button
-        if (mainLoginButton) {
-            mainLoginButton.style.display = 'none';
+        // Update avatar button to show logged-in state
+        if (avatarButton) {
+            // Remove all status classes first
+            avatarButton.classList.remove('status-unregistered', 'status-free', 'status-pending', 'status-premium');
+            
+            // Add default free status
+            avatarButton.classList.add('status-free');
+            
+            // Change icon to indicate logged in
+            const avatarIcon = avatarButton.querySelector('i');
+            if (avatarIcon) {
+                avatarIcon.className = 'fas fa-user-check';
+            }
         }
         
         // Display username from metadata if available, fallback to email
@@ -3622,6 +3634,12 @@ function updateAuthUI() {
                         // If we have a username in the profile, use it
                         if (data.username && userEmailElement) {
                             userEmailElement.textContent = data.username;
+                        }
+                        
+                        // Update avatar button status
+                        if (avatarButton) {
+                            avatarButton.classList.remove('status-unregistered', 'status-free', 'status-premium', 'status-pending');
+                            avatarButton.classList.add(`status-${data.status || 'free'}`);
                         }
                         
                         if (typeof updateUserStatusDisplay === 'function') {
@@ -3655,15 +3673,74 @@ function updateAuthUI() {
             userProfileSection.style.display = 'none';
         }
         
-        // Show main login button
-        if (mainLoginButton) {
-            mainLoginButton.style.display = 'block';
+        // Update avatar button to show unregistered state
+        if (avatarButton) {
+            avatarButton.classList.remove('status-free', 'status-premium', 'status-pending');
+            avatarButton.classList.add('status-unregistered');
+            
+            // Reset icon to default user icon
+            const avatarIcon = avatarButton.querySelector('i');
+            if (avatarIcon) {
+                avatarIcon.className = 'fas fa-user';
+            }
         }
         
         // Clear user email display
         if (userEmailElement) {
             userEmailElement.textContent = '';
         }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Existing initialization code...
+    
+    // Make avatar button more reliably clickable
+    const avatarButton = document.getElementById('login-avatar-btn');
+    if (avatarButton) {
+        // Set initial unregistered status
+        avatarButton.classList.add('status-unregistered');
+        
+        // Ensure the whole button area is clickable
+        avatarButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleAvatarButtonClick();
+        });
+        
+        // Also ensure child elements pass clicks to the button
+        const avatarContainer = avatarButton.querySelector('.avatar-container');
+        if (avatarContainer) {
+            avatarContainer.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleAvatarButtonClick();
+            });
+        }
+        
+        const avatarIcon = avatarButton.querySelector('i');
+        if (avatarIcon) {
+            avatarIcon.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleAvatarButtonClick();
+            });
+        }
+        
+        // Update once we know the user's status
+        if (typeof updateAuthUI === 'function') {
+            updateAuthUI();
+        }
+    }
+});
+
+function handleAvatarButtonClick() {
+    // If user is logged in, show stats screen
+    // Otherwise, show auth modal
+    if (currentUser) {
+        showScreen('user-stats-screen');
+    } else {
+        showAuthModal();
     }
 }
 
@@ -5882,3 +5959,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log("Unregistered user inactivity coin wipe setup complete (3 minute timeout)");
 });
+
+function handleAvatarButtonClick() {
+    // If user is logged in, show stats screen
+    // Otherwise, show auth modal
+    if (currentUser) {
+        showScreen('user-stats-screen');
+    } else {
+        showAuthModal();
+    }
+}
