@@ -3468,13 +3468,6 @@ function handleProgressionAfterCompletion(isLevelCompleted) {
     }
 }
 
-
-
-
-
-
-
-
 function createListItem(list) {
     return `
         <div class="list-item">
@@ -3483,8 +3476,6 @@ function createListItem(list) {
         </div>
     `;
 }
-
-
 
 async function checkExistingSession() {
     console.log("Checking for existing user session");
@@ -3499,12 +3490,13 @@ async function checkExistingSession() {
             // Fetch user profile data
             const { data: profileData } = await supabaseClient
                 .from("user_profiles")
-                .select("status")
+                .select("status, role")  // Added role here
                 .eq("id", currentUser.id)
                 .single();
                 
             if (profileData) {
                 currentUser.status = profileData.status;
+                currentUser.role = profileData.role;  // Store the role
                 updateUserStatusDisplay(profileData.status);
             }
             
@@ -11869,129 +11861,120 @@ async function loadCustomLists() {
   }
 }
 
-/**
- * Show modal to share a list with other users
- * @param {string|number} listId - The ID of the list to share
- */
 function showShareModal(listId) {
-  console.log("Opening share modal for list:", listId);
-  
-  // Remove any existing modals
-  const existingModal = document.querySelector(".share-modal-container");
-  if (existingModal) existingModal.remove();
-  
-  // Create modal container with backdrop
-  const modalContainer = document.createElement("div");
-  modalContainer.className = "share-modal-container";
-  modalContainer.style.position = "fixed";
-  modalContainer.style.top = "0";
-  modalContainer.style.left = "0";
-  modalContainer.style.width = "100%";
-  modalContainer.style.height = "100%";
-  modalContainer.style.backgroundColor = "rgba(0,0,0,0.7)";
-  modalContainer.style.display = "flex";
-  modalContainer.style.justifyContent = "center";
-  modalContainer.style.alignItems = "center";
-  modalContainer.style.zIndex = "1000";
-  
-  // Create actual modal content
-  const modal = document.createElement("div");
-  modal.className = "share-modal";
-  modal.style.backgroundColor = "#1e1e2e";
-  modal.style.borderRadius = "10px";
-  modal.style.padding = "20px";
-  modal.style.maxWidth = "400px";
-  modal.style.width = "90%";
-  modal.style.maxHeight = "80vh";
-  modal.style.overflowY = "auto";
-  
-  modal.innerHTML = `
-    <h3 style="text-align: center; margin-bottom: 20px; color: white;">Share List</h3>
-    <div id="share-users-list" style="margin-bottom: 15px;">Loading users...</div>
-    <button id="close-share-modal" style="width: 100%; padding: 10px; background-color: #7e3ab3; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px;">Close</button>
-  `;
-  
-  modalContainer.appendChild(modal);
-  document.body.appendChild(modalContainer);
-  
-  // Close button functionality
-  document.getElementById("close-share-modal").onclick = function() {
-    modalContainer.remove();
-  };
-  
-  // Also close when clicking backdrop, but not when clicking the modal itself
-  modalContainer.addEventListener("click", function(event) {
-    if (event.target === modalContainer) {
-      modalContainer.remove();
+    console.log("Opening share modal for list:", listId);
+    
+    // Remove existing modal if any
+    const existingModal = document.querySelector(".share-modal");
+    const existingBackdrop = document.querySelector(".modal-backdrop");
+    if (existingModal) existingModal.remove();
+    if (existingBackdrop) existingBackdrop.remove();
+    
+    // Create backdrop
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    `;
+    backdrop.onclick = closeShareModal;
+    document.body.appendChild(backdrop);
+    
+    // Create modal
+    const modal = document.createElement("div");
+    modal.className = "share-modal";
+    modal.style.cssText = `
+      background-color: var(--glass);
+      backdrop-filter: blur(10px);
+      border-radius: 10px;
+      padding: 20px;
+      max-width: 400px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      animation: modalFadeIn 0.3s ease;
+    `;
+    
+    // Add modal animation if not already defined
+    if (!document.getElementById('modal-animations')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'modal-animations';
+      styleEl.textContent = `
+        @keyframes modalFadeIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+      `;
+      document.head.appendChild(styleEl);
     }
-  });
-  
-  // Show users
-  const usersList = document.getElementById("share-users-list");
-  
-  if (!currentUser) {
-    usersList.innerHTML = '<div style="padding: 10px; color: white;">You must be logged in to share lists</div>';
-    return;
-  }
-  
-  // Fetch users to share with
-  supabaseClient
-    .from("user_profiles")
-    .select("id, username, email")
-    .neq("id", currentUser.id)
-    .then(({ data, error }) => {
-      if (error) {
-        console.error("Error fetching users:", error);
-        usersList.innerHTML = '<div style="padding: 10px; color: white;">Error loading users</div>';
-        return;
-      }
-      
-      if (!data || data.length === 0) {
-        usersList.innerHTML = '<div style="padding: 10px; color: white;">No other users found</div>';
-        return;
-      }
-      
-      // Render users
-      let html = '';
-      data.forEach(user => {
-        const displayName = user.username || user.email || user.id.substring(0, 8);
-        html += `
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); color: white;">
-            <span>${displayName}</span>
-            <button 
-              class="share-with-user-btn" 
-              data-user-id="${user.id}" 
-              style="padding: 5px 10px; background-color: #7e3ab3; color: white; border: none; border-radius: 5px; cursor: pointer;">
-              Share
+    
+    modal.innerHTML = `
+      <h3 class="share-modal-header" style="text-align: center; margin-bottom: 20px; color: var(--text);">Share List</h3>
+      <div class="users-list" style="margin-bottom: 15px;">Loading users...</div>
+      <button class="start-button modal-close" onclick="closeShareModal()">Cancel</button>
+    `;
+    
+    backdrop.appendChild(modal);
+    
+    // Now load the users list
+    const usersList = modal.querySelector(".users-list");
+    
+    supabaseClient.from("user_profiles")
+      .select("id, username")
+      .neq("id", currentUser.id)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error fetching users:", error);
+          usersList.innerHTML = '<div class="user-item"><span>Error loading users</span></div>';
+          return;
+        }
+        
+        if (!data || data.length === 0) {
+          usersList.innerHTML = '<div class="user-item"><span>No other users available</span></div>';
+          return;
+        }
+        
+        usersList.innerHTML = data.map(user => `
+          <div class="user-item" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); color: var(--text);">
+            <span>${user.username || "Unnamed User"}</span>
+            <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}"
+                    style="padding: 5px 10px; border-radius: 5px; cursor: pointer;">
+              <i class="fas fa-share-alt"></i> Share
             </button>
           </div>
-        `;
+        `).join("");
+        
+        // Add click handlers to share buttons
+        modal.querySelectorAll(".share-with-user-btn").forEach(btn => {
+          btn.onclick = async () => {
+            const userId = btn.getAttribute("data-user-id");
+            btn.disabled = true;
+            
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
+            
+            const success = await shareListWithUser(listId, userId);
+            
+            if (!success) {
+              btn.disabled = false;
+              btn.innerHTML = originalText;
+            } else {
+              btn.innerHTML = '<i class="fas fa-check"></i> Shared';
+              btn.style.backgroundColor = "var(--success)";
+            }
+          };
+        });
       });
-      
-      usersList.innerHTML = html;
-      
-      // Add click handlers
-      document.querySelectorAll(".share-with-user-btn").forEach(button => {
-        button.onclick = async function() {
-          const userId = this.getAttribute("data-user-id");
-          const originalText = this.innerText;
-          
-          this.innerText = "Sharing...";
-          this.disabled = true;
-          
-          const success = await shareCustomList(listId, userId);
-          
-          if (success) {
-            this.innerText = "Shared ✓";
-            this.style.backgroundColor = "#28a745";
-          } else {
-            this.innerText = originalText;
-            this.disabled = false;
-          }
-        };
-      });
-    });
-}
+  }
 
 /**
  * Exit the custom practice mode and return to the list screen
@@ -13319,3 +13302,4 @@ async function updateUserCoins(amount) {
     
     return true;
 }
+
