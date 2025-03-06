@@ -465,248 +465,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeCarousel();
 });
 
-function initializeCarousel() {
-    const carousel = document.querySelector('.icon-carousel');
-    if (!carousel) return;
-    
-    const items = carousel.querySelectorAll('.carousel-item');
-    const description = document.getElementById('carousel-description');
-    const indicators = document.querySelectorAll('.carousel-indicators .indicator');
-    
-    let startX, moveX, currentIndex = 1; // Default active item (Play)
-    let isDragging = false;
-    let canClick = true;
-    let isAnimating = false; // Add flag to prevent multiple rapid clicks
-    
-    // Set initial state
-    updateCarouselState();
-    
-    // Touch/mouse event listeners
-    items.forEach((item, index) => {
-        // Click handler
-        item.addEventListener('click', function(e) {
-            // Prevent action if we're dragging or already animating
-            if (!canClick || isDragging || isAnimating) return;
-            
-            if (!item.classList.contains('active')) {
-                // If clicking side item, make it active
-                moveToIndex(index);
-            } else {
-                // If clicking active item, execute its action
-                executeItemAction(item);
-            }
-        });
-        
-        // Touch/mouse start
-        item.addEventListener('touchstart', handleDragStart, { passive: true });
-        item.addEventListener('mousedown', handleDragStart);
-        
-        // Touch/mouse move
-        item.addEventListener('touchmove', handleDragMove, { passive: true });
-        item.addEventListener('mousemove', handleDragMove);
-        
-        // Touch/mouse end
-        item.addEventListener('touchend', handleDragEnd);
-        item.addEventListener('mouseup', handleDragEnd);
-        item.addEventListener('mouseleave', handleDragEnd);
-    });
-    
-    // Helper functions
-    function handleDragStart(e) {
-        // Don't start a new drag if we're animating
-        if (isAnimating) return;
-        
-        isDragging = true;
-        canClick = true;
-        startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
-        
-        // Prevent default only for mouse to avoid text selection
-        if (e.type === 'mousedown') {
-            e.preventDefault();
-        }
-    }
-    
-    function handleDragMove(e) {
-        if (!isDragging) return;
-        
-        moveX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
-        const diffX = moveX - startX;
-        
-        // If drag distance is significant, prevent click action
-        if (Math.abs(diffX) > 20) {
-            canClick = false;
-        }
-    }
-    
-    function handleDragEnd(e) {
-        if (!isDragging) return;
-        
-        isDragging = false;
-        
-        // If it was just a click or tiny movement, do nothing
-        if (canClick) return;
-        
-        // Check if we have moveX (it might be undefined if the move event didn't fire)
-        if (moveX === undefined) return;
-        
-        const diffX = moveX - startX;
-        
-        // Determine swipe direction if movement is significant
-        if (Math.abs(diffX) > 50) {
-            if (diffX > 0) {
-                // Swipe right (show previous)
-                moveToIndex(currentIndex - 1);
-            } else {
-                // Swipe left (show next)
-                moveToIndex(currentIndex + 1);
-            }
-        }
-        
-        // Reset moveX
-        moveX = undefined;
-    }
-    
-    function moveToIndex(index) {
-        // Don't do anything if already animating
-        if (isAnimating) return;
-        
-        // Set animating flag
-        isAnimating = true;
-        
-        // Handle circular navigation
-        if (index < 0) {
-            index = items.length - 1;
-        } else if (index >= items.length) {
-            index = 0;
-        }
-        
-        // Determine animation direction
-        const direction = index > currentIndex ? 'left' : 'right';
-        const oppositeDirection = direction === 'left' ? 'right' : 'left';
-        
-        // Update current active item with animation
-        items[currentIndex].classList.remove('active');
-        items[currentIndex].classList.add(`transition-${direction}`);
-        
-        // Update indicators
-        indicators[currentIndex].classList.remove('active');
-        
-        // Set new active item with animation
-        setTimeout(() => {
-            items[currentIndex].classList.remove(`transition-${direction}`);
-            
-            // Update index
-            currentIndex = index;
-            
-            // Add opposite animation to new active
-            items[currentIndex].classList.add(`transition-${oppositeDirection}`);
-            
-            // Force reflow to restart animation
-            void items[currentIndex].offsetWidth;
-            
-            // Set as active and remove animation class
-            items[currentIndex].classList.remove(`transition-${oppositeDirection}`);
-            items[currentIndex].classList.add('active');
-            
-            // Update indicators
-            indicators[currentIndex].classList.add('active');
-            
-            // Update description text
-            updateDescription();
-            
-            // Reposition items
-            updateCarouselState();
-            
-            // Reset animating flag after animation completes
-            setTimeout(() => {
-                isAnimating = false;
-            }, 500); // Match this with the CSS transition duration
-        }, 50);
-    }
-    
-    function updateCarouselState() {
-        items.forEach((item, index) => {
-            item.classList.remove('active');
-            item.style.zIndex = 1;
-            item.style.opacity = '0.6';
-            
-            // Position based on relation to current item
-            if (index === currentIndex) {
-                item.classList.add('active');
-                item.style.transform = 'translateX(0) translateY(0) scale(1.5)';
-                item.style.zIndex = 2;
-                item.style.opacity = '1';
-            } else if (index < currentIndex) {
-                item.style.transform = 'translateX(-150px) translateY(-15px) scale(0.7)';
-            } else {
-                item.style.transform = 'translateX(150px) translateY(-15px) scale(0.7)';
-            }
-        });
-        
-        // Update indicators
-        indicators.forEach((indicator, index) => {
-            indicator.classList.toggle('active', index === currentIndex);
-        });
-        
-        // Update description
-        updateDescription();
-    }
-    
-    function updateDescription() {
-        if (description && items[currentIndex]) {
-            const desc = items[currentIndex].getAttribute('data-description');
-            
-            // Animate description change
-            description.style.opacity = '0';
-            setTimeout(() => {
-                description.textContent = desc;
-                description.style.opacity = '1';
-            }, 300);
-        }
-    }
-    
-    function executeItemAction(item) {
-        const action = item.getAttribute('data-action');
-        if (action) {
-            // Use Function to safely execute the action string
-            (new Function(action))();
-        }
-    }
-    
-    // Add click handler for indicators
-    indicators.forEach((indicator, index) => {
-        indicator.addEventListener('click', () => {
-            if (!isAnimating) {
-                moveToIndex(index);
-            }
-        });
-    });
-}
-
-
-  document.addEventListener('DOMContentLoaded', function() {
-    // Set up a mutation observer to handle dynamically added crowns
-    const observer = new MutationObserver(mutations => {
-        mutations.forEach(mutation => {
-            if (mutation.addedNodes.length) {
-                mutation.addedNodes.forEach(node => {
-                    if (node.nodeType === 1) { // Element node
-                        const crowns = node.querySelectorAll('.fa-crown');
-                        crowns.forEach(crown => {
-                            crown.addEventListener('click', function(event) {
-                                event.stopPropagation();
-                                // Always force show the upgrade screen
-                                showScreen("upgrade-screen");
-                            });
-                        });
-                    }
-                });
-            }
-        });
-    });
-    
-    observer.observe(document.body, { childList: true, subtree: true });
-});
 
 document.addEventListener('DOMContentLoaded', () => {
     const otpInput = document.getElementById('otpInput');
@@ -6192,3 +5950,292 @@ function handleAvatarButtonClick() {
         showAuthModal();
     }
 }
+
+function initializeCarousel() {
+    const carousel = document.querySelector('.icon-carousel');
+    if (!carousel) return;
+    
+    const items = Array.from(carousel.querySelectorAll('.carousel-item'));
+    const description = document.getElementById('carousel-description');
+    const indicators = document.querySelectorAll('.carousel-indicators .indicator');
+    const totalItems = items.length;
+    
+    let startX, moveX, currentIndex = 1; // Default active item (Play)
+    let isDragging = false;
+    let canClick = true;
+    let isAnimating = false;
+    let clickedItemIndex = -1; // Track which item was clicked
+    
+    // Set initial state
+    updateCarouselState();
+    
+    // Touch/mouse event listeners for the carousel container
+    carousel.addEventListener('touchstart', handleContainerDragStart, { passive: true });
+    carousel.addEventListener('mousedown', handleContainerDragStart);
+    carousel.addEventListener('touchmove', handleContainerDragMove, { passive: true });
+    carousel.addEventListener('mousemove', handleContainerDragMove);
+    carousel.addEventListener('touchend', handleContainerDragEnd);
+    carousel.addEventListener('mouseup', handleContainerDragEnd);
+    carousel.addEventListener('mouseleave', handleContainerDragEnd);
+    
+    // Item click listeners only - separate from drag
+    items.forEach((item, index) => {
+        item.addEventListener('click', function(e) {
+            e.stopPropagation(); // Prevent event from bubbling to container
+            
+            // Only proceed if not dragging and not already animating
+            if (isDragging || isAnimating) return;
+            
+            // Record which item was clicked
+            clickedItemIndex = index;
+            
+            if (!item.classList.contains('active')) {
+                // If clicking side item, make it active
+                moveToIndex(index);
+            } else {
+                // If clicking active item, execute its action
+                executeItemAction(item);
+            }
+        });
+    });
+    
+    // Container drag functions
+    function handleContainerDragStart(e) {
+        // Don't start a new drag if already animating
+        if (isAnimating) return;
+        
+        isDragging = true;
+        canClick = true;
+        clickedItemIndex = -1; // Reset clicked item
+        
+        // Get start position
+        startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+        
+        // Prevent default only for mouse to avoid text selection
+        if (e.type === 'mousedown') {
+            e.preventDefault();
+        }
+    }
+    
+    function handleContainerDragMove(e) {
+        if (!isDragging) return;
+        
+        moveX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+        const diffX = moveX - startX;
+        
+        // If drag distance is significant, prevent click action
+        if (Math.abs(diffX) > 20) {
+            canClick = false;
+        }
+    }
+    
+    function handleContainerDragEnd(e) {
+        if (!isDragging) return;
+        
+        isDragging = false;
+        
+        // If clicked item was recorded, handle as a click not a drag
+        if (clickedItemIndex >= 0) {
+            return;
+        }
+        
+        // If it was just a click or tiny movement, do nothing
+        if (canClick) return;
+        
+        // Check if moveX is defined
+        if (typeof moveX === 'undefined') return;
+        
+        const diffX = moveX - startX;
+        
+        // Determine swipe direction if movement is significant
+        if (Math.abs(diffX) > 50) {
+            if (diffX > 0) {
+                // Swipe right (show previous)
+                moveToIndex(currentIndex - 1);
+            } else {
+                // Swipe left (show next)
+                moveToIndex(currentIndex + 1);
+            }
+        }
+        
+        // Reset moveX
+        moveX = undefined;
+    }
+    
+    function moveToIndex(index) {
+        // Don't do anything if already animating
+        if (isAnimating) return;
+        
+        // Set animating flag
+        isAnimating = true;
+        
+        // Handle circular navigation
+        if (index < 0) {
+            index = totalItems - 1;
+        } else if (index >= totalItems) {
+            index = 0;
+        }
+        
+        // Determine animation direction
+        const direction = index > currentIndex ? 'left' : 'right';
+        const oppositeDirection = direction === 'left' ? 'right' : 'left';
+        
+        // Update current active item with animation
+        items[currentIndex].classList.remove('active');
+        items[currentIndex].classList.add(`transition-${direction}`);
+        
+        // Update indicators
+        if (indicators[currentIndex]) {
+            indicators[currentIndex].classList.remove('active');
+        }
+        
+        // Set new active item with animation
+        setTimeout(() => {
+            items[currentIndex].classList.remove(`transition-${direction}`);
+            
+            // Update index
+            currentIndex = index;
+            
+            // Add opposite animation to new active
+            items[currentIndex].classList.add(`transition-${oppositeDirection}`);
+            
+            // Force reflow to restart animation
+            void items[currentIndex].offsetWidth;
+            
+            // Set as active and remove animation class
+            items[currentIndex].classList.remove(`transition-${oppositeDirection}`);
+            items[currentIndex].classList.add('active');
+            
+            // Update indicators
+            if (indicators[currentIndex]) {
+                indicators[currentIndex].classList.add('active');
+            }
+            
+            // Update description text
+            updateDescription();
+            
+            // Reposition items
+            updateCarouselState();
+            
+            // Reset animating flag after animation completes
+            setTimeout(() => {
+                isAnimating = false;
+            }, 500); // Match this with the CSS transition duration
+        }, 50);
+    }
+    
+    function updateCarouselState() {
+        // Calculate positions for all items based on circular logic
+        items.forEach((item, index) => {
+            item.classList.remove('active');
+            item.style.zIndex = 1;
+            item.style.opacity = '0.6';
+            
+            // Position items in a circular manner relative to current
+            const relativePosition = getCircularPosition(currentIndex, index, totalItems);
+            
+            if (relativePosition === 0) {
+                // Current item (center)
+                item.classList.add('active');
+                item.style.transform = 'translateX(0) translateY(0) scale(1.8)';
+                item.style.zIndex = 2;
+                item.style.opacity = '1';
+            } else if (relativePosition === -1) {
+                // Item to the left
+                item.style.transform = 'translateX(-150px) translateY(-15px) scale(0.7)';
+            } else if (relativePosition === 1) {
+                // Item to the right
+                item.style.transform = 'translateX(150px) translateY(-15px) scale(0.7)';
+            } else if (relativePosition < -1) {
+                // Items further left (hidden)
+                item.style.transform = 'translateX(-300px) translateY(-15px) scale(0.4)';
+                item.style.opacity = '0';
+            } else if (relativePosition > 1) {
+                // Items further right (hidden)
+                item.style.transform = 'translateX(300px) translateY(-15px) scale(0.4)';
+                item.style.opacity = '0';
+            }
+        });
+        
+        // Update indicators
+        if (indicators.length > 0) {
+            indicators.forEach((indicator, index) => {
+                indicator.classList.toggle('active', index === currentIndex);
+            });
+        }
+        
+        // Update description
+        updateDescription();
+    }
+    
+    // Helper function to calculate the relative position in a circular array
+    function getCircularPosition(center, position, total) {
+        let diff = position - center;
+        
+        // Handle wrapping
+        if (diff > Math.floor(total / 2)) {
+            diff = diff - total;
+        } else if (diff < -Math.floor(total / 2)) {
+            diff = diff + total;
+        }
+        
+        return diff;
+    }
+    
+    function updateDescription() {
+        if (description && items[currentIndex]) {
+            const desc = items[currentIndex].getAttribute('data-description');
+            
+            // Animate description change
+            description.style.opacity = '0';
+            setTimeout(() => {
+                description.textContent = desc;
+                description.style.opacity = '1';
+            }, 300);
+        }
+    }
+    
+    function executeItemAction(item) {
+        const action = item.getAttribute('data-action');
+        if (action) {
+            // Use Function to safely execute the action string
+            (new Function(action))();
+        }
+    }
+    
+    // Add click handler for indicators
+    if (indicators.length > 0) {
+        indicators.forEach((indicator, index) => {
+            indicator.addEventListener('click', () => {
+                if (!isAnimating) {
+                    moveToIndex(index);
+                }
+            });
+        });
+    }
+}
+
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Set up a mutation observer to handle dynamically added crowns
+    const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+            if (mutation.addedNodes.length) {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType === 1) { // Element node
+                        const crowns = node.querySelectorAll('.fa-crown');
+                        crowns.forEach(crown => {
+                            crown.addEventListener('click', function(event) {
+                                event.stopPropagation();
+                                // Always force show the upgrade screen
+                                showScreen("upgrade-screen");
+                            });
+                        });
+                    }
+                });
+            }
+        });
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+});

@@ -6738,14 +6738,19 @@
 }
 
 .carousel-item.active {
-    transform: translateX(0) translateY(0) scale(1.5);
+    transform: translateX(0) translateY(0) scale(1.8); /* Increased from 1.5 to 1.8 (20% bigger) */
     z-index: 2;
     opacity: 1;
 }
 
+/* Update hover states for side items */
 .carousel-item:not(.active):hover {
     transform: translateX(-150px) translateY(-15px) scale(0.8);
     opacity: 0.8;
+}
+
+.carousel-item:nth-child(1):hover {
+    transform: translateX(-150px) translateY(-15px) scale(0.8);
 }
 
 .carousel-item:nth-child(1):hover {
@@ -6756,22 +6761,18 @@
     transform: translateX(150px) translateY(-15px) scale(0.8);
 }
 
-.carousel-item.transition-right {
-    animation: slideRight 0.5s forwards;
-}
-
 .carousel-item.transition-left {
     animation: slideLeft 0.5s forwards;
 }
 
 @keyframes slideRight {
-    from { transform: translateX(0) scale(1.2); opacity: 1; z-index: 2; }
-    to { transform: translateX(150px) scale(0.7); opacity: 0.6; z-index: 1; }
+    from { transform: translateX(0) translateY(0) scale(1.8); opacity: 1; z-index: 2; }
+    to { transform: translateX(150px) translateY(-15px) scale(0.7); opacity: 0.6; z-index: 1; }
 }
 
 @keyframes slideLeft {
-    from { transform: translateX(0) scale(1.2); opacity: 1; z-index: 2; }
-    to { transform: translateX(-150px) scale(0.7); opacity: 0.6; z-index: 1; }
+    from { transform: translateX(0) translateY(0) scale(1.8); opacity: 1; z-index: 2; }
+    to { transform: translateX(-150px) translateY(-15px) scale(0.7); opacity: 0.6; z-index: 1; }
 }
 
 .icon-container {
@@ -6851,15 +6852,6 @@
     background: var(--gold);
 }
 
-@keyframes slideRight {
-    from { transform: translateX(0) translateY(0) scale(1.5); opacity: 1; z-index: 2; }
-    to { transform: translateX(150px) translateY(-15px) scale(0.7); opacity: 0.6; z-index: 1; }
-}
-
-@keyframes slideLeft {
-    from { transform: translateX(0) translateY(0) scale(1.5); opacity: 1; z-index: 2; }
-    to { transform: translateX(-150px) translateY(-15px) scale(0.7); opacity: 0.6; z-index: 1; }
-}
 
 /* Mobile responsiveness adjustments */
 @media (max-width: 768px) {
@@ -6924,5 +6916,172 @@
     .carousel-description {
         font-size: 1rem;
         min-height: 2.2rem;
+    }
+}
+
+/* Welcome Header with Avatar Button */
+.welcome-header {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+    padding-top: 1rem;
+}
+
+/* Avatar Button Specific Styles */
+.welcome-header .avatar-button {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--glass);
+    backdrop-filter: blur(5px);
+    border: 3px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+.welcome-header .avatar-button:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    border-color: var(--accent);
+}
+
+.welcome-header .avatar-button:active {
+    transform: translateY(-1px);
+}
+
+.welcome-header .avatar-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.welcome-header .avatar-container i {
+    font-size: 1.8rem;
+    color: var(--text);
+    transition: color 0.3s ease;
+}
+
+.welcome-header .avatar-button:hover .avatar-container i {
+    color: var(--gold);
+}
+
+/* Adjust spacing around title when avatar is present */
+.welcome-title {
+    margin-top: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Status colors for avatar borders */
+.welcome-header .status-unregistered {
+    border-color: #ff4d4d !important; /* Red */
+    box-shadow: 0 0 10px rgba(255, 77, 77, 0.5);
+}
+
+.welcome-header .status-free {
+    border-color: #ffa500 !important; /* Orange */
+    box-shadow: 0 0 10px rgba(255, 165, 0, 0.5);
+}
+
+.welcome-header .status-pending {
+    border-color: #66d9ff !important; /* Light blue */
+    box-shadow: 0 0 10px rgba(102, 217, 255, 0.5);
+}
+
+.welcome-header .status-premium {
+    border-color: #4CAF50 !important; /* Green */
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+}
+
+/* Mobile responsiveness adjustments */
+@media (max-width: 768px) {
+    .icon-carousel {
+        height: 180px; /* Increased for larger central icon */
+    }
+    
+    .carousel-item {
+        width: 65px;
+        height: 65px;
+        transform: translateX(140px) translateY(-12px) scale(0.7);
+    }
+    
+    .carousel-item:nth-child(1) {
+        transform: translateX(-140px) translateY(-12px) scale(0.7);
+    }
+    
+    .carousel-item.active {
+        transform: translateX(0) translateY(0) scale(1.6); /* Adjusted for mobile */
+    }
+    
+    .icon-container i {
+        font-size: 1.8rem;
+    }
+    
+    .icon-label {
+        font-size: 0.7rem;
+    }
+    
+    .carousel-description {
+        font-size: 1.1rem;
+    }
+    
+    @keyframes slideRight {
+        from { transform: translateX(0) translateY(0) scale(1.6); opacity: 1; z-index: 2; }
+        to { transform: translateX(140px) translateY(-12px) scale(0.7); opacity: 0.6; z-index: 1; }
+    }
+
+    @keyframes slideLeft {
+        from { transform: translateX(0) translateY(0) scale(1.6); opacity: 1; z-index: 2; }
+        to { transform: translateX(-140px) translateY(-12px) scale(0.7); opacity: 0.6; z-index: 1; }
+    }
+}
+
+@media (max-width: 480px) {
+    .icon-carousel {
+        height: 160px;
+    }
+    
+    .carousel-item {
+        width: 55px;
+        height: 55px;
+        transform: translateX(120px) translateY(-10px) scale(0.7);
+    }
+    
+    .carousel-item:nth-child(1) {
+        transform: translateX(-120px) translateY(-10px) scale(0.7);
+    }
+    
+    .carousel-item.active {
+        transform: translateX(0) translateY(0) scale(1.5);
+    }
+    
+    .icon-container i {
+        font-size: 1.5rem;
+    }
+    
+    .icon-label {
+        font-size: 0.65rem;
+    }
+    
+    .carousel-description {
+        font-size: 1rem;
+        min-height: 2.2rem;
+    }
+    
+    @keyframes slideRight {
+        from { transform: translateX(0) translateY(0) scale(1.5); opacity: 1; z-index: 2; }
+        to { transform: translateX(120px) translateY(-10px) scale(0.7); opacity: 0.6; z-index: 1; }
+    }
+
+    @keyframes slideLeft {
+        from { transform: translateX(0) translateY(0) scale(1.5); opacity: 1; z-index: 2; }
+        to { transform: translateX(-120px) translateY(-10px) scale(0.7); opacity: 0.6; z-index: 1; }
     }
 }
