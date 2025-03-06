@@ -653,63 +653,380 @@ const shineColors = [
 ];
 
 
+// REPLACE: CoinsManager - Complete replacement
 const CoinsManager = {
-    // Flag to prevent concurrent updates
-    isUpdating: false,
+    initialized: false,
+    updateLock: false,
+    pendingUpdates: [],
+    animationTimers: new Map(),
+    lastUpdateTimestamp: 0,
     
-    // Queue for pending updates
-    updateQueue: [],
-    
-    updateCoins: async function(amount) {
-        // If already updating, add to queue
-        if (this.isUpdating) {
-            return new Promise((resolve, reject) => {
-                this.updateQueue.push({amount, resolve, reject});
-            });
-        }
+    // Initialize the coins manager
+    initialize: async function() {
+        if (this.initialized) return;
         
-        this.isUpdating = true;
+        console.log("Initializing CoinsManager");
+        this.initialized = true;
+        
+        // Load initial coin values
+        await this.loadUserCoins();
+        
+        // Watch for DOM changes that might add new coin displays
+        this.observeCoinsDisplay();
+        
+        // Initial update
+        this.updateDisplays();
+    },
+    
+    // Load user's coins from database or localStorage
+    loadUserCoins: async function() {
+        try {
+            // For logged in users, load from database
+            if (currentUser?.id) {
+                const { data, error } = await supabaseClient
+                    .from("game_progress")
+                    .select("coins")
+                    .eq("user_id", currentUser.id)
+                    .single();
+                    
+                if (!error && data && typeof data.coins === 'number') {
+                    gameState.coins = data.coins;
+                    console.log("Loaded coins from database:", gameState.coins);
+                    return gameState.coins;
+                }
+            }
+            
+            // Fall back to localStorage
+            const savedProgress = localStorage.getItem("simploxProgress");
+            if (savedProgress) {
+                try {
+                    const progress = JSON.parse(savedProgress);
+                    if (typeof progress.coins === 'number') {
+                        gameState.coins = progress.coins;
+                        console.log("Loaded coins from localStorage:", gameState.coins);
+                        return gameState.coins;
+                    }
+                } catch (e) {
+                    console.error("Error parsing saved progress:", e);
+                }
+            }
+            
+            // Default to 0 if no saved coins found
+            gameState.coins = 0;
+            return 0;
+        } catch (error) {
+            console.error("Error loading user coins:", error);
+            gameState.coins = 0;
+            return 0;
+        }
+    },
+    
+    // Update coin amount and all displays
+    updateCoins: async function(amount) {
+        if (this.updateLock) {
+            this.pendingUpdates.push(amount);
+            console.log("Coin update queued:", amount);
+            return gameState.coins;
+        }
         
         try {
-            // Get current coin value
-            const currentCoins = gameState.coins || 0;
-            const newCoins = currentCoins + amount;
+            this.updateLock = true;
+            this.lastUpdateTimestamp = Date.now();
             
-            // Update the state
-            gameState.coins = newCoins;
+            const previousCoins = gameState.coins;
+            gameState.coins += amount;
             
-            // Animate all coin displays
-            const coinDisplays = document.querySelectorAll('.coin-count');
-            coinDisplays.forEach(el => {
-                animateCoinsChange(el, currentCoins, newCoins);
+            console.log(`Updating coins: ${previousCoins} + (${amount}) = ${gameState.coins}`);
+            
+            // Update all displays
+            this.updateDisplays(previousCoins);
+            
+            // Also update currentGame.coins for arcade mode
+            if (currentGame) {
+                currentGame.coins = gameState.coins;
+            }
+            
+            // Store the updated value
+            await this.saveUserCoins();
+            
+            // Update arcade participant data if applicable
+            this.updateArcadeParticipant();
+            
+            // Broadcast in arcade mode
+            this.broadcastArcadeUpdate();
+            
+            return gameState.coins;
+        } catch (error) {
+            console.error("Error updating coins:", error);
+            return gameState.coins;
+        } finally {
+            // Process any pending updates after a short delay
+            setTimeout(() => {
+                this.updateLock = false;
+                
+                if (this.pendingUpdates.length > 0) {
+                    const nextAmount = this.pendingUpdates.shift();
+                    this.updateCoins(nextAmount);
+                }
+            }, 300);
+        }
+    },
+    
+    // Set coin amount directly (overwrite instead of add)
+    setCoins: async function(newValue) {
+        if (this.updateLock) {
+            this.pendingUpdates.push(newValue - gameState.coins);
+            return gameState.coins;
+        }
+        
+        try {
+            this.updateLock = true;
+            this.lastUpdateTimestamp = Date.now();
+            
+            const previousCoins = gameState.coins;
+            gameState.coins = newValue;
+            
+            console.log(`Setting coins: ${previousCoins} => ${newValue}`);
+            
+            // Update all displays
+            this.updateDisplays(previousCoins);
+            
+            // Also update currentGame.coins for arcade mode
+            if (currentGame) {
+                currentGame.coins = gameState.coins;
+            }
+            
+            // Store the updated value
+            await this.saveUserCoins();
+            
+            // Update arcade participant data if applicable
+            this.updateArcadeParticipant();
+            
+            // Broadcast in arcade mode
+            this.broadcastArcadeUpdate();
+            
+            return gameState.coins;
+        } catch (error) {
+            console.error("Error setting coins:", error);
+            return gameState.coins;
+        } finally {
+            setTimeout(() => {
+                this.updateLock = false;
+                
+                if (this.pendingUpdates.length > 0) {
+                    const nextAmount = this.pendingUpdates.shift();
+                    this.updateCoins(nextAmount);
+                }
+            }, 300);
+        }
+    },
+    
+    // Save coins to database and localStorage
+    saveUserCoins: async function() {
+        // Save to database for logged in users
+        if (currentUser?.id) {
+            try {
+                const { error } = await supabaseClient
+                    .from("game_progress")
+                    .update({ coins: gameState.coins })
+                    .eq("user_id", currentUser.id);
+                    
+                if (error) {
+                    console.error("Error saving coins to database:", error);
+                }
+            } catch (error) {
+                console.error("Error saving coins to database:", error);
+            }
+        }
+        
+        // Always save to localStorage as backup
+        try {
+            const savedProgress = localStorage.getItem("simploxProgress");
+            let progress = {};
+            
+            if (savedProgress) {
+                progress = JSON.parse(savedProgress);
+            }
+            
+            progress.coins = gameState.coins;
+            localStorage.setItem("simploxProgress", JSON.stringify(progress));
+        } catch (error) {
+            console.error("Error saving coins to localStorage:", error);
+        }
+    },
+    
+    // Update coin displays with animation
+    updateDisplays: function(previousValue = null) {
+        if (previousValue === null) {
+            previousValue = gameState.coins;
+        }
+        
+        document.querySelectorAll('.coin-count').forEach(display => {
+            this.animateCoinDisplay(display, previousValue, gameState.coins);
+        });
+        
+        // Update perk buttons based on new coin amount
+        if (typeof updatePerkButtons === 'function') {
+            updatePerkButtons();
+        }
+    },
+    
+    // Animate a single coin display
+    // Animate a single coin display
+animateCoinDisplay: function(element, startValue, endValue) {
+    if (!element) return;
+    
+    // Cancel any ongoing animation for this element
+    const existingTimerId = this.animationTimers.get(element);
+    if (existingTimerId) {
+        cancelAnimationFrame(existingTimerId);
+        this.animationTimers.delete(element);
+    }
+    
+    startValue = parseFloat(startValue) || 0;
+    endValue = parseFloat(endValue) || 0;
+    
+    // Skip animation if values are the same
+    if (startValue === endValue) {
+        element.textContent = endValue;
+        return;
+    }
+    
+    // Duration in ms, shorter for more responsiveness
+    const duration = 600; 
+    const frameRate = 1000 / 60; // 60fps
+    const totalFrames = duration / frameRate;
+    const changePerFrame = (endValue - startValue) / totalFrames;
+    
+    let currentFrame = 0;
+    let currentValue = startValue;
+    
+    element.classList.add('animating');
+    
+    const animate = () => {
+        currentFrame++;
+        currentValue += changePerFrame;
+        
+        // Handle end conditions properly
+        if (currentFrame <= totalFrames && 
+            ((changePerFrame > 0 && currentValue < endValue) || 
+             (changePerFrame < 0 && currentValue > endValue))) {
+            
+            element.textContent = Math.round(currentValue);
+            
+            if (changePerFrame > 0) {
+                element.style.color = 'var(--success)';
+            } else if (changePerFrame < 0) {
+                element.style.color = 'var(--error)';
+            }
+            
+            // Schedule next frame and store the timer ID
+            const newTimerId = requestAnimationFrame(animate);
+            this.animationTimers.set(element, newTimerId);
+        } else {
+            // Ensure final value is exactly right
+            element.textContent = endValue;
+            this.animationTimers.delete(element);
+            
+            setTimeout(() => {
+                element.style.color = '';
+                element.classList.remove('animating');
+            }, 300);
+        }
+    };
+    
+    // Start animation and store the timer ID
+    const initialTimerId = requestAnimationFrame(animate);
+    this.animationTimers.set(element, initialTimerId);
+},
+    
+    // Observe DOM for new coin displays
+    observeCoinsDisplay: function() {
+        const observer = new MutationObserver(mutations => {
+            let shouldUpdate = false;
+            
+            mutations.forEach(mutation => {
+                if (mutation.addedNodes.length > 0) {
+                    // Check if any added nodes contain coin displays
+                    mutation.addedNodes.forEach(node => {
+                        if (node.nodeType === 1) { // Element node
+                            if (node.classList?.contains('coin-count') || 
+                                node.querySelector?.('.coin-count')) {
+                                shouldUpdate = true;
+                            }
+                        }
+                    });
+                }
             });
             
-            // Visual pulse effect for immediate feedback
-            if (amount !== 0) {
-                pulseCoins(amount);
+            if (shouldUpdate) {
+                this.updateDisplays();
             }
-            
-            // Save progress
-            await saveProgress();
-            
-            // Update UI that depends on coins
-            updatePerkButtons();
-            
-            // Process any queued updates
-            this.isUpdating = false;
-            if (this.updateQueue.length > 0) {
-                const nextUpdate = this.updateQueue.shift();
-                this.updateCoins(nextUpdate.amount)
-                    .then(nextUpdate.resolve)
-                    .catch(nextUpdate.reject);
-            }
-            
-            return newCoins;
-        } catch (error) {
-            this.isUpdating = false;
-            console.error("Error updating coins:", error);
-            throw error;
+        });
+        
+        // Observe the entire document for changes
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    },
+    
+    // Update arcade participant data
+    updateArcadeParticipant: function() {
+        if (!currentArcadeSession?.playerName) return;
+        
+        const index = currentArcadeSession.participants.findIndex(
+            p => p.username === currentArcadeSession.playerName
+        );
+        
+        if (index !== -1) {
+            currentArcadeSession.participants[index].coins = gameState.coins;
         }
+    },
+    
+    // Broadcast coin update in arcade mode
+    broadcastArcadeUpdate: function() {
+        if (!window.arcadeChannel || 
+            !currentArcadeSession?.playerName || 
+            window.arcadeChannel.subscription?.state !== "SUBSCRIBED") {
+            return;
+        }
+        
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'progress_update',
+            payload: {
+                username: currentArcadeSession.playerName,
+                wordsCompleted: currentGame?.wordsCompleted || 0,
+                coins: gameState.coins,
+                timestamp: Date.now(),
+                source: 'coinsManager',
+                isTrusted: true
+            }
+        });
+    },
+    
+    // Add visual pulse effect to coins
+    pulseCoins: function(times = 1) {
+        const coinIcons = document.querySelectorAll('.coin-icon');
+        
+        coinIcons.forEach(coinIcon => {
+            if (!coinIcon) return;
+            
+            let pulseCount = 0;
+            const doPulse = () => {
+                coinIcon.classList.add('coin-pulse');
+                setTimeout(() => {
+                    coinIcon.classList.remove('coin-pulse');
+                    pulseCount++;
+                    if (pulseCount < times) {
+                        setTimeout(doPulse, 100);
+                    }
+                }, 500);
+            };
+            
+            doPulse();
+        });
     }
 };
 
@@ -1579,47 +1896,7 @@ function renderStageCascadeScreen() {
     }
   }
 
-  function updateAllCoinDisplays() {
-    const displays = document.querySelectorAll('.coin-count');
-    displays.forEach(display => {
-        const currentValue = parseInt(display.textContent) || 0;
-        let targetValue;
 
-        // Determine the target value based on the context
-        if (window.location.pathname.includes('arcade')) {
-            targetValue = currentGame.coins || 0;
-        } else {
-            targetValue = gameState.coins || 0;
-        }
-
-        // Ensure we're using actual numeric values
-        const startNum = Number(currentValue);
-        const endNum = Number(targetValue);
-
-        animateNumber(display, startNum, endNum);
-    });
-}
-
-function pulseCoins(times = 1) {
-    // Update both the header coin icon and the in-game coin icon
-    const coinIcons = document.querySelectorAll('.coin-icon');
-    
-    coinIcons.forEach(coinIcon => {
-        let pulseCount = 0;
-        const doPulse = () => {
-            coinIcon.classList.add('coin-pulse');
-            setTimeout(() => {
-                coinIcon.classList.remove('coin-pulse');
-                pulseCount++;
-                if (pulseCount < times) {
-                    setTimeout(doPulse, 100);
-                }
-            }, 500);
-        };
-        
-        doPulse();
-    });
-}
 
 function showGameOverOverlay() {
     clearTimer();
@@ -1930,48 +2207,7 @@ function showJoinModal(otp = "") {
     });
 }
 
-async function updateUserCoins(amount) {
-    // Update local game state
-    const previousCoins = gameState.coins;
-    gameState.coins += amount;
-    
-    // Update UI
-    updateAllCoinDisplays();
-    updatePerkButtons();
-    
-    // Save to database if logged in
-    if (currentUser) {
-        try {
-            const { error } = await supabaseClient
-                .from("game_progress")
-                .update({ coins: gameState.coins })
-                .eq("user_id", currentUser.id);
-                
-            if (error) {
-                console.error("Failed to update coins in database:", error);
-                // Revert local change if database save fails
-                gameState.coins = previousCoins;
-                updateAllCoinDisplays();
-                updatePerkButtons();
-                return false;
-            }
-        } catch (err) {
-            console.error("Error updating coins:", err);
-            // Revert local change
-            gameState.coins = previousCoins;
-            updateAllCoinDisplays();
-            updatePerkButtons();
-            return false;
-        }
-    }
-    
-    // Also save to localStorage
-    const progressData = JSON.parse(localStorage.getItem("simploxProgress") || "{}");
-    progressData.coins = gameState.coins;
-    localStorage.setItem("simploxProgress", JSON.stringify(progressData));
-    
-    return true;
-}
+
 
 function updateUserStatusDisplay(status) {
     const userProfileSection = document.querySelector('.user-profile-section');
@@ -5568,4 +5804,81 @@ function hideUpgradePromptAndContinue() {
     }
   }
 
-  
+  // ADD: Function to handle unregistered user inactivity
+function setupUnregisteredUserInactivityWipe() {
+    let inactivityTimer;
+    const inactivityTimeout = 15000; // 3 minutes in milliseconds
+    let lastActivityTime = Date.now();
+    
+    // Function to reset the timer
+    function resetInactivityTimer() {
+        // Update last activity time
+        lastActivityTime = Date.now();
+        
+        // Clear existing timer
+        if (inactivityTimer) {
+            clearTimeout(inactivityTimer);
+        }
+        
+        // Only set the timer if user is not logged in
+        if (!currentUser) {
+            inactivityTimer = setTimeout(checkInactivity, 30000); // Check every 30 seconds
+        }
+    }
+    
+    // Function to check if we've been inactive long enough to wipe coins
+    function checkInactivity() {
+        const currentTime = Date.now();
+        const inactiveTime = currentTime - lastActivityTime;
+        
+        // If inactive for more than our threshold and still not logged in
+        if (inactiveTime >= inactivityTimeout && !currentUser) {
+            console.log(`Unregistered user inactive for ${Math.floor(inactiveTime/60000)} minutes - wiping coins`);
+            resetCoinsToZero();
+        } else {
+            // Not time to wipe yet, continue checking
+            inactivityTimer = setTimeout(checkInactivity, 30000);
+        }
+    }
+    
+    // Set up event listeners for user activity
+    const activityEvents = [
+        'mousedown', 'mousemove', 'keypress', 
+        'scroll', 'touchstart', 'click', 'touchmove'
+    ];
+    
+    activityEvents.forEach(event => {
+        document.addEventListener(event, resetInactivityTimer, { passive: true });
+    });
+    
+    // Start the initial timer
+    resetInactivityTimer();
+    
+    // Also check on visibility change (user coming back to tab)
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            const currentTime = Date.now();
+            const inactiveTime = currentTime - lastActivityTime;
+            
+            // If we've been away/hidden for over 3 minutes and not logged in
+            if (inactiveTime >= inactivityTimeout && !currentUser) {
+                console.log(`Tab inactive for ${Math.floor(inactiveTime/60000)} minutes - wiping coins`);
+                resetCoinsToZero();
+            }
+            
+            // Reset the timer as we're now active
+            resetInactivityTimer();
+        }
+    });
+}
+
+// ADD: Call this function during initialization
+document.addEventListener('DOMContentLoaded', function() {
+    // Find the logout button in the side panel (as in previous solution)
+    // ...logout button code from previous solution...
+    
+    // Setup inactivity wipe for unregistered users
+    setupUnregisteredUserInactivityWipe();
+    
+    console.log("Unregistered user inactivity coin wipe setup complete (3 minute timeout)");
+});

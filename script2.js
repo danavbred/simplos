@@ -112,7 +112,8 @@ async function trackWordEncounter(word, gameMode = 'standard') {
         }
         
         // Award coins - BUT ONLY IN REGULAR MODE, NOT ARCADE
-        if (coinReward > 0 && typeof CoinsManager !== 'undefined' && CoinsManager.updateCoins && gameMode !== 'arcade') {
+        if (coinReward > 0 && gameMode !== 'arcade') {
+          // Use the central CoinsManager instead of direct updates
           await CoinsManager.updateCoins(coinReward);
         }
         
@@ -826,13 +827,24 @@ function updatePlayerProgress(e) {
     
     window.lastProgressUpdate = timestamp;
     
-    // CRITICAL: Never allow external updates to modify our own coin display or word count
+    // CRITICAL: Never allow external updates to modify our own display if:
+    // 1. It's our own username AND
+    // 2. It's not from a trusted source AND
+    // 3. It's within 1 second of our own update
     if (e.username === currentArcadeSession.playerName) {
-      // Skip processing entirely for our own player
-      return true;
+      const isTrustedSource = e.isTrusted === true || 
+                             e.source === 'coinsManager' || 
+                             e.source === 'coinController';
+                             
+      const isRecentUpdate = Math.abs(timestamp - CoinsManager.lastUpdateTimestamp) < 1000;
+      
+      if (!isTrustedSource && isRecentUpdate) {
+        console.log(`Ignoring untrusted update for ${e.username}`);
+        return true;
+      }
     }
     
-    // Only process updates for other players
+    // Process updates for other players normally
     const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === e.username);
     
     if (playerIndex !== -1) {
@@ -848,7 +860,12 @@ function updatePlayerProgress(e) {
         e.wordsCompleted = currentWordsCompleted;
       }
       
-      // Update only for other players
+      if (newCoins < currentCoins) {
+        console.warn(`Prevented coin downgrade for ${e.username}: ${currentCoins} → ${newCoins}`);
+        e.coins = currentCoins;
+      }
+      
+      // Update participant data
       currentArcadeSession.participants[playerIndex] = {
         ...player,
         ...e,
@@ -865,6 +882,12 @@ function updatePlayerProgress(e) {
       });
     }
     
+    // For our own player, sync with gameState
+    if (e.username === currentArcadeSession.playerName && e.isTrusted) {
+      gameState.coins = e.coins;
+      currentGame.coins = e.coins;
+    }
+    
     // Update leaderboard UI
     const leaderboard = document.getElementById('arcade-leaderboard');
     if (leaderboard && leaderboard.offsetParent !== null) {
@@ -879,8 +902,75 @@ function updatePlayerProgress(e) {
     updatePlayerRankDisplay();
     
     return true;
-  }
+}
 
+// ADD: Simple function to reset coins to zero
+function resetCoinsToZero() {
+    console.log("Resetting all coins to zero");
+    
+    try {
+        // Reset coins in gameState
+        if (gameState) {
+            gameState.coins = 0;
+        }
+        
+        // Reset coins in currentGame
+        if (currentGame) {
+            currentGame.coins = 0;
+        }
+        
+        // Reset in localStorage
+        const savedProgress = localStorage.getItem("simploxProgress");
+        if (savedProgress) {
+            try {
+                const progress = JSON.parse(savedProgress);
+                progress.coins = 0;
+                localStorage.setItem("simploxProgress", JSON.stringify(progress));
+            } catch (e) {
+                console.error("Error updating localStorage:", e);
+            }
+        }
+        
+        // Update all coin displays
+        document.querySelectorAll('.coin-count').forEach(el => {
+            el.textContent = '0';
+        });
+        
+        console.log("Coins reset complete");
+    } catch (error) {
+        console.error("Error in resetCoinsToZero:", error);
+    }
+}
+
+// MODIFY: Find the existing logout button event handler and add the coin reset
+document.addEventListener('DOMContentLoaded', function() {
+    // Find the logout button in the side panel
+    const logoutButton = document.querySelector('.logout-button') || 
+                          document.querySelector('#logoutButton') ||
+                          document.querySelector('[data-action="logout"]');
+    
+    if (logoutButton) {
+        // Store the original onclick handler if it exists
+        const originalOnClick = logoutButton.onclick;
+        
+        // Replace with our enhanced handler
+        logoutButton.onclick = function(event) {
+            // First reset all coins
+            resetCoinsToZero();
+            
+            console.log("Coins reset as part of logout process");
+            
+            // Then call the original handler if it exists
+            if (typeof originalOnClick === 'function') {
+                return originalOnClick.call(this, event);
+            }
+        };
+        
+        console.log("Enhanced logout button with coin reset functionality");
+    } else {
+        console.warn("Logout button not found during initialization");
+    }
+});
 
   function broadcastCurrentParticipantData() {
     if (!currentArcadeSession || !currentArcadeSession.playerName || !window.arcadeChannel) {
@@ -919,18 +1009,20 @@ function updatePlayerProgress(e) {
     // Cancel any ongoing animation
     if (element.coinAnimationId) {
         cancelAnimationFrame(element.coinAnimationId);
+        element.coinAnimationId = null;
     }
     
     startValue = parseFloat(startValue) || 0;
     endValue = parseFloat(endValue) || 0;
     
+    // Skip animation if values are the same
     if (startValue === endValue) {
         element.textContent = endValue;
         return;
     }
     
-    // Duration in ms, higher value = slower animation
-    const duration = 800; // Slightly faster for better responsiveness
+    // Duration in ms, shorter for more responsiveness
+    const duration = 600; 
     const frameRate = 1000 / 60; // 60fps
     const totalFrames = duration / frameRate;
     const changePerFrame = (endValue - startValue) / totalFrames;
@@ -944,12 +1036,11 @@ function updatePlayerProgress(e) {
         currentFrame++;
         currentValue += changePerFrame;
         
-        // Handle end conditions
-        const shouldContinue = currentFrame <= totalFrames && 
+        // Handle end conditions properly
+        if (currentFrame <= totalFrames && 
             ((changePerFrame > 0 && currentValue < endValue) || 
-             (changePerFrame < 0 && currentValue > endValue));
-        
-        if (shouldContinue) {
+             (changePerFrame < 0 && currentValue > endValue))) {
+            
             element.textContent = Math.round(currentValue);
             
             if (changePerFrame > 0) {
@@ -966,13 +1057,13 @@ function updatePlayerProgress(e) {
             element.coinAnimationId = null;
             
             setTimeout(() => {
-                element.style.color = 'var(--text)';
+                element.style.color = '';
                 element.classList.remove('animating');
             }, 300);
         }
     };
     
-    // Start animation and store ID
+    // Start animation and track ID
     element.coinAnimationId = requestAnimationFrame(animate);
 }
 
@@ -4509,21 +4600,28 @@ window.arcadeChannel.on('broadcast', {event: 'request_latest_stats'}, (({payload
     }));
     
     window.arcadeChannel.on('broadcast', {event: 'coin_effect'}, (({payload: data}) => {
-        if (data.targetUser === playerName) {
-          // Use CoinController instead of direct modification
-          const oldCoins = currentGame.coins;
+        // Critical: Verify this is a legitimate coin effect
+        // Ensure we don't accidentally process our own progress as a coin effect
+        const isLegitimateEffect = data.effectSource === 'powerup' || data.effectSource === 'targeted';
+        
+        if (data.targetUser === playerName && isLegitimateEffect) {
+          console.log(`Processing coin effect: ${data.amount} coins from ${data.fromUser || 'system'}`);
+          
+          // Get current coins directly from game state
+          const oldCoins = currentGame.coins || 0;
           const newCoins = oldCoins + data.amount;
           
-          // Use the controller to ensure single source of truth
+          // Use CoinController for consistent updates
           CoinController.updateLocalCoins(newCoins);
           
+          // Show appropriate notification
           if (data.type === 'blessing') {
             showNotification(`${data.fromUser} high-fived you!`, 'blessing');
           } else if (data.type === 'curse') {
             showNotification(`${data.fromUser} poisoned you!`, 'curse');
           }
-          
-          updatePlayerRankDisplay();
+        } else if (data.targetUser === playerName) {
+          console.log(`Ignoring possible duplicate coin effect: ${JSON.stringify(data)}`);
         }
       }));
     
@@ -4875,204 +4973,201 @@ function exitArcade() {
 }
 
 function handleAnswer(isCorrect, skipMode = false) {
-  const now = Date.now();
-  if (now - (currentGame.lastAnswerTime || 0) < 1000) {
-    console.warn("Answer too quickly. Please wait a moment.");
-    return;
-  }
-  
-  if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
-    console.error("Invalid game state or index");
-    return;
-  }
-  
-  currentGame.lastAnswerTime = now;
-  currentGame.perks = currentGame.perks || { clue: 0, skip: 0, timeFreeze: 0, reveal: 0 };
-  
-  try {
-    if (isCorrect) {
-      currentGame.currentIndex++;
-      
-      if (currentGame.isBossLevel) {
-        const bossOrb = document.querySelector(".boss-orb-inner");
-        if (bossOrb) {
-          const colors = ["yellow", "purple", "turquoise", "darkgreen", "brown"];
-          const randomColor = colors[Math.floor(Math.random() * colors.length)];
-          const originalBackground = bossOrb.style.background;
-          bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColor}, #990000)`;
-          bossOrb.style.transform = "scale(1.3)";
-          bossOrb.style.filter = "brightness(1.5)";
-          setTimeout(() => {
-            bossOrb.style.transform = "";
-            bossOrb.style.filter = "";
-            bossOrb.style.background = originalBackground;
-          }, 300);
-        }
-        
-        // Check if this was the final boss hit
-        if (currentGame.currentIndex >= currentGame.words.length) {
-          console.log("Boss defeated - final hit!");
-          currentGame.bossDefeated = true; // Mark boss as defeated
-          clearTimer(); // Clear the timer
-          
-          // Force health bar to zero
-          const progressCircle = document.querySelector('.progress-circle');
-          if (progressCircle) {
-            const progress = progressCircle.querySelector('.progress');
-            if (progress) {
-              const circumference = 2 * Math.PI * 54;
-              progress.style.strokeDashoffset = circumference; // Set to full circumference (empty)
-            }
-          }
-          
-          // Direct call to defeat sequence with forced update
-          showBossDefeatEffect();
-          CoinsManager.updateCoins(100).then(() => {
-            updateAllCoinDisplays(); // Update coin display explicitly
-          });
-          
-          return; // Exit function early
-        }
-        
-        // Otherwise just update the health bar
-        updateBossHealthBar();
-      } else {
-        updateProgressCircle();
-      }
-      
-      if (!skipMode) {
-        let coinsEarned = 0;
-        const timeBonus = awardTimeBonus();
-        if (timeBonus > 0) {
-          coinsEarned += timeBonus;
-          pulseCoins(timeBonus);
-        }
-        
-        if (currentGame.firstAttempt) {
-          coinsEarned += 3;
-          pulseCoins(3);
-        } else {
-          coinsEarned += 1;
-          pulseCoins(1);
-        }
-        
-        CoinsManager.updateCoins(coinsEarned).then(() => {
-          updatePerkButtons();
-          updateAllCoinDisplays(); // Added to ensure coin display updates
-        }).catch(err => {
-          console.error("Error updating total coins:", err);
-        });
-        
-        currentGame.correctAnswers++;
-        
-        // Track word for any registered user without status check
-        if (currentUser) {
-          const wordIndex = currentGame.currentIndex - 1;
-          const word = currentGame.isHebrewToEnglish ? 
-            currentGame.words[wordIndex] : 
-            currentGame.translations[wordIndex];
-          
-          const gameMode = currentGame.isCustomPractice ? 'custom' : 
-                           currentGame.isArcadeMode ? 'arcade' : 'story';
-          
-          // Call trackWordEncounter without status check
-          trackWordEncounter(word, gameMode);
-        }
-      }
-    } else {
-      currentGame.firstAttempt = false;
-      currentGame.streakBonus = false;
-      currentGame.wrongStreak++;
-      
-      CoinsManager.updateCoins(-3).then(() => {
-        updatePerkButtons();
-        updateAllCoinDisplays(); // Added to ensure coin display updates
-      }).catch(err => {
-        console.error("Error updating coins:", err);
-      });
-      
-      if (currentGame.currentIndex > 0) {
-        currentGame.progressLost++;
-        currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
-        if (currentGame.isBossLevel) {
-          updateBossHealthBar();
-        }
-      }
-      
-      if (currentGame.wrongStreak >= 3) {
-        showGameOverOverlay();
-        return;
-      }
+    const now = Date.now();
+    if (now - (currentGame.lastAnswerTime || 0) < 1000) {
+      console.warn("Answer too quickly. Please wait a moment.");
+      return;
     }
     
-    // Clear previous visual indicators from all buttons
-    const allButtons = document.querySelectorAll(".buttons button");
+    if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
+      console.error("Invalid game state or index");
+      return;
+    }
     
-    // Get current question's correct answer
-    const currentCorrectAnswer = currentGame.isHebrewToEnglish
-      ? currentGame.words[Math.max(0, currentGame.currentIndex - 1)]
-      : currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
-      
-    // Highlight current answer status (right or wrong)
-    allButtons.forEach((button) => {
-      if (button.textContent === currentCorrectAnswer) {
-        button.classList.add("correct");
-      } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
-        button.classList.add("wrong");
-      }
-    });
-    
-    saveProgress();
-    
-    // Use a promise to ensure proper timing and button state clearance
-    const transitionDelay = 500; // ms
-    
-    setTimeout(() => {
-      // Clear all button classes before loading next question
-      allButtons.forEach(btn => {
-        btn.classList.remove("correct", "wrong");
-      });
-      
-      // Check if game is still valid (not a defeated boss)
-      if (currentGame && (!currentGame.bossDefeated || !currentGame.isBossLevel)) {
-        if (currentGame.currentIndex < currentGame.words.length) {
-          startTimer(currentGame.words.length - currentGame.currentIndex);
-          
-          if (currentGame.isBossLevel) {
-            loadNextBossQuestion();
-          } else {
-            loadNextQuestion();
-          }
-          
-          updatePerkButtons();
-        } else if (!currentGame.isBossLevel) {
-          if (currentGame.isCustomPractice) {
-            handleCustomLevelCompletion();
-          } else {
-            handleLevelCompletion();
-          }
-        }
-      }
-    }, transitionDelay);
-    
-  } catch (err) {
-    console.error("Unexpected error in handleAnswer:", err);
-    console.error("Error details:", err.stack);
+    currentGame.lastAnswerTime = now;
     
     try {
-      if (currentGame && currentGame.currentIndex < currentGame.words.length && !currentGame.bossDefeated) {
-        loadNextQuestion();
+      if (isCorrect) {
+        currentGame.currentIndex++;
+        
+        if (currentGame.isBossLevel) {
+          const bossOrb = document.querySelector(".boss-orb-inner");
+          if (bossOrb) {
+            const colors = ["yellow", "purple", "turquoise", "darkgreen", "brown"];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            const originalBackground = bossOrb.style.background;
+            bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColor}, #990000)`;
+            bossOrb.style.transform = "scale(1.3)";
+            bossOrb.style.filter = "brightness(1.5)";
+            setTimeout(() => {
+              bossOrb.style.transform = "";
+              bossOrb.style.filter = "";
+              bossOrb.style.background = originalBackground;
+            }, 300);
+          }
+          
+          // Check if this was the final boss hit
+          if (currentGame.currentIndex >= currentGame.words.length) {
+            console.log("Boss defeated - final hit!");
+            currentGame.bossDefeated = true; // Mark boss as defeated
+            clearTimer(); // Clear the timer
+            
+            // Force health bar to zero
+            const progressCircle = document.querySelector('.progress-circle');
+            if (progressCircle) {
+              const progress = progressCircle.querySelector('.progress');
+              if (progress) {
+                const circumference = 2 * Math.PI * 54;
+                progress.style.strokeDashoffset = circumference; // Set to full circumference (empty)
+              }
+            }
+            
+            // Direct call to defeat sequence with forced update
+            showBossDefeatEffect();
+            CoinsManager.updateCoins(100).then(() => {
+              updateAllCoinDisplays(); // Update coin display explicitly
+            });
+            
+            return; // Exit function early
+          }
+          
+          // Otherwise just update the health bar
+          updateBossHealthBar();
+        } else {
+          updateProgressCircle();
+        }
+        
+        if (!skipMode) {
+          let coinsEarned = 0;
+          const timeBonus = awardTimeBonus();
+          if (timeBonus > 0) {
+            coinsEarned += timeBonus;
+          }
+          
+          if (currentGame.firstAttempt) {
+            coinsEarned += 3;
+          } else {
+            coinsEarned += 1;
+          }
+          
+          if (coinsEarned > 0) {
+            CoinsManager.updateCoins(coinsEarned).then(() => {
+              updatePerkButtons();
+              pulseCoins(coinsEarned > 3 ? 2 : 1); // Pulsate based on amount
+            }).catch(err => {
+              console.error("Error updating total coins:", err);
+            });
+          }
+          
+          currentGame.correctAnswers++;
+          
+          // Track word for any registered user without status check
+          if (currentUser) {
+            const wordIndex = currentGame.currentIndex - 1;
+            const word = currentGame.isHebrewToEnglish ? 
+              currentGame.words[wordIndex] : 
+              currentGame.translations[wordIndex];
+            
+            const gameMode = currentGame.isCustomPractice ? 'custom' : 
+                             currentGame.isArcadeMode ? 'arcade' : 'story';
+            
+            // Call trackWordEncounter without status check
+            trackWordEncounter(word, gameMode);
+          }
+        }
       } else {
+        currentGame.firstAttempt = false;
+        currentGame.streakBonus = false;
+        currentGame.wrongStreak++;
+        
+        CoinsManager.updateCoins(-3).then(() => {
+          updatePerkButtons();
+        }).catch(err => {
+          console.error("Error updating coins:", err);
+        });
+        
+        if (currentGame.currentIndex > 0) {
+          currentGame.progressLost++;
+          currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
+          if (currentGame.isBossLevel) {
+            updateBossHealthBar();
+          }
+        }
+        
+        if (currentGame.wrongStreak >= 3) {
+          showGameOverOverlay();
+          return;
+        }
+      }
+      
+      // Clear previous visual indicators from all buttons
+      const allButtons = document.querySelectorAll(".buttons button");
+      
+      // Get current question's correct answer
+      const currentCorrectAnswer = currentGame.isHebrewToEnglish
+        ? currentGame.words[Math.max(0, currentGame.currentIndex - 1)]
+        : currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
+        
+      // Highlight current answer status (right or wrong)
+      allButtons.forEach((button) => {
+        if (button.textContent === currentCorrectAnswer) {
+          button.classList.add("correct");
+        } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
+          button.classList.add("wrong");
+        }
+      });
+      
+      saveProgress();
+      
+      // Use a promise to ensure proper timing and button state clearance
+      const transitionDelay = 500; // ms
+      
+      setTimeout(() => {
+        // Clear all button classes before loading next question
+        allButtons.forEach(btn => {
+          btn.classList.remove("correct", "wrong");
+        });
+        
+        // Check if game is still valid (not a defeated boss)
+        if (currentGame && (!currentGame.bossDefeated || !currentGame.isBossLevel)) {
+          if (currentGame.currentIndex < currentGame.words.length) {
+            startTimer(currentGame.words.length - currentGame.currentIndex);
+            
+            if (currentGame.isBossLevel) {
+              loadNextBossQuestion();
+            } else {
+              loadNextQuestion();
+            }
+            
+            updatePerkButtons();
+          } else if (!currentGame.isBossLevel) {
+            if (currentGame.isCustomPractice) {
+              handleCustomLevelCompletion();
+            } else {
+              handleLevelCompletion();
+            }
+          }
+        }
+      }, transitionDelay);
+      
+    } catch (err) {
+      console.error("Unexpected error in handleAnswer:", err);
+      console.error("Error details:", err.stack);
+      
+      try {
+        if (currentGame && currentGame.currentIndex < currentGame.words.length && !currentGame.bossDefeated) {
+          loadNextQuestion();
+        } else {
+          showScreen("welcome-screen");
+        }
+      } catch (err) {
+        console.error("Failed to recover from error:", err);
         showScreen("welcome-screen");
       }
-    } catch (err) {
-      console.error("Failed to recover from error:", err);
-      showScreen("welcome-screen");
     }
   }
-}
 
-function handleArcadeAnswer(isCorrect) {
+  function handleArcadeAnswer(isCorrect) {
     const now = Date.now();
     if (now - (currentGame.lastAnswerTime || 0) < 1000) {
       return; // Prevent rapid consecutive answers
@@ -5084,63 +5179,271 @@ function handleArcadeAnswer(isCorrect) {
     
     if (isCorrect) {
       // Increment word count and update streak
-      currentGame.wordsCompleted++;
-      currentGame.correctStreak++;
+      currentGame.wordsCompleted = (currentGame.wordsCompleted || 0) + 1;
+      currentGame.correctStreak = (currentGame.correctStreak || 0) + 1;
       currentGame.wrongStreak = 0;
       
-      // Calculate coin reward (including premium bonus if applicable)
-      let coinReward = 5;
-      if (currentGame.correctStreak >= 3) {
-        coinReward += 5;
-      }
-      
-      // Premium users get an extra bonus from word tracking
-      // but we'll add it directly here instead of through the separate trackWordEncounter path
+      // For premium users, track the word encounter
       if (currentUser && currentUser.status === 'premium') {
         // Get the current word from the question
         const questionElement = document.getElementById('question-word');
         if (questionElement && questionElement.textContent) {
           const word = questionElement.textContent.trim();
           
-          // Log word tracking but don't use it for coins in arcade mode
-          trackWordEncounter(word, 'arcade').catch(err => 
+          // Track word without adding coins (handled below)
+          trackWordEncounterWithoutCoins(word, 'arcade').catch(err => 
             console.error('Error tracking word in arcade:', err)
           );
-          
-          // Add premium bonus directly here
-          coinReward += 3;
         }
       }
       
-      // Use single CoinController for all coin updates
-      CoinController.addCoins(coinReward);
-      
-      // Update arcade powerups
-      updateArcadePowerups();
-      
-      // Update our rank display
-      updatePlayerRankDisplay();
-      
-      // Update arcade progress display
-      updateArcadeProgress();
-      
-      // Check if player has completed the word goal
-      if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
-        handlePlayerCompletedGoal(playerName);
-        // Return early to prevent loading next question
-        return;
+      // Calculate coin reward
+      let coinReward = 5;
+      if (currentGame.correctStreak >= 3) {
+        coinReward += 5;
       }
+      
+      // Premium users get extra coins in arcade mode
+      if (currentUser && currentUser.status === 'premium') {
+        coinReward += 2; // Add premium bonus directly here
+      }
+      
+      // Use the enhanced CoinsManager for consistent updates
+      CoinsManager.updateCoins(coinReward).then(() => {
+        // Update arcade powerups
+        updateArcadePowerups();
+        
+        // Update our rank display
+        updatePlayerRankDisplay();
+        
+        // Update arcade progress display
+        updateArcadeProgress();
+        
+        // Check if player has completed the word goal
+        if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
+          handlePlayerCompletedGoal(playerName);
+          // Return early to prevent loading next question
+          return;
+        }
+        
+        // Load the next question
+        loadNextArcadeQuestion();
+      });
     } else {
       // Handle incorrect answer
       currentGame.correctStreak = 0;
-      currentGame.wrongStreak++;
+      currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
+      
+      // Load the next question
+      loadNextArcadeQuestion();
     }
-    
-    // Load the next question
-    loadNextArcadeQuestion();
 }
 
+// Helper function to track words without awarding coins
+async function trackWordEncounterWithoutCoins(word, gameMode = 'arcade') {
+    // Only track for logged-in users
+    if (!currentUser || !currentUser.id) {
+      console.log('No user logged in, skipping word tracking');
+      return null;
+    }
+  
+    try {
+      const trimmedWord = String(word).trim();
+      const userId = currentUser.id;
+      
+      // First ensure user initialization
+      await ensureUserInitialization(userId);
+      
+      try {
+        // Try to get existing record
+        const { data, error } = await supabaseClient.rpc(
+          'get_word_history',
+          {
+            p_user_id: userId,
+            p_word: trimmedWord
+          }
+        );
+        
+        let isNewWord = false;
+        
+        // Handle potential errors
+        if (error) {
+          console.error("Error fetching word history:", error);
+          return { isNewWord: false, error };
+        }
+        
+        // Check if we got a record back
+        if (data && data.length > 0) {
+          // Word exists, increment practice count
+          const existingRecord = data[0];
+          const newCount = (existingRecord.practice_count || 0) + 1;
+          
+          const { error } = await supabaseClient
+            .from("word_practice_history")
+            .update({
+              practice_count: newCount,
+              last_practiced_at: new Date().toISOString(),
+              game_mode: gameMode
+              // No coins_earned update
+            })
+            .eq("user_id", userId)
+            .eq("word", trimmedWord);
+            
+          if (error) {
+            console.error("Error updating word history:", error);
+          }
+        } else {
+          // New word, create record
+          isNewWord = true;
+          
+          const { error } = await supabaseClient
+            .from("word_practice_history")
+            .insert([{
+              user_id: userId,
+              word: trimmedWord,
+              practice_count: 1,
+              game_mode: gameMode,
+              coins_earned: 0, // No coins
+              last_practiced_at: new Date().toISOString()
+            }]);
+            
+          if (error) {
+            console.error("Error inserting word history:", error);
+          } else {
+            // Update player stats with new unique word
+            const { data, error } = await supabaseClient
+              .from("player_stats")
+              .select("unique_words_practiced")
+              .eq("user_id", userId)
+              .single();
+              
+            if (!error) {
+              const newTotal = (data?.unique_words_practiced || 0) + 1;
+              const updateResult = await supabaseClient
+                .from("player_stats")
+                .update({ unique_words_practiced: newTotal })
+                .eq("user_id", userId);
+                
+              if (updateResult.error) {
+                console.error("Error updating player stats:", updateResult.error);
+              }
+            }
+          }
+        }
+        
+        return { isNewWord };
+      } catch (error) {
+        console.error("Error in trackWordEncounterWithoutCoins:", error);
+        return { isNewWord: false, error };
+      }
+    } catch (outerError) {
+      console.error("Error in trackWordEncounterWithoutCoins outer try/catch:", outerError);
+      return null;
+    }
+}
 
+// New helper function to track words without awarding coins
+async function trackWordEncounterWithoutCoins(word, gameMode = 'arcade') {
+    // Only track for logged-in users
+    if (!currentUser || !currentUser.id) {
+      console.log('No user logged in, skipping word tracking');
+      return null;
+    }
+  
+    try {
+      const trimmedWord = String(word).trim();
+      const userId = currentUser.id;
+      
+      // First ensure user initialization
+      await ensureUserInitialization(userId);
+      
+      try {
+        // Try to get existing record
+        const { data, error } = await supabaseClient.rpc(
+          'get_word_history',
+          {
+            p_user_id: userId,
+            p_word: trimmedWord
+          }
+        );
+        
+        let isNewWord = false;
+        
+        // Handle potential errors
+        if (error) {
+          console.error("Error fetching word history:", error);
+          return { isNewWord: false, error };
+        }
+        
+        // Check if we got a record back
+        if (data && data.length > 0) {
+          // Word exists, increment practice count
+          const existingRecord = data[0];
+          const newCount = (existingRecord.practice_count || 0) + 1;
+          
+          const { error } = await supabaseClient
+            .from("word_practice_history")
+            .update({
+              practice_count: newCount,
+              last_practiced_at: new Date().toISOString(),
+              game_mode: gameMode
+              // No coins_earned update
+            })
+            .eq("user_id", userId)
+            .eq("word", trimmedWord);
+            
+          if (error) {
+            console.error("Error updating word history:", error);
+          }
+        } else {
+          // New word, create record
+          isNewWord = true;
+          
+          const { error } = await supabaseClient
+            .from("word_practice_history")
+            .insert([{
+              user_id: userId,
+              word: trimmedWord,
+              practice_count: 1,
+              game_mode: gameMode,
+              coins_earned: 0, // No coins
+              last_practiced_at: new Date().toISOString()
+            }]);
+            
+          if (error) {
+            console.error("Error inserting word history:", error);
+          } else {
+            // Update player stats with new unique word
+            const { data, error } = await supabaseClient
+              .from("player_stats")
+              .select("unique_words_practiced")
+              .eq("user_id", userId)
+              .single();
+              
+            if (!error) {
+              const newTotal = (data?.unique_words_practiced || 0) + 1;
+              const updateResult = await supabaseClient
+                .from("player_stats")
+                .update({ unique_words_practiced: newTotal })
+                .eq("user_id", userId);
+                
+              if (updateResult.error) {
+                console.error("Error updating player stats:", updateResult.error);
+              }
+            }
+          }
+        }
+        
+        return { isNewWord };
+      } catch (error) {
+        console.error("Error in trackWordEncounterWithoutCoins:", error);
+        return { isNewWord: false, error };
+      }
+    } catch (outerError) {
+      console.error("Error in trackWordEncounterWithoutCoins outer try/catch:", outerError);
+      return null;
+    }
+}
 
 function checkGameEnd() {
     const completedPlayers = currentArcadeSession.participants
@@ -5971,36 +6274,50 @@ function updateArcadePowerups() {
 }
 
 function updateArcadeCoinDisplay() {
-    // Get the single source of truth for coins
-    const currentCoins = currentGame?.coins || 0;
+    // Use the single source of truth from CoinController
+    const currentCoins = CoinController.getCurrentCoins();
     
     // Update ALL coin displays to match this single source of truth
     document.querySelectorAll(".coin-count").forEach(element => {
       const displayedValue = parseInt(element.textContent) || 0;
       if (displayedValue !== currentCoins) {
-        // Animate the change
+        // Use the enhanced animation function
         animateCoinsChange(element, displayedValue, currentCoins);
       }
     });
     
-    // Also ensure our local participant data has the exact same value
-    if (currentArcadeSession.playerName) {
-      const playerIndex = currentArcadeSession.participants.findIndex(
-        p => p.username === currentArcadeSession.playerName
-      );
-      
-      if (playerIndex !== -1) {
-        // Use EXACT same coin value for consistency
-        currentArcadeSession.participants[playerIndex].coins = currentCoins;
-      }
-    }
-    
-    // Update power-up availability
+    // Update powerup availability
     updatePowerupAvailability();
-  }
+}
 
 
+function addCoinAnimationStyles() {
+    if (!document.getElementById("coin-animation-styles")) {
+        const styleElement = document.createElement("style");
+        styleElement.id = "coin-animation-styles";
+        styleElement.textContent = `
+            .coin-count.animating {
+                transition: color 0.3s ease;
+            }
+            
+            @keyframes coinPulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.2); }
+                100% { transform: scale(1); }
+            }
+            
+            .coin-pulse {
+                animation: coinPulse 0.5s ease-in-out;
+            }
+        `;
+        document.head.appendChild(styleElement);
+    }
+}
 
+// Call this on initialization
+document.addEventListener("DOMContentLoaded", function() {
+    addCoinAnimationStyles();
+});
 
 function proceedToGame() {
     const qrLanding = document.getElementById('qr-landing');
@@ -12752,90 +13069,246 @@ document.addEventListener('fullscreenchange', function() {
     }
 });
 
-// Central coin management control system
 const CoinController = {
     // Lock to prevent race conditions
     updateLock: false,
     pendingUpdates: [],
+    activeAnimations: new Map(), // Track ongoing animations by element
+    lastUpdateTimestamp: 0,
     
-    // Only this function should ever update currentGame.coins for current player
+    // Single source of truth for updating coins
     updateLocalCoins: function(newCoins, animate = true) {
         if (this.updateLock) {
-          // Queue the update to be processed later
-          this.pendingUpdates.push({newCoins, animate});
-          return false;
+            // Queue the update to be processed later
+            this.pendingUpdates.push({newCoins, animate});
+            return false;
         }
         
         try {
-          this.updateLock = true;
-          
-          // Store current value for animation
-          const oldCoins = currentGame.coins || 0;
-          
-          // Update to new value
-          currentGame.coins = newCoins;
-          
-          // Store timestamp of this update to ignore any broadcast echoes
-          currentGame.lastCoinUpdate = Date.now();
-          
-          // Update displays
-          document.querySelectorAll('.coin-count').forEach(el => {
-            if (animate) {
-              animateCoinsChange(el, oldCoins, newCoins);
-            } else {
-              el.textContent = newCoins;
-            }
-          });
-          
-          // Update our participant entry
-          if (currentArcadeSession.playerName) {
-            const index = currentArcadeSession.participants.findIndex(
-              p => p.username === currentArcadeSession.playerName
-            );
+            this.updateLock = true;
+            this.lastUpdateTimestamp = Date.now();
             
-            if (index !== -1) {
-              currentArcadeSession.participants[index].coins = newCoins;
+            // Store current value for animation
+            const oldCoins = currentGame?.coins || 0;
+            
+            // Update to new value
+            if (currentGame) {
+                currentGame.coins = newCoins;
             }
-          }
-          
-          // Broadcast update to others
-          if (window.arcadeChannel && 
-              window.arcadeChannel.subscription?.state === "SUBSCRIBED") {
-            window.arcadeChannel.send({
-              type: 'broadcast',
-              event: 'progress_update',
-              payload: {
-                username: currentArcadeSession.playerName,
-                wordsCompleted: currentGame.wordsCompleted || 0,
-                coins: newCoins,
-                timestamp: Date.now()
-              }
+            
+            // Update all coin displays
+            document.querySelectorAll('.coin-count').forEach(el => {
+                if (animate) {
+                    this.animateCoinDisplay(el, oldCoins, newCoins);
+                } else {
+                    el.textContent = newCoins;
+                }
             });
-          }
-          
-          return true;
-        } finally {
-          // Always unlock even if there's an error
-          setTimeout(() => {
-            this.updateLock = false;
             
-            // Process any pending updates
-            if (this.pendingUpdates.length > 0) {
-              const nextUpdate = this.pendingUpdates.shift();
-              this.updateLocalCoins(nextUpdate.newCoins, nextUpdate.animate);
+            // Update participant data for arcade mode
+            if (currentArcadeSession?.playerName) {
+                const index = currentArcadeSession.participants.findIndex(
+                    p => p.username === currentArcadeSession.playerName
+                );
+                
+                if (index !== -1) {
+                    currentArcadeSession.participants[index].coins = newCoins;
+                }
             }
-          }, 300); // Increased lock time for better animation handling
+            
+            // Broadcast update to others with source indicator
+            if (window.arcadeChannel && 
+                currentArcadeSession?.playerName &&
+                window.arcadeChannel.subscription?.state === "SUBSCRIBED") {
+                window.arcadeChannel.send({
+                    type: 'broadcast',
+                    event: 'progress_update',
+                    payload: {
+                        username: currentArcadeSession.playerName,
+                        wordsCompleted: currentGame?.wordsCompleted || 0,
+                        coins: newCoins,
+                        timestamp: Date.now(),
+                        source: 'coinController'
+                    }
+                });
+            }
+            
+            return true;
+        } finally {
+            // Always unlock after a delay, even if there's an error
+            setTimeout(() => {
+                this.updateLock = false;
+                
+                // Process any pending updates
+                if (this.pendingUpdates.length > 0) {
+                    const nextUpdate = this.pendingUpdates.shift();
+                    this.updateLocalCoins(nextUpdate.newCoins, nextUpdate.animate);
+                }
+            }, 300);
         }
-      },
+    },
     
-    // Use this to add coins to current player
+    // Enhanced animation with proper cancellation
+    animateCoinDisplay: function(element, startValue, endValue) {
+        if (!element) return;
+        
+        // Cancel any ongoing animation for this element
+        if (this.activeAnimations.has(element)) {
+            cancelAnimationFrame(this.activeAnimations.get(element));
+        }
+        
+        startValue = parseFloat(startValue) || 0;
+        endValue = parseFloat(endValue) || 0;
+        
+        // Skip animation if values are the same
+        if (startValue === endValue) {
+            element.textContent = endValue;
+            return;
+        }
+        
+        // Duration in ms, shorter for more responsiveness
+        const duration = 600;
+        const frameRate = 1000 / 60; // 60fps
+        const totalFrames = Math.ceil(duration / frameRate);
+        const changePerFrame = (endValue - startValue) / totalFrames;
+        
+        let currentFrame = 0;
+        let currentValue = startValue;
+        
+        element.classList.add('animating');
+        
+        const animate = () => {
+            currentFrame++;
+            currentValue += changePerFrame;
+            
+            // Handle end conditions properly
+            if (currentFrame <= totalFrames && 
+                ((changePerFrame > 0 && currentValue < endValue) || 
+                 (changePerFrame < 0 && currentValue > endValue))) {
+                
+                element.textContent = Math.round(currentValue);
+                
+                if (changePerFrame > 0) {
+                    element.style.color = 'var(--success)';
+                } else if (changePerFrame < 0) {
+                    element.style.color = 'var(--error)';
+                }
+                
+                // Save animation ID so it can be canceled
+                const animId = requestAnimationFrame(animate);
+                this.activeAnimations.set(element, animId);
+            } else {
+                // Ensure final value is exactly right
+                element.textContent = endValue;
+                this.activeAnimations.delete(element);
+                
+                setTimeout(() => {
+                    element.style.color = '';
+                    element.classList.remove('animating');
+                }, 300);
+            }
+        };
+        
+        // Start animation and track ID
+        const animId = requestAnimationFrame(animate);
+        this.activeAnimations.set(element, animId);
+    },
+    
+    // Add coins safely
     addCoins: function(amount) {
-      if (!currentGame) return false;
-      
-      const newTotal = (currentGame.coins || 0) + amount;
-      return this.updateLocalCoins(newTotal);
+        if (!currentGame) return false;
+        
+        const newTotal = (currentGame.coins || 0) + amount;
+        return this.updateLocalCoins(newTotal);
+    },
+    
+    // Safe way to get current coins
+    getCurrentCoins: function() {
+        return currentGame?.coins || 0;
     }
 };
 
+function updateAllCoinDisplays() {
+    const displays = document.querySelectorAll('.coin-count');
+    displays.forEach(display => {
+        const currentValue = parseInt(display.textContent) || 0;
+        let targetValue;
 
+        // Determine the target value based on the context
+        if (window.location.pathname.includes('arcade')) {
+            targetValue = currentGame.coins || 0;
+        } else {
+            targetValue = gameState.coins || 0;
+        }
 
+        // Ensure we're using actual numeric values
+        const startNum = Number(currentValue);
+        const endNum = Number(targetValue);
+
+        animateNumber(display, startNum, endNum);
+    });
+}
+
+function pulseCoins(times = 1) {
+    // Update both the header coin icon and the in-game coin icon
+    const coinIcons = document.querySelectorAll('.coin-icon');
+    
+    coinIcons.forEach(coinIcon => {
+        let pulseCount = 0;
+        const doPulse = () => {
+            coinIcon.classList.add('coin-pulse');
+            setTimeout(() => {
+                coinIcon.classList.remove('coin-pulse');
+                pulseCount++;
+                if (pulseCount < times) {
+                    setTimeout(doPulse, 100);
+                }
+            }, 500);
+        };
+        
+        doPulse();
+    });
+}
+
+async function updateUserCoins(amount) {
+    // Update local game state
+    const previousCoins = gameState.coins;
+    gameState.coins += amount;
+    
+    // Update UI
+    updateAllCoinDisplays();
+    updatePerkButtons();
+    
+    // Save to database if logged in
+    if (currentUser) {
+        try {
+            const { error } = await supabaseClient
+                .from("game_progress")
+                .update({ coins: gameState.coins })
+                .eq("user_id", currentUser.id);
+                
+            if (error) {
+                console.error("Failed to update coins in database:", error);
+                // Revert local change if database save fails
+                gameState.coins = previousCoins;
+                updateAllCoinDisplays();
+                updatePerkButtons();
+                return false;
+            }
+        } catch (err) {
+            console.error("Error updating coins:", err);
+            // Revert local change
+            gameState.coins = previousCoins;
+            updateAllCoinDisplays();
+            updatePerkButtons();
+            return false;
+        }
+    }
+    
+    // Also save to localStorage
+    const progressData = JSON.parse(localStorage.getItem("simploxProgress") || "{}");
+    progressData.coins = gameState.coins;
+    localStorage.setItem("simploxProgress", JSON.stringify(progressData));
+    
+    return true;
+}
