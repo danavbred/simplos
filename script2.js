@@ -128,6 +128,156 @@ async function trackWordEncounter(word, gameMode = 'standard') {
     }
 }
 
+function handleArcadeAnswer(isCorrect) {
+    const now = Date.now();
+    if (now - (currentGame.lastAnswerTime || 0) < 1000) {
+      return; // Prevent rapid consecutive answers
+    }
+    
+    currentGame.lastAnswerTime = now;
+    
+    const playerName = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
+    
+    if (isCorrect) {
+      // Increment word count and update streak
+      currentGame.wordsCompleted = (currentGame.wordsCompleted || 0) + 1;
+      currentGame.correctStreak = (currentGame.correctStreak || 0) + 1;
+      currentGame.wrongStreak = 0;
+      
+      // For premium users, track the word encounter
+      if (currentUser && currentUser.status === 'premium') {
+        // Get the current word from the question
+        const questionElement = document.getElementById('question-word');
+        if (questionElement && questionElement.textContent) {
+          const word = questionElement.textContent.trim();
+          
+          // Track word without adding coins (handled below)
+          trackWordEncounterWithoutCoins(word, 'arcade').catch(err => 
+            console.error('Error tracking word in arcade:', err)
+          );
+        }
+      }
+      
+      // Calculate coin reward
+      let coinReward = 5;
+      if (currentGame.correctStreak >= 3) {
+        coinReward += 5;
+      }
+      
+      // Premium users get extra coins in arcade mode
+      if (currentUser && currentUser.status === 'premium') {
+        coinReward += 2; // Add premium bonus directly here
+      }
+      
+      // Use the enhanced CoinsManager for consistent updates
+      CoinsManager.updateCoins(coinReward).then(() => {
+        // Update arcade powerups
+        updateArcadePowerups();
+        
+        // Update our rank display
+        updatePlayerRankDisplay();
+        
+        // Update arcade progress display
+        updateArcadeProgress();
+        
+        // Check if player has completed the word goal
+        if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
+          handlePlayerCompletedGoal(playerName);
+          // Return early to prevent loading next question
+          return;
+        }
+        
+        // Load the next question
+        loadNextArcadeQuestion();
+      });
+    } else {
+      // Handle incorrect answer
+      currentGame.correctStreak = 0;
+      currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
+      
+      // Load the next question
+      loadNextArcadeQuestion();
+    }
+}
+
+function handleArcadeAnswer(isCorrect) {
+    const now = Date.now();
+    if (now - (currentGame.lastAnswerTime || 0) < 1000) {
+      return; // Prevent rapid consecutive answers
+    }
+    
+    currentGame.lastAnswerTime = now;
+    
+    const playerName = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
+    
+    if (isCorrect) {
+      // Increment word count and update streak
+      currentGame.wordsCompleted = (currentGame.wordsCompleted || 0) + 1;
+      currentGame.correctStreak = (currentGame.correctStreak || 0) + 1;
+      currentGame.wrongStreak = 0;
+      
+      // For premium users, track the word encounter
+      if (currentUser && currentUser.status === 'premium') {
+        // Get the current word from the question
+        const questionElement = document.getElementById('question-word');
+        if (questionElement && questionElement.textContent) {
+          const word = questionElement.textContent.trim();
+          
+          // Track word without adding coins (handled below)
+          trackWordEncounterWithoutCoins(word, 'arcade')
+            .then(() => {
+              // ADDED: Explicitly broadcast the updated word count for premium users
+              // This ensures word count updates are sent immediately after tracking
+              broadcastCurrentParticipantData();
+            })
+            .catch(err => 
+              console.error('Error tracking word in arcade:', err)
+            );
+        }
+      }
+      
+      // Calculate coin reward
+      let coinReward = 5;
+      if (currentGame.correctStreak >= 3) {
+        coinReward += 5;
+      }
+      
+      // Premium users get extra coins in arcade mode
+      if (currentUser && currentUser.status === 'premium') {
+        coinReward += 2; // Add premium bonus directly here
+      }
+      
+      // Use the enhanced CoinsManager for consistent updates
+      CoinsManager.updateCoins(coinReward).then(() => {
+        // Update arcade powerups
+        updateArcadePowerups();
+        
+        // Update our rank display
+        updatePlayerRankDisplay();
+        
+        // Update arcade progress display
+        updateArcadeProgress();
+        
+        // Check if player has completed the word goal
+        if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
+          handlePlayerCompletedGoal(playerName);
+          // Return early to prevent loading next question
+          return;
+        }
+        
+        // Load the next question
+        loadNextArcadeQuestion();
+      });
+    } else {
+      // Handle incorrect answer
+      currentGame.correctStreak = 0;
+      currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
+      
+      // Load the next question
+      loadNextArcadeQuestion();
+    }
+}
+
 const currentArcadeSessionStructure = {
     eventId: null,
     otp: null,
@@ -5199,182 +5349,7 @@ function handleAnswer(isCorrect, skipMode = false) {
     }
   }
 
-  function handleArcadeAnswer(isCorrect) {
-    const now = Date.now();
-    if (now - (currentGame.lastAnswerTime || 0) < 1000) {
-      return; // Prevent rapid consecutive answers
-    }
-    
-    currentGame.lastAnswerTime = now;
-    
-    const playerName = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
-    
-    if (isCorrect) {
-      // Increment word count and update streak
-      currentGame.wordsCompleted = (currentGame.wordsCompleted || 0) + 1;
-      currentGame.correctStreak = (currentGame.correctStreak || 0) + 1;
-      currentGame.wrongStreak = 0;
-      
-      // For premium users, track the word encounter
-      if (currentUser && currentUser.status === 'premium') {
-        // Get the current word from the question
-        const questionElement = document.getElementById('question-word');
-        if (questionElement && questionElement.textContent) {
-          const word = questionElement.textContent.trim();
-          
-          // Track word without adding coins (handled below)
-          trackWordEncounterWithoutCoins(word, 'arcade').catch(err => 
-            console.error('Error tracking word in arcade:', err)
-          );
-        }
-      }
-      
-      // Calculate coin reward
-      let coinReward = 5;
-      if (currentGame.correctStreak >= 3) {
-        coinReward += 5;
-      }
-      
-      // Premium users get extra coins in arcade mode
-      if (currentUser && currentUser.status === 'premium') {
-        coinReward += 2; // Add premium bonus directly here
-      }
-      
-      // Use the enhanced CoinsManager for consistent updates
-      CoinsManager.updateCoins(coinReward).then(() => {
-        // Update arcade powerups
-        updateArcadePowerups();
-        
-        // Update our rank display
-        updatePlayerRankDisplay();
-        
-        // Update arcade progress display
-        updateArcadeProgress();
-        
-        // Check if player has completed the word goal
-        if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
-          handlePlayerCompletedGoal(playerName);
-          // Return early to prevent loading next question
-          return;
-        }
-        
-        // Load the next question
-        loadNextArcadeQuestion();
-      });
-    } else {
-      // Handle incorrect answer
-      currentGame.correctStreak = 0;
-      currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
-      
-      // Load the next question
-      loadNextArcadeQuestion();
-    }
-}
-
 // Helper function to track words without awarding coins
-async function trackWordEncounterWithoutCoins(word, gameMode = 'arcade') {
-    // Only track for logged-in users
-    if (!currentUser || !currentUser.id) {
-      console.log('No user logged in, skipping word tracking');
-      return null;
-    }
-  
-    try {
-      const trimmedWord = String(word).trim();
-      const userId = currentUser.id;
-      
-      // First ensure user initialization
-      await ensureUserInitialization(userId);
-      
-      try {
-        // Try to get existing record
-        const { data, error } = await supabaseClient.rpc(
-          'get_word_history',
-          {
-            p_user_id: userId,
-            p_word: trimmedWord
-          }
-        );
-        
-        let isNewWord = false;
-        
-        // Handle potential errors
-        if (error) {
-          console.error("Error fetching word history:", error);
-          return { isNewWord: false, error };
-        }
-        
-        // Check if we got a record back
-        if (data && data.length > 0) {
-          // Word exists, increment practice count
-          const existingRecord = data[0];
-          const newCount = (existingRecord.practice_count || 0) + 1;
-          
-          const { error } = await supabaseClient
-            .from("word_practice_history")
-            .update({
-              practice_count: newCount,
-              last_practiced_at: new Date().toISOString(),
-              game_mode: gameMode
-              // No coins_earned update
-            })
-            .eq("user_id", userId)
-            .eq("word", trimmedWord);
-            
-          if (error) {
-            console.error("Error updating word history:", error);
-          }
-        } else {
-          // New word, create record
-          isNewWord = true;
-          
-          const { error } = await supabaseClient
-            .from("word_practice_history")
-            .insert([{
-              user_id: userId,
-              word: trimmedWord,
-              practice_count: 1,
-              game_mode: gameMode,
-              coins_earned: 0, // No coins
-              last_practiced_at: new Date().toISOString()
-            }]);
-            
-          if (error) {
-            console.error("Error inserting word history:", error);
-          } else {
-            // Update player stats with new unique word
-            const { data, error } = await supabaseClient
-              .from("player_stats")
-              .select("unique_words_practiced")
-              .eq("user_id", userId)
-              .single();
-              
-            if (!error) {
-              const newTotal = (data?.unique_words_practiced || 0) + 1;
-              const updateResult = await supabaseClient
-                .from("player_stats")
-                .update({ unique_words_practiced: newTotal })
-                .eq("user_id", userId);
-                
-              if (updateResult.error) {
-                console.error("Error updating player stats:", updateResult.error);
-              }
-            }
-          }
-        }
-        
-        return { isNewWord };
-      } catch (error) {
-        console.error("Error in trackWordEncounterWithoutCoins:", error);
-        return { isNewWord: false, error };
-      }
-    } catch (outerError) {
-      console.error("Error in trackWordEncounterWithoutCoins outer try/catch:", outerError);
-      return null;
-    }
-}
-
-// New helper function to track words without awarding coins
 async function trackWordEncounterWithoutCoins(word, gameMode = 'arcade') {
     // Only track for logged-in users
     if (!currentUser || !currentUser.id) {
