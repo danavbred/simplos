@@ -5955,6 +5955,11 @@ function initializeCarousel() {
     const carousel = document.querySelector('.icon-carousel');
     if (!carousel) return;
     
+    const welcomeScreen = document.getElementById('welcome-screen');
+    if (welcomeScreen) {
+        initializeParticles(welcomeScreen);
+    }
+
     const items = Array.from(carousel.querySelectorAll('.carousel-item'));
     const description = document.getElementById('carousel-description');
     const indicators = document.querySelectorAll('.carousel-indicators .indicator');
