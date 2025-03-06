@@ -7273,27 +7273,27 @@ function resetArcadeSession() {
 
 // REPLACE finishCelebrationAndGoHome function
 function finishCelebrationAndGoHome() {
-  // Clean up UI elements
-  document.querySelector(".celebration-overlay")?.remove();
-  document.querySelector(".home-button-container")?.remove();
-  
-  if (window.celebrationConfettiInterval) {
-    clearInterval(window.celebrationConfettiInterval);
-  }
-  
-  document.querySelectorAll(".confetti, .celebration-emoji, .winner-entry.celebrating").forEach(
-    element => element.remove()
-  );
-  
-  // Update stats before returning home
-  updatePlayerStatsAfterArcade().then(() => {
-    // Clean up monitoring and reset session
-    resetArcadeSession();
+    // Clean up UI elements
+    document.querySelector(".celebration-overlay")?.remove();
+    document.querySelector(".home-button-container")?.remove();
     
-    // Return to welcome screen
-    showScreen("welcome-screen");
-  });
-}
+    if (window.celebrationConfettiInterval) {
+      clearInterval(window.celebrationConfettiInterval);
+    }
+    
+    document.querySelectorAll(".confetti, .celebration-emoji, .winner-entry.celebrating").forEach(
+      element => element.remove()
+    );
+    
+    // Update stats before returning home
+    updatePlayerStatsAfterArcade().then(() => {
+      // Clean up monitoring and reset session
+      resetArcadeSession();
+      
+      // Return to welcome screen
+      showScreen("welcome-screen");
+    });
+  }
 
 function showModeratorVictoryScreen(players) {
     // Clean up any inactivity timers (disabled but clean up any remnants)
