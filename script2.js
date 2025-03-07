@@ -1,3 +1,31 @@
+// ADD at the beginning of the script
+const DOMCache = {
+    // Core elements
+    questionScreen: null,
+    questionWord: null,
+    buttonsContainer: null,
+    progressCircle: null,
+    timerValue: null,
+    coinCount: null,
+  
+    // Initialize cache
+    init() {
+      this.questionScreen = document.getElementById('question-screen');
+      this.questionWord = document.getElementById('question-word');
+      this.buttonsContainer = document.getElementById('buttons');
+      this.progressCircle = document.querySelector('.progress-circle .progress');
+      this.timerValue = document.querySelector('.timer-value');
+      this.coinCount = document.querySelectorAll('.coin-count');
+      
+      // Add more critical elements here
+    }
+  };
+  
+  // Call this after DOM loads
+  document.addEventListener('DOMContentLoaded', () => {
+    DOMCache.init();
+  });
+
 
 async function trackWordEncounter(word, gameMode = 'standard') {
     // Only track for logged-in users
@@ -2300,29 +2328,181 @@ function updateProgressCircle() {
     }
   }
 
-  function addProgressStreakStyles() {
+// REPLACE animation code with CSS-based alternatives
+function addProgressStreakStyles() {
     if (!document.getElementById("progress-streak-styles")) {
       const styleElement = document.createElement("style");
       styleElement.id = "progress-streak-styles";
       styleElement.textContent = `
         @keyframes progressStreak {
-          0%, 100% { 
-            filter: brightness(1); 
-          }
-          50% { 
-            filter: brightness(1.5) drop-shadow(0 0 5px var(--gold, gold));
-            stroke: var(--gold, gold); 
-          }
+          0%, 100% { filter: brightness(1); }
+          50% { filter: brightness(1.5) drop-shadow(0 0 5px var(--gold, gold));
+                stroke: var(--gold, gold); }
         }
         
         .progress-circle .progress.streaking {
           animation: progressStreak 1.2s ease-in-out infinite;
+          will-change: filter, stroke;
+        }
+        
+        .coin-pulse {
+          animation: coinPulse 0.5s ease-in-out;
+          will-change: transform;
+        }
+        
+        @keyframes coinPulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.2); }
+          100% { transform: scale(1); }
         }
       `;
       document.head.appendChild(styleElement);
     }
   }
 
+
+// ADD this game loop manager
+const GameLoop = {
+    active: false,
+    frameId: null,
+    lastTimestamp: 0,
+    callbacks: {
+      animation: [], // Run every frame
+      interval100ms: [], // Run every ~100ms
+      interval500ms: [], // Run every ~500ms
+      interval1s: [] // Run every ~1 second
+    },
+    intervals: {
+      100: 0,
+      500: 0,
+      1000: 0
+    },
+    
+    start() {
+      if (this.active) return;
+      this.active = true;
+      this.lastTimestamp = performance.now();
+      this.frameId = requestAnimationFrame(this.update.bind(this));
+    },
+    
+    stop() {
+      this.active = false;
+      if (this.frameId) {
+        cancelAnimationFrame(this.frameId);
+        this.frameId = null;
+      }
+    },
+    
+    update(timestamp) {
+      if (!this.active) return;
+      
+      const elapsed = timestamp - this.lastTimestamp;
+      
+      // Run animation callbacks every frame
+      for (const callback of this.callbacks.animation) {
+        callback(elapsed);
+      }
+      
+      // Run interval callbacks when appropriate
+      this.intervals[100] += elapsed;
+      if (this.intervals[100] >= 100) {
+        this.intervals[100] = 0;
+        for (const callback of this.callbacks.interval100ms) {
+          callback();
+        }
+      }
+      
+      this.intervals[500] += elapsed;
+      if (this.intervals[500] >= 500) {
+        this.intervals[500] = 0;
+        for (const callback of this.callbacks.interval500ms) {
+          callback();
+        }
+      }
+      
+      this.intervals[1000] += elapsed;
+      if (this.intervals[1000] >= 1000) {
+        this.intervals[1000] = 0;
+        for (const callback of this.callbacks.interval1s) {
+          callback();
+        }
+      }
+      
+      this.lastTimestamp = timestamp;
+      this.frameId = requestAnimationFrame(this.update.bind(this));
+    },
+    
+    addCallback(type, callback) {
+      this.callbacks[type].push(callback);
+      return callback; // Return for later removal
+    },
+    
+    removeCallback(type, callback) {
+      const index = this.callbacks[type].indexOf(callback);
+      if (index !== -1) {
+        this.callbacks[type].splice(index, 1);
+        return true;
+      }
+      return false;
+    }
+  };
+
+  // ADD mobile optimization detection
+function detectMobileDevice() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+           window.innerWidth < 768;
+  }
+  
+  // ADD performance settings
+  const PerformanceSettings = {
+    isMobile: detectMobileDevice(),
+    
+    // Settings tuned based on device capabilities
+    maxParticles: 0, // Will be set based on device
+    useAnimations: true,
+    useParticles: true,
+    
+    init() {
+      this.isMobile = detectMobileDevice();
+      
+      // Adjust settings based on device capability
+      if (this.isMobile) {
+        this.maxParticles = 10; // Fewer particles on mobile
+        this.useAnimations = true; // Keep essential animations
+        
+        // Add mobile-specific CSS
+        this.addMobileOptimizations();
+      } else {
+        this.maxParticles = 30; // More particles on desktop
+        this.useAnimations = true;
+      }
+      
+      console.log("Performance settings initialized for", this.isMobile ? "mobile" : "desktop");
+    },
+    
+    addMobileOptimizations() {
+      const style = document.createElement('style');
+      style.textContent = `
+        /* Optimize animations for mobile */
+        .word-translation-item, .buttons button {
+          transition: transform 0.2s ease-out;
+          will-change: transform;
+        }
+        
+        /* Reduce visual complexity */
+        .particle-container {
+          opacity: 0.5;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  };
+  
+  // Initialize on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    PerformanceSettings.init();
+  });
+  
 function loadNextQuestion() {
   // Clear any previous button classes
   document.querySelectorAll('.buttons button').forEach(button => {
