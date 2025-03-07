@@ -3242,13 +3242,6 @@ async function shareListWithUser(listId, recipientId) {
 }
 
 
-function closeShareModal() {
-    const modal = document.querySelector('.share-modal');
-    const backdrop = document.querySelector('.modal-backdrop');
-    
-    if (modal) modal.remove();
-    if (backdrop) backdrop.remove();
-}
 
 async function loadSharedLists() {
     if (!currentUser) return [];
@@ -3272,7 +3265,7 @@ async function loadSharedLists() {
 function showShareModal(listId) {
     console.log("Opening share modal for list:", listId);
     
-    // Same check as in updateListsDisplay for consistency
+    // Check if user can share
     const isPremiumUser = currentUser?.status === "premium";
     const isAdminEmail = currentUser && currentUser.email && 
                         (currentUser.email.includes("admin") || 
@@ -3286,108 +3279,341 @@ function showShareModal(listId) {
     }
     
     // Remove any existing modals
-    const existingModal = document.querySelector(".share-modal");
-    const existingBackdrop = document.querySelector(".modal-backdrop");
-    if (existingModal) existingModal.remove();
-    if (existingBackdrop) existingBackdrop.remove();
+    document.querySelectorAll(".share-modal-wrapper").forEach(el => el.remove());
     
-    // Create backdrop
-    const backdrop = document.createElement("div");
-    backdrop.className = "modal-backdrop";
-    backdrop.style.position = "fixed";
-    backdrop.style.top = "0";
-    backdrop.style.left = "0";
-    backdrop.style.width = "100%";
-    backdrop.style.height = "100%";
-    backdrop.style.backgroundColor = "rgba(0,0,0,0.7)";
-    backdrop.style.backdropFilter = "blur(5px)";
-    backdrop.style.zIndex = "1000";
-    backdrop.onclick = closeShareModal;
-    document.body.appendChild(backdrop);
+    // Create a completely new modal wrapper directly on the body
+    const modalWrapper = document.createElement("div");
+    modalWrapper.className = "share-modal-wrapper";
     
-    // Create modal with proper centering
-    const modal = document.createElement("div");
-    modal.className = "share-modal";
-    modal.style.position = "fixed";
-    modal.style.top = "50%";
-    modal.style.left = "50%";
-    modal.style.transform = "translate(-50%, -50%)";
-    modal.style.backgroundColor = "var(--glass)";
-    modal.style.backdropFilter = "blur(10px)";
-    modal.style.borderRadius = "20px";
-    modal.style.padding = "2rem";
-    modal.style.maxWidth = "500px";
-    modal.style.width = "90%";
-    modal.style.maxHeight = "80vh";
-    modal.style.overflowY = "auto";
-    modal.style.boxShadow = "0 10px 25px rgba(0, 0, 0, 0.2)";
-    modal.style.border = "1px solid rgba(255, 255, 255, 0.1)";
-    modal.style.zIndex = "1001"; // Ensure it's above backdrop
-    
-    modal.innerHTML = `
-        <h3 style="text-align: center; margin-bottom: 20px; color: white;">Share List</h3>
-        <div class="users-list">Loading users...</div>
-        <button class="start-button modal-close" onclick="closeShareModal()" style="margin-top: 1rem;">Cancel</button>
+    // Apply fixed positioning to ensure it's centered
+    modalWrapper.style.cssText = `
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        z-index: 9999 !important;
+        pointer-events: all !important;
     `;
     
-    document.body.appendChild(modal);
+    // Create the modal HTML with backdrop, search field, and content
+    modalWrapper.innerHTML = `
+        <div class="modal-backdrop" style="
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            background-color: rgba(0,0,0,0.7) !important;
+            z-index: 9999 !important;
+        "></div>
+        
+        <div class="share-modal-content" style="
+            position: relative !important;
+            width: 90% !important;
+            max-width: 500px !important;
+            max-height: 80vh !important;
+            background-color: rgba(30, 41, 59, 0.9) !important;
+            backdrop-filter: blur(10px) !important;
+            border-radius: 20px !important;
+            padding: 25px !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+            z-index: 10000 !important;
+            overflow-y: auto !important;
+            transform: none !important;
+            margin: 0 !important;
+        ">
+            <h3 style="
+                text-align: center !important;
+                margin-bottom: 20px !important;
+                color: white !important;
+                font-size: 1.5rem !important;
+            ">Share List</h3>
+            
+            <div class="search-container" style="
+                margin-bottom: 15px !important;
+                position: relative !important;
+            ">
+                <input type="text" id="user-search" placeholder="Search users..." style="
+                    width: 100% !important;
+                    padding: 10px !important;
+                    padding-left: 35px !important;
+                    border-radius: 5px !important;
+                    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+                    background-color: rgba(255, 255, 255, 0.1) !important;
+                    color: white !important;
+                    font-size: 1rem !important;
+                    outline: none !important;
+                ">
+                <i class="fas fa-search" style="
+                    position: absolute !important;
+                    left: 12px !important;
+                    top: 50% !important;
+                    transform: translateY(-50%) !important;
+                    color: rgba(255, 255, 255, 0.5) !important;
+                "></i>
+                <div class="search-results-count" style="
+                    position: absolute !important;
+                    right: 10px !important;
+                    top: 50% !important;
+                    transform: translateY(-50%) !important;
+                    color: rgba(255, 255, 255, 0.5) !important;
+                    font-size: 0.85rem !important;
+                    display: none !important;
+                "></div>
+            </div>
+            
+            <div class="users-list" style="
+                margin-bottom: 20px !important;
+                max-height: 50vh !important;
+                overflow-y: auto !important;
+            ">
+                <div style="
+                    text-align: center !important;
+                    color: white !important;
+                    padding: 15px !important;
+                ">
+                    <i class="fas fa-spinner fa-spin" style="margin-right: 10px !important;"></i>
+                    Loading users...
+                </div>
+            </div>
+            
+            <button class="cancel-share-btn" style="
+                background-color: rgba(255, 255, 255, 0.2) !important;
+                color: white !important;
+                border: none !important;
+                border-radius: 5px !important;
+                padding: 10px 20px !important;
+                font-size: 1rem !important;
+                cursor: pointer !important;
+                width: 100% !important;
+                transition: background-color 0.3s !important;
+            ">Cancel</button>
+        </div>
+    `;
     
-    // Now we know the modal and users-list are in the DOM
-    const usersList = modal.querySelector('.users-list');
+    // Append to body
+    document.body.appendChild(modalWrapper);
     
-    // Fetch users
+    // Add click handler for the cancel button
+    modalWrapper.querySelector(".cancel-share-btn").addEventListener("click", () => {
+        closeShareModal();
+    });
+    
+    // Store users data for search functionality
+    modalWrapper.userData = [];
+    
+    // Add search functionality
+    const searchInput = modalWrapper.querySelector("#user-search");
+    searchInput.addEventListener("input", () => {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        filterUsers(searchTerm, modalWrapper);
+    });
+    
+    // Fetch and display users
+    fetchUsersForSharing(listId, modalWrapper.querySelector(".users-list"), modalWrapper);
+    
+    // Add fade-in effect
+    setTimeout(() => {
+        modalWrapper.style.opacity = "0";
+        modalWrapper.style.transition = "opacity 0.3s ease";
+        
+        // Force reflow
+        modalWrapper.offsetHeight;
+        
+        // Fade in
+        modalWrapper.style.opacity = "1";
+    }, 10);
+}
+
+function closeShareModal() {
+    const modal = document.querySelector(".share-modal-wrapper");
+    if (modal) {
+        // Fade out effect
+        modal.style.opacity = "0";
+        
+        // Remove after animation
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+    }
+}
+
+function fetchUsersForSharing(listId, container, modalWrapper) {
+    if (!container) {
+        container = document.querySelector('.users-list');
+    }
+    
+    if (!container) return;
+    
+    // Fetch users from supabase
     supabaseClient.from("user_profiles")
         .select("id, username")
         .neq("id", currentUser.id)
         .then(({ data, error }) => {
             if (error) {
                 console.error("Error fetching users:", error);
-                usersList.innerHTML = '<div class="user-item"><span>Error loading users</span></div>';
+                container.innerHTML = `
+                    <div style="
+                        padding: 15px !important;
+                        background-color: rgba(255, 0, 0, 0.1) !important;
+                        border-radius: 10px !important;
+                        color: white !important;
+                        text-align: center !important;
+                    ">
+                        <i class="fas fa-exclamation-triangle" style="margin-right: 8px !important;"></i>
+                        Error loading users
+                    </div>
+                `;
                 return;
             }
             
             if (!data || data.length === 0) {
-                usersList.innerHTML = '<div class="user-item"><span>No other users available</span></div>';
+                container.innerHTML = `
+                    <div style="
+                        padding: 15px !important;
+                        background-color: rgba(255, 255, 255, 0.1) !important;
+                        border-radius: 10px !important;
+                        color: white !important;
+                        text-align: center !important;
+                    ">
+                        No other users available
+                    </div>
+                `;
                 return;
             }
             
-            usersList.innerHTML = data.map(user => `
-                <div class="user-item">
-                    <span>${user.username || "Unnamed User"}</span>
-                    <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}">
-                        <i class="fas fa-share-alt"></i> Share
-                    </button>
-                </div>
-            `).join("");
+            // Store user data for search functionality
+            if (modalWrapper) {
+                modalWrapper.userData = data;
+            }
             
-            // Add click handlers to share buttons
-            modal.querySelectorAll('.share-with-user-btn').forEach(btn => {
-                btn.onclick = async () => {
-                    const userId = btn.getAttribute('data-user-id');
-                    btn.disabled = true;
-                    const originalText = btn.innerHTML;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
-                    
-                    const success = await shareListWithUser(listId, userId);
-                    
-                    if (!success) {
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
-                    } else {
-                        showNotification("List shared successfully!", "success");
-                        closeShareModal();
-                    }
-                };
-            });
+            // Update the counter
+            const resultsCount = modalWrapper.querySelector('.search-results-count');
+            if (resultsCount) {
+                resultsCount.textContent = `${data.length} users`;
+                resultsCount.style.display = 'block !important';
+            }
+            
+            // Render all users
+            renderUsersList(data, container, listId);
         });
 }
 
-function closeShareModal() {
-    const modal = document.querySelector(".share-modal");
-    const backdrop = document.querySelector(".modal-backdrop");
+function renderUsersList(users, container, listId) {
+    // Create HTML for each user
+    let userItemsHtml = '';
     
-    if (modal) modal.remove();
-    if (backdrop) backdrop.remove();
+    users.forEach(user => {
+        userItemsHtml += `
+            <div class="user-item" style="
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                padding: 12px !important;
+                background-color: rgba(255, 255, 255, 0.1) !important;
+                border-radius: 10px !important;
+                margin-bottom: 10px !important;
+                color: white !important;
+            ">
+                <span style="overflow: hidden !important; text-overflow: ellipsis !important;">
+                    ${user.username || "Unnamed User"}
+                </span>
+                <button class="share-user-btn" data-user-id="${user.id}" style="
+                    background-color: rgba(30, 144, 255, 0.7) !important;
+                    color: white !important;
+                    border: none !important;
+                    border-radius: 5px !important;
+                    padding: 8px 12px !important;
+                    cursor: pointer !important;
+                    transition: background-color 0.3s !important;
+                ">
+                    <i class="fas fa-share-alt" style="margin-right: 5px !important;"></i>
+                    Share
+                </button>
+            </div>
+        `;
+    });
+    
+    // If no users match the search
+    if (userItemsHtml === '') {
+        userItemsHtml = `
+            <div style="
+                padding: 15px !important;
+                background-color: rgba(255, 255, 255, 0.1) !important;
+                border-radius: 10px !important;
+                color: white !important;
+                text-align: center !important;
+            ">
+                No users match your search
+            </div>
+        `;
+    }
+    
+    container.innerHTML = userItemsHtml;
+    
+    // Add event listeners to share buttons
+    container.querySelectorAll('.share-user-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const userId = btn.getAttribute('data-user-id');
+            
+            // Disable button and show loading state
+            btn.disabled = true;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
+            
+            // Call sharing function
+            const success = await shareListWithUser(listId, userId);
+            
+            if (success) {
+                showNotification("List shared successfully!", "success");
+                closeShareModal();
+            } else {
+                // Reset button on failure
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                showNotification("Failed to share list", "error");
+            }
+        });
+    });
+}
+
+function filterUsers(searchTerm, modalWrapper) {
+    if (!modalWrapper || !modalWrapper.userData) return;
+    
+    const usersList = modalWrapper.querySelector('.users-list');
+    const resultsCount = modalWrapper.querySelector('.search-results-count');
+    
+    if (!usersList) return;
+    
+    // If search term is empty, show all users
+    if (!searchTerm) {
+        renderUsersList(modalWrapper.userData, usersList, null);
+        
+        if (resultsCount) {
+            resultsCount.textContent = `${modalWrapper.userData.length} users`;
+            resultsCount.style.display = 'block';
+        }
+        return;
+    }
+    
+    // Filter users based on search term
+    const filteredUsers = modalWrapper.userData.filter(user => {
+        const username = (user.username || "").toLowerCase();
+        return username.includes(searchTerm);
+    });
+    
+    // Update results count
+    if (resultsCount) {
+        resultsCount.textContent = `${filteredUsers.length}/${modalWrapper.userData.length}`;
+        resultsCount.style.display = 'block';
+    }
+    
+    // Update the users list
+    renderUsersList(filteredUsers, usersList, null);
 }
 
 function handleProgressionAfterCompletion(isLevelCompleted) {
