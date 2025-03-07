@@ -957,60 +957,6 @@ case 'reveal':
 }
 
 
-function updatePerkButtons() {
-    Object.entries(PERK_CONFIG).forEach(([perkId, perkConfig]) => {
-        const perkButton = document.getElementById(`${perkId}Perk`);
-        if (!perkButton) return;
-        
-        // Handle special perks with requirements
-        if (perkConfig.requiresWordCount) {
-            // Check word count condition
-            const wordCount = parseInt(document.getElementById("totalWords").textContent) || 0;
-            
-            // Show or hide the perk based on word count
-            if (wordCount < perkConfig.requiresWordCount) {
-                perkButton.style.display = "none";
-                return;
-            } else {
-                perkButton.style.display = "flex";
-            }
-            
-            // Handle premium requirement display
-            if (perkConfig.requiresPremium) {
-                const isPremium = currentUser && currentUser.status === "premium";
-                
-                // Update crown visibility
-                let crownIcon = perkButton.querySelector(".premium-crown");
-                
-                if (!isPremium) {
-                    // Add crown if not already present
-                    // UPDATE CROWN STYLING IN updatePerkButtons FUNCTION
-if (!crownIcon) {
-    crownIcon = document.createElement("i");
-    crownIcon.className = "fas fa-crown premium-crown";
-    crownIcon.style.cssText = `
-        position: absolute;
-        top: -10px;
-        right: -10px;
-        color: var(--gold);
-        font-size: 1.2rem;
-        filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7));
-        animation: crownGlow 2s infinite alternate;
-        background: rgba(0, 0, 0, 0.5);
-        padding: 5px;
-        border-radius: 50%;
-        z-index: 10;
-        border: 1px solid rgba(255, 215, 0, 0.5);
-    `;
-    perkButton.style.position = "relative";
-    perkButton.appendChild(crownIcon);
-    
-    // Override click handler to show premium message
-    const originalOnclick = perkButton.onclick;
-    perkButton.onclick = function() {
-        showNotification("Premium feature only!", "error");
-    };
-}
 
 function addFadeInStyles() {
     if (!document.getElementById("perk-fade-styles")) {
@@ -1030,7 +976,74 @@ function addFadeInStyles() {
     }
   }
   
-
+  function updatePerkButtons() {
+    // Add the perk fade-in styles if not already present
+    addFadeInStyles();
+    
+    Object.entries(PERK_CONFIG).forEach(([perkId, perkConfig]) => {
+        const perkButton = document.getElementById(`${perkId}Perk`);
+        if (!perkButton) return;
+        
+        // Track the previous visibility state
+        const wasPreviouslyHidden = perkButton.style.display === "none";
+        
+        // Handle special perks with requirements
+        if (perkConfig.requiresWordCount) {
+            // Check word count condition
+            const wordCount = parseInt(document.getElementById("totalWords").textContent) || 0;
+            
+            // Show or hide the perk based on word count
+            if (wordCount < perkConfig.requiresWordCount) {
+                perkButton.style.display = "none";
+                return;
+            } else {
+                perkButton.style.display = "flex";
+                
+                // Apply fade-in animation if it was previously hidden
+                if (wasPreviouslyHidden) {
+                    perkButton.classList.add("fade-in-perk");
+                    // Remove the class after animation completes
+                    setTimeout(() => {
+                        perkButton.classList.remove("fade-in-perk");
+                    }, 600);
+                }
+            }
+            
+            // Handle premium requirement display
+            if (perkConfig.requiresPremium) {
+                const isPremium = currentUser && currentUser.status === "premium";
+                
+                // Update crown visibility
+                let crownIcon = perkButton.querySelector(".premium-crown");
+                
+                if (!isPremium) {
+                    // Add crown if not already present
+                    if (!crownIcon) {
+                        crownIcon = document.createElement("i");
+                        crownIcon.className = "fas fa-crown premium-crown";
+                        crownIcon.style.cssText = `
+                            position: absolute;
+                            top: -10px;
+                            right: -10px;
+                            color: var(--gold);
+                            font-size: 1.2rem;
+                            filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7));
+                            animation: crownGlow 2s infinite alternate;
+                            background: rgba(0, 0, 0, 0.5);
+                            padding: 5px;
+                            border-radius: 50%;
+                            z-index: 10;
+                            border: 1px solid rgba(255, 215, 0, 0.5);
+                        `;
+                        perkButton.style.position = "relative";
+                        perkButton.appendChild(crownIcon);
+                        
+                        // Override click handler to show premium message
+                        const originalOnclick = perkButton.onclick;
+                        perkButton.onclick = function() {
+                            showNotification("Premium feature only!", "error");
+                        };
+                    }
                     
                     // Disable button for non-premium users
                     perkButton.disabled = true;
@@ -1061,7 +1074,9 @@ function addFadeInStyles() {
         }
     });
 }
+                    
 
+  
 updatePerkButtons();
 
 let currentGame = {
@@ -2239,32 +2254,74 @@ function handleLevelProgression() {
 
 
 function updateProgressCircle() {
-  const progressElement = document.querySelector('.progress-circle .progress');
-  const circumference = 2 * Math.PI * 54;
-  const progress = currentGame.currentIndex / currentGame.words.length;
-
-  progressElement.style.strokeDasharray = `${circumference} ${circumference}`;
-  progressElement.style.strokeDashoffset = circumference * (1 - progress);
-
-  // Create a smooth, logical color transition
-  if (progress <= 0.25) {
-    // Red to orange gradient (0-25%)
-    const hue = Math.floor(progress * 4 * 30); // 0 to 30
-    progressElement.style.stroke = `hsl(${hue}, 100%, 45%)`;
-  } else if (progress <= 0.5) {
-    // Orange to yellow-green gradient (25-50%)
-    const hue = 30 + Math.floor((progress - 0.25) * 4 * 40); // 30 to 70
-    progressElement.style.stroke = `hsl(${hue}, 100%, 45%)`;
-  } else if (progress <= 0.75) {
-    // Yellow-green to green gradient (50-75%)
-    const hue = 70 + Math.floor((progress - 0.5) * 4 * 40); // 70 to 110
-    progressElement.style.stroke = `hsl(${hue}, 100%, 40%)`;
-  } else {
-    // Green to bright green gradient (75-100%)
-    const hue = 110 + Math.floor((progress - 0.75) * 4 * 30); // 110 to 140
-    progressElement.style.stroke = `hsl(${hue}, 100%, 40%)`;
+    // Ensure streak animation styles exist
+    addProgressStreakStyles();
+    
+    const progressElement = document.querySelector('.progress-circle .progress');
+    const circumference = 2 * Math.PI * 54;
+    const progress = currentGame.currentIndex / currentGame.words.length;
+  
+    progressElement.style.strokeDasharray = `${circumference} ${circumference}`;
+    progressElement.style.strokeDashoffset = circumference * (1 - progress);
+  
+    // Create a smooth, logical color transition with more hues
+    if (progress <= 0.25) {
+      // Red to orange gradient (0-25%)
+      const hue = Math.floor(progress * 4 * 30); // 0 to 30
+      progressElement.style.stroke = `hsl(${hue}, 100%, 45%)`;
+    } else if (progress <= 0.5) {
+      // Orange to yellow-green gradient (25-50%)
+      const hue = 30 + Math.floor((progress - 0.25) * 4 * 40); // 30 to 70
+      progressElement.style.stroke = `hsl(${hue}, 100%, 45%)`;
+    } else if (progress <= 0.75) {
+      // Yellow-green to green gradient (50-75%)
+      const hue = 70 + Math.floor((progress - 0.5) * 4 * 40); // 70 to 110
+      progressElement.style.stroke = `hsl(${hue}, 100%, 40%)`;
+    } else {
+      // Green to bright green gradient (75-100%)
+      const hue = 110 + Math.floor((progress - 0.75) * 4 * 30); // 110 to 140
+      progressElement.style.stroke = `hsl(${hue}, 100%, 40%)`;
+    }
+  
+    // Add pulsing effect if on a streak of 3 or more
+    if (currentGame.correctStreak >= 3) {
+      if (!progressElement.classList.contains('streaking')) {
+        progressElement.classList.add('streaking');
+      }
+      
+      // Show streak notification if not already shown for this streak count
+      if (!currentGame.lastNotifiedStreak || currentGame.lastNotifiedStreak !== currentGame.correctStreak) {
+        showNotification(`${currentGame.correctStreak} answer streak!`, 'success');
+        currentGame.lastNotifiedStreak = currentGame.correctStreak;
+      }
+    } else {
+      progressElement.classList.remove('streaking');
+      currentGame.lastNotifiedStreak = 0;
+    }
   }
-}
+
+  function addProgressStreakStyles() {
+    if (!document.getElementById("progress-streak-styles")) {
+      const styleElement = document.createElement("style");
+      styleElement.id = "progress-streak-styles";
+      styleElement.textContent = `
+        @keyframes progressStreak {
+          0%, 100% { 
+            filter: brightness(1); 
+          }
+          50% { 
+            filter: brightness(1.5) drop-shadow(0 0 5px var(--gold, gold));
+            stroke: var(--gold, gold); 
+          }
+        }
+        
+        .progress-circle .progress.streaking {
+          animation: progressStreak 1.2s ease-in-out infinite;
+        }
+      `;
+      document.head.appendChild(styleElement);
+    }
+  }
 
 function loadNextQuestion() {
   // Clear any previous button classes
@@ -2854,97 +2911,155 @@ function stopLevelAndGoBack() {
 }
 
 function handleResetProgress() {
-  console.log("Resetting all game progress...");
-  
-  // Reset game state to default
-  gameState.currentStage = 1;
-  gameState.currentSet = 1;
-  gameState.currentLevel = 1;
-  gameState.coins = 0;
-  gameState.perks = {
-    timeFreeze: 0,
-    skip: 0,
-    clue: 0,
-    reveal: 0
-  };
-  
-  // Reset unlocked sets
-  gameState.unlockedSets = {
-    "1": new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]), // All 9 sets for stage 1
-    "2": new Set([1]),                         // Only set 1 for stages 2-5
-    "3": new Set([1]),
-    "4": new Set([1]),
-    "5": new Set([1])
-  };
-  
-  // Reset unlocked levels to default
-  gameState.unlockedLevels = {};
-  
-  // For stage 1, unlock level 1 in each set
-  for (let set = 1; set <= 9; set++) {
-    const setKey = `1_${set}`;
-    gameState.unlockedLevels[setKey] = new Set([1]);
-  }
-  
-  // For stages 2-5, unlock level 1 in set 1
-  for (let stage = 2; stage <= 5; stage++) {
-    const setKey = `${stage}_1`;
-    gameState.unlockedLevels[setKey] = new Set([1]);
-  }
-  
-  // Reset completed and perfect levels
-  gameState.completedLevels = new Set();
-  gameState.perfectLevels = new Set();
-  
-  // Save reset state to localStorage
-  localStorage.setItem("simploxProgress", JSON.stringify({
-    stage: gameState.currentStage,
-    set_number: gameState.currentSet,
-    level: gameState.currentLevel,
-    coins: gameState.coins,
-    perks: gameState.perks,
-    unlocked_sets: serializeSetMap(gameState.unlockedSets),
-    unlocked_levels: serializeSetMap(gameState.unlockedLevels),
-    perfect_levels: [],
-    completed_levels: []
-  }));
-  
-  // If user is logged in, also reset data in Supabase
-  if (currentUser) {
-    // Update database
-    supabaseClient
-      .from("game_progress")
-      .update({
-        stage: gameState.currentStage,
-        set_number: gameState.currentSet,
-        level: gameState.currentLevel,
-        coins: gameState.coins,
-        perks: gameState.perks,
+    console.log("Resetting all game progress...");
+    
+    // Reset core game state
+    gameState.currentStage = 1;
+    gameState.currentSet = 1;
+    gameState.currentLevel = 1;
+    gameState.coins = 0;
+    gameState.perks = {timeFreeze: 0, skip: 0, clue: 0, reveal: 0};
+    gameState.perfectLevels = new Set();
+    gameState.completedLevels = new Set();
+    
+    // Set up the proper default unlocks
+    // Stage 1: All sets (1-9) should be unlocked
+    gameState.unlockedSets = { "1": new Set() };
+    gameState.unlockedLevels = {};
+    
+    // For Stage 1, unlock all sets and their first level
+    for (let i = 1; i <= 9; i++) {
+        gameState.unlockedSets[1].add(i);
+        const setKey = `1_${i}`;
+        gameState.unlockedLevels[setKey] = new Set([1]);
+    }
+    
+    // For Stages 2-5, unlock Set 1 and its first level
+    for (let stage = 2; stage <= 5; stage++) {
+        if (!gameState.unlockedSets[stage]) {
+            gameState.unlockedSets[stage] = new Set([1]);
+        }
+        const setKey = `${stage}_1`;
+        gameState.unlockedLevels[setKey] = new Set([1]);
+    }
+    
+    // Or simply call the existing setup function if available
+    if (typeof setupDefaultUnlocks === 'function') {
+        setupDefaultUnlocks();
+    }
+    
+    // Reset local storage with proper defaults
+    const defaultProgress = {
+        stage: 1,
+        set_number: 1,
+        level: 1,
+        coins: 0,
+        perks: {},
+        // Convert Sets to arrays for storage
         unlocked_sets: serializeSetMap(gameState.unlockedSets),
         unlocked_levels: serializeSetMap(gameState.unlockedLevels),
         perfect_levels: [],
         completed_levels: []
-      })
-      .eq("user_id", currentUser.id)
-      .then(({ error }) => {
-        if (error) {
-          console.error("Error resetting progress in database:", error);
-        } else {
-          console.log("Successfully reset progress in database");
+    };
+    
+    localStorage.setItem("simploxProgress", JSON.stringify(defaultProgress));
+    
+    // Force coin reset through CoinsManager
+    if (typeof CoinsManager !== 'undefined') {
+        // Use both methods to ensure coins are set to zero
+        if (CoinsManager.setCoins) {
+            CoinsManager.setCoins(0);
         }
-      });
-  }
-  
-  // Update UI
-  if (typeof CoinsManager !== 'undefined' && CoinsManager.updateDisplays) {
-    CoinsManager.updateDisplays();
-  }
-  
-  // Show notification
-  showNotification("Progress has been reset", "success");
-  
-  // Go back to welcome screen
-  showScreen('welcome-screen', true);
+        
+        // Directly update UI
+        CoinsManager.updateDisplays(0);
+        
+        // Force save to ensure database is updated
+        if (CoinsManager.saveUserCoins) {
+            CoinsManager.saveUserCoins();
+        }
+    }
+    
+    // If user is logged in, reset data in database with proper defaults
+    if (currentUser) {
+        // Reset game progress
+        supabaseClient
+            .from("game_progress")
+            .update({
+                stage: 1,
+                set_number: 1,
+                level: 1,
+                coins: 0,
+                perks: {},
+                unlocked_sets: serializeSetMap(gameState.unlockedSets),
+                unlocked_levels: serializeSetMap(gameState.unlockedLevels),
+                perfect_levels: [],
+                completed_levels: []
+            })
+            .eq("user_id", currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error("Error resetting game progress:", error);
+            });
+        
+        // Reset word counts to zero
+        supabaseClient
+            .from("player_stats")
+            .update({ 
+                unique_words_practiced: 0,
+                total_levels_completed: 0
+            })
+            .eq("user_id", currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error("Error resetting player stats:", error);
+                else {
+                    // Update word display to zero
+                    if (typeof WordsManager !== 'undefined' && WordsManager.updateDisplays) {
+                        WordsManager.updateDisplays(0);
+                    }
+                }
+            });
+        
+        // Clear word practice history
+        supabaseClient
+            .from("word_practice_history")
+            .delete()
+            .eq("user_id", currentUser.id)
+            .then(({ error }) => {
+                if (error) console.error("Error clearing word history:", error);
+            });
+    }
+    
+    // Ensure ALL coin displays are forcefully updated to zero
+    document.querySelectorAll(".coin-count").forEach(el => {
+        el.textContent = "0";
+    });
+    
+    // Update total coins display specifically
+    const totalCoinsElement = document.getElementById("totalCoins");
+    if (totalCoinsElement) {
+        totalCoinsElement.textContent = "0";
+    }
+    
+    // Update total words display
+    document.querySelectorAll("#totalWords").forEach(el => {
+        el.textContent = "0";
+    });
+    
+    // Update UI to reflect reset
+    if (typeof updateNavigationContainer === 'function') {
+        updateNavigationContainer();
+    }
+    
+    // Update perks UI if applicable
+    if (typeof updatePerkButtons === 'function') {
+        updatePerkButtons();
+    }
+    
+    // Go to welcome screen
+    showScreen('welcome-screen');
+    
+    // Show notification
+    showNotification("All progress has been reset", "info");
 }
 
 
