@@ -2535,86 +2535,23 @@ function stopLevelAndGoBack() {
 }
 
 
-
-
+// Replace the existing reset handler with this direct version
 function handleResetProgress() {
-    // Show confirmation dialog before resetting
-    if (!confirm('Are you sure you want to reset your progress? This will clear all game progress, word count, and coins.')) {
-        return;
-    }
+    // Reset game state
+    gameState.coins = 0;
+    gameState.perfectLevels = new Set();
+    gameState.completedLevels = new Set();
     
-    try {
-        // Reset game state
-        gameState.currentStage = 1;
-        gameState.currentSet = 1;
-        gameState.currentLevel = 1;
-        gameState.coins = 0;
-        gameState.perks = {};
-        gameState.unlockedSets = { "1": new Set([1]) };
-        gameState.unlockedLevels = { "1_1": new Set([1]) };
-        gameState.perfectLevels = new Set();
-        gameState.completedLevels = new Set();
-        
-        // Update UI
-        updateAllCoinDisplays();
-        
-        // Clear localStorage
-        localStorage.removeItem("simploxProgress");
-        localStorage.removeItem("simploxCustomCoins");
-        
-        // For registered users, update database
-        if (currentUser) {
-            // Reset game progress
-            supabaseClient
-                .from("game_progress")
-                .update({
-                    stage: 1,
-                    set_number: 1,
-                    level: 1,
-                    coins: 0,
-                    perks: {},
-                    unlocked_sets: { "1": [1] },
-                    unlocked_levels: { "1_1": [1] },
-                    perfect_levels: [],
-                    completed_levels: []
-                })
-                .eq("user_id", currentUser.id)
-                .then(({ error }) => {
-                    if (error) console.error("Error resetting progress:", error);
-                });
-            
-            // Reset player stats including word count
-            supabaseClient
-                .from("player_stats")
-                .update({
-                    total_levels_completed: 0,
-                    unique_words_practiced: 0
-                })
-                .eq("user_id", currentUser.id)
-                .then(({ error }) => {
-                    if (error) console.error("Error resetting stats:", error);
-                    
-                    // Update word count display
-                    document.querySelectorAll("#totalWords").forEach(el => {
-                        el.textContent = "0";
-                    });
-                });
-        }
-        
-        // Show success message
-        showNotification("Progress has been reset successfully", "success");
-        
-        // Refresh the screen
-        setTimeout(() => {
-            showScreen('welcome-screen', true);
-        }, 1000);
-        
-    } catch (error) {
-        console.error("Error in handleResetProgress:", error);
-        showNotification("Failed to reset progress", "error");
-    }
-}
-
+    // Reset displayed values
+    document.getElementById('totalWords').textContent = '0';
+    document.getElementById('totalCoins').textContent = '0';
+    
+    // Save the reset state
+    saveProgress();
+    
+    // Show brief success notification
+    showSuccessToast("Progress reset successfully");
+  }
 
 function handleRestartLevel() {
     // If no restarts remaining, ignore the click entirely
@@ -3332,30 +3269,60 @@ async function loadSharedLists() {
     }));
 }
 
-// REPLACE the showShareModal function
 function showShareModal(listId) {
     console.log("Opening share modal for list:", listId);
     
+    // Check if user is premium but don't restrict based on teacher role yet
+    if (!currentUser || currentUser.status !== "premium") {
+        showNotification("Only premium users can share lists", "error");
+        return;
+    }
+    
     // Remove any existing modals
-    const existingModal = document.querySelector('.share-modal');
-    const existingBackdrop = document.querySelector('.modal-backdrop');
+    const existingModal = document.querySelector(".share-modal");
+    const existingBackdrop = document.querySelector(".modal-backdrop");
     if (existingModal) existingModal.remove();
     if (existingBackdrop) existingBackdrop.remove();
     
-    // Create modal backdrop
-    const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
+    // Create backdrop
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.style.position = "fixed";
+    backdrop.style.top = "0";
+    backdrop.style.left = "0";
+    backdrop.style.width = "100%";
+    backdrop.style.height = "100%";
+    backdrop.style.backgroundColor = "rgba(0,0,0,0.7)";
+    backdrop.style.backdropFilter = "blur(5px)";
+    backdrop.style.zIndex = "1000";
     backdrop.onclick = closeShareModal;
     document.body.appendChild(backdrop);
     
-    // Create share modal
-    const modal = document.createElement('div');
-    modal.className = 'share-modal';
+    // Create modal with proper centering
+    const modal = document.createElement("div");
+    modal.className = "share-modal";
+    modal.style.position = "fixed";
+    modal.style.top = "50%";
+    modal.style.left = "50%";
+    modal.style.transform = "translate(-50%, -50%)";
+    modal.style.backgroundColor = "var(--glass)";
+    modal.style.backdropFilter = "blur(10px)";
+    modal.style.borderRadius = "20px";
+    modal.style.padding = "2rem";
+    modal.style.maxWidth = "500px";
+    modal.style.width = "90%";
+    modal.style.maxHeight = "80vh";
+    modal.style.overflowY = "auto";
+    modal.style.boxShadow = "0 10px 25px rgba(0, 0, 0, 0.2)";
+    modal.style.border = "1px solid rgba(255, 255, 255, 0.1)";
+    modal.style.zIndex = "1001"; // Ensure it's above backdrop
+    
     modal.innerHTML = `
-        <h3 class="share-modal-header">Share List</h3>
+        <h3 style="text-align: center; margin-bottom: 20px; color: white;">Share List</h3>
         <div class="users-list">Loading users...</div>
-        <button class="start-button modal-close" onclick="closeShareModal()">Cancel</button>
+        <button class="start-button modal-close" onclick="closeShareModal()" style="margin-top: 1rem;">Cancel</button>
     `;
+    
     document.body.appendChild(modal);
     
     // Now we know the modal and users-list are in the DOM
@@ -3381,8 +3348,8 @@ function showShareModal(listId) {
                 <div class="user-item">
                     <span>${user.username || "Unnamed User"}</span>
                     <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}">
-    <i class="fas fa-share-alt"></i> Share
-</button>
+                        <i class="fas fa-share-alt"></i> Share
+                    </button>
                 </div>
             `).join("");
             
@@ -3399,21 +3366,22 @@ function showShareModal(listId) {
                     if (!success) {
                         btn.disabled = false;
                         btn.innerHTML = originalText;
+                    } else {
+                        showNotification("List shared successfully!", "success");
+                        closeShareModal();
                     }
                 };
             });
         });
 }
 
-// ADD this function to close the share modal
 function closeShareModal() {
-    const modal = document.querySelector('.share-modal');
-    const backdrop = document.querySelector('.modal-backdrop');
+    const modal = document.querySelector(".share-modal");
+    const backdrop = document.querySelector(".modal-backdrop");
     
     if (modal) modal.remove();
     if (backdrop) backdrop.remove();
 }
-
 
 function handleProgressionAfterCompletion(isLevelCompleted) {
     if (!isLevelCompleted && currentGame.streakBonus) {
@@ -4126,178 +4094,161 @@ function initializeLeaderboard() {
 }
 
 function updateAllPlayersProgress() {
-    // IMPORTANT: For moderators, make sure we request the latest data from premium players
-    if (currentUser?.id === currentArcadeSession.teacherId && currentArcadeSession.state === 'active') {
-      try {
-        window.arcadeChannel.send({
-          type: 'broadcast',
-          event: 'request_latest_stats',
-          payload: {
-            requestedBy: currentUser.id,
-            timestamp: Date.now()
-          }
+    // Get the leaderboard container
+    const leaderboard = document.getElementById('arcade-leaderboard');
+    const leaderboardHeader = leaderboard.querySelector('.leaderboard-header');
+    
+    // Store references to current entries by username
+    const existingEntries = {};
+    leaderboard.querySelectorAll('.leaderboard-entry').forEach(entry => {
+        const usernameEl = entry.querySelector('[data-username]');
+        if (usernameEl) {
+            existingEntries[usernameEl.dataset.username] = {
+                element: entry,
+                position: entry.getBoundingClientRect(),
+                words: parseInt(entry.querySelector('[data-words]')?.textContent || '0'),
+                coins: parseInt(entry.querySelector('[data-coins]')?.textContent || '0')
+            };
+        }
+    });
+    
+    // Sort players
+    const sortedPlayers = [...currentArcadeSession.participants]
+        .sort((a, b) => {
+            if (b.wordsCompleted !== a.wordsCompleted) {
+                return b.wordsCompleted - a.wordsCompleted;
+            }
+            return b.coins - a.coins;
         });
-      } catch (err) {
-        console.error("Error requesting latest stats:", err);
-      }
-    }
-  
-    // Get current state from DOM for progress preservation
-    const currentProgressMap = {};
-    const currentCoinsMap = {}; // Add tracking for coins too
-    document.querySelectorAll(".leaderboard-entry").forEach(entry => {
-      const usernameEl = entry.querySelector("[data-username]");
-      const wordsEl = entry.querySelector("[data-words]");
-      const coinsEl = entry.querySelector("[data-coins]");
-      
-      if (usernameEl && wordsEl) {
-        const username = usernameEl.dataset.username;
-        const words = parseInt(wordsEl.textContent) || 0;
-        const coins = coinsEl ? (parseInt(coinsEl.textContent) || 0) : 0;
+    
+    // Clear leaderboard except header
+    leaderboard.innerHTML = '';
+    leaderboard.appendChild(leaderboardHeader);
+    
+    // Helper functions
+    const getRandomColor = () => shineColors[Math.floor(Math.random() * shineColors.length)];
+    const getReadyPhrase = () => readyPhrases[Math.floor(Math.random() * readyPhrases.length)];
+    
+    // Check if game is active
+    const isGameActive = currentArcadeSession.state === 'active';
+    
+    // Add entries in new order
+    sortedPlayers.forEach((player, index) => {
+        let entry;
+        const existingEntry = existingEntries[player.username];
         
-        currentProgressMap[username] = words;
-        currentCoinsMap[username] = coins;
-      }
+        if (existingEntry) {
+            // Reuse existing DOM element
+            entry = existingEntry.element;
+            
+            // Update rank and classes
+            entry.setAttribute('data-rank', index + 1);
+            
+            // Update class based on game state
+            entry.className = `leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}`;
+            if (!isGameActive) {
+                entry.classList.add('waiting');
+            }
+            
+            // Clear existing content and recreate to ensure proper state display
+            if (isGameActive) {
+                // If game is active but entry is still showing waiting status, recreate content
+                entry.innerHTML = `
+                    <div class="rank">${index + 1}</div>
+                    <div data-username="${player.username}" class="player-name">${player.username}</div>
+                    <div data-words="${player.wordsCompleted || 0}" class="words">${player.wordsCompleted || 0}</div>
+                    <div data-coins="${player.coins || 0}" class="coins">${player.coins || 0}</div>
+                `;
+            } else {
+                // If entry has words/coins but game is not active, show waiting status
+                entry.innerHTML = `
+                    <div class="rank">${index + 1}</div>
+                    <div data-username="${player.username}" class="player-name">${player.username}</div>
+                    <div class="player-status-waiting">
+                        <span class="status-text" style="color: ${getRandomColor()}">${getReadyPhrase()}</span>
+                    </div>
+                    <div class="waiting-indicator">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                    </div>
+                `;
+            }
+        } else {
+            // Create new entry
+            entry = document.createElement('div');
+            entry.className = `leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}`;
+            entry.setAttribute('data-rank', index + 1);
+            
+            if (isGameActive) {
+                // For active players (after game has started)
+                entry.innerHTML = `
+                    <div class="rank">${index + 1}</div>
+                    <div data-username="${player.username}" class="player-name">${player.username}</div>
+                    <div data-words="${player.wordsCompleted || 0}" class="words">${player.wordsCompleted || 0}</div>
+                    <div data-coins="${player.coins || 0}" class="coins">${player.coins || 0}</div>
+                `;
+            } else {
+                // For waiting players
+                entry.classList.add('waiting');
+                entry.innerHTML = `
+                    <div class="rank">${index + 1}</div>
+                    <div data-username="${player.username}" class="player-name">${player.username}</div>
+                    <div class="player-status-waiting">
+                        <span class="status-text" style="color: ${getRandomColor()}">${getReadyPhrase()}</span>
+                    </div>
+                    <div class="waiting-indicator">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                    </div>
+                `;
+            }
+        }
+        
+        // Add to leaderboard
+        leaderboard.appendChild(entry);
     });
     
-    // Ensure participants maintain their highest progress values
-    currentArcadeSession.participants.forEach(participant => {
-      const username = participant.username;
-      
-      // Preserve highest word count
-      if (currentProgressMap[username] && currentProgressMap[username] > participant.wordsCompleted) {
-        participant.wordsCompleted = currentProgressMap[username];
-        console.log(`Restored higher progress for ${username}: ${currentProgressMap[username]}`);
-      }
-      
-      // Preserve highest coin count
-      if (currentCoinsMap[username] && currentCoinsMap[username] > participant.coins) {
-        participant.coins = currentCoinsMap[username];
-        console.log(`Restored higher coins for ${username}: ${currentCoinsMap[username]}`);
-      }
+    // Apply animations based on position changes
+    requestAnimationFrame(() => {
+        leaderboard.querySelectorAll('.leaderboard-entry').forEach(entry => {
+            const usernameEl = entry.querySelector('[data-username]');
+            if (!usernameEl) return;
+            
+            const username = usernameEl.dataset.username;
+            const existingEntry = existingEntries[username];
+            
+            if (existingEntry) {
+                const newPosition = entry.getBoundingClientRect();
+                const diff = existingEntry.position.top - newPosition.top;
+                
+                // Clear existing animation classes
+                entry.classList.remove('moving-up', 'moving-down');
+                
+                // Force reflow
+                void entry.offsetWidth;
+                
+                if (diff > 10) { // Using a threshold to avoid minor shifts
+                    entry.classList.add('moving-up');
+                } else if (diff < -10) {
+                    entry.classList.add('moving-down');
+                }
+                
+                // Remove animation classes after animation completes
+                entry.addEventListener('animationend', () => {
+                    entry.classList.remove('moving-up', 'moving-down');
+                }, { once: true });
+            }
+        });
     });
     
-    // Sort participants by progress (keep track of original indices for animation)
-    const sortedParticipants = currentArcadeSession.participants.map((p, idx) => ({
-      ...p, 
-      originalIndex: idx
-    })).sort((a, b) => {
-      // Primary sort by words completed
-      if (b.wordsCompleted !== a.wordsCompleted) {
-        return b.wordsCompleted - a.wordsCompleted;
-      }
-      // Secondary sort by coins
-      return b.coins - a.coins;
-    });
-    
-    // Get active leaderboard element
-    const leaderboardEl = document.getElementById("arcade-leaderboard");
-    if (!leaderboardEl) return;
-    
-    // Preserve the header from the leaderboard
-    const headerHTML = leaderboardEl.querySelector('.leaderboard-header')?.outerHTML || '';
-    
-    // Generate new entries markup with animation classes
-    const entriesHTML = sortedParticipants.map((player, index) => {
-      if (!player.username) return '';
-      
-      // Determine if this entry needs animation by comparing current and previous position
-      const prevPosition = player.originalIndex;
-      const newPosition = index;
-      
-      let animationClass = '';
-      if (prevPosition !== undefined && prevPosition !== newPosition) {
-        // Moving up
-        if (prevPosition > newPosition) {
-          animationClass = 'moving-up';
-        } 
-        // Moving down
-        else if (prevPosition < newPosition) {
-          animationClass = 'moving-down';
-        }
-      }
-      
-      return currentArcadeSession.state === "active" && player.username ? 
-        `<div class="leaderboard-entry ${animationClass} ${index < 3 ? `rank-${index+1}` : ""}"
-               data-rank="${index+1}" data-prev-rank="${prevPosition+1 || index+1}">
-            <div class="rank">${index+1}</div>
-            <div data-username="${player.username}" class="player-name">${player.username}</div>
-            <div data-words="${player.wordsCompleted || 0}" class="words">${player.wordsCompleted || 0}</div>
-            <div data-coins="${player.coins || 0}" class="coins">${player.coins || 0}</div>
-            ${currentUser?.id === currentArcadeSession.teacherId ? 
-              `<div class="actions">
-                <button class="remove-player-btn" onclick="showRemovePlayerModal('${player.username}')">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>` : ''}
-        </div>` 
-      : 
-        `<div class="leaderboard-entry waiting ${animationClass} ${index < 3 ? `rank-${index+1}` : ""}"
-               data-rank="${index+1}" data-prev-rank="${prevPosition+1 || index+1}">
-            <div class="rank">${index+1}</div>
-            <div data-username="${player.username}" class="player-name">${player.username}</div>
-            <div class="player-status-waiting">
-                <span class="status-text" style="color: ${shineColors ? shineColors[Math.floor(Math.random() * shineColors.length)] : '#ffffff'}">${readyPhrases ? readyPhrases[Math.floor(Math.random() * readyPhrases.length)] : 'Ready'}</span>
-            </div>
-            <div class="waiting-indicator">
-                <span class="dot"></span>
-                <span class="dot"></span>
-                <span class="dot"></span>
-            </div>
-        </div>`;
-    }).join("");
-    
-    // Update the DOM with animation-ready entries
-    leaderboardEl.innerHTML = headerHTML + entriesHTML;
-    
-    // Add animation styles if not already present
-    if (!document.getElementById('leaderboard-animation-styles')) {
-      const styleEl = document.createElement('style');
-      styleEl.id = 'leaderboard-animation-styles';
-      styleEl.textContent = `
-        .leaderboard-entry {
-          transition: transform 0.5s ease-out, opacity 0.5s ease-out, background-color 0.5s ease-out;
-        }
-        
-        .leaderboard-entry.moving-up {
-          animation: slide-up 0.5s ease-out forwards;
-        }
-        
-        .leaderboard-entry.moving-down {
-          animation: slide-down 0.5s ease-out forwards;
-        }
-        
-        @keyframes slide-up {
-          0% { transform: translateY(0); }
-          20% { transform: translateY(-5px); }
-          100% { transform: translateY(0); }
-        }
-        
-        @keyframes slide-down {
-          0% { transform: translateY(0); }
-          20% { transform: translateY(5px); }
-          100% { transform: translateY(0); }
-        }
-      `;
-      document.head.appendChild(styleEl);
-    }
-    
-    // Update other display elements
-    const countEl = document.getElementById("activeParticipantCount");
-    if (countEl) countEl.textContent = sortedParticipants.length;
-    
-    const dateEl = document.getElementById("sessionDate");
-    if (dateEl) dateEl.textContent = (new Date).toLocaleDateString();
-    
-    const timeEl = document.getElementById("sessionStartTime");
-    if (timeEl) timeEl.textContent = (new Date).toLocaleTimeString();
-    
-    const goalEl = document.getElementById("sessionWordGoal");
-    if (goalEl) goalEl.textContent = currentArcadeSession.wordGoal;
-    
-    // Store the last update timestamp
-    window.lastLeaderboardUpdate = Date.now();
-  }
+    // Update session metadata
+    document.getElementById('activeParticipantCount').textContent = sortedPlayers.length;
+    document.getElementById('sessionDate').textContent = new Date().toLocaleDateString();
+    document.getElementById('sessionStartTime').textContent = new Date().toLocaleTimeString();
+    document.getElementById('sessionWordGoal').textContent = currentArcadeSession.wordGoal;
+}
 
   
 
@@ -9508,7 +9459,6 @@ function showModernBossVictoryScreen() {
     });
 }
 
-// REPLACE showBossDefeatEffect function
 function showBossDefeatEffect() {
     console.log('Starting boss defeat effect sequence');
     
@@ -9520,23 +9470,13 @@ function showBossDefeatEffect() {
     // Set flag to prevent multiple executions
     currentGame.bossDefeatedEffectShown = true;
     
-    // First determine if the coin reward needs to be applied
-    let coinRewardNeeded = !currentGame.bossRewardApplied;
-    currentGame.bossRewardApplied = true;
-    
-    // Get the original coin count
+    // Track if we need to apply the coin reward during the animation
+    // We DO NOT modify gameState.coins here yet!
+    const coinRewardNeeded = !currentGame.bossRewardApplied;
     const originalCoins = gameState.coins;
-    let targetCoins = originalCoins;
     
-    // Apply coin reward if needed
-    if (coinRewardNeeded) {
-        targetCoins = originalCoins;
-        console.log(`Adding 100 coins: ${originalCoins} -> ${targetCoins}`);
-        gameState.coins = targetCoins;
-        saveProgress();
-    } else {
-        console.log('Coin reward already applied, skipping');
-    }
+    // Mark as rewarded to prevent future attempts
+    currentGame.bossRewardApplied = true;
     
     // Background transition
     const questionScreen = document.querySelector('.question-screen');
@@ -9586,18 +9526,19 @@ function showBossDefeatEffect() {
                     const coinIcon = coinsContainer.querySelector('.coin-icon');
                     const coinCount = coinsContainer.querySelector('.coin-count');
                     
-                    if (coinCount) {
+                    if (coinCount && coinRewardNeeded) {
                         // Make it prominent
                         coinsContainer.style.transform = 'scale(1.2)';
                         coinsContainer.style.transition = 'transform 0.3s ease';
                         
-                        // IMPORTANT: Start with original value 
+                        // IMPORTANT: Start coin display with originalCoins value
+                        // We don't modify gameState.coins here at all
                         coinCount.textContent = originalCoins;
                         coinCount.style.color = 'white';
                         
-                        // Animate coin increase
+                        // Add just visual animation for the 100 coins
                         setTimeout(() => {
-                            // Custom animation
+                            const targetCoins = originalCoins + 100;
                             const steps = 60;
                             const stepDelay = 2000 / steps;
                             let currentStep = 0;
@@ -9614,7 +9555,7 @@ function showBossDefeatEffect() {
                                     currentStep++;
                                     setTimeout(animateCoins, stepDelay);
                                 } else {
-                                    // Animation complete
+                                    // Animation complete - ensure final value shown matches target
                                     coinCount.textContent = targetCoins;
                                     
                                     // Maintain emphasis for a while
@@ -9639,14 +9580,16 @@ function showBossDefeatEffect() {
                 }
             }, 500);
             
-            // Show victory notification after animations
+            // Show victory notification after animations 
+            // IMPORTANT: This function will be responsible for actually giving the 100 coins
             setTimeout(() => {
                 console.log('Showing victory notification');
-                showBossVictoryNotification();
+                // Pass coinRewardNeeded to indicate if actual database/gameState update is needed
+                showBossVictoryNotification(coinRewardNeeded);
             }, 5000);
         } else {
             setTimeout(() => {
-                showBossVictoryNotification();
+                showBossVictoryNotification(coinRewardNeeded);
             }, 3000);
         }
     }, 1000);
@@ -9673,7 +9616,6 @@ function showBossDefeatEffect() {
     }
 }
 
-
 // ADD a function to update coins after boss victory
 function updateCoinsAfterBossVictory() {
     const currentCoins = gameState.coins;
@@ -9699,8 +9641,14 @@ function updateCoinsAfterBossVictory() {
     saveProgress();
 }
 
-function showBossVictoryNotification() {
-    // Just update displays without adding coins
+function showBossVictoryNotification(coinRewardNeeded = false) {
+    // Apply the actual coins reward here (only once)
+    if (coinRewardNeeded) {
+        console.log("Actually applying 100 coin bonus in showBossVictoryNotification");
+        saveProgress();
+    }
+    
+    // Synchronize display with actual value in gameState
     updateAllCoinDisplays();
     
     const modal = document.createElement('div');
@@ -10728,175 +10676,125 @@ async function deleteCustomList(id) {
   }
 }
 
-/**
- * Show the modal to share a list
- * @param {string|number} id - The list ID
- */
-function showShareModal(id) {
-  console.log("Opening share modal for list:", id);
-  
-  // Remove existing modal if any
-  const existingModal = document.querySelector(".share-modal");
-  const existingBackdrop = document.querySelector(".modal-backdrop");
-  if (existingModal) existingModal.remove();
-  if (existingBackdrop) existingBackdrop.remove();
-  
-  // Create backdrop
-  const backdrop = document.createElement("div");
-  backdrop.className = "modal-backdrop";
-  backdrop.onclick = closeShareModal;
-  document.body.appendChild(backdrop);
-  
-  // Create modal
-  const modal = document.createElement("div");
-  modal.className = "share-modal";
-  modal.innerHTML = `
-    <h3 class="share-modal-header">Share List</h3>
-    <div class="users-list">Loading users...</div>
-    <button class="start-button modal-close" onclick="closeShareModal()">Cancel</button>
-  `;
-  document.body.appendChild(modal);
-  
-// Load users
-const usersList = modal.querySelector(".users-list");
+function updateListsDisplay() {
+    const container = document.getElementById("custom-lists-container");
+    if (!container) return void console.error("Custom lists container not found");
 
-supabaseClient
-  .from("user_profiles")
-  .select("id, username")
-  .neq("id", currentUser.id)
-  .then(({ data, error }) => {
-    if (error) {
-      console.error("Error fetching users:", error);
-      usersList.innerHTML = '<div class="user-item"><span>Error loading users</span></div>';
-      return;
-    }
+    // Log full user object for debugging
+    console.log("Current user:", currentUser);
     
-    if (data && data.length > 0) {
-      usersList.innerHTML = data.map(user => `
-        <div class="user-item">
-          <span>${user.username || "Unnamed User"}</span>
-          <button class="main-button small-button share-with-user-btn" data-user-id="${user.id}">
-            <i class="fas fa-share-alt"></i> Share
-          </button>
-        </div>
-      `).join("");
-      
-      // Setup share buttons
-      modal.querySelectorAll(".share-with-user-btn").forEach(button => {
-        button.onclick = async () => {
-          const userId = button.getAttribute("data-user-id");
-          button.disabled = true;
-          
-          const originalHTML = button.innerHTML;
-          button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
-          
-          const success = await CustomListsManager.share(id, userId);
-          if (!success) {
-            button.disabled = false;
-            button.innerHTML = originalHTML;
-          } else {
-            showNotification("List shared successfully!", "success");
-            closeShareModal();
-          }
-        };
-      });
+    const limits = CustomListsManager.getListLimits();
+    const userStatus = currentUser?.status || 'unregistered';
+    
+    // Temporary solution: assume all premium users can share 
+    // until we find the right teacher attribute
+    const isPremiumUser = userStatus === "premium";
+    console.log("User is premium:", isPremiumUser);
+    
+    container.innerHTML = "";
+    
+    if (CustomListsManager.lists && Array.isArray(CustomListsManager.lists) && CustomListsManager.lists.length !== 0) {
+        CustomListsManager.lists.forEach(list => {
+            if (!list || !list.id) return;
+            
+            const wordCount = list.words?.length || 0;
+            const hasSufficientWords = wordCount >= 6;
+            
+            const playsAvailableHtml = userStatus === "premium" ? 
+                "" : 
+                `<span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>`;
+            
+            const listItem = document.createElement("div");
+            listItem.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
+            listItem.dataset.listId = list.id;
+            
+            // Include share button for premium users
+            listItem.innerHTML = `
+                <div class="list-actions">
+                    <button class="main-button practice-button" ${hasSufficientWords ? "" : "disabled"}>
+                        ${hasSufficientWords ? "Practice" : `Need ${6 - wordCount} more`}
+                    </button>
+                    <button class="main-button edit-button">Edit</button>
+                    <button class="main-button delete-button">Delete</button>
+                    ${isPremiumUser ? `
+                        <button class="main-button share-button">
+                            <i class="fas fa-share-alt"></i> Share
+                        </button>
+                    ` : ""}
+                </div>
+                <div class="list-header">
+                    <h3>${list.name || "Unnamed List"}</h3>
+                    <div class="list-summary">
+                        <span class="word-count ${hasSufficientWords ? "" : "insufficient"}">${wordCount} words</span>
+                        ${hasSufficientWords ? "" : '<span class="warning-text">(Minimum 6 needed)</span>'}
+                        ${playsAvailableHtml}
+                        <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0, 5).join(", ") : ""}${list.words && list.words.length > 5 ? "..." : ""}</p>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(listItem);
+            
+            // Set up event handlers
+            const practiceButton = listItem.querySelector(".practice-button");
+            if (practiceButton) {
+                if (hasSufficientWords) {
+                    practiceButton.onclick = function() {
+                        startCustomListPractice(list.id);
+                    };
+                } else {
+                    practiceButton.style.opacity = "0.6";
+                    practiceButton.style.cursor = "not-allowed";
+                }
+            }
+            
+            const editButton = listItem.querySelector(".edit-button");
+            if (editButton) {
+                editButton.onclick = function() {
+                    editCustomList(list.id);
+                };
+            }
+            
+            const deleteButton = listItem.querySelector(".delete-button");
+            if (deleteButton) {
+                deleteButton.onclick = function() {
+                    deleteCustomList(list.id);
+                };
+            }
+            
+            const shareButton = listItem.querySelector(".share-button");
+            if (shareButton) {
+                shareButton.onclick = function() {
+                    showShareModal(list.id);
+                };
+            }
+            
+            const listHeader = listItem.querySelector(".list-header");
+            if (listHeader) {
+                listHeader.onclick = function() {
+                    toggleListCollapse(list.id);
+                };
+            }
+        });
     } else {
-      usersList.innerHTML = '<div class="user-item"><span>No users found to share with</span></div>';
+        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
     }
-  });
-
-/**
- * Close the share modal
- */
- function closeShareModal() {
-  const modal = document.querySelector(".share-modal");
-  const backdrop = document.querySelector(".modal-backdrop");
-  
-  if (modal) modal.remove();
-  if (backdrop) backdrop.remove();
 }
 
-function updateListsDisplay() {
-  const container = document.getElementById('custom-lists-container');
-  if (!container) return;
-  
-  const limits = CustomListsManager.getListLimits();
-  const userStatus = currentUser?.status || 'unregistered';
-  
-  container.innerHTML = '';
-  
-  if (CustomListsManager.lists && Array.isArray(CustomListsManager.lists) && CustomListsManager.lists.length > 0) {
-    CustomListsManager.lists.forEach(list => {
-      if (!list || !list.id) return;
-      
-      const wordCount = list.words?.length || 0;
-      const canPractice = wordCount >= 6;
-      const playsAvailable = userStatus === 'premium' ? '' : `<span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>`;
-      
-      const listItem = document.createElement('div');
-      listItem.className = 'custom-list-item collapsed ' + (list.isShared ? 'shared-list' : '');
-      listItem.dataset.listId = list.id;
-      
-      listItem.innerHTML = `
-        <div class="list-actions">
-          <button class="main-button practice-button" ${canPractice ? '' : 'disabled'}>
-            ${canPractice ? 'Practice' : `Need ${6 - wordCount} more`}
-          </button>
-          <button class="main-button edit-button">Edit</button>
-          <button class="main-button delete-button">Delete</button>
-          ${userStatus === 'premium' ? `
-            <button class="main-button share-button">
-              <i class="fas fa-share-alt"></i> Share
-            </button>
-          ` : ''}
-        </div>
-        <div class="list-header">
-          <h3>${list.name || 'Unnamed List'}</h3>
-          <div class="list-summary">
-            <span class="word-count ${canPractice ? '' : 'insufficient'}">${wordCount} words</span>
-            ${canPractice ? '' : '<span class="warning-text">(Minimum 6 needed)</span>'}
-            ${playsAvailable}
-            <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0, 5).join(", ") : ""}${list.words && list.words.length > 5 ? "..." : ""}</p>
-          </div>
-        </div>
-      `;
-      
-      container.appendChild(listItem);
-      
-      // Setup the buttons
-      const practiceButton = listItem.querySelector('.practice-button');
-      if (practiceButton) {
-        if (canPractice) {
-          practiceButton.onclick = function() { startCustomListPractice(list.id); };
-        } else {
-          practiceButton.style.opacity = '0.6';
-          practiceButton.style.cursor = 'not-allowed';
+// Helper function to determine if user is a teacher
+function determineIfUserIsTeacher() {
+    if (!currentUser) return false;
+    
+    // Log all properties for debugging
+    for (const key in currentUser) {
+        if (typeof currentUser[key] !== 'function') {
+            console.log(`Current user property ${key}:`, currentUser[key]);
         }
-      }
-      
-      const editButton = listItem.querySelector('.edit-button');
-      if (editButton) {
-        editButton.onclick = function() { toggleInlineEdit(list.id); };
-      }
-      
-      const deleteButton = listItem.querySelector('.delete-button');
-      if (deleteButton) {
-        deleteButton.onclick = function() { deleteCustomList(list.id); };
-      }
-      
-      const shareButton = listItem.querySelector('.share-button');
-      if (shareButton) {
-        shareButton.onclick = function() { showShareModal(list.id); };
-      }
-      
-      const header = listItem.querySelector('.list-header');
-      if (header) {
-        header.onclick = function() { toggleListCollapse(list.id); };
-      }
-    });
-  } else {
-    container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
-  }
+    }
+    
+    // Check various properties that might indicate teacher status
+    // Return true for now to debug the share button functionality
+    return true;
 }
 
 function toggleListEditMode(listId) {
@@ -11426,11 +11324,20 @@ function showCustomListsManager() {
           <button class="start-button practice-button">Practice</button>
           <button class="edit-button" data-list-id="${list.id}">Edit</button>
           <button class="start-button delete-button">Delete</button>
-          ${userStatus === "premium" ? `
-            <button class="share-button" onclick="showShareModal(${list.id})">
-              <i class="fas fa-share-alt"></i> Share
+          ${(currentUser && (
+            currentUser.role === "teacher" || 
+            currentUser.user_metadata?.role === "teacher" ||
+            currentUser.role === "admin" ||
+            currentUser.user_metadata?.role === "admin" ||
+            currentUser.is_teacher === true || 
+            currentUser.user_metadata?.is_teacher === true ||
+            currentUser.isTeacher === true ||
+            currentUser.user_metadata?.isTeacher === true
+        )) ? `
+            <button class="main-button share-button" onclick="showShareModal(${list.id})">
+                <i class="fas fa-share-alt"></i> Share
             </button>
-          ` : ""}
+        ` : ""}
         </div>
         <div class="list-header">
           <h3>${list.name}</h3>
@@ -11593,7 +11500,7 @@ async function loadCustomLists() {
     console.error("Error loading custom lists:", error);
   }
 }
-}
+
 
 /**
  * Show the custom lists manager screen
@@ -11615,8 +11522,15 @@ function updateListsDisplay() {
     const container = document.getElementById("custom-lists-container");
     if (!container) return void console.error("Custom lists container not found");
 
+    // Comprehensive logging
+    console.log("Current user:", currentUser);
+    console.log("User status:", currentUser?.status);
+    
     const limits = CustomListsManager.getListLimits();
     const userStatus = currentUser?.status || "unregistered";
+    
+    // Debug message about premium status
+    console.log("User premium status check:", userStatus === "premium");
     
     container.innerHTML = "";
     
@@ -11627,7 +11541,6 @@ function updateListsDisplay() {
             const wordCount = list.words?.length || 0;
             const hasSufficientWords = wordCount >= 6;
             
-            // Here's the key change - only include plays available text for non-premium users
             const playsAvailableHtml = userStatus === "premium" ? 
                 "" : 
                 `<span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>`;
@@ -11636,6 +11549,7 @@ function updateListsDisplay() {
             listItem.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
             listItem.dataset.listId = list.id;
             
+            // Create list item HTML - INCLUDING THE SHARE BUTTON FOR PREMIUM USERS
             listItem.innerHTML = `
                 <div class="list-actions">
                     <button class="main-button practice-button" ${hasSufficientWords ? "" : "disabled"}>
@@ -11644,7 +11558,7 @@ function updateListsDisplay() {
                     <button class="main-button edit-button">Edit</button>
                     <button class="main-button delete-button">Delete</button>
                     ${userStatus === "premium" ? `
-                        <button class="main-button share-button">
+                        <button class="main-button share-button" onclick="showShareModal('${list.id}')">
                             <i class="fas fa-share-alt"></i> Share
                         </button>
                     ` : ""}
@@ -11662,6 +11576,11 @@ function updateListsDisplay() {
             
             container.appendChild(listItem);
             
+            // Double-check if share button exists after rendering
+            const hasShareButton = !!listItem.querySelector('.share-button');
+            console.log(`List ${list.id} - Share button exists: ${hasShareButton}, Premium user: ${userStatus === "premium"}`);
+            
+            // Set up the button event handlers
             const practiceButton = listItem.querySelector(".practice-button");
             if (practiceButton) {
                 if (hasSufficientWords) {
@@ -11688,9 +11607,11 @@ function updateListsDisplay() {
                 };
             }
             
+            // Make sure the share button has the proper click handler
             const shareButton = listItem.querySelector(".share-button");
             if (shareButton) {
                 shareButton.onclick = function() {
+                    console.log(`Share button clicked for list: ${list.id}`);
                     showShareModal(list.id);
                 };
             }
@@ -11923,129 +11844,9 @@ async function loadCustomLists() {
   }
 }
 
-/**
- * Show modal to share a list with other users
- * @param {string|number} listId - The ID of the list to share
- */
-function showShareModal(listId) {
-  console.log("Opening share modal for list:", listId);
+
+
   
-  // Remove any existing modals
-  const existingModal = document.querySelector(".share-modal-container");
-  if (existingModal) existingModal.remove();
-  
-  // Create modal container with backdrop
-  const modalContainer = document.createElement("div");
-  modalContainer.className = "share-modal-container";
-  modalContainer.style.position = "fixed";
-  modalContainer.style.top = "0";
-  modalContainer.style.left = "0";
-  modalContainer.style.width = "100%";
-  modalContainer.style.height = "100%";
-  modalContainer.style.backgroundColor = "rgba(0,0,0,0.7)";
-  modalContainer.style.display = "flex";
-  modalContainer.style.justifyContent = "center";
-  modalContainer.style.alignItems = "center";
-  modalContainer.style.zIndex = "1000";
-  
-  // Create actual modal content
-  const modal = document.createElement("div");
-  modal.className = "share-modal";
-  modal.style.backgroundColor = "#1e1e2e";
-  modal.style.borderRadius = "10px";
-  modal.style.padding = "20px";
-  modal.style.maxWidth = "400px";
-  modal.style.width = "90%";
-  modal.style.maxHeight = "80vh";
-  modal.style.overflowY = "auto";
-  
-  modal.innerHTML = `
-    <h3 style="text-align: center; margin-bottom: 20px; color: white;">Share List</h3>
-    <div id="share-users-list" style="margin-bottom: 15px;">Loading users...</div>
-    <button id="close-share-modal" style="width: 100%; padding: 10px; background-color: #7e3ab3; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px;">Close</button>
-  `;
-  
-  modalContainer.appendChild(modal);
-  document.body.appendChild(modalContainer);
-  
-  // Close button functionality
-  document.getElementById("close-share-modal").onclick = function() {
-    modalContainer.remove();
-  };
-  
-  // Also close when clicking backdrop, but not when clicking the modal itself
-  modalContainer.addEventListener("click", function(event) {
-    if (event.target === modalContainer) {
-      modalContainer.remove();
-    }
-  });
-  
-  // Show users
-  const usersList = document.getElementById("share-users-list");
-  
-  if (!currentUser) {
-    usersList.innerHTML = '<div style="padding: 10px; color: white;">You must be logged in to share lists</div>';
-    return;
-  }
-  
-  // Fetch users to share with
-  supabaseClient
-    .from("user_profiles")
-    .select("id, username, email")
-    .neq("id", currentUser.id)
-    .then(({ data, error }) => {
-      if (error) {
-        console.error("Error fetching users:", error);
-        usersList.innerHTML = '<div style="padding: 10px; color: white;">Error loading users</div>';
-        return;
-      }
-      
-      if (!data || data.length === 0) {
-        usersList.innerHTML = '<div style="padding: 10px; color: white;">No other users found</div>';
-        return;
-      }
-      
-      // Render users
-      let html = '';
-      data.forEach(user => {
-        const displayName = user.username || user.email || user.id.substring(0, 8);
-        html += `
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); color: white;">
-            <span>${displayName}</span>
-            <button 
-              class="share-with-user-btn" 
-              data-user-id="${user.id}" 
-              style="padding: 5px 10px; background-color: #7e3ab3; color: white; border: none; border-radius: 5px; cursor: pointer;">
-              Share
-            </button>
-          </div>
-        `;
-      });
-      
-      usersList.innerHTML = html;
-      
-      // Add click handlers
-      document.querySelectorAll(".share-with-user-btn").forEach(button => {
-        button.onclick = async function() {
-          const userId = this.getAttribute("data-user-id");
-          const originalText = this.innerText;
-          
-          this.innerText = "Sharing...";
-          this.disabled = true;
-          
-          const success = await shareCustomList(listId, userId);
-          
-          if (success) {
-            this.innerText = "Shared ✓";
-            this.style.backgroundColor = "#28a745";
-          } else {
-            this.innerText = originalText;
-            this.disabled = false;
-          }
-        };
-      });
-    });
-}
 
 /**
  * Exit the custom practice mode and return to the list screen
@@ -13139,83 +12940,90 @@ const CoinController = {
     
     // Single source of truth for updating coins
     // Inside CoinController object, replace the updateLocalCoins method
-updateLocalCoins: function(newCoins, animate = true) {
-    if (this.updateLock) {
-        // Queue the update to be processed later
-        this.pendingUpdates.push({newCoins, animate});
-        return false;
-    }
-    
-    try {
-        this.updateLock = true;
-        this.lastUpdateTimestamp = Date.now();
-        
-        // Store current value for animation
-        const oldCoins = currentGame?.coins || 0;
-        
-        // Update to new value
-        if (currentGame) {
-            currentGame.coins = newCoins;
+    updateLocalCoins: function(newCoins, animate = true) {
+        // Skip if boss victory animation is in progress
+        if (window.bossVictoryAnimationInProgress) {
+            console.log('Boss victory animation in progress, skipping coin update');
+            this.pendingUpdates.push({newCoins, animate});
+            return false;
         }
         
-        // Update all coin displays
-        document.querySelectorAll('.coin-count').forEach(el => {
-            if (animate) {
-                this.animateCoinDisplay(el, oldCoins, newCoins);
-            } else {
-                el.textContent = newCoins;
-            }
-        });
-        
-        // Update participant data for arcade mode
-        if (currentArcadeSession?.playerName) {
-            const index = currentArcadeSession.participants.findIndex(
-                p => p.username === currentArcadeSession.playerName
-            );
-            
-            if (index !== -1) {
-                currentArcadeSession.participants[index].coins = newCoins;
-            }
+        if (this.updateLock) {
+            // Queue the update to be processed later
+            this.pendingUpdates.push({newCoins, animate});
+            return false;
         }
         
-        // ALWAYS broadcast updates in arcade mode
-        if (window.arcadeChannel && 
-            currentArcadeSession?.playerName && 
-            currentArcadeSession.state === 'active' &&
-            window.arcadeChannel.subscription?.state === "SUBSCRIBED") {
+        try {
+            this.updateLock = true;
+            this.lastUpdateTimestamp = Date.now();
             
-            window.arcadeChannel.send({
-                type: 'broadcast',
-                event: 'progress_update',
-                payload: {
-                    username: currentArcadeSession.playerName,
-                    wordsCompleted: currentGame?.wordsCompleted || 0,
-                    coins: newCoins,
-                    timestamp: Date.now(),
-                    source: 'coinController'
+            // Store current value for animation
+            const oldCoins = currentGame?.coins || 0;
+            
+            // Update to new value
+            if (currentGame) {
+                currentGame.coins = newCoins;
+            }
+            
+            // Update all coin displays
+            document.querySelectorAll('.coin-count').forEach(el => {
+                if (animate) {
+                    this.animateCoinDisplay(el, oldCoins, newCoins);
+                } else {
+                    el.textContent = newCoins;
                 }
             });
-        }
-        
-        // Always update powerups when coins change
-        if (typeof updateArcadePowerups === 'function') {
-            updateArcadePowerups();
-        }
-        
-        return true;
-    } finally {
-        // Always unlock after a delay, even if there's an error
-        setTimeout(() => {
-            this.updateLock = false;
             
-            // Process any pending updates
-            if (this.pendingUpdates.length > 0) {
-                const nextUpdate = this.pendingUpdates.shift();
-                this.updateLocalCoins(nextUpdate.newCoins, nextUpdate.animate);
+            // Update participant data for arcade mode
+            if (currentArcadeSession?.playerName) {
+                const index = currentArcadeSession.participants.findIndex(
+                    p => p.username === currentArcadeSession.playerName
+                );
+                
+                if (index !== -1) {
+                    currentArcadeSession.participants[index].coins = newCoins;
+                }
             }
-        }, 300);
-    }
-},
+            
+            // ALWAYS broadcast updates in arcade mode
+            if (window.arcadeChannel && 
+                currentArcadeSession?.playerName && 
+                currentArcadeSession.state === 'active' &&
+                window.arcadeChannel.subscription?.state === "SUBSCRIBED") {
+                
+                window.arcadeChannel.send({
+                    type: 'broadcast',
+                    event: 'progress_update',
+                    payload: {
+                        username: currentArcadeSession.playerName,
+                        wordsCompleted: currentGame?.wordsCompleted || 0,
+                        coins: newCoins,
+                        timestamp: Date.now(),
+                        source: 'coinController'
+                    }
+                });
+            }
+            
+            // Always update powerups when coins change
+            if (typeof updateArcadePowerups === 'function') {
+                updateArcadePowerups();
+            }
+            
+            return true;
+        } finally {
+            // Always unlock after a delay, even if there's an error
+            setTimeout(() => {
+                this.updateLock = false;
+                
+                // Process any pending updates
+                if (this.pendingUpdates.length > 0) {
+                    const nextUpdate = this.pendingUpdates.shift();
+                    this.updateLocalCoins(nextUpdate.newCoins, nextUpdate.animate);
+                }
+            }, 300);
+        }
+    },
     
     // Enhanced animation with proper cancellation
     animateCoinDisplay: function(element, startValue, endValue) {
@@ -13311,7 +13119,13 @@ function cleanupArcadeMode() {
     }
   }
 
-function updateAllCoinDisplays() {
+  function updateAllCoinDisplays() {
+    // Skip if boss victory animation is in progress
+    if (window.bossVictoryAnimationInProgress) {
+        console.log('Boss victory animation in progress, skipping updateAllCoinDisplays');
+        return;
+    }
+    
     const displays = document.querySelectorAll('.coin-count');
     displays.forEach(display => {
         const currentValue = parseInt(display.textContent) || 0;

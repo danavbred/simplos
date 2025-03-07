@@ -1208,6 +1208,9 @@ function showSuccessToast(message) {
 }
 
 function showScreen(screenId, forceRefresh = false) {
+    // Debug statement to help track screen navigation
+    console.log(`Attempting to show screen: ${screenId}`);
+    
     // Prevent unregistered users from seeing upgrade screen
     if (screenId === "upgrade-screen" && !currentUser) {
       console.log("Unregistered user attempt to access upgrade screen, redirecting to auth modal");
@@ -1239,6 +1242,16 @@ function showScreen(screenId, forceRefresh = false) {
       forceRefresh: forceRefresh,
       currentUser: currentUser ? currentUser.id : "No user"
     });
+    
+    // Check if screen exists before proceeding
+    const targetScreen = document.getElementById(screenId);
+    if (!targetScreen) {
+        console.error(`ERROR: Screen with id "${screenId}" not found in the DOM!`);
+        // List all available screens for debugging
+        const availableScreens = Array.from(document.querySelectorAll('.screen')).map(s => s.id);
+        console.log("Available screens:", availableScreens);
+        return;
+    }
      
     // Special handling for leaderboard screen cleanup
     if (document.querySelector('.screen.visible')?.id === 'leaderboard-screen') {
@@ -1250,97 +1263,102 @@ function showScreen(screenId, forceRefresh = false) {
      
     // Cleanup if leaving question screen
     if (currentScreen && currentScreen.id === 'question-screen') {
-      clearTimer();
-      isFrozen = false;
+      if (typeof clearTimer === 'function') {
+        clearTimer();
+      }
+      window.isFrozen = false;
     }
      
     // Handle force refresh
     if (forceRefresh && screenId === "welcome-screen") {
       console.log("Initiating full page reload");
-      saveProgress();
+      if (typeof saveProgress === 'function') {
+        saveProgress();
+      }
       window.location.reload(true);
       return;
     }
   
     if (["question-screen", "custom-practice-screen", "moderator-screen", "leaderboard-screen"].includes(screenId)) {
-      updateNavigationContainer();
+      if (typeof updateNavigationContainer === 'function') {
+        updateNavigationContainer();
+      }
     }
      
     // Hide all screens
     document.querySelectorAll('.screen').forEach(screen => {
       screen.classList.remove('visible');
-         
-      // Remove particle containers
-      const particleContainer = screen.querySelector('.particle-container');
-      if (particleContainer) {
-        particleContainer.remove();
-      }
+      
+      // Don't remove particles automatically, just let them be replaced
+      // This avoids errors when the element doesn't exist
     });
      
     // Show requested screen
-    const screenElement = document.getElementById(screenId);
-    if (screenElement) {
+    if (targetScreen) {
       // Make screen visible
-      screenElement.classList.add('visible');
+      targetScreen.classList.add('visible');
          
-      // Initialize particles for the screen
-      initializeParticles(screenElement);
+      // Initialize particles for the screen if function exists
+      if (typeof initializeParticles === 'function') {
+        // Only create new particle container if none exists
+        let particleContainer = targetScreen.querySelector('.particle-container');
+        if (!particleContainer) {
+          particleContainer = document.createElement('div');
+          particleContainer.className = 'particle-container';
+          targetScreen.appendChild(particleContainer);
+        }
+        
+        try {
+          initializeParticles(targetScreen);
+        } catch (error) {
+          console.warn("Error initializing particles:", error);
+        }
+      }
          
-      // Update UI elements
-      updateAllCoinDisplays();
+      // Update UI elements if function exists
+      if (typeof updateAllCoinDisplays === 'function') {
+        updateAllCoinDisplays();
+      }
          
       // Special handling for different screens
       switch (screenId) {
         case "question-screen":
-          updatePerkButtons();
+          if (typeof updatePerkButtons === 'function') {
+            updatePerkButtons();
+          }
                  
           // Check for admin user and add test button
           console.log("Question screen shown, checking for admin button");
           setTimeout(() => {
-            addAdminTestButton();
+            if (typeof addAdminTestButton === 'function') {
+              addAdminTestButton();
+            }
           }, 100);
           break;
                
         case "welcome-screen":
-          if (restoreGameContext()) {
-            startGame();
+          if (typeof restoreGameContext === 'function' && restoreGameContext()) {
+            if (typeof startGame === 'function') {
+              startGame();
+            }
           }
           break;
                
         case "stage-cascade-screen":
           // Handle the cascading stage screen specially
-          return showStageCascadeScreen();
+          if (typeof showStageCascadeScreen === 'function') {
+            return showStageCascadeScreen();
+          }
+          break;
+          
+        case "about-screen":
+          console.log("About screen is now visible");
+          break;
       }
          
-      console.log(`Switched to screen: ${screenId}`);
-    } else {
-      console.error(`Screen with id ${screenId} not found`);
+      console.log(`Successfully switched to screen: ${screenId}`);
     }
   }
-  
-  document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('.home-button').forEach(button => {
-          button.addEventListener('click', (event) => {
-              event.preventDefault();
-              showScreen('welcome-screen', true);
-          });
-      });
-  });
-
-  async function transitionScreen(screenType) {
-    const currentScreen = document.querySelector('.screen.visible');
-    if (currentScreen) {
-        currentScreen.style.opacity = 0;
-        await new Promise(r => setTimeout(r, 300));
-        currentScreen.style.display = 'none';
-    }
-    
-    const nextScreen = document.getElementById(`${screenType}-screen`);
-    nextScreen.style.display = 'flex';
-    requestAnimationFrame(() => {
-        nextScreen.style.opacity = 1;
-    });
-}
 
 // Call this before showScreen
 function safeShowScreen(screenId, forceRefresh = false) {
@@ -3454,36 +3472,7 @@ function toggleFullScreen() {
     }
 }
 
-function toggleSidePanel() {
-    const sidePanel = document.querySelector('.side-panel');
-    const hamburgerButton = document.querySelector('.hamburger-button');
-    const navContainer = document.querySelector('.vertical-nav-container');
-    const modalOverlay = document.querySelector('.modal-overlay');
-    
-    if (sidePanel.classList.contains('open')) {
-        sidePanel.classList.remove('open');
-        hamburgerButton.classList.remove('open');
-        
-        if (navContainer) {
-            navContainer.classList.remove('panel-open');
-        }
-        
-        if (modalOverlay) {
-            modalOverlay.classList.remove('open');
-        }
-    } else {
-        sidePanel.classList.add('open');
-        hamburgerButton.classList.add('open');
-        
-        if (navContainer) {
-            navContainer.classList.add('panel-open');
-        }
-        
-        if (modalOverlay) {
-            modalOverlay.classList.add('open');
-        }
-    }
-}
+
 
 async function handleLogout() {
     try {
@@ -3716,10 +3705,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function handleAvatarButtonClick() {
-    // If user is logged in, show stats screen
+    console.log("Avatar button clicked");
+    
+    // If user is logged in, show profile modal
     // Otherwise, show auth modal
     if (currentUser) {
-        showScreen('user-stats-screen');
+        openProfileModal();
     } else {
         showAuthModal();
     }
@@ -6297,3 +6288,327 @@ function initializeCarousel() {
     
     observer.observe(document.body, { childList: true, subtree: true });
 });
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up carousel button clicks
+    const carouselButtons = document.querySelectorAll('.carousel-button');
+    const descriptionElement = document.getElementById('carousel-description');
+    
+    carouselButtons.forEach(button => {
+      if (button.id !== 'settings-toggle') {
+        button.addEventListener('click', function() {
+          // Update active state
+          carouselButtons.forEach(btn => btn.classList.remove('active'));
+          this.classList.add('active');
+          
+          // Update description
+          if (descriptionElement) {
+            descriptionElement.textContent = this.getAttribute('data-description');
+          }
+          
+          // Execute the action
+          const action = this.getAttribute('data-action');
+          if (action) {
+            try {
+              new Function(action)();
+            } catch (e) {
+              console.error('Error executing action:', e);
+            }
+          }
+          
+          // Hide floating menu if open
+          const optionsMenu = document.getElementById('options-menu');
+          if (optionsMenu && optionsMenu.classList.contains('show')) {
+            optionsMenu.classList.remove('show');
+          }
+        });
+      }
+    });
+    
+    // Set up settings toggle for floating menu
+    const settingsToggle = document.getElementById('settings-toggle');
+    const optionsMenu = document.getElementById('options-menu');
+    
+    if (settingsToggle && optionsMenu) {
+      settingsToggle.addEventListener('click', function(e) {
+        e.stopPropagation();
+        optionsMenu.classList.toggle('show');
+        
+        // Update active state for settings button
+        if (optionsMenu.classList.contains('show')) {
+          carouselButtons.forEach(btn => btn.classList.remove('active'));
+          this.classList.add('active');
+        }
+      });
+      
+      // Close menu when clicking elsewhere
+      document.addEventListener('click', function(e) {
+        if (optionsMenu.classList.contains('show') && 
+            !optionsMenu.contains(e.target) && 
+            e.target !== settingsToggle) {
+          optionsMenu.classList.remove('show');
+        }
+      });
+    }
+  });
+
+  // Profile Modal functions
+function openProfileModal() {
+    const modal = document.getElementById('profile-modal');
+    if (!modal) {
+        console.error("Profile modal element not found");
+        return;
+    }
+    
+    // Update username
+    const usernameEl = document.getElementById('modal-username');
+    if (usernameEl) {
+        usernameEl.textContent = currentUser?.user_metadata?.username || 
+                                currentUser?.email?.split('@')[0] || 
+                                'Guest';
+    }
+    
+    // Update status badge
+    const statusEl = document.getElementById('modal-status');
+    if (statusEl) {
+        const status = currentUser?.status || 'free';
+        
+        // Remove all status classes first
+        statusEl.className = 'status-badge';
+        
+        // Add appropriate status class
+        statusEl.classList.add(status);
+        
+        // Set appropriate text
+        if (status === 'premium') {
+            statusEl.textContent = 'PREMIUM';
+        } else if (status === 'pending') {
+            statusEl.textContent = 'PENDING';
+        } else if (status === 'free') {
+            statusEl.textContent = 'FREE';
+        } else {
+            statusEl.textContent = 'GUEST';
+        }
+    }
+    
+    // Update stats
+    const wordCountEl = document.getElementById('modal-word-count');
+    const coinCountEl = document.getElementById('modal-coin-count');
+    
+    if (wordCountEl) {
+        wordCountEl.textContent = document.getElementById('totalWords')?.textContent || '0';
+    }
+    
+    if (coinCountEl) {
+        coinCountEl.textContent = document.getElementById('totalCoins')?.textContent || '0';
+    }
+    
+    // Show the modal
+    modal.classList.add('show');
+    
+    // Close options menu if open
+    closeOptionsMenu();
+    
+    console.log("Profile modal opened");
+}
+
+function closeProfileModal() {
+    const modal = document.getElementById('profile-modal');
+    if (modal) {
+        modal.classList.remove('show');
+        console.log("Profile modal closed");
+    }
+}
+
+// Make sure this runs when the DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Find profile button in the options menu and update it
+    const profileButton = document.querySelector('.menu-item[onclick="showScreen(\'user-stats-screen\')"]');
+    if (profileButton) {
+        profileButton.setAttribute('onclick', 'openProfileModal()');
+        console.log("Profile button found and updated to open modal");
+    } else {
+        console.warn("Profile button not found in the menu");
+    }
+    
+    // Also update the profile button in the avatar button if it exists
+    const avatarButton = document.getElementById('login-avatar-btn');
+    if (avatarButton) {
+        avatarButton.onclick = function() {
+            // If user is logged in, show profile modal
+            // Otherwise, show auth modal
+            if (currentUser) {
+                openProfileModal();
+            } else {
+                showAuthModal();
+            }
+        };
+        console.log("Avatar button updated to handle profile/auth");
+    }
+});
+
+// Ultra simple about screen solution
+(function() {
+    // Execute when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      // Create a standalone about screen function that doesn't depend on existing CSS
+      window.showAboutScreen = function() {
+        console.log("Showing about screen");
+        
+        // First remove any existing about overlay
+        const existingOverlay = document.getElementById('simple-about-overlay');
+        if (existingOverlay) {
+          existingOverlay.remove();
+        }
+        
+        // Create a full-page overlay with inline styles (no CSS dependencies)
+        const overlay = document.createElement('div');
+        overlay.id = 'simple-about-overlay';
+        overlay.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-color: rgba(26, 26, 46, 0.95);
+          z-index: 10000;
+          overflow-y: auto;
+          padding: 20px;
+          box-sizing: border-box;
+          color: white;
+          font-family: 'Montserrat', sans-serif;
+        `;
+        
+        // Add content with inline styles
+        overlay.innerHTML = `
+          <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #FFD700; text-align: center; margin-bottom: 30px; font-size: 28px;">Simplos Game App</h1>
+            
+            <div style="background: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 20px; margin-bottom: 20px;">
+              <h2 style="color: #FFD700; margin-bottom: 15px; font-size: 22px;">Privacy Policy</h2>
+              <p style="margin-bottom: 15px; line-height: 1.6;">We respect your privacy and are committed to protecting your personal information. This privacy policy explains how we collect, use, and safeguard your data when you use our game app.</p>
+              <ul style="padding-left: 20px; margin-bottom: 15px;">
+                <li style="margin-bottom: 10px; line-height: 1.6;">We only collect personal information that you voluntarily provide to us, such as your email address when you create an account.</li>
+                <li style="margin-bottom: 10px; line-height: 1.6;">We use your personal information to provide and improve our services, communicate with you, and personalize your experience.</li>
+                <li style="margin-bottom: 10px; line-height: 1.6;">We do not sell, trade, or rent your personal information to third parties.</li>
+                <li style="margin-bottom: 10px; line-height: 1.6;">We implement appropriate security measures to protect against unauthorized access, alteration, disclosure, or destruction of your personal information.</li>
+              </ul>
+            </div>
+            
+            <div style="background: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 20px; margin-bottom: 20px;">
+              <h2 style="color: #FFD700; margin-bottom: 15px; font-size: 22px;">Rights & Policies</h2>
+              <p style="margin-bottom: 15px; line-height: 1.6;">By using our game app, you agree to the following rights and policies:</p>
+              <ul style="padding-left: 20px; margin-bottom: 15px;">
+                <li style="margin-bottom: 10px; line-height: 1.6;">You retain ownership of any intellectual property you submit to the app, such as custom word lists.</li>
+                <li style="margin-bottom: 10px; line-height: 1.6;">We reserve the right to modify or terminate the app or your access to it for any reason, without notice, at any time, and without liability to you.</li>
+                <li style="margin-bottom: 10px; line-height: 1.6;">Our app is provided "as is" without warranty of any kind. We are not liable for any damages arising from your use of the app.</li>
+                <li style="margin-bottom: 10px; line-height: 1.6;">These terms are governed by the laws of Israel. Any dispute will be resolved through arbitration in Israel.</li>
+              </ul>
+            </div>
+            
+            <div style="background: rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 20px; margin-bottom: 30px;">
+              <h2 style="color: #FFD700; margin-bottom: 15px; font-size: 22px;">About Simplos Game App</h2>
+              <p style="margin-bottom: 15px; line-height: 1.6;">Simplos is a fun and educational game app designed to help you learn Hebrew vocabulary. With engaging gameplay, customizable word lists, and a variety of learning modes, Simplos makes it easy and enjoyable to expand your Hebrew language skills.</p>
+              <p style="margin-bottom: 15px; line-height: 1.6;">Our app is perfect for learners of all levels, from beginners to advanced students. You can practice at your own pace, track your progress, and compete with friends in exciting arcade challenges.</p>
+              <p style="margin-bottom: 15px; line-height: 1.6;">Simplos was created by a team of language enthusiasts and experienced developers who are passionate about making language learning accessible and effective for everyone. We are constantly working to improve the app and add new features based on user feedback.</p>
+              <p style="margin-bottom: 15px; line-height: 1.6;">If you have any questions, comments, or suggestions, please don't hesitate to contact us. We'd love to hear from you!</p>
+            </div>
+            
+            <button id="about-close-btn" style="
+              display: block;
+              margin: 0 auto;
+              background: #1E90FF;
+              color: white;
+              border: none;
+              padding: 12px 30px;
+              border-radius: 50px;
+              font-size: 16px;
+              font-weight: bold;
+              cursor: pointer;
+              box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            ">Back to Game</button>
+          </div>
+        `;
+        
+        // Add to body
+        document.body.appendChild(overlay);
+        
+        // Add event listener to close button
+        document.getElementById('about-close-btn').addEventListener('click', function() {
+          overlay.remove();
+        });
+        
+        // Also close when clicking escape key
+        document.addEventListener('keydown', function(event) {
+          if (event.key === 'Escape') {
+            overlay.remove();
+          }
+        });
+      };
+      
+      // Update the about button to use our new function
+      function updateAboutButton() {
+        // Find the about button in the menu
+        const aboutButton = document.querySelector('.menu-item i.fa-info-circle')?.closest('.menu-item');
+        if (aboutButton) {
+          aboutButton.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Close the options menu if it's open
+            const optionsMenu = document.getElementById('options-menu');
+            if (optionsMenu && optionsMenu.classList.contains('show')) {
+              optionsMenu.classList.remove('show');
+            }
+            
+            window.showAboutScreen();
+            return false;
+          };
+          console.log("About button updated");
+        }
+        
+        // Also update the about link in the side panel
+        const aboutLink = document.querySelector('a[href*="about.html"]');
+        if (aboutLink) {
+          aboutLink.href = '#';
+          aboutLink.onclick = function(e) {
+            e.preventDefault();
+            window.showAboutScreen();
+            return false;
+          };
+          console.log("Side panel about link updated");
+        }
+      }
+      
+      // Try to update immediately and after a delay
+      updateAboutButton();
+      setTimeout(updateAboutButton, 2000);
+    });
+  })();
+
+  function setupStandaloneHomeButton() {
+    // Remove existing buttons if they exist
+    const existingButtons = document.querySelectorAll('.standalone-home-button');
+    existingButtons.forEach(button => button.remove());
+    
+    // Create new standalone home button
+    const homeButton = document.createElement('button');
+    homeButton.className = 'standalone-home-button';
+    homeButton.id = 'standalone-home-btn';
+    homeButton.innerHTML = '<i class="fas fa-home"></i>';
+    homeButton.onclick = navigateHome;
+    
+    // Add to body to ensure it's available on all screens
+    document.body.appendChild(homeButton);
+  }
+  
+  // Call this function when DOM is loaded and when screens change
+  document.addEventListener('DOMContentLoaded', setupStandaloneHomeButton);
+  
+  // Modify the showScreen function to ensure the home button is visible on all screens
+  const originalShowScreen = window.showScreen;
+  window.showScreen = function(screenId, forceRefresh) {
+    originalShowScreen(screenId, forceRefresh);
+    setupStandaloneHomeButton();
+  };

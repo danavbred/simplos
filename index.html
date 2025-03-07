@@ -28,24 +28,9 @@
 
 
     <div class="vertical-nav-container">
-        <button class="hamburger-button">
-          <i class="fas fa-bars"></i>
-        </button>
-        <button class="nav-button home-button">
-          <i class="fas fa-home"></i>
-        </button>
-        <button class="nav-button fullscreen-button">
-          <i class="fas fa-expand"></i>
-        </button>
-        <button class="nav-button reset-button">
-          <i class="fas fa-trash-alt"></i>
-        </button>
-        <button class="nav-button settings-button">
-          <i class="fas fa-cog"></i>
-        </button>
-        <button class="nav-button accessibility-button">
-          <i class="fas fa-universal-access"></i>
-        </button>
+        <button class="standalone-home-button" id="standalone-home-btn" onclick="navigateHome()">
+            <i class="fas fa-home"></i>
+          </button>
       </div>
 
 
@@ -79,71 +64,119 @@
     </script>
   </div>
 
-  <div class="icon-carousel-container">
+  <div class="simple-carousel-container">
     <div class="carousel-description" id="carousel-description">Play the main game based on vocabularies</div>
     
-    <div class="icon-carousel">
-        <div class="carousel-item" data-description="View all game stages and levels" data-action="showStageCascadeScreen()">
-            <div class="icon-container">
-                <i class="fas fa-map-marked-alt"></i>
-                <span class="icon-label">Stages</span>
-            </div>
-        </div>
-        
-        <div class="carousel-item active" data-description="Play the main game based on vocabularies" data-action="startGame()">
-            <div class="icon-container">
-                <i class="fas fa-play-circle"></i>
-                <span class="icon-label">Play</span>
-            </div>
-        </div>
-        
-        <div class="carousel-item" data-description="Join a multiplayer arcade session" data-action="showArcadeModal()">
-            <div class="icon-container">
-                <i class="fas fa-gamepad"></i>
-                <span class="icon-label">Arcade</span>
-            </div>
-        </div>
-        
-        <div class="carousel-item" data-description="Create and manage your custom word lists" data-action="showCustomListsManager()">
-            <div class="icon-container">
-                <i class="fas fa-book"></i>
-                <span class="icon-label">Create</span>
-            </div>
-        </div>
-        
-        <div class="carousel-item" data-description="Toggle fullscreen mode" data-action="toggleFullScreen()">
-            <div class="icon-container">
-                <i class="fas fa-expand"></i>
-                <span class="icon-label">Fullscreen</span>
-            </div>
-        </div>
-        
-        <div class="carousel-item" data-description="Reset game progress" data-action="handleResetProgress()">
-            <div class="icon-container">
-                <i class="fas fa-trash-alt"></i>
-                <span class="icon-label">Reset</span>
-            </div>
-        </div>
-        
-        <div class="carousel-item" data-description="Adjust accessibility settings" data-action="openAccessibilitySettings()">
-            <div class="icon-container">
-                <i class="fas fa-universal-access"></i>
-                <span class="icon-label">Access</span>
-            </div>
-        </div>
+    <div class="simple-carousel">
+      <!-- Main Game Button -->
+      <button class="carousel-button active" data-action="startGame()" data-description="Play the main game based on vocabularies">
+        <i class="fas fa-play-circle"></i>
+        <span>Play</span>
+      </button>
+      
+      <!-- Arcade Button -->
+      <button class="carousel-button" data-action="showArcadeModal()" data-description="Join a multiplayer arcade session">
+        <i class="fas fa-gamepad"></i>
+        <span>Arcade</span>
+      </button>
+      
+      <!-- Create Button -->
+      <button class="carousel-button" data-action="showCustomListsManager()" data-description="Create and manage your custom word lists">
+        <i class="fas fa-book"></i>
+        <span>Create</span>
+      </button>
+      
+      <!-- Settings Button (shows floating menu) -->
+      <button class="carousel-button" id="settings-toggle" data-description="Access more options and settings">
+        <i class="fas fa-cog"></i>
+        <span>Options</span>
+      </button>
     </div>
-
     
-    <div class="carousel-indicators">
-        <span class="indicator"></span>
-        <span class="indicator active"></span>
-        <span class="indicator"></span>
-        <span class="indicator"></span>
-        <span class="indicator"></span>
-        <span class="indicator"></span>
-        <span class="indicator"></span>
+    <!-- Floating menu (initially hidden) -->
+<div class="floating-menu" id="options-menu">
+    <div class="menu-grid">
+      <!-- Top Row -->
+      <button class="menu-item" onclick="showScreen('user-stats-screen')">
+        <i class="fas fa-user-circle"></i>
+        <span>Profile</span>
+      </button>
+      <button class="menu-item" onclick="toggleFullScreen()">
+        <i class="fas fa-expand"></i>
+        <span>Fullscreen</span>
+      </button>
+      <button class="menu-item" onclick="handleResetProgress()">
+        <i class="fas fa-undo"></i>
+        <span>Reset</span>
+      </button>
+      <button class="menu-item" onclick="handleLogout()">
+        <i class="fas fa-sign-out-alt"></i>
+        <span>Logout</span>
+      </button>
+      
+      <!-- Bottom Row -->
+      <button class="menu-item" onclick="showScreen('upgrade-screen')">
+        <i class="fas fa-crown"></i>
+        <span>Premium</span>
+      </button>
+      <button class="menu-item" onclick="showStageCascadeScreen()">
+        <i class="fas fa-map-marked-alt"></i>
+        <span>Stages</span>
+      </button>
+      <button class="menu-item" onclick="showLeaderboard()">
+        <i class="fas fa-trophy"></i>
+        <span>Rankings</span>
+      </button>
+      <button class="menu-item" onclick="openAccessibilitySettings()">
+        <i class="fas fa-universal-access"></i>
+        <span>Access</span>
+      </button>
+  
+      <!-- Additional row -->
+      <button class="menu-item" onclick="window.location.href='mailto:danav.bred@gmail.com?subject=About%20Simplos'">
+        <i class="fas fa-envelope"></i>
+        <span>Email</span>
+      </button>
+      <button class="menu-item" onclick="window.location.href='https://wa.me/972545996417'">
+        <i class="fab fa-whatsapp"></i>
+        <span>WhatsApp</span>
+      </button>
+      <button class="menu-item" onclick="window.open('https://simplos.netlify.app/about.html', '_blank')">
+        <i class="fas fa-info-circle"></i>
+        <span>About</span>
+      </button>
+      <button class="menu-item" onclick="closeOptionsMenu()">
+        <i class="fas fa-times"></i>
+        <span>Close</span>
+      </button>
     </div>
+  </div>
 </div>
+
+<!-- Add this modal to the HTML, ideally right before the closing body tag -->
+<div class="profile-modal" id="profile-modal">
+    <div class="profile-modal-content">
+      <div class="profile-header">
+        <h3 class="username" id="modal-username">admin123</h3>
+        <div class="status-badge premium" id="modal-status">PREMIUM</div>
+      </div>
+      <div class="profile-stats">
+        <div class="stat-item">
+          <div class="stat-label">WORDS</div>
+          <div class="stat-value" id="modal-word-count">0</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">COINS</div>
+          <div class="stat-value">
+            <i class="fas fa-coins coin-icon"></i>
+            <span id="modal-coin-count">112</span>
+          </div>
+        </div>
+      </div>
+      <button class="close-modal-btn" onclick="closeProfileModal()">Close</button>
+    </div>
+  </div>
+
 
     <!-- New Auth Modal -->
     <div id="authModal" class="auth-modal">
