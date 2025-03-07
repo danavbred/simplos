@@ -3474,6 +3474,7 @@ function toggleFullScreen() {
 
 
 
+// Original handleLogout function (likely)
 async function handleLogout() {
     try {
         const { error } = await supabaseClient.auth.signOut();
@@ -3707,10 +3708,10 @@ document.addEventListener('DOMContentLoaded', function() {
 function handleAvatarButtonClick() {
     console.log("Avatar button clicked");
     
-    // If user is logged in, show profile modal
+    // If user is logged in, show profile modal (not stats screen)
     // Otherwise, show auth modal
     if (currentUser) {
-        openProfileModal();
+        openProfileModal(); // Use the profile modal function instead
     } else {
         showAuthModal();
     }
@@ -5942,15 +5943,6 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log("Unregistered user inactivity coin wipe setup complete (3 minute timeout)");
 });
 
-function handleAvatarButtonClick() {
-    // If user is logged in, show stats screen
-    // Otherwise, show auth modal
-    if (currentUser) {
-        showScreen('user-stats-screen');
-    } else {
-        showAuthModal();
-    }
-}
 
 function initializeCarousel() {
     const carousel = document.querySelector('.icon-carousel');
@@ -6612,3 +6604,5 @@ document.addEventListener('DOMContentLoaded', function() {
     originalShowScreen(screenId, forceRefresh);
     setupStandaloneHomeButton();
   };
+
+  

@@ -130,109 +130,342 @@ async function trackWordEncounter(word, gameMode = 'standard') {
 
 function handleArcadeAnswer(isCorrect) {
     const now = Date.now();
+    
+    // Throttle responses to prevent rapid consecutive answers
     if (now - (currentGame.lastAnswerTime || 0) < 1000) {
-      return; // Prevent rapid consecutive answers
+      console.warn("Answer too quickly. Please wait a moment.");
+      return;
     }
     
-    currentGame.lastAnswerTime = now;
+    // Safety check to prevent errors during processing
+    if (currentGame.isProcessingAnswer) {
+        console.warn("Already processing an answer, please wait");
+        return;
+    }
     
-    const playerName = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
-    
-    if (isCorrect) {
-      // Increment word count and update streak
-      currentGame.wordsCompleted = (currentGame.wordsCompleted || 0) + 1;
-      currentGame.correctStreak = (currentGame.correctStreak || 0) + 1;
-      currentGame.wrongStreak = 0;
-      
-      // For premium users, track the word encounter
-      if (currentUser && currentUser.status === 'premium') {
-        // Get the current word from the question
-        const questionElement = document.getElementById('question-word');
-        if (questionElement && questionElement.textContent) {
-          const word = questionElement.textContent.trim();
-          
-          // Track word without adding coins (handled below)
-          trackWordEncounterWithoutCoins(word, 'arcade')
-            .then(() => {
-              // ADDED: Explicitly broadcast the updated word count for premium users
-              // This ensures word count updates are sent immediately after tracking
-              broadcastCurrentParticipantData();
-            })
-            .catch(err => 
-              console.error('Error tracking word in arcade:', err)
-            );
+    try {
+        // Set processing flag
+        currentGame.isProcessingAnswer = true;
+        currentGame.lastAnswerTime = now;
+        
+        const playerName = currentArcadeSession.playerName || 
+                          currentUser?.user_metadata?.username || 
+                          getRandomSimploName();
+        
+        if (isCorrect) {
+            // Increment word count and update streak
+            currentGame.wordsCompleted = (currentGame.wordsCompleted || 0) + 1;
+            currentGame.correctStreak = (currentGame.correctStreak || 0) + 1;
+            currentGame.wrongStreak = 0;
+            
+            // For premium users, track the word encounter
+            if (currentUser && currentUser.status === 'premium') {
+                // Get the current word from the question
+                const questionElement = document.getElementById('question-word');
+                if (questionElement && questionElement.textContent) {
+                    const word = questionElement.textContent.trim();
+                    
+                    // Track word without adding coins (handled below)
+                    trackWordEncounterWithoutCoins(word, 'arcade')
+                        .then(() => {
+                            // ADDED: Explicitly broadcast the updated word count for premium users
+                            broadcastCurrentParticipantData();
+                        })
+                        .catch(err => 
+                            console.error('Error tracking word in arcade:', err)
+                        );
+                }
+            }
+            
+            // Calculate coin reward
+            let coinReward = 5;
+            if (currentGame.correctStreak >= 3) {
+                coinReward += 5;
+            }
+            
+            // Premium users get extra coins in arcade mode
+            if (currentUser && currentUser.status === 'premium') {
+                coinReward += 2; // Add premium bonus directly here
+            }
+            
+            // Use the enhanced CoinsManager for consistent updates
+            CoinsManager.updateCoins(coinReward).then(() => {
+                // Update arcade powerups
+                if (typeof updateArcadePowerups === 'function') {
+                    updateArcadePowerups();
+                }
+                
+                // Update our rank display
+                updatePlayerRankDisplay();
+                
+                // Update arcade progress display
+                updateArcadeProgress();
+                
+                // Immediately update player progress in the leaderboard
+                updatePlayerProgress({
+                    username: playerName,
+                    wordsCompleted: currentGame.wordsCompleted,
+                    coins: currentGame.coins
+                });
+                
+                // Then broadcast the update to all participants
+                broadcastCurrentParticipantData();
+                
+                // Check if player has completed the word goal
+                if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
+                    handlePlayerCompletedGoal(playerName);
+                    // Return early to prevent loading next question
+                    currentGame.isProcessingAnswer = false;
+                    return;
+                }
+                
+                // Load the next question with a slight delay to prevent visual glitches
+                setTimeout(() => {
+                    loadNextArcadeQuestion();
+                    currentGame.isProcessingAnswer = false;
+                }, 300);
+            }).catch(err => {
+                console.error("Error updating coins:", err);
+                currentGame.isProcessingAnswer = false;
+                
+                // Attempt to load next question anyway
+                setTimeout(loadNextArcadeQuestion, 500);
+            });
+        } else {
+            // Handle incorrect answer
+            currentGame.correctStreak = 0;
+            currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
+            
+            // Update player progress in the leaderboard
+            updatePlayerProgress({
+                username: playerName,
+                wordsCompleted: currentGame.wordsCompleted,
+                coins: currentGame.coins
+            });
+            
+            // Broadcast progress
+            broadcastCurrentParticipantData();
+            
+            // Load the next question with a slight delay
+            setTimeout(() => {
+                loadNextArcadeQuestion();
+                currentGame.isProcessingAnswer = false;
+            }, 300);
         }
-      }
-      
-      // Calculate coin reward
-      let coinReward = 5;
-      if (currentGame.correctStreak >= 3) {
-        coinReward += 5;
-      }
-      
-      // Premium users get extra coins in arcade mode
-      if (currentUser && currentUser.status === 'premium') {
-        coinReward += 2; // Add premium bonus directly here
-      }
-      
-      // Use the enhanced CoinsManager for consistent updates
-      CoinsManager.updateCoins(coinReward).then(() => {
-        // Update arcade powerups
-        updateArcadePowerups();
+    } catch (error) {
+        console.error("Error in handleArcadeAnswer:", error);
+        currentGame.isProcessingAnswer = false;
         
-        // Update our rank display
-        updatePlayerRankDisplay();
-        
-        // Update arcade progress display
-        updateArcadeProgress();
-        
-        // ADDED: Always broadcast progress updates after coins are updated
-        // This ensures moderators see consistent progress
-        broadcastCurrentParticipantData();
-        
-        // Check if player has completed the word goal
-        if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
-          handlePlayerCompletedGoal(playerName);
-          // Return early to prevent loading next question
-          return;
-        }
-        
-        // Load the next question
-        loadNextArcadeQuestion();
-      });
-    } else {
-      // Handle incorrect answer
-      currentGame.correctStreak = 0;
-      currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
-      
-      // ADDED: Also broadcast on wrong answers so moderator stays updated
-      broadcastCurrentParticipantData();
-      
-      // Load the next question
-      loadNextArcadeQuestion();
+        // Safety fallback
+        setTimeout(loadNextArcadeQuestion, 1000);
     }
 }
 
-function setupArcadeProgressPolling() {
-    // Clear any existing interval
-    if (window.arcadeStatsInterval) {
-      clearInterval(window.arcadeStatsInterval);
+function updatePlayerProgress(e) {
+    if (!e || !e.username) return false;
+    
+    const timestamp = Date.now();
+    const lastUpdated = window.lastProgressUpdate || 0;
+    
+    // Throttle updates
+    if (timestamp - lastUpdated < 20) {
+      return false;
     }
     
-    // Set up a regular interval to broadcast participant data
-    window.arcadeStatsInterval = setInterval(() => {
-      if (currentArcadeSession && 
-          currentArcadeSession.state === 'active' && 
-          currentArcadeSession.playerName) {
-        // Only broadcast if we have meaningful data to share
-        if (currentGame && (currentGame.wordsCompleted > 0 || currentGame.coins > 0)) {
-          broadcastCurrentParticipantData();
-        }
+    window.lastProgressUpdate = timestamp;
+    
+    // CRITICAL: Early exit when we receive our own updates
+    // This prevents our own broadcast from affecting our display
+    if (e.username === currentArcadeSession.playerName) {
+      // Check for trusted sources - now handles all our known update sources
+      const isTrustedSource = e.isTrusted === true || 
+                             e.source === 'coinsManager' || 
+                             e.source === 'coinController' ||
+                             e.source === 'progressUpdate';
+                             
+      const isRecentUpdate = Math.abs(timestamp - (CoinsManager.lastUpdateTimestamp || 0)) < 1000;
+      
+      if (!isTrustedSource && isRecentUpdate) {
+        console.log(`Ignoring untrusted update for ${e.username}`);
+        return true;
       }
+    }
+    
+    // Process updates for other players normally
+    const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === e.username);
+    
+    if (playerIndex !== -1) {
+      const player = currentArcadeSession.participants[playerIndex];
+      const currentWordsCompleted = player.wordsCompleted || 0;
+      const currentCoins = player.coins || 0;
+      const newWordsCompleted = e.wordsCompleted !== undefined ? e.wordsCompleted : currentWordsCompleted;
+      const newCoins = e.coins !== undefined ? e.coins : currentCoins;
+      
+      // Never allow progress to decrease
+      if (newWordsCompleted < currentWordsCompleted) {
+        console.warn(`Prevented progress downgrade for ${e.username}: ${currentWordsCompleted} → ${newWordsCompleted}`);
+        e.wordsCompleted = currentWordsCompleted;
+      }
+      
+      if (newCoins < currentCoins) {
+        console.warn(`Prevented coin downgrade for ${e.username}: ${currentCoins} → ${newCoins}`);
+        e.coins = currentCoins;
+      }
+      
+      // Update participant data
+      currentArcadeSession.participants[playerIndex] = {
+        ...player,
+        ...e,
+        wordsCompleted: Math.max(currentWordsCompleted, newWordsCompleted),
+        coins: Math.max(currentCoins, newCoins)
+      };
+    } else {
+      // New player - add to participants list
+      currentArcadeSession.participants.push({
+        username: e.username,
+        wordsCompleted: e.wordsCompleted || 0,
+        coins: e.coins || 0,
+        lateJoin: e.lateJoin || false
+      });
+    }
+    
+    // For our own player, sync with gameState
+    if (e.username === currentArcadeSession.playerName && e.isTrusted) {
+      gameState.coins = e.coins;
+      currentGame.coins = e.coins;
+    }
+    
+    // Update leaderboard UI
+    const leaderboard = document.getElementById('arcade-leaderboard');
+    if (leaderboard && leaderboard.offsetParent !== null) {
+      const timeSinceLastLeaderboardUpdate = timestamp - (window.lastLeaderboardUpdate || 0);
+      if (timeSinceLastLeaderboardUpdate > 300) {
+        window.lastLeaderboardUpdate = timestamp;
+        updateAllPlayersProgress();
+      }
+    }
+    
+    // Update rank display
+    updatePlayerRankDisplay();
+    
+    return true;
+}
+
+function initializeArcadeSession() {
+    console.log("Initializing arcade session data structures");
+    
+    // Clear any existing session data
+    if (currentArcadeSession) {
+        // Preserve only what's needed
+        const preservedData = {
+            otp: currentArcadeSession.otp,
+            teacherId: currentArcadeSession.teacherId,
+            selectedCustomLists: currentArcadeSession.selectedCustomLists || []
+        };
+        
+        // Reset with a clean object
+        currentArcadeSession = {
+            // Restore preserved data
+            otp: preservedData.otp,
+            teacherId: preservedData.teacherId,
+            selectedCustomLists: preservedData.selectedCustomLists,
+            
+            // Initialize fresh properties
+            wordPool: [],
+            participants: [],
+            wordGoal: 50,
+            state: 'pre-start',
+            completedPlayers: [],
+            podiumRanks: {},
+            startTime: null,
+            endTime: null,
+            winnerScreenShown: false,
+            isInitialized: false,
+            initialCoins: 0,
+            joinEventSent: false,
+            celebrationTriggered: false
+        };
+    }
+    
+    // Initialize game object with fresh data
+    currentGame = {
+        currentIndex: 0,
+        correctStreak: 0,
+        wrongStreak: 0,
+        words: [],
+        wordsCompleted: 0,
+        coins: 0,
+        lastBroadcast: Date.now(),
+        lastAnswerTime: 0,
+        isLoadingQuestion: false,
+        isProcessingAnswer: false
+    };
+    
+    // Clear any lingering timeouts or intervals
+    cleanupArcadeTimers();
+    
+    console.log("Arcade session initialized with fresh state");
+    return currentArcadeSession;
+}
+
+function cleanupArcadeTimers() {
+    // Clear any arcade stats interval
+    if (window.arcadeStatsInterval) {
+        clearInterval(window.arcadeStatsInterval);
+        window.arcadeStatsInterval = null;
+    }
+    
+    // Clear any arcade timeouts
+    if (window.arcadeTimeouts && Array.isArray(window.arcadeTimeouts)) {
+        window.arcadeTimeouts.forEach(timeoutId => {
+            if (timeoutId) clearTimeout(timeoutId);
+        });
+        window.arcadeTimeouts = [];
+    }
+    
+    // Clear any other known intervals
+    if (window.arcadeCheckInterval) {
+        clearInterval(window.arcadeCheckInterval);
+        window.arcadeCheckInterval = null;
+    }
+    
+    if (window.arcadeBroadcastInterval) {
+        clearInterval(window.arcadeBroadcastInterval);
+        window.arcadeBroadcastInterval = null;
+    }
+    
+    console.log("All arcade timers and intervals cleared");
+}
+
+function setupArcadeProgressPolling() {
+    // Clear any existing interval to prevent duplicates
+    if (window.arcadeStatsInterval) {
+        clearInterval(window.arcadeStatsInterval);
+        window.arcadeStatsInterval = null;
+    }
+    
+    // Set up a regular interval to broadcast participant data (less frequently)
+    window.arcadeStatsInterval = setInterval(() => {
+        if (currentArcadeSession && 
+            currentArcadeSession.state === 'active' && 
+            currentArcadeSession.playerName) {
+            
+            // Only broadcast if we have meaningful data to share and enough time has passed
+            const timeSinceLastBroadcast = Date.now() - (currentGame.lastBroadcast || 0);
+            
+            if (currentGame && 
+                (currentGame.wordsCompleted > 0 || currentGame.coins > 0) && 
+                timeSinceLastBroadcast > 2000) { // At least 2 seconds between broadcasts
+                
+                broadcastCurrentParticipantData();
+                currentGame.lastBroadcast = Date.now();
+            }
+        }
     }, 5000); // Every 5 seconds
     
+    console.log("Arcade progress polling initialized");
     return window.arcadeStatsInterval;
-  }
+}
 
   function setupArcadeProgressPolling() {
     // Clear any existing interval
@@ -1125,12 +1358,98 @@ function broadcastCurrentParticipantData() {
         }
       });
       
+      // Immediately update our own entry in the local participants array
+      const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === playerName);
+      if (playerIndex !== -1) {
+        currentArcadeSession.participants[playerIndex].wordsCompleted = currentWords;
+        currentArcadeSession.participants[playerIndex].coins = currentCoins;
+      } else {
+        currentArcadeSession.participants.push({
+          username: playerName,
+          wordsCompleted: currentWords,
+          coins: currentCoins
+        });
+      }
+      
+      // Force an immediate leaderboard update
+      updateAllPlayersProgress();
+      
       return true;
     } catch (err) {
       console.error("Error broadcasting participant data:", err);
       return false;
     }
   }
+
+  function requestAllPlayerStats() {
+    if (!window.arcadeChannel) return;
+    
+    console.log("Requesting latest stats from all players");
+    
+    window.arcadeChannel.send({
+        type: 'broadcast',
+        event: 'request_latest_stats',
+        payload: {
+            timestamp: Date.now(),
+            requesterId: currentUser?.id || 'unknown'
+        }
+    });
+    
+    // Force an update to our own leaderboard entry
+    if (currentArcadeSession.playerName) {
+        updatePlayerProgress({
+            username: currentArcadeSession.playerName,
+            wordsCompleted: currentGame?.wordsCompleted || 0,
+            coins: currentGame?.coins || 0,
+            isTrusted: true
+        });
+    }
+}
+
+function debugArcadeState() {
+    console.group("Arcade Debug Information");
+    
+    // Session state
+    console.log("Session State:", {
+        state: currentArcadeSession.state,
+        playerName: currentArcadeSession.playerName,
+        wordGoal: currentArcadeSession.wordGoal,
+        participantCount: currentArcadeSession.participants?.length || 0,
+        wordPoolSize: currentArcadeSession.wordPool?.length || 0,
+        selectedCustomLists: currentArcadeSession.selectedCustomLists
+    });
+    
+    // Game state
+    console.log("Game State:", {
+        wordsCompleted: currentGame.wordsCompleted,
+        coins: currentGame.coins,
+        wordsRemaining: currentGame.words?.length || 0,
+        isLoadingQuestion: currentGame.isLoadingQuestion,
+        isProcessingAnswer: currentGame.isProcessingAnswer,
+        lastAnswerTime: currentGame.lastAnswerTime ? new Date(currentGame.lastAnswerTime).toISOString() : 'never',
+        timeSinceLastBroadcast: Date.now() - (currentGame.lastBroadcast || 0)
+    });
+    
+    // Channel state
+    console.log("Channel State:", {
+        channel: window.arcadeChannel?.topic || 'not initialized',
+        subscriptionState: window.arcadeChannel?.subscription?.state || 'not subscribed',
+        hasStatsInterval: !!window.arcadeStatsInterval,
+        hasTimeouts: window.arcadeTimeouts?.length || 0
+    });
+    
+    // DOM state
+    console.log("DOM State:", {
+        questionScreenVisible: document.getElementById('question-screen')?.classList.contains('visible'),
+        questionWordContent: document.getElementById('question-word')?.textContent,
+        buttonCount: document.querySelectorAll('.buttons button')?.length || 0
+    });
+    
+    console.groupEnd();
+}
+
+// Add global function for easy access in browser console
+window.debugArcade = debugArcadeState;
 
   function animateCoinsChange(element, startValue, endValue) {
     if (!element) return;
@@ -2534,24 +2853,100 @@ function stopLevelAndGoBack() {
   }, 1200);
 }
 
-
-// Replace the existing reset handler with this direct version
 function handleResetProgress() {
-    // Reset game state
-    gameState.coins = 0;
-    gameState.perfectLevels = new Set();
-    gameState.completedLevels = new Set();
-    
-    // Reset displayed values
-    document.getElementById('totalWords').textContent = '0';
-    document.getElementById('totalCoins').textContent = '0';
-    
-    // Save the reset state
-    saveProgress();
-    
-    // Show brief success notification
-    showSuccessToast("Progress reset successfully");
+  console.log("Resetting all game progress...");
+  
+  // Reset game state to default
+  gameState.currentStage = 1;
+  gameState.currentSet = 1;
+  gameState.currentLevel = 1;
+  gameState.coins = 0;
+  gameState.perks = {
+    timeFreeze: 0,
+    skip: 0,
+    clue: 0,
+    reveal: 0
+  };
+  
+  // Reset unlocked sets
+  gameState.unlockedSets = {
+    "1": new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]), // All 9 sets for stage 1
+    "2": new Set([1]),                         // Only set 1 for stages 2-5
+    "3": new Set([1]),
+    "4": new Set([1]),
+    "5": new Set([1])
+  };
+  
+  // Reset unlocked levels to default
+  gameState.unlockedLevels = {};
+  
+  // For stage 1, unlock level 1 in each set
+  for (let set = 1; set <= 9; set++) {
+    const setKey = `1_${set}`;
+    gameState.unlockedLevels[setKey] = new Set([1]);
   }
+  
+  // For stages 2-5, unlock level 1 in set 1
+  for (let stage = 2; stage <= 5; stage++) {
+    const setKey = `${stage}_1`;
+    gameState.unlockedLevels[setKey] = new Set([1]);
+  }
+  
+  // Reset completed and perfect levels
+  gameState.completedLevels = new Set();
+  gameState.perfectLevels = new Set();
+  
+  // Save reset state to localStorage
+  localStorage.setItem("simploxProgress", JSON.stringify({
+    stage: gameState.currentStage,
+    set_number: gameState.currentSet,
+    level: gameState.currentLevel,
+    coins: gameState.coins,
+    perks: gameState.perks,
+    unlocked_sets: serializeSetMap(gameState.unlockedSets),
+    unlocked_levels: serializeSetMap(gameState.unlockedLevels),
+    perfect_levels: [],
+    completed_levels: []
+  }));
+  
+  // If user is logged in, also reset data in Supabase
+  if (currentUser) {
+    // Update database
+    supabaseClient
+      .from("game_progress")
+      .update({
+        stage: gameState.currentStage,
+        set_number: gameState.currentSet,
+        level: gameState.currentLevel,
+        coins: gameState.coins,
+        perks: gameState.perks,
+        unlocked_sets: serializeSetMap(gameState.unlockedSets),
+        unlocked_levels: serializeSetMap(gameState.unlockedLevels),
+        perfect_levels: [],
+        completed_levels: []
+      })
+      .eq("user_id", currentUser.id)
+      .then(({ error }) => {
+        if (error) {
+          console.error("Error resetting progress in database:", error);
+        } else {
+          console.log("Successfully reset progress in database");
+        }
+      });
+  }
+  
+  // Update UI
+  if (typeof CoinsManager !== 'undefined' && CoinsManager.updateDisplays) {
+    CoinsManager.updateDisplays();
+  }
+  
+  // Show notification
+  showNotification("Progress has been reset", "success");
+  
+  // Go back to welcome screen
+  showScreen('welcome-screen', true);
+}
+
 
 function handleRestartLevel() {
     // If no restarts remaining, ignore the click entirely
@@ -3925,7 +4320,9 @@ async function showArcadeModal() {
                 const baseUrl = window.location.origin + window.location.pathname;
                 generateQRCode(otp);
                 
+                // Set the OTP and session metadata
                 document.getElementById('otp').textContent = otp;
+                
                 teacherView.style.display = 'block';
                 playerView.style.display = 'none';
                 
@@ -3944,6 +4341,9 @@ async function showArcadeModal() {
                 if (wordGoalDisplay) wordGoalDisplay.textContent = "50";
                 
                 initializeWordGoalSlider();
+                
+                // Load teacher's custom lists for arcade
+                await loadCustomListsForArcade();
                 
                 // Make sure End Arcade button is not visible
                 const endArcadeButton = document.querySelector('.end-arcade-button');
@@ -3995,6 +4395,146 @@ async function showArcadeModal() {
     }
 }
 
+async function loadCustomListsForArcade() {
+    // Get the container for custom lists in the teacher view
+    const customListsContainer = document.getElementById('arcade-custom-lists');
+    if (!customListsContainer) {
+        // Create the container if it doesn't exist
+        createCustomListsSection();
+        return;
+    }
+    
+    customListsContainer.innerHTML = '<div class="loading-spinner">Loading lists...</div>';
+    
+    try {
+        // Initialize custom lists manager if needed
+        if (!CustomListsManager.lists || CustomListsManager.lists.length === 0) {
+            await CustomListsManager.initialize();
+        }
+        
+        // Get the teacher's custom lists
+        const lists = CustomListsManager.lists || [];
+        
+        if (lists.length === 0) {
+            customListsContainer.innerHTML = '<p class="no-lists-message">No custom lists available. Create lists in the Custom Practice section.</p>';
+            return;
+        }
+        
+        // Clear any previous selections
+        currentArcadeSession.selectedCustomLists = [];
+        
+        // Create checkboxes for each list
+        let listsHTML = '<div class="custom-lists-title">Include Custom Lists:</div><div class="custom-lists-grid">';
+        
+        lists.forEach(list => {
+            // Only show lists with enough words (minimum 3)
+            if (list.words && list.words.length >= 3) {
+                listsHTML += `
+                    <div class="custom-list-checkbox">
+                        <input type="checkbox" id="list-${list.id}" data-list-id="${list.id}" class="arcade-list-checkbox">
+                        <label for="list-${list.id}">
+                            ${list.name || 'Unnamed List'} 
+                            <span class="word-count">(${list.words.length} words)</span>
+                        </label>
+                    </div>
+                `;
+            }
+        });
+        
+        listsHTML += '</div>';
+        listsHTML += '<div class="selected-words-counter">Selected Custom Words: <span id="selected-custom-words">0</span></div>';
+        
+        customListsContainer.innerHTML = listsHTML;
+        
+        // Add event listeners for the checkboxes
+        document.querySelectorAll('.arcade-list-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', updateSelectedCustomWordsCount);
+        });
+    } catch (error) {
+        console.error('Error loading custom lists for arcade:', error);
+        customListsContainer.innerHTML = '<p class="error-message">Error loading custom lists. Please try again.</p>';
+    }
+}
+
+function createCustomListsSection() {
+    const teacherView = document.getElementById('teacher-view');
+    if (!teacherView) return;
+    
+    // Find where to insert our custom lists section (after stage selector, before buttons)
+    const stageSelector = teacherView.querySelector('.stage-selector');
+    if (!stageSelector) return;
+    
+    // Create custom lists container
+    const customListsSection = document.createElement('div');
+    customListsSection.className = 'custom-lists-selector';
+    customListsSection.innerHTML = `
+        <div id="arcade-custom-lists" class="arcade-custom-lists">
+            <div class="loading-spinner">Loading lists...</div>
+        </div>
+    `;
+    
+    // Insert after stage selector
+    stageSelector.parentNode.insertBefore(customListsSection, stageSelector.nextSibling);
+    
+    // Add a bit of spacing
+    const spacer = document.createElement('div');
+    spacer.style.height = '15px';
+    customListsSection.parentNode.insertBefore(spacer, customListsSection.nextSibling);
+    
+    // Load the lists
+    loadCustomListsForArcade();
+}
+
+function updateSelectedCustomWordsCount() {
+    // Get all checked list checkboxes
+    const selectedCheckboxes = document.querySelectorAll('.arcade-list-checkbox:checked');
+    
+    // Initialize counters
+    let totalSelectedWords = 0;
+    const selectedListIds = [];
+    
+    // Count words from selected lists
+    selectedCheckboxes.forEach(checkbox => {
+        const listId = checkbox.dataset.listId;
+        const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
+        
+        if (list && list.words) {
+            totalSelectedWords += list.words.length;
+            selectedListIds.push(listId);
+        }
+    });
+    
+    // Update the counter display
+    const counterElement = document.getElementById('selected-custom-words');
+    if (counterElement) {
+        counterElement.textContent = totalSelectedWords;
+    }
+    
+    // Store selected list IDs in the session
+    currentArcadeSession.selectedCustomLists = selectedListIds;
+    
+    // Get word goal and check if selected words exceed it
+    const wordGoalInput = document.getElementById('wordGoalInput') || document.getElementById('wordGoalSlider');
+    const wordGoal = parseInt(wordGoalInput?.value || '50');
+    
+    // Show warning if selected words exceed word goal
+    const warningElement = document.querySelector('.custom-lists-warning') || document.createElement('div');
+    warningElement.className = 'custom-lists-warning';
+    
+    if (totalSelectedWords > wordGoal) {
+        warningElement.textContent = `Warning: Selected custom words (${totalSelectedWords}) exceed word goal (${wordGoal})`;
+        warningElement.style.display = 'block';
+        
+        // Append warning if not already present
+        const customListsContainer = document.getElementById('arcade-custom-lists');
+        if (customListsContainer && !customListsContainer.querySelector('.custom-lists-warning')) {
+            customListsContainer.appendChild(warningElement);
+        }
+    } else {
+        warningElement.style.display = 'none';
+    }
+}
+
 function initializeWordGoalSlider() {
     const slider = document.getElementById('wordGoalSlider');
     const display = document.getElementById('wordGoalDisplay');
@@ -4015,6 +4555,12 @@ function initializeWordGoalSlider() {
         const value = parseInt(this.value);
         display.textContent = value;
         input.value = value;
+        
+        // Also update session metadata
+        const wordGoalElement = document.getElementById('sessionWordGoal');
+        if (wordGoalElement) {
+            wordGoalElement.textContent = value;
+        }
     });
     
     // Update slider and display when input changes
@@ -4027,6 +4573,12 @@ function initializeWordGoalSlider() {
         slider.value = value;
         display.textContent = value;
         this.value = value;
+        
+        // Update session metadata
+        const wordGoalElement = document.getElementById('sessionWordGoal');
+        if (wordGoalElement) {
+            wordGoalElement.textContent = value;
+        }
     });
     
     // Allow clicking on preset stops
@@ -4036,11 +4588,15 @@ function initializeWordGoalSlider() {
             slider.value = value;
             display.textContent = value;
             input.value = value;
+            
+            // Update session metadata
+            const wordGoalElement = document.getElementById('sessionWordGoal');
+            if (wordGoalElement) {
+                wordGoalElement.textContent = value;
+            }
         });
     });
 }
-
-
 
 function startPlayerCounting(teacherId) {
     if (window.countInterval) clearInterval(window.countInterval);
@@ -4366,7 +4922,12 @@ function initializeLeaderboard() {
 function updateAllPlayersProgress() {
     // Get the leaderboard container
     const leaderboard = document.getElementById('arcade-leaderboard');
-    const leaderboardHeader = leaderboard.querySelector('.leaderboard-header');
+    const leaderboardHeader = leaderboard?.querySelector('.leaderboard-header');
+    
+    if (!leaderboard || !leaderboardHeader) {
+        console.warn("Leaderboard elements not found");
+        return;
+    }
     
     // Store references to current entries by username
     const existingEntries = {};
@@ -4409,7 +4970,7 @@ function updateAllPlayersProgress() {
         
         if (existingEntry) {
             // Reuse existing DOM element
-            entry = existingEntry.element;
+            entry = existingEntry.element.cloneNode(true);
             
             // Update rank and classes
             entry.setAttribute('data-rank', index + 1);
@@ -4419,136 +4980,116 @@ function updateAllPlayersProgress() {
             if (!isGameActive) {
                 entry.classList.add('waiting');
             }
-            
-            // Clear existing content and recreate to ensure proper state display
-            if (isGameActive) {
-                // If game is active but entry is still showing waiting status, recreate content
-                entry.innerHTML = `
-                    <div class="rank">${index + 1}</div>
-                    <div data-username="${player.username}" class="player-name">${player.username}</div>
-                    <div data-words="${player.wordsCompleted || 0}" class="words">${player.wordsCompleted || 0}</div>
-                    <div data-coins="${player.coins || 0}" class="coins">${player.coins || 0}</div>
-                `;
-            } else {
-                // If entry has words/coins but game is not active, show waiting status
-                entry.innerHTML = `
-                    <div class="rank">${index + 1}</div>
-                    <div data-username="${player.username}" class="player-name">${player.username}</div>
-                    <div class="player-status-waiting">
-                        <span class="status-text" style="color: ${getRandomColor()}">${getReadyPhrase()}</span>
-                    </div>
-                    <div class="waiting-indicator">
-                        <span class="dot"></span>
-                        <span class="dot"></span>
-                        <span class="dot"></span>
-                    </div>
-                `;
-            }
         } else {
             // Create new entry
             entry = document.createElement('div');
             entry.className = `leaderboard-entry ${index < 3 ? `rank-${index + 1}` : ''}`;
             entry.setAttribute('data-rank', index + 1);
             
-            if (isGameActive) {
-                // For active players (after game has started)
-                entry.innerHTML = `
-                    <div class="rank">${index + 1}</div>
-                    <div data-username="${player.username}" class="player-name">${player.username}</div>
-                    <div data-words="${player.wordsCompleted || 0}" class="words">${player.wordsCompleted || 0}</div>
-                    <div data-coins="${player.coins || 0}" class="coins">${player.coins || 0}</div>
-                `;
-            } else {
-                // For waiting players
+            if (!isGameActive) {
                 entry.classList.add('waiting');
-                entry.innerHTML = `
-                    <div class="rank">${index + 1}</div>
-                    <div data-username="${player.username}" class="player-name">${player.username}</div>
-                    <div class="player-status-waiting">
-                        <span class="status-text" style="color: ${getRandomColor()}">${getReadyPhrase()}</span>
-                    </div>
-                    <div class="waiting-indicator">
-                        <span class="dot"></span>
-                        <span class="dot"></span>
-                        <span class="dot"></span>
-                    </div>
-                `;
             }
+        }
+        
+        // Populate entry content based on game state
+        if (isGameActive) {
+            // For active players (after game has started)
+            entry.innerHTML = `
+                <div class="rank">${index + 1}</div>
+                <div data-username="${player.username}" class="player-name">${player.username}</div>
+                <div data-words="${player.wordsCompleted || 0}" class="words">${player.wordsCompleted || 0}</div>
+                <div data-coins="${player.coins || 0}" class="coins">${player.coins || 0}</div>
+            `;
+        } else {
+            // For waiting players
+            entry.innerHTML = `
+                <div class="rank">${index + 1}</div>
+                <div data-username="${player.username}" class="player-name">${player.username}</div>
+                <div class="player-status-waiting">
+                    <span class="status-text" style="color: ${getRandomColor()}">${getReadyPhrase()}</span>
+                </div>
+                <div class="waiting-indicator">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </div>
+            `;
         }
         
         // Add to leaderboard
         leaderboard.appendChild(entry);
+        
+        // Apply entry-specific animations if moving up/down
+        if (existingEntry) {
+            const newPosition = entry.getBoundingClientRect();
+            const diff = existingEntry.position.top - newPosition.top;
+            
+            if (diff > 10) { // Moving up
+                entry.classList.add('moving-up');
+            } else if (diff < -10) { // Moving down
+                entry.classList.add('moving-down');
+            }
+            
+            // Animate word count if changed
+            const wordCountEl = entry.querySelector('[data-words]');
+            if (wordCountEl && player.wordsCompleted !== existingEntry.words) {
+                wordCountEl.classList.add('highlight-change');
+                setTimeout(() => wordCountEl.classList.remove('highlight-change'), 2000);
+            }
+            
+            // Animate coin count if changed
+            const coinCountEl = entry.querySelector('[data-coins]');
+            if (coinCountEl && player.coins !== existingEntry.coins) {
+                coinCountEl.classList.add('highlight-change');
+                setTimeout(() => coinCountEl.classList.remove('highlight-change'), 2000);
+            }
+        }
     });
     
-    // Apply animations based on position changes
-    requestAnimationFrame(() => {
-        leaderboard.querySelectorAll('.leaderboard-entry').forEach(entry => {
-            const usernameEl = entry.querySelector('[data-username]');
-            if (!usernameEl) return;
-            
-            const username = usernameEl.dataset.username;
-            const existingEntry = existingEntries[username];
-            
-            if (existingEntry) {
-                const newPosition = entry.getBoundingClientRect();
-                const diff = existingEntry.position.top - newPosition.top;
-                
-                // Clear existing animation classes
-                entry.classList.remove('moving-up', 'moving-down');
-                
-                // Force reflow
-                void entry.offsetWidth;
-                
-                if (diff > 10) { // Using a threshold to avoid minor shifts
-                    entry.classList.add('moving-up');
-                } else if (diff < -10) {
-                    entry.classList.add('moving-down');
-                }
-                
-                // Remove animation classes after animation completes
-                entry.addEventListener('animationend', () => {
-                    entry.classList.remove('moving-up', 'moving-down');
-                }, { once: true });
-            }
-        });
-    });
+    // If this is the moderator view, set up auto-refresh
+    if (currentUser?.id === currentArcadeSession.teacherId && isGameActive) {
+        if (!window.leaderboardRefreshInterval) {
+            window.leaderboardRefreshInterval = setInterval(() => {
+                requestAllPlayerStats();
+            }, 5000); // Request updates every 5 seconds
+        }
+    }
     
     // Update session metadata
     document.getElementById('activeParticipantCount').textContent = sortedPlayers.length;
-    document.getElementById('sessionDate').textContent = new Date().toLocaleDateString();
-    document.getElementById('sessionStartTime').textContent = new Date().toLocaleTimeString();
-    document.getElementById('sessionWordGoal').textContent = currentArcadeSession.wordGoal;
 }
-
-  
 
 async function startArcade() {
     // Get selected stages
     const selectedStages = Array.from(document.querySelectorAll('.stage-checkboxes input:checked')).map(el => parseInt(el.value));
     const warningElement = document.querySelector('.stage-warning');
     
-    if (selectedStages.length === 0) {
+    // Get selected custom lists
+    const selectedListIds = currentArcadeSession.selectedCustomLists || [];
+    const wordGoalInput = document.getElementById('wordGoal') || document.getElementById('wordGoalSlider');
+    const wordGoalValue = parseInt(wordGoalInput?.value || '50');
+    
+    // Make sure we have either stages or custom lists selected
+    if (selectedStages.length === 0 && selectedListIds.length === 0) {
         if (warningElement) warningElement.style.display = 'block';
-        console.error('No stages selected');
+        console.error('No stages or custom lists selected');
         return;
     }
     
     if (warningElement) warningElement.style.display = 'none';
     
-    // Generate word pool from selected stages
-    currentArcadeSession.wordPool = generateWordPool(selectedStages);
+    // Generate word pool from selected custom lists and stages
+    try {
+        currentArcadeSession.wordPool = await generateCombinedWordPool(selectedListIds, selectedStages, wordGoalValue);
+    } catch (error) {
+        console.error('Error generating word pool:', error);
+        alert('Failed to generate word pool. Please try again.');
+        return;
+    }
     
     // Get word goal from input
-    const wordGoalInput = document.getElementById('wordGoal') || document.getElementById('wordGoalSlider');
-    if (wordGoalInput) {
-        const wordGoalValue = parseInt(wordGoalInput.value);
-        currentArcadeSession.wordGoal = isNaN(wordGoalValue) ? 50 : wordGoalValue;
-        console.log('Selected word goal:', currentArcadeSession.wordGoal);
-    } else {
-        console.error('Word goal slider element not found. Available elements:', document.querySelectorAll('select, input[type="range"]'));
-        currentArcadeSession.wordGoal = 50;
-        console.warn('Defaulting to word goal of 50');
-    }
+    currentArcadeSession.wordGoal = wordGoalValue;
+    console.log('Selected word goal:', currentArcadeSession.wordGoal);
     
     // Initialize arcade session state with clear tracking properties
     currentArcadeSession.state = 'started';
@@ -4560,7 +5101,7 @@ async function startArcade() {
     currentArcadeSession.endTime = null;
     currentArcadeSession.winnerScreenShown = false;
     
-    // Set up event listeners for progress updates and status checks
+    // Set up event listeners (keep existing event listeners code)
     window.arcadeChannel.on('broadcast', { event: 'progress_update' }, ({ payload }) => {
         if (payload && payload.username) {
             // Safe update to prevent accidental progress resets
@@ -4665,15 +5206,153 @@ async function startArcade() {
     }
 }
 
-function generateWordPool(stages) {
-    let pool = [];
+async function generateCombinedWordPool(selectedListIds, selectedStages, wordGoal) {
+    console.log('Generating combined word pool with:', { 
+        selectedListIds, 
+        selectedStages, 
+        wordGoal 
+    });
     
+    let combinedPool = [];
+    let debugStats = { customWords: 0, stageWords: 0 };
+    
+    // Step 1: Add all words from selected custom lists
+    if (selectedListIds && selectedListIds.length > 0) {
+        try {
+            const customWords = await getWordsFromCustomLists(selectedListIds);
+            combinedPool = [...customWords];
+            debugStats.customWords = customWords.length;
+            console.log(`Added ${customWords.length} words from custom lists`);
+        } catch (error) {
+            console.error("Error getting custom list words:", error);
+            // Continue with empty custom words if there's an error
+        }
+    }
+    
+    // Step 2: If we don't have enough words, add words from selected stages
+    let remainingCount = wordGoal - combinedPool.length;
+    
+    if (remainingCount > 0 && selectedStages && selectedStages.length > 0) {
+        try {
+            // Add a generous buffer to ensure we have enough words
+            const buffer = Math.max(10, Math.ceil(wordGoal * 0.2)); // At least 10 extra words or 20% of word goal
+            
+            // Get stage words with the buffer
+            const stageWords = generateStageWordPool(selectedStages, remainingCount + buffer);
+            
+            // Add only what we need
+            const wordsToAdd = stageWords.slice(0, remainingCount);
+            combinedPool = [...combinedPool, ...wordsToAdd];
+            debugStats.stageWords = wordsToAdd.length;
+            
+            console.log(`Added ${wordsToAdd.length} words from selected stages`);
+            
+            // See if we filled the goal
+            remainingCount = wordGoal - combinedPool.length;
+        } catch (error) {
+            console.error("Error generating stage words:", error);
+            // Continue with what we have
+            remainingCount = wordGoal - combinedPool.length;
+        }
+    }
+    
+    // Safety check: if still not enough words, generate emergency pool
+    if (remainingCount > 0) {
+        console.warn(`Still need ${remainingCount} more words, adding emergency words`);
+        const emergencyWords = generateEmergencyWordPool(remainingCount);
+        combinedPool = [...combinedPool, ...emergencyWords];
+        debugStats.emergencyWords = emergencyWords.length;
+    }
+    
+    // Step 3: Ensure every word has valid properties
+    combinedPool = combinedPool.filter(word => {
+        const isValid = word && typeof word === 'object' && 
+                        typeof word.word === 'string' && 
+                        typeof word.translation === 'string';
+        
+        if (!isValid) {
+            console.error("Invalid word found in pool:", word);
+        }
+        
+        return isValid;
+    });
+    
+    // Step 4: Shuffle the pool thoroughly
+    combinedPool = shuffleArray(combinedPool);
+    
+    // Step 5: Ensure we have exactly the right number of words
+    if (combinedPool.length > wordGoal) {
+        combinedPool = combinedPool.slice(0, wordGoal);
+    }
+    
+    // Step 6: Duplicate if needed (unlikely but just in case)
+    if (combinedPool.length < wordGoal) {
+        const shortfall = wordGoal - combinedPool.length;
+        console.warn(`Final pool still short by ${shortfall} words, duplicating existing words`);
+        
+        // Duplicate words to fill the goal
+        const originals = [...combinedPool];
+        for (let i = 0; i < shortfall; i++) {
+            // Clone the word to avoid reference issues
+            const wordToDuplicate = { ...originals[i % originals.length] };
+            combinedPool.push(wordToDuplicate);
+        }
+        
+        // Shuffle again after duplicating
+        combinedPool = shuffleArray(combinedPool);
+    }
+    
+    // Log detailed information about the word pool
+    console.log(`Final word pool created with ${combinedPool.length}/${wordGoal} words:`, {
+        customWords: debugStats.customWords,
+        stageWords: debugStats.stageWords,
+        emergencyWords: debugStats.emergencyWords || 0,
+        totalWords: combinedPool.length,
+        sampleWords: combinedPool.slice(0, 3) // Show first 3 words as sample
+    });
+    
+    return combinedPool;
+}
+
+async function getWordsFromCustomLists(listIds) {
+    let combinedWords = [];
+    
+    // Make sure CustomListsManager is initialized
+    if (!CustomListsManager.lists || CustomListsManager.lists.length === 0) {
+        await CustomListsManager.initialize();
+    }
+    
+    // Process each selected list
+    for (const listId of listIds) {
+        const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
+        
+        if (list && list.words && list.translations) {
+            // Add each word-translation pair to the pool
+            for (let i = 0; i < list.words.length; i++) {
+                if (i < list.translations.length) {
+                    combinedWords.push({
+                        word: list.words[i],
+                        translation: list.translations[i]
+                    });
+                }
+            }
+        }
+    }
+    
+    return combinedWords;
+}
+
+function generateStageWordPool(stages, count) {
+    let pool = [];
+    let stageWords = [];
+    
+    // Collect all words from selected stages
     stages.forEach(stage => {
         Object.keys(vocabularySets).forEach(key => {
             if (key.startsWith(`${stage}_`)) {
                 const set = vocabularySets[key];
                 set.words.forEach((word, index) => {
-                    pool.push({
+                    stageWords.push({
                         word: word,
                         translation: set.translations[index]
                     });
@@ -4682,7 +5361,22 @@ function generateWordPool(stages) {
         });
     });
     
-    return pool.sort(() => Math.random() - 0.5);
+    // Shuffle the stage words
+    stageWords = shuffleArray(stageWords);
+    
+    // Take only the number we need
+    return stageWords.slice(0, count);
+}
+
+function shuffleArray(array) {
+    if (!array || !Array.isArray(array)) return [];
+    
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
 }
 
 function cleanupModeratorScreen() {
@@ -5082,6 +5776,78 @@ window.arcadeChannel.on('broadcast', {event: 'request_latest_stats'}, (({payload
     window.arcadeIntervals = [];
   }
 
+  function setupArcadeEventHandlers() {
+    if (!window.arcadeChannel) {
+        console.error("Arcade channel not initialized");
+        return;
+    }
+    
+    // Remove any existing handlers to prevent duplicates
+    window.arcadeChannel.unsubscribe();
+    
+    // Resubscribe with fresh handlers
+    window.arcadeChannel.subscribe();
+    
+    // Set up event handlers
+    window.arcadeChannel
+        .on('broadcast', { event: 'progress_update' }, ({ payload: e }) => {
+            // Log the incoming update
+            console.log("Progress update received:", e);
+            
+            // Never process our own updates
+            if (e.username === currentArcadeSession.playerName) {
+                console.log(`Ignoring self-update from ${currentArcadeSession.playerName}`);
+                return;
+            }
+            
+            // Process updates for other players
+            updatePlayerProgress(e);
+            
+            // Update rank display based on the new data
+            updatePlayerRankDisplay();
+        })
+        .on('broadcast', { event: 'game_playing' }, ({ payload: event }) => {
+            if (event.state === 'active') {
+                // Update session state
+                currentArcadeSession.state = 'active';
+                
+                // Only update word pool if we don't already have one
+                if (!currentArcadeSession.wordPool || currentArcadeSession.wordPool.length === 0) {
+                    currentArcadeSession.wordPool = event.wordPool;
+                }
+                
+                // Update word goal
+                currentArcadeSession.wordGoal = event.wordGoal;
+            }
+        })
+        .on('broadcast', { event: 'game_end' }, ({ payload }) => {
+            handleGameEnd(payload);
+            currentArcadeSession.state = 'ended';
+        })
+        .on('broadcast', { event: 'request_latest_stats' }, ({ payload }) => {
+            // When moderator requests updated stats, respond with our current data
+            if (currentGame && currentArcadeSession.playerName) {
+                // Use a short random delay to prevent network congestion
+                const delay = Math.floor(Math.random() * 300);
+                setTimeout(() => {
+                    window.arcadeChannel.send({
+                        type: 'broadcast',
+                        event: 'progress_update',
+                        payload: {
+                            username: currentArcadeSession.playerName,
+                            wordsCompleted: currentGame.wordsCompleted || 0,
+                            coins: currentGame.coins || 0,
+                            timestamp: Date.now()
+                        }
+                    });
+                }, delay);
+            }
+        });
+        
+    console.log("Arcade event handlers initialized");
+}
+
+
   async function getCurrentCoinsForArcade() {
     if (!currentUser) {
         // For guest users, use localStorage or default
@@ -5251,54 +6017,262 @@ function safeUpdatePlayerProgress(data) {
     updatePlayerProgress(data);
   }
 
-function loadNextArcadeQuestion() {
+  function loadNextArcadeQuestion() {
     // Check if the player has reached the word goal
     if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
         console.log("Word goal reached, stopping question loading");
         return;
     }
     
-    if (!currentGame.words.length) return;
+    if (!currentGame.words || !currentGame.words.length) {
+        console.error("Word pool is empty or undefined");
+        return;
+    }
     
-    const questionWord = document.getElementById('question-word');
-    const buttonsDiv = document.getElementById('buttons');
+    // Safety check to prevent cascading calls
+    if (currentGame.isLoadingQuestion) {
+        console.warn("Question already loading, preventing duplicate load");
+        return;
+    }
     
-    // Get random word from pool
-    const currentIndex = Math.floor(Math.random() * currentGame.words.length);
-    const currentWord = currentGame.words[currentIndex];
+    try {
+        // Set loading flag
+        currentGame.isLoadingQuestion = true;
+        
+        const questionWord = document.getElementById('question-word');
+        const buttonsDiv = document.getElementById('buttons');
+        
+        if (!questionWord || !buttonsDiv) {
+            console.error("Required DOM elements not found");
+            currentGame.isLoadingQuestion = false;
+            return;
+        }
+        
+        // Clear existing buttons first
+        buttonsDiv.innerHTML = '';
+        
+        // Get random word from pool (safely)
+        const wordPoolSize = currentGame.words.length;
+        if (wordPoolSize === 0) {
+            console.error("Word pool is empty");
+            currentGame.isLoadingQuestion = false;
+            return;
+        }
+        
+        const currentIndex = Math.floor(Math.random() * wordPoolSize);
+        if (currentIndex >= wordPoolSize) {
+            console.error("Invalid word index:", currentIndex, "pool size:", wordPoolSize);
+            currentGame.isLoadingQuestion = false;
+            return;
+        }
+        
+        const currentWord = currentGame.words[currentIndex];
+        if (!currentWord) {
+            console.error("Selected word is undefined at index:", currentIndex);
+            currentGame.isLoadingQuestion = false;
+            return;
+        }
+        
+        // Log word for debugging
+        console.log(`Loading word #${currentGame.wordsCompleted + 1} from pool: `, 
+                    currentWord.word, currentWord.translation);
+        
+        // 50% chance for Hebrew to English
+        const isHebrewToEnglish = Math.random() < 0.5;
+        
+        // Set the question word
+        const wordToDisplay = isHebrewToEnglish ? currentWord.translation : currentWord.word;
+        questionWord.textContent = wordToDisplay;
+        
+        // Generate options
+        let options = [isHebrewToEnglish ? currentWord.word : currentWord.translation];
+        
+        // Create a global word pool for backup options
+        if (!window.globalWordPool) {
+            window.globalWordPool = [];
+            
+            // Populate from vocabulary sets if available
+            Object.values(vocabularySets).forEach(set => {
+                if (set.words && set.translations) {
+                    for (let i = 0; i < set.words.length; i++) {
+                        if (i < set.translations.length) {
+                            window.globalWordPool.push({
+                                word: set.words[i],
+                                translation: set.translations[i]
+                            });
+                        }
+                    }
+                }
+            });
+            
+            // Shuffle the global pool
+            window.globalWordPool = shuffleArray(window.globalWordPool);
+            console.log(`Created global word pool with ${window.globalWordPool.length} words`);
+        }
+        
+        // Try to get options from current game words
+        let attempts = 0;
+        while (options.length < 3 && attempts < 15 && currentGame.words.length > 1) {
+            attempts++;
+            const randomWordIndex = Math.floor(Math.random() * currentGame.words.length);
+            if (randomWordIndex === currentIndex) continue; // Skip the current word
+            
+            const randomWord = currentGame.words[randomWordIndex];
+            if (!randomWord) continue;
+            
+            const option = isHebrewToEnglish ? randomWord.word : randomWord.translation;
+            if (!options.includes(option)) {
+                options.push(option);
+            }
+        }
+        
+        // If we still need more options, use the global pool
+        attempts = 0;
+        while (options.length < 3 && attempts < 30 && window.globalWordPool.length > 0) {
+            attempts++;
+            const randomIndex = Math.floor(Math.random() * window.globalWordPool.length);
+            const randomWord = window.globalWordPool[randomIndex];
+            
+            if (!randomWord) continue;
+            
+            const option = isHebrewToEnglish ? randomWord.word : randomWord.translation;
+            if (!options.includes(option)) {
+                options.push(option);
+            }
+        }
+        
+        // If we still don't have enough options, add meaningful alternatives
+        // instead of generic "Option X"
+        if (options.length < 3) {
+            // Use real words as fallbacks
+            const fallbackWords = isHebrewToEnglish ? 
+                ['dog', 'cat', 'house', 'water', 'book', 'friend', 'food', 'table', 'car', 'school'] :
+                ['כלב', 'חתול', 'בית', 'מים', 'ספר', 'חבר', 'אוכל', 'שולחן', 'מכונית', 'בית ספר'];
+            
+            while (options.length < 3) {
+                const fallback = fallbackWords[Math.floor(Math.random() * fallbackWords.length)];
+                if (!options.includes(fallback)) {
+                    options.push(fallback);
+                }
+            }
+        }
+        
+        // Shuffle options
+        options = shuffleArray(options);
+        
+        // Create buttons
+        options.forEach(option => {
+            const button = document.createElement('button');
+            button.textContent = option;
+            
+            // Use a single event listener with a cleanup pattern
+            const clickHandler = () => {
+                // Remove all click handlers to prevent double-triggering
+                buttonsDiv.querySelectorAll('button').forEach(btn => {
+                    btn.onclick = null;
+                    btn.disabled = true; // Prevent rapid clicking
+                });
+                
+                // Process answer after a brief delay
+                setTimeout(() => {
+                    handleArcadeAnswer(
+                        option === (isHebrewToEnglish ? currentWord.word : currentWord.translation)
+                    );
+                }, 50);
+            };
+            
+            button.onclick = clickHandler;
+            buttonsDiv.appendChild(button);
+        });
+        
+        // Remove used word from pool
+        currentGame.words.splice(currentIndex, 1);
+        
+        // Clear the loading flag after a safety timeout
+        setTimeout(() => {
+            currentGame.isLoadingQuestion = false;
+        }, 300);
+    } catch (error) {
+        console.error("Error in loadNextArcadeQuestion:", error);
+        currentGame.isLoadingQuestion = false;
+        
+        // Attempt recovery
+        setTimeout(() => {
+            try {
+                if (currentGame.words && currentGame.words.length > 0) {
+                    loadNextArcadeQuestion();
+                }
+            } catch (e) {
+                console.error("Failed to recover from error:", e);
+            }
+        }, 1000);
+    }
+}
+
+function isGuestUser() {
+    return !currentUser || !currentUser.id;
+}
+
+function setupGuestArcadeMode() {
+    // Skip the broadcast polling for guest users
+    if (window.arcadeStatsInterval) {
+        clearInterval(window.arcadeStatsInterval);
+        window.arcadeStatsInterval = null;
+    }
     
-    // 50% chance for Hebrew to English
-    const isHebrewToEnglish = Math.random() < 0.5;
+    // Use a simpler progress tracking for guests
+    const guestProgressInterval = setInterval(() => {
+        // Update progress circle
+        updateArcadeProgress();
+        
+        // Check if player has completed the word goal
+        if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
+            const playerName = currentArcadeSession.playerName || "Guest";
+            handlePlayerCompletedGoal(playerName);
+            clearInterval(guestProgressInterval);
+        }
+    }, 3000);
     
-    questionWord.textContent = isHebrewToEnglish ? 
-        currentWord.translation : currentWord.word;
+    // Store for cleanup
+    window.guestProgressInterval = guestProgressInterval;
     
-    // Generate options
-    let options = [isHebrewToEnglish ? currentWord.word : currentWord.translation];
-    while (options.length < 3) {
-        const randomWord = currentGame.words[Math.floor(Math.random() * currentGame.words.length)];
-        const option = isHebrewToEnglish ? randomWord.word : randomWord.translation;
-        if (!options.includes(option)) {
-            options.push(option);
+    console.log("Guest arcade mode initialized");
+}
+
+function cleanupArcadeSession() {
+    console.log("Cleaning up arcade session");
+    
+    // Clear all timers
+    cleanupArcadeTimers();
+    
+    // Additional cleanup for guest mode
+    if (window.guestProgressInterval) {
+        clearInterval(window.guestProgressInterval);
+        window.guestProgressInterval = null;
+    }
+    
+    // Unsubscribe from channel
+    if (window.arcadeChannel) {
+        try {
+            window.arcadeChannel.unsubscribe();
+        } catch (error) {
+            console.error("Error unsubscribing from channel:", error);
         }
     }
     
-    // Shuffle options
-    options = options.sort(() => Math.random() - 0.5);
+    // Reset game state
+    currentGame = {
+        coins: 0,
+        wordsCompleted: 0,
+        correctStreak: 0,
+        wrongStreak: 0,
+        words: [],
+        lastAnswerTime: 0,
+        isLoadingQuestion: false,
+        isProcessingAnswer: false
+    };
     
-    // Create buttons
-    buttonsDiv.innerHTML = '';
-    options.forEach(option => {
-        const button = document.createElement('button');
-        button.textContent = option;
-        button.onclick = () => handleArcadeAnswer(
-            option === (isHebrewToEnglish ? currentWord.word : currentWord.translation)
-        );
-        buttonsDiv.appendChild(button);
-    });
-    
-    // Remove used word from pool
-    currentGame.words.splice(currentIndex, 1);
+    console.log("Arcade cleanup complete");
 }
 
 function updateArcadeProgress() {
@@ -9997,35 +10971,77 @@ function showBossVictoryNotification(coinRewardNeeded = false) {
 }
 
 function handleBossVictoryContinue() {
-    console.log("Boss victory continue button clicked");
-    const modal = document.querySelector(".arcade-completion-modal");
-    
-    // Now that everything is complete, we can safely update all displays
-    updateAllCoinDisplays();
-    
-    if (modal) {
-      modal.classList.remove("show");
-      setTimeout(() => {
-        modal.remove();
-        
-        const bgTransition = document.querySelector(".background-transition-overlay");
-        
-        if (bgTransition) {
-          console.log("Using existing transition overlay for smooth transition");
-          bgTransition.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
-          resetBossStyles(true);
+  console.log("Boss victory continue button clicked");
+  const modal = document.querySelector(".arcade-completion-modal");
+  
+  // Now that everything is complete, we can safely update all displays
+  updateAllCoinDisplays();
+  
+  if (modal) {
+    modal.classList.remove("show");
+    setTimeout(() => {
+      modal.remove();
+      
+      const bgTransition = document.querySelector(".background-transition-overlay");
+      
+      if (bgTransition) {
+        console.log("Using existing transition overlay for smooth transition");
+        bgTransition.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
+        resetBossStyles(true);
+      } else {
+        resetBossStyles();
+      }
+      
+      unlockNextSet();
+      
+      // Get current stage configuration
+      const currentStage = gameState.currentStage;
+      const currentSet = gameState.currentSet;
+      const stageStructure = gameStructure.stages[currentStage-1];
+      
+      if (!stageStructure) {
+        console.error(`Invalid stage: ${currentStage}`);
+        showScreen("welcome-screen");
+        return;
+      }
+      
+      const userStatus = currentUser ? currentUser.status : "unregistered";
+      
+      // Check if this is the last set in the stage
+      const isLastSetInStage = currentSet >= stageStructure.numSets;
+      
+      if (isLastSetInStage) {
+        // This is the last set in the stage, should move to next stage
+        if (currentStage < 5) {
+          // Move to first set of next stage
+          if (currentStage >= 2 && userStatus !== "premium") {
+            // Non-premium users can't access beyond first set of stages 2-5
+            console.log("Non-premium user attempted to access next stage, showing upgrade prompt");
+            showScreen("welcome-screen");
+            setTimeout(() => {
+              showUpgradePrompt();
+            }, 500);
+            return;
+          }
+          
+          // For premium users or stage 1 users, proceed to next stage
+          gameState.currentStage += 1;
+          gameState.currentSet = 1;
+          gameState.currentLevel = 1;
+          
+          console.log(`Moving to Stage ${gameState.currentStage}, Set 1, Level 1`);
         } else {
-          resetBossStyles();
+          // This is the final stage (5), show stage selection screen
+          console.log("Final stage completed, showing stage selection");
+          showScreen("stage-screen");
+          return;
         }
+      } else {
+        // Not the last set, move to next set in current stage
+        const nextSet = currentSet + 1;
         
-        unlockNextSet();
-        
-        // ADD PREMIUM CHECK HERE
-        const nextSet = gameState.currentSet + 1;
-        const userStatus = currentUser ? currentUser.status : "unregistered";
-        
-        // If we're moving beyond Set 1 in Stages 2-5 and user is not premium, show upgrade prompt
-        if (gameState.currentStage >= 2 && nextSet > 1 && userStatus !== "premium") {
+        // Premium check for stages 2-5
+        if (currentStage >= 2 && nextSet > 1 && userStatus !== "premium") {
           console.log("Non-premium user attempted to access premium set, showing upgrade prompt");
           showScreen("welcome-screen");
           setTimeout(() => {
@@ -10034,23 +11050,27 @@ function handleBossVictoryContinue() {
           return;
         }
         
-        // Continue with normal progression for premium users
         gameState.currentSet = nextSet;
         gameState.currentLevel = 1;
-        
-        setTimeout(() => {
-          console.log("Starting next level");
-          if (bgTransition && bgTransition.parentNode) {
-            bgTransition.parentNode.removeChild(bgTransition);
-          }
-          startLevel(1);
-        }, 500);
-      }, 300);
-    }
-    
-    // Ensure animation flag is cleared
-    window.bossVictoryAnimationInProgress = false;
+        console.log(`Moving to Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level 1`);
+      }
+      
+      // Save progress
+      saveProgress();
+      
+      setTimeout(() => {
+        console.log("Starting next level");
+        if (bgTransition && bgTransition.parentNode) {
+          bgTransition.parentNode.removeChild(bgTransition);
+        }
+        startLevel(1);
+      }, 500);
+    }, 300);
   }
+  
+  // Ensure animation flag is cleared
+  window.bossVictoryAnimationInProgress = false;
+}
 
 function resetBossStyles(e = false) {
   console.log("Resetting boss styles", e ? "(preserving overlay)" : "");
@@ -10106,16 +11126,41 @@ function handleBossVictoryHome() {
       
       unlockNextSet();
       
-      // ADD PREMIUM CHECK HERE TOO
-      const nextSet = gameState.currentSet + 1;
+      // Get current stage configuration
+      const currentStage = gameState.currentStage;
+      const currentSet = gameState.currentSet;
+      const stageStructure = gameStructure.stages[currentStage-1];
+      
+      if (!stageStructure) {
+        console.error(`Invalid stage: ${currentStage}`);
+        showScreen("welcome-screen");
+        return;
+      }
+      
+      // Check if this is the last set in the stage
+      const isLastSetInStage = currentSet >= stageStructure.numSets;
       const userStatus = currentUser ? currentUser.status : "unregistered";
       
-      // Still update the gameState even when going to welcome screen, but show upgrade if needed
-      if (gameState.currentStage >= 2 && nextSet > 1 && userStatus !== "premium") {
-        showUpgradePrompt();
+      if (isLastSetInStage) {
+        // This is the last set in the stage, should move to next stage
+        if (currentStage < 5) {
+          // Move to first set of next stage
+          gameState.currentStage += 1;
+          gameState.currentSet = 1;
+          gameState.currentLevel = 1;
+        }
+        // For the last stage, we just keep the same values
       } else {
-        gameState.currentSet = nextSet;
+        // Still have more sets in this stage
+        gameState.currentSet += 1;
         gameState.currentLevel = 1;
+      }
+      
+      // Show upgrade if needed for non-premium users
+      if (gameState.currentStage >= 2 && gameState.currentSet > 1 && userStatus !== "premium") {
+        setTimeout(() => {
+          showUpgradePrompt();
+        }, 500);
       }
       
       saveProgress();
@@ -10123,8 +11168,6 @@ function handleBossVictoryHome() {
     }, 300);
   }
 }
-
-
 
 createBossStyleSheet();
 
@@ -13521,3 +14564,308 @@ async function updateUserCoins(amount) {
     
     return true;
 }
+
+function positionOptionsMenu() {
+    const optionsMenu = document.getElementById('options-menu');
+    const settingsToggle = document.getElementById('settings-toggle');
+    
+    if (!optionsMenu || !settingsToggle) return;
+    
+    // Check if menu is shown
+    if (!optionsMenu.classList.contains('show')) return;
+    
+    // Get viewport dimensions
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Get menu and toggle button dimensions and positions
+    const menuRect = optionsMenu.getBoundingClientRect();
+    const toggleRect = settingsToggle.getBoundingClientRect();
+    
+    // Calculate menu position
+    let left = toggleRect.left + (toggleRect.width / 2) - (menuRect.width / 2);
+    let top = toggleRect.bottom + 10; // 10px below toggle button
+    
+    // Check if menu would overflow right edge
+    if (left + menuRect.width > viewportWidth - 10) {
+      left = viewportWidth - menuRect.width - 10;
+    }
+    
+    // Check if menu would overflow left edge
+    if (left < 10) {
+      left = 10;
+    }
+    
+    // Check if menu would overflow bottom edge
+    if (top + menuRect.height > viewportHeight - 10) {
+      // Position above toggle button instead
+      top = toggleRect.top - menuRect.height - 10;
+      
+      // If still overflowing (not enough space above either)
+      if (top < 10) {
+        // Center in viewport as fallback
+        top = Math.max(10, (viewportHeight - menuRect.height) / 2);
+        
+        // Ensure menu is fully on screen by checking height
+        if (top + menuRect.height > viewportHeight - 10) {
+          // Limit height if necessary and add scrolling
+          const maxHeight = viewportHeight - 20;
+          optionsMenu.style.maxHeight = `${maxHeight}px`;
+          optionsMenu.style.overflow = 'auto';
+        }
+      }
+    }
+    
+    // Apply calculated position
+    optionsMenu.style.left = `${left}px`;
+    optionsMenu.style.top = `${top}px`;
+    optionsMenu.style.transform = 'none'; // Remove default transform
+  }
+
+  // Find where the arcade button click is defined in the code
+document.addEventListener('DOMContentLoaded', function() {
+    // Find the arcade button by its data-action attribute
+    const arcadeButton = document.querySelector('.carousel-button[data-action="showArcadeModal()"]');
+    
+    if (arcadeButton) {
+      // Remove any existing click handlers
+      arcadeButton.removeEventListener('click', window.showArcadeModal);
+      
+      // Add our direct click handler
+      arcadeButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        console.log('Arcade button clicked - directly calling showArcadeModal');
+        showArcadeModal();
+      });
+    } else {
+      console.error('Arcade button not found in the DOM');
+    }
+  });
+
+  // Simple debugging version of showArcadeModal
+function openArcadeModalSimple() {
+    console.log('Simple arcade modal opener called');
+    const modal = document.getElementById('arcade-modal');
+    
+    if (!modal) {
+      console.error('Arcade modal element not found');
+      return;
+    }
+    
+    console.log('Found arcade modal, displaying it');
+    modal.style.display = 'block';
+    
+    // Get the player view and teacher view
+    const teacherView = document.getElementById('teacher-view');
+    const playerView = document.getElementById('player-view');
+    
+    if (teacherView && playerView) {
+      // Default to player view for everyone for testing
+      teacherView.style.display = 'none';
+      playerView.style.display = 'block';
+      console.log('Showing player view');
+    } else {
+      console.error('Teacher or player view elements not found');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add a direct click handler to the Arcade button in the carousel
+    document.querySelectorAll('.carousel-button').forEach(button => {
+      const buttonText = button.querySelector('span')?.textContent?.trim();
+      if (buttonText === 'Arcade') {
+        button.onclick = function() {
+          console.log('Arcade button clicked through direct handler');
+          // Try the simplified function first for debugging
+          openArcadeModalSimple();
+          // If that works, switch back to the full function
+          // showArcadeModal();
+        };
+      }
+    });
+    
+    // Also add a direct click handler to any element with showArcadeModal in onclick attribute
+    document.querySelectorAll('[onclick*="showArcadeModal"]').forEach(element => {
+      element.onclick = function(e) {
+        e.preventDefault();
+        console.log('Element with showArcadeModal onclick attribute clicked');
+        // Try the simplified function first for debugging
+        openArcadeModalSimple();
+        // If that works, switch back to the full function
+        // showArcadeModal();
+        return false;
+      };
+    });
+  });
+
+  // Add this to help diagnose the modal structure
+function checkArcadeModalStructure() {
+    console.log('Checking arcade modal structure...');
+    
+    const modal = document.getElementById('arcade-modal');
+    if (!modal) {
+      console.error('Arcade modal element not found');
+      return false;
+    }
+    
+    console.log('Modal element found:', modal);
+    
+    const teacherView = document.getElementById('teacher-view');
+    const playerView = document.getElementById('player-view');
+    
+    if (!teacherView) {
+      console.error('Teacher view not found in modal');
+    } else {
+      console.log('Teacher view found:', teacherView);
+    }
+    
+    if (!playerView) {
+      console.error('Player view not found in modal');
+    } else {
+      console.log('Player view found:', playerView);
+    }
+    
+    return true;
+  }
+  
+  // Call this on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(checkArcadeModalStructure, 1000); // Give the page a second to fully load
+  });
+
+  // Function to ensure the arcade modal exists
+function ensureArcadeModalExists() {
+    let modal = document.getElementById('arcade-modal');
+    
+    if (!modal) {
+      console.log('Creating arcade modal element as it was not found');
+      modal = document.createElement('div');
+      modal.id = 'arcade-modal';
+      modal.className = 'modal';
+      
+      // Create basic structure
+      modal.innerHTML = `
+        <div class="modal-content">
+          <div id="teacher-view" style="display: none;">
+            <h2>Host Arcade Session</h2>
+            <p>Game Code: <span id="otp">----</span></p>
+            <p>Players: <span id="player-count">0</span></p>
+            <div class="stage-selector">
+              <h3>Select Word Pools:</h3>
+              <div class="stage-checkboxes">
+                <!-- Stage checkboxes will go here -->
+              </div>
+            </div>
+            <button class="main-button" onclick="startArcade()">Start Session</button>
+            <button class="end-arcade-button" onclick="endArcade()">End Session</button>
+          </div>
+          
+          <div id="player-view" style="display: none;">
+            <h2>Join Arcade</h2>
+            <div class="input-group">
+              <input type="text" id="arcadeUsername" placeholder="Choose your username" maxlength="15">
+              <input type="text" id="otpInput" placeholder="Enter 4-digit Game Code" maxlength="4" pattern="[0-9]{4}" inputmode="numeric">
+            </div>
+            <button class="join-button" onclick="joinArcadeWithUsername()">Join Game</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // Call this on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    ensureArcadeModalExists();
+  });
+
+  // Direct fix for the arcade modal issue
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded - Setting up arcade button handlers');
+    
+    // 1. Make sure the arcade modal exists
+    const modalExists = ensureArcadeModalExists();
+    if (modalExists) {
+      console.log('Created arcade modal as it was missing');
+    }
+    
+    // 2. Add click handlers to all possible arcade buttons
+    document.querySelectorAll('.carousel-button').forEach(button => {
+      const buttonText = button.querySelector('span')?.textContent?.trim();
+      if (buttonText === 'Arcade') {
+        console.log('Found Arcade button in carousel, adding direct click handler');
+        
+        button.onclick = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('Arcade button clicked');
+          
+          // Show the modal directly first
+          const modal = document.getElementById('arcade-modal');
+          if (modal) {
+            modal.style.display = 'block';
+            
+            // Then try to configure it
+            try {
+              showArcadeModal();
+            } catch (error) {
+              console.error('Error in showArcadeModal:', error);
+              
+              // Fallback to basic configuration
+              const teacherView = document.getElementById('teacher-view');
+              const playerView = document.getElementById('player-view');
+              
+              if (teacherView && playerView) {
+                teacherView.style.display = 'none';
+                playerView.style.display = 'block';
+              }
+            }
+          } else {
+            console.error('Arcade modal not found even after ensuring it exists');
+          }
+          
+          return false;
+        };
+      }
+    });
+    
+    // 3. Also fix any elements with onclick="showArcadeModal()"
+    document.querySelectorAll('[onclick*="showArcadeModal"]').forEach(element => {
+      console.log('Found element with showArcadeModal onclick attribute, replacing handler');
+      
+      element.setAttribute('onclick', ''); // Remove the attribute
+      element.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Element with showArcadeModal onclick clicked');
+        
+        // Show the modal directly first
+        const modal = document.getElementById('arcade-modal');
+        if (modal) {
+          modal.style.display = 'block';
+          
+          // Then try to configure it
+          try {
+            showArcadeModal();
+          } catch (error) {
+            console.error('Error in showArcadeModal:', error);
+            
+            // Fallback to basic configuration
+            const teacherView = document.getElementById('teacher-view');
+            const playerView = document.getElementById('player-view');
+            
+            if (teacherView && playerView) {
+              teacherView.style.display = 'none';
+              playerView.style.display = 'block';
+            }
+          }
+        }
+        
+        return false;
+      };
+    });
+  });

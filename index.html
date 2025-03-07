@@ -97,7 +97,7 @@
 <div class="floating-menu" id="options-menu">
     <div class="menu-grid">
       <!-- Top Row -->
-      <button class="menu-item" onclick="showScreen('user-stats-screen')">
+      <button class="menu-item" onclick="openProfileModal()">
         <i class="fas fa-user-circle"></i>
         <span>Profile</span>
       </button>
@@ -153,7 +153,6 @@
   </div>
 </div>
 
-<!-- Add this modal to the HTML, ideally right before the closing body tag -->
 <div class="profile-modal" id="profile-modal">
     <div class="profile-modal-content">
       <div class="profile-header">
@@ -173,7 +172,12 @@
           </div>
         </div>
       </div>
-      <button class="close-modal-btn" onclick="closeProfileModal()">Close</button>
+      <div class="profile-actions">
+        <button class="logout-modal-btn" onclick="closeProfileModal(); handleLogout()">
+            <i class="fas fa-sign-out-alt"></i> Logout
+          </button>
+        <button class="close-modal-btn" onclick="closeProfileModal()">Close</button>
+      </div>
     </div>
   </div>
 
@@ -201,9 +205,9 @@
 
    <div class="side-panel">
     <div class="side-panel-content">
-        <button class="logout-button logout-top-button">
-    <i class="fas fa-sign-out-alt"></i> Logout
-</button>        
+        <button class="logout-modal-btn" onclick="closeProfileModal(); handleLogout();">
+            <i class="fas fa-sign-out-alt"></i> Logout
+          </button>      
         <div class="welcome-buttons">
             <a href="#" class="nav-link" onclick="showScreen('stage-screen'); return false;">
     <i class="fas fa-map-marked-alt"></i> Level Map
@@ -519,49 +523,79 @@
 
 <div id="arcade-modal" class="modal">
    <div class="modal-content">
-       <div id="teacher-view" style="display: none;">
-        <h2 style="display: none;">Your OTP: <span id="otp"></span></h2>
-        <p style="display: none;">Players: <span id="player-count">0</span></p>
-           
-           <div class="stage-selector">
-               <h3>Select Word Pools:</h3>
-               <div class="stage-checkboxes">
-                   <label>
-                       <input type="checkbox" value="1"> Stage 1
-                   </label>
-                   <label>
-                       <input type="checkbox" value="2"> Stage 2
-                   </label>
-                   <label>
-                       <input type="checkbox" value="3"> Stage 3
-                   </label>
-                   <label>
-                       <input type="checkbox" value="4"> Stage 4
-                   </label>
-                   <label>
-                       <input type="checkbox" value="5"> Stage 5
-                   </label>
-               </div>
-               <p class="stage-warning" style="display: none; color: var(--error);">Please select at least one stage</p>
-           </div>
-
-           <div class="word-goal">
-            <h3>Word Goal: <span id="wordGoalDisplay">50</span> words</h3>
-            <div class="slider-container">
-                <input type="range" min="1" max="200" value="50" class="word-goal-slider" id="wordGoalSlider">
-                <div class="slider-stops">
-                    <span class="slider-stop" data-value="0">0</span>
-                    <span class="slider-stop" data-value="50">50</span>
-                    <span class="slider-stop" data-value="100">100</span>
-                    <span class="slider-stop" data-value="150">150</span>
-                    <span class="slider-stop" data-value="200">200</span>
+    <div id="teacher-view" style="display: none;">
+        <!-- Hidden but necessary elements for JavaScript -->
+        <span id="otp" style="display: none;"></span>
+        
+        <h2 class="arcade-modal-title">Host Arcade Session</h2>
+        
+        <div class="teacher-modal-container">
+            <!-- Stage Selection - Top Row -->
+            <div class="teacher-modal-section">
+                <h3 class="section-title">Word Selection</h3>
+                <div class="session-meta">
+                    <div class="meta-item">
+                        <span class="label">Players:</span>
+                        <span id="player-count" class="value">0</span>
+                    </div>
+                </div>
+                <div class="stage-selector">
+                    <div class="stage-checkboxes">
+                        <label class="checkbox-item">
+                            <input type="checkbox" value="1"> Stage 1
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" value="2"> Stage 2
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" value="3"> Stage 3
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" value="4"> Stage 4
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" value="5"> Stage 5
+                        </label>
+                    </div>
+                    <p class="stage-warning" style="display: none; color: var(--error);">Please select at least one stage</p>
                 </div>
             </div>
-            <input type="number" id="wordGoalInput" min="1" max="200" value="50" class="word-goal-input">
+            
+            <!-- Custom Lists - Middle Row -->
+            <div class="teacher-modal-section">
+                <h3 class="section-title">Include Custom Lists:</h3>
+                <div id="arcade-custom-lists" class="arcade-custom-lists">
+                    <div class="loading-spinner">Loading lists...</div>
+                </div>
+                <div class="selected-words-counter">
+                    Selected Custom Words: <span id="selected-custom-words">0</span>
+                </div>
+            </div>
+            
+            <!-- Word Goal - Bottom Row -->
+            <div class="teacher-modal-section">
+                <h3 class="section-title">Word Goal: <span id="wordGoalDisplay">50</span> words</h3>
+                <div class="word-goal-control">
+                    <div class="slider-container">
+                        <input type="range" min="1" max="200" value="50" class="slider" id="wordGoalSlider">
+                        <div class="slider-stops">
+                            <span class="slider-stop" data-value="0">0</span>
+                            <span class="slider-stop" data-value="50">50</span>
+                            <span class="slider-stop" data-value="100">100</span>
+                            <span class="slider-stop" data-value="150">150</span>
+                            <span class="slider-stop" data-value="200">200</span>
+                        </div>
+                    </div>
+                    <input type="number" id="wordGoalInput" min="1" max="200" value="50" class="word-goal-input">
+                </div>
+            </div>
         </div>
-
-        <button class="main-button" onclick="startArcade()">Start</button>
-           </div>
+        
+        <div class="teacher-modal-actions">
+            <button class="main-button" onclick="startArcade()">START SESSION</button>
+            <button class="end-arcade-button" onclick="endArcade()">END SESSION</button>
+        </div>
+    </div>
 
        <div id="player-view" style="display: none;">
         <h2>Join Arcade</h2>
