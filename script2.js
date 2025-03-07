@@ -3272,9 +3272,16 @@ async function loadSharedLists() {
 function showShareModal(listId) {
     console.log("Opening share modal for list:", listId);
     
-    // Check if user is premium but don't restrict based on teacher role yet
-    if (!currentUser || currentUser.status !== "premium") {
-        showNotification("Only premium users can share lists", "error");
+    // Same check as in updateListsDisplay for consistency
+    const isPremiumUser = currentUser?.status === "premium";
+    const isAdminEmail = currentUser && currentUser.email && 
+                        (currentUser.email.includes("admin") || 
+                         currentUser.email.includes("teacher"));
+    
+    const canShare = isPremiumUser && isAdminEmail;
+    
+    if (!canShare) {
+        showNotification("Only teachers can share lists", "error");
         return;
     }
     
@@ -10680,16 +10687,78 @@ function updateListsDisplay() {
     const container = document.getElementById("custom-lists-container");
     if (!container) return void console.error("Custom lists container not found");
 
-    // Log full user object for debugging
-    console.log("Current user:", currentUser);
+    // Extensive user object logging
+    console.log("Current user object:", currentUser);
+    console.log("User metadata:", currentUser?.user_metadata);
+    console.log("App metadata:", currentUser?.app_metadata);
+    
+    // Log all properties of the user object for inspection
+    if (currentUser) {
+        console.log("All user properties:");
+        for (const key in currentUser) {
+            if (typeof currentUser[key] !== 'function') {
+                console.log(`- ${key}:`, currentUser[key]);
+            }
+        }
+        
+        // Check user_metadata properties
+        if (currentUser.user_metadata) {
+            console.log("All user_metadata properties:");
+            for (const key in currentUser.user_metadata) {
+                console.log(`- ${key}:`, currentUser.user_metadata[key]);
+            }
+        }
+        
+        // Check app_metadata properties
+        if (currentUser.app_metadata) {
+            console.log("All app_metadata properties:");
+            for (const key in currentUser.app_metadata) {
+                console.log(`- ${key}:`, currentUser.app_metadata[key]);
+            }
+        }
+    }
     
     const limits = CustomListsManager.getListLimits();
     const userStatus = currentUser?.status || 'unregistered';
     
-    // Temporary solution: assume all premium users can share 
-    // until we find the right teacher attribute
+    // For debugging: this flags if we think the user is a teacher based on various checks
+    let isTeacherFound = false;
+    let teacherPropertyFound = "";
+    
+    // Various checks for teacher status
+    if (currentUser?.role === "teacher") {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.role";
+    } else if (currentUser?.user_metadata?.role === "teacher") {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.user_metadata.role";
+    } else if (currentUser?.app_metadata?.role === "teacher") {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.app_metadata.role";
+    } else if (currentUser?.user_type === "teacher") {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.user_type";
+    } else if (currentUser?.user_metadata?.user_type === "teacher") {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.user_metadata.user_type";
+    } else if (currentUser?.is_teacher === true) {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.is_teacher";
+    } else if (currentUser?.user_metadata?.is_teacher === true) {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.user_metadata.is_teacher";
+    }
+    
+    console.log(`Is teacher found: ${isTeacherFound}, Property: ${teacherPropertyFound}`);
+    
+    // TEMPORARY: Until we find the correct teacher attribute, only show for premium and email is admin
     const isPremiumUser = userStatus === "premium";
-    console.log("User is premium:", isPremiumUser);
+    const isAdminEmail = currentUser && currentUser.email && 
+                        (currentUser.email.includes("admin") || 
+                         currentUser.email.includes("teacher"));
+    
+    const canShare = isPremiumUser && isAdminEmail;
+    console.log(`Can share: ${canShare}, Premium: ${isPremiumUser}, Admin email: ${isAdminEmail}`);
     
     container.innerHTML = "";
     
@@ -10708,7 +10777,7 @@ function updateListsDisplay() {
             listItem.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
             listItem.dataset.listId = list.id;
             
-            // Include share button for premium users
+            // Only show share button for users who can share (premium + admin email)
             listItem.innerHTML = `
                 <div class="list-actions">
                     <button class="main-button practice-button" ${hasSufficientWords ? "" : "disabled"}>
@@ -10716,7 +10785,7 @@ function updateListsDisplay() {
                     </button>
                     <button class="main-button edit-button">Edit</button>
                     <button class="main-button delete-button">Delete</button>
-                    ${isPremiumUser ? `
+                    ${canShare ? `
                         <button class="main-button share-button">
                             <i class="fas fa-share-alt"></i> Share
                         </button>
