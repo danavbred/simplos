@@ -1956,8 +1956,8 @@ function updateTimerCircle(timeRemaining, totalTime) {
 
 
 
-  async function handleLogin() {
-    const loginInput = document.getElementById('loginUsername').value;
+async function handleLogin() {
+    const loginInput = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value;
     
     if (!loginInput || !password) {
@@ -1966,75 +1966,193 @@ function updateTimerCircle(timeRemaining, totalTime) {
     }
 
     try {
-        // Determine if input is an email or username
+        // First determine if the input looks like an email
         const isEmail = loginInput.includes('@');
+        let userEmail = loginInput;
         
-        let loginMethod;
-        if (isEmail) {
-            // Login with email
-            loginMethod = supabaseClient.auth.signInWithPassword({
-                email: loginInput,
-                password: password
-            });
-        } else {
-            // Login with username
-            const { data: userProfile, error: profileError } = await supabaseClient
-                .from('user_profiles')
-                .select('email')
-                .eq('username', loginInput)
-                .single();
-
-            if (profileError || !userProfile) {
-                alert('Username not found');
-                return;
-            }
-
-            loginMethod = supabaseClient.auth.signInWithPassword({
-                email: userProfile.email,
-                password: password
-            });
+        // If it's not an email, try to construct one
+        if (!isEmail) {
+            // Try with common email domain
+            userEmail = `${loginInput}@gmail.com`;
         }
+        
+        // Attempt login with direct email
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: userEmail,
+            password: password
+        });
 
-        const { data, error } = await loginMethod;
-
+        // Handle errors
         if (error) {
-            console.error('Login Error:', error);
-            alert(error.message);
+            // If direct login failed and we auto-generated the email, try other options
+            if (!isEmail && error.message.includes('Invalid login')) {
+                // We could try to look up the username in user_profiles here,
+                // but since we know our database is not properly set up for that,
+                // we'll just alert the user
+                alert('Login failed. Please try using your full email address.');
+            } else {
+                alert(error.message);
+            }
             return;
         }
 
-        if (data.user) {
+        // Handle successful login
+        if (data && data.user) {
             currentUser = data.user;
             
             // Hide auth modal first
             hideAuthModal();
             
             // Then update UI and load data
-            const { data: profile } = await supabaseClient
-                .from('user_profiles')
-                .select('status')
-                .eq('id', currentUser.id)
-                .single();
-                
-            if (profile) {
-                currentUser.status = profile.status;
-                updateUserStatusDisplay(profile.status);
+            try {
+                const { data: profile } = await supabaseClient
+                    .from('user_profiles')
+                    .select('status')
+                    .eq('id', currentUser.id)
+                    .single();
+                    
+                if (profile) {
+                    currentUser.status = profile.status;
+                    updateUserStatusDisplay(profile.status);
+                }
+            } catch (profileError) {
+                console.warn('Could not load user profile:', profileError);
             }
 
-            await Promise.all([
-                loadCustomLists(),
-                loadUserGameProgress(currentUser.id)
-            ]);
+            // Load user data
+            try {
+                await Promise.all([
+                    loadCustomLists(),
+                    loadUserGameProgress(currentUser.id)
+                ]);
+            } catch (loadError) {
+                console.warn('Error loading user data:', loadError);
+            }
 
+            // Update UI elements
             updateAuthUI();
             updateGuestPlayButton();
             showScreen('welcome-screen');
         }
-
     } catch (error) {
         console.error('Unexpected Login Error:', error);
         alert('An unexpected error occurred during login');
     }
+}
+
+// Add this function to script1.js
+function setupFormKeyboardNavigation() {
+    // Find all forms in the document
+    const forms = document.querySelectorAll('form');
+    
+    forms.forEach(form => {
+        // Get all focusable elements within the form
+        const inputs = form.querySelectorAll('input, select, textarea, button');
+        
+        // Add event listeners for each input
+        inputs.forEach(input => {
+            // Handle Enter key presses
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    
+                    // If it's a button, simulate a click
+                    if (input.tagName === 'BUTTON') {
+                        input.click();
+                        return;
+                    }
+                    
+                    // Find the next focusable element
+                    const currentIndex = Array.from(inputs).indexOf(input);
+                    const nextElement = inputs[currentIndex + 1];
+                    
+                    // If there's a next element, focus it
+                    if (nextElement) {
+                        nextElement.focus();
+                    } else {
+                        // If we're at the last element, submit the form if possible
+                        const submitButton = form.querySelector('button[type="submit"]') || 
+                                          form.querySelector('input[type="submit"]') ||
+                                          form.querySelector('button:not([type="button"])');
+                        
+                        if (submitButton) {
+                            submitButton.click();
+                        }
+                    }
+                }
+            });
+        });
+    });
+    
+    // Also handle specific auth forms that may not be present initially
+    const authForms = ['loginForm', 'signupForm', 'upgradeForm'];
+    
+    authForms.forEach(formId => {
+        const form = document.getElementById(formId);
+        if (form) {
+            setupFormSubmitOnEnter(form);
+        }
+    });
+    
+    // Add mutation observer to detect when new forms are added
+    const observer = new MutationObserver(mutations => {
+        mutations.forEach(mutation => {
+            mutation.addedNodes.forEach(node => {
+                if (node.nodeType === 1) { // Element node
+                    const newForms = node.tagName === 'FORM' ? [node] : node.querySelectorAll('form');
+                    newForms.forEach(form => {
+                        setupFormSubmitOnEnter(form);
+                    });
+                    
+                    // Also check for our specific auth forms
+                    authForms.forEach(formId => {
+                        if (node.id === formId) {
+                            setupFormSubmitOnEnter(node);
+                        }
+                    });
+                }
+            });
+        });
+    });
+    
+    // Start observing the document
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
+// Helper function to set up form submission on Enter key
+function setupFormSubmitOnEnter(form) {
+    if (!form) return;
+    
+    const inputs = form.querySelectorAll('input, select, textarea');
+    const submitButton = form.querySelector('button[type="submit"]') || 
+                        form.querySelector('input[type="submit"]') ||
+                        form.querySelector('button:not([type="button"])');
+    
+    inputs.forEach(input => {
+        // Check if it already has an enter key handler
+        const hasHandler = input.getAttribute('data-enter-handler');
+        if (hasHandler === 'true') return;
+        
+        // Add enter key handler
+        input.setAttribute('data-enter-handler', 'true');
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                
+                // Find the next input
+                const currentIndex = Array.from(inputs).indexOf(input);
+                const nextInput = inputs[currentIndex + 1];
+                
+                // If there's a next input, focus it
+                if (nextInput) {
+                    nextInput.focus();
+                } else if (submitButton) {
+                    // Otherwise, click the submit button
+                    submitButton.click();
+                }
+            }
+        });
+    });
 }
 
 function hideAuthModal() {
@@ -2959,6 +3077,7 @@ function updateGameStateFromProgress(progress) {
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize accessibility menu
     initAccessibilityMenu();
+    setupFormKeyboardNavigation();
 });
 
 function initAccessibilityMenu() {

@@ -2525,6 +2525,13 @@ function loadNextQuestion() {
   // Check if there are any words left
   if (currentGame.currentIndex >= currentGame.words.length) return;
 
+  if (!currentGame.answerTimes) {
+    currentGame.answerTimes = [];
+  }
+
+  // Record the time when the question is shown
+  currentGame.questionStartTime = Date.now();
+
   const questionWordElement = document.getElementById('question-word');
   
   // Determine if we should show Hebrew or English based on level or random factor
@@ -3795,10 +3802,15 @@ function showLevelIntro(level, callback, forceFull = false) {
     // Ensure levelStats has valid values to prevent undefined/NaN
     levelStats = levelStats || {};
     levelStats.correctAnswers = levelStats.correctAnswers || 0;
-    levelStats.incorrectAnswers = Math.abs(levelStats.incorrectAnswers || 0); // Ensure positive value
+    levelStats.incorrectAnswers = Math.abs(levelStats.incorrectAnswers || 0); 
     levelStats.totalQuestions = levelStats.totalQuestions || 
                                (levelStats.correctAnswers + levelStats.incorrectAnswers) || 1;
     levelStats.timeBonus = levelStats.timeBonus || 0;
+    
+    // Calculate average answer time if available
+    const averageTime = currentGame.answerTimes && currentGame.answerTimes.length > 0 
+      ? (currentGame.answerTimes.reduce((sum, time) => sum + time, 0) / currentGame.answerTimes.length).toFixed(1)
+      : "N/A";
     
     // Safely get current coins
     const currentCoins = gameState.coins || 0;
@@ -3884,6 +3896,14 @@ function showLevelIntro(level, callback, forceFull = false) {
           </div>
           <div style="opacity: 0.7;">Coins</div>
           ${levelStats.timeBonus > 0 ? `<div class="time-bonus-badge" style="position: absolute; top: -10px; right: -10px; background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">+${levelStats.timeBonus}</div>` : ''}
+        </div>
+      </div>
+      
+      <!-- Average response time section -->
+      <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
+        <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">Average Response Time</div>
+        <div style="font-size: 2.5rem; color: var(--accent); font-weight: bold;">
+          ${averageTime}s
         </div>
       </div>
       
@@ -3993,7 +4013,7 @@ function showLevelIntro(level, callback, forceFull = false) {
         }, 500);
       });
     }
-}
+  }
 
 function handleLevelCompletion() {
     clearTimer();
@@ -7075,28 +7095,30 @@ function exitArcade() {
 }
 
 function handleAnswer(isCorrect, skipMode = false) {
-    const now = Date.now();
-    if (now - (currentGame.lastAnswerTime || 0) < 1000) {
-      console.warn("Answer too quickly. Please wait a moment.");
-      return;
+  const now = Date.now();
+  if (now - (currentGame.lastAnswerTime || 0) < 1000) {
+    console.warn("Answer too quickly. Please wait a moment.");
+    return;
+  }
+  
+  currentGame.lastAnswerTime = now;
+  
+  // Calculate and record the time taken to answer
+  if (currentGame.questionStartTime && !skipMode) {
+    const answerTime = (now - currentGame.questionStartTime) / 1000; // Convert to seconds
+    if (!currentGame.answerTimes) {
+      currentGame.answerTimes = [];
     }
-    
-    if (!currentGame || !currentGame.words || currentGame.words.length === 0 || currentGame.currentIndex >= currentGame.words.length) {
-      console.error("Invalid game state or index");
-      return;
-    }
-    
-    currentGame.lastAnswerTime = now;
-    
-    // Track words that have already been awarded coins
-    if (!currentGame.coinAwardedWords) {
-      currentGame.coinAwardedWords = new Set();
-    }
-    
-    // Track words that have already registered mistakes
-    if (!currentGame.mistakeRegisteredWords) {
-      currentGame.mistakeRegisteredWords = new Set();
-    }
+    currentGame.answerTimes.push(answerTime);
+  }
+  
+  // Reset the question start time for the next question
+  currentGame.questionStartTime = 0;
+  
+  // Track words that have already been awarded coins
+  if (!currentGame.coinAwardedWords) {
+    currentGame.coinAwardedWords = new Set();
+  }
     
     // Get current word key for tracking
     const currentWordKey = currentGame.currentIndex.toString();
@@ -10553,32 +10575,107 @@ function closePersonalVictory() {
     saveProgress();
   }
 
-function showCustomCompletionScreen() {
-    const overlay = document.createElement('div');
-    overlay.className = 'completion-overlay';
-    
-    const coinsEarned = gameState.coins - customGameState.startCoins;
-    
-    overlay.innerHTML = `
-        <div class="completion-content">
-            <h2>Practice Complete!</h2>
-            <div class="completion-stats">
-                <div class="stat-item">
-                    <i class="fas fa-book"></i>
-                    <span>Words Practiced: ${customGameState.wordsCompleted}</span>
-                </div>
-                <div class="stat-item">
-                    <i class="fas fa-coins"></i>
-                    <span>Coins Earned: ${coinsEarned}</span>
-                </div>
-            </div>
-            <button onclick="exitCustomPractice()" class="victory-button">
-                Continue
-            </button>
-        </div>
+  function showCustomCompletionScreen() {
+    const overlay = document.createElement("div");
+    overlay.className = "level-completion-overlay";
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transition: opacity 0.5s ease;
     `;
+    
+    // Calculate statistics
+    const coinsEarned = gameState.coins - customGameState.startCoins;
+    const totalQuestions = customGameState.wordsCompleted || 0;
+    const correctAnswers = currentGame.correctAnswers || 0;
+    const incorrectAnswers = Math.max(0, totalQuestions - correctAnswers);
+    const scorePercentage = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+    const averageTime = currentGame.answerTimes && currentGame.answerTimes.length > 0 
+      ? (currentGame.answerTimes.reduce((sum, time) => sum + time, 0) / currentGame.answerTimes.length).toFixed(1)
+      : "N/A";
+    
+    // Create completion modal content
+    const completionContent = document.createElement('div');
+    completionContent.className = 'level-completion-modal';
+    completionContent.style.cssText = `
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 2.5rem;
+      width: 500px;
+      max-width: 90%;
+      text-align: center;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transform: scale(0.9);
+      opacity: 0;
+      transition: transform 0.5s ease, opacity 0.5s ease;
+    `;
+    
+    completionContent.innerHTML = `
+      <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
+        Practice Complete!
+      </h1>
+      <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${scorePercentage >= 70 ? 'var(--success)' : 'var(--error)'}">
+        ${scorePercentage >= 70 ? 'Great job!' : 'Try again to improve your score'}
+      </h2>
+      
+      <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
+        <div class="stat-item" style="text-align: center; flex: 1;">
+          <div style="font-size: 2rem; color: var(--accent);">${correctAnswers}/${totalQuestions}</div>
+          <div style="opacity: 0.7;">Correct</div>
+        </div>
+        <div class="stat-item" style="text-align: center; flex: 1;">
+          <div style="font-size: 2rem; color: #ff4136;">${incorrectAnswers}</div>
+          <div style="opacity: 0.7;">Mistakes</div>
+        </div>
+        <div class="stat-item coin-counter-container" style="text-align: center; flex: 1; position: relative;">
+          <div class="coins-display" style="display: inline-flex; align-items: center; justify-content: center;">
+            <span class="coin-value" style="font-size: 2rem; color: var(--gold); font-weight: bold;">${coinsEarned}</span>
+            <span class="coin-icon" style="margin-left: 5px; display: inline-block;">
+              <svg width="24" height="24" viewBox="0 0 24 24" style="transform: translateY(2px);">
+                <circle cx="12" cy="12" r="10" fill="var(--gold)" />
+                <text x="12" y="16" text-anchor="middle" fill="black" style="font-size: 14px; font-weight: bold;">¢</text>
+              </svg>
+            </span>
+          </div>
+          <div style="opacity: 0.7;">Coins</div>
+        </div>
+      </div>
+      
+      <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
+        <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">Average Response Time</div>
+        <div style="font-size: 2.5rem; color: var(--accent); font-weight: bold;">
+          ${averageTime}s
+        </div>
+      </div>
+      
+      <div class="button-container" style="display: flex; justify-content: center; margin-top: 2rem;">
+        <button onclick="exitCustomPractice()" class="start-button" style="padding: 1rem 2.5rem; font-size: 1.2rem;">Continue</button>
+      </div>
+    `;
+    
+    // Append modal to the body
     document.body.appendChild(overlay);
-}
+    overlay.appendChild(completionContent);
+    
+    // Trigger animation
+    setTimeout(() => {
+      overlay.style.opacity = '1';
+      completionContent.style.transform = 'scale(1)';
+      completionContent.style.opacity = '1';
+    }, 100);
+  }
 
 
 async function handleCustomPracticeAnswer(e, t = false) {
@@ -13234,28 +13331,12 @@ function exitCustomPractice() {
 }
 
 async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
-    // Initialize tracking structures if they don't exist
-    if (!currentGame.coinAwardedWords) {
-      currentGame.coinAwardedWords = new Set();
-    }
-  
-    if (!currentGame.mistakeRegisteredWords) {
-      currentGame.mistakeRegisteredWords = new Set();
-    }
-  
-    // Get current word key for tracking
-    const currentWordKey = currentGame.currentIndex.toString();
-  
     if (isCorrect) {
       // Increment index after correct answer
       currentGame.currentIndex++;
       
-      // Award coins only if not in skip mode and word hasn't already earned coins
-      if (!isSkip && !currentGame.coinAwardedWords.has(currentWordKey)) {
-        // Mark this word as having earned coins
-        currentGame.coinAwardedWords.add(currentWordKey);
-        
-        // Award exactly 10 coins for each correct answer
+      if (!isSkip) {
+        // Always award exactly 10 coins for each correct answer
         const coinReward = 10;
         
         try {
@@ -13281,18 +13362,13 @@ async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
     } else {
       currentGame.firstAttempt = false;
       currentGame.streakBonus = false;
+      currentGame.wrongStreak++;
       
-      // Only register a mistake once per word
-      if (!currentGame.mistakeRegisteredWords.has(currentWordKey)) {
-        currentGame.mistakeRegisteredWords.add(currentWordKey);
-        currentGame.wrongStreak++;
-        
-        try {
-          await CoinsManager.updateCoins(-3);
-          updatePerkButtons();
-        } catch (error) {
-          console.error("Error updating coins:", error);
-        }
+      try {
+        await CoinsManager.updateCoins(-3);
+        updatePerkButtons();
+      } catch (e) {
+        console.error("Error updating coins:", e);
       }
       
       if (currentGame.currentIndex > 0) {
@@ -13300,40 +13376,38 @@ async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
         currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
       }
       
-      // Show game over screen if too many wrong answers in a row
       if (currentGame.wrongStreak >= 3) {
         showGameOverOverlay();
-        
-        // Set up restart button
         document.querySelector(".restart-button").onclick = () => {
           document.querySelector(".failure-overlay").style.display = "none";
           startCustomLevel(currentGame.customLevel);
-        };
-        
+        }
         return;
       }
     }
     
-    // Highlight correct/incorrect answers
-    const correctWord = currentGame.isHebrewToEnglish ? 
-                       currentGame.words[Math.max(0, currentGame.currentIndex - 1)] : 
-                       currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
+    // Get current question's correct answer (before loading next)
+    const currentCorrectAnswer = currentGame.isHebrewToEnglish ? 
+                               currentGame.words[Math.max(0, currentGame.currentIndex - 1)] : 
+                               currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
     
-    document.querySelectorAll(".buttons button").forEach(button => {
-      if (button.textContent === correctWord) {
+    // Highlight correct/wrong answer only for current question
+    const allButtons = document.querySelectorAll(".buttons button");
+    allButtons.forEach((button) => {
+      if (button.textContent === currentCorrectAnswer) {
         button.classList.add("correct");
       } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
         button.classList.add("wrong");
       }
     });
     
-    // Update UI and save progress
     updateProgressCircle();
     saveProgress();
     
-    // Load next question or finish level
+    // Wait for animation before loading next
     setTimeout(() => {
-      document.querySelectorAll(".buttons button").forEach(btn => {
+      // Clear all button classes before loading next question
+      allButtons.forEach(btn => {
         btn.classList.remove("correct", "wrong");
       });
       
@@ -13762,10 +13836,6 @@ function toggleListCollapse(id) {
   }
 }
 
-/**
- * Start a level in custom practice mode
- * @param {number} level - The level number
- */
 function startCustomLevel(level) {
   // Hide powerups in custom practice
   const powerupsContainer = document.querySelector(".powerups-container");
@@ -13820,7 +13890,8 @@ function startCustomLevel(level) {
     showScreen("question-screen");
     updateProgressCircle();
     loadNextQuestion();
-    startTimer(10 * currentGame.words.length);
+    // Set timer to 5 seconds per question
+    startTimer(5 * currentGame.words.length);
   });
 }
 
