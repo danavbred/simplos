@@ -6702,4 +6702,1943 @@ document.addEventListener('DOMContentLoaded', function() {
     setupStandaloneHomeButton();
   };
 
+  function updateAllCoinDisplays() {
+    // Skip if boss victory animation is in progress
+    if (window.bossVictoryAnimationInProgress) {
+        console.log('Boss victory animation in progress, skipping updateAllCoinDisplays');
+        return;
+    }
+    
+    const displays = document.querySelectorAll('.coin-count');
+    displays.forEach(display => {
+        // Skip protected elements
+        if (display.dataset.protectedValue === 'true') {
+            console.log('Skipping protected element in updateAllCoinDisplays');
+            return;
+        }
+        
+        const currentValue = parseInt(display.textContent) || 0;
+        let targetValue;
+
+        // Determine the target value based on the context
+        if (window.location.pathname.includes('arcade')) {
+            targetValue = currentGame.coins || 0;
+        } else {
+            targetValue = gameState.coins || 0;
+        }
+
+        // Ensure we're using actual numeric values
+        const startNum = Number(currentValue);
+        const endNum = Number(targetValue);
+
+        animateNumber(display, startNum, endNum);
+    });
+}
+function pulseCoins(times = 1) {
+    // Update both the header coin icon and the in-game coin icon
+    const coinIcons = document.querySelectorAll('.coin-icon');
+    
+    coinIcons.forEach(coinIcon => {
+        let pulseCount = 0;
+        const doPulse = () => {
+            coinIcon.classList.add('coin-pulse');
+            setTimeout(() => {
+                coinIcon.classList.remove('coin-pulse');
+                pulseCount++;
+                if (pulseCount < times) {
+                    setTimeout(doPulse, 100);
+                }
+            }, 500);
+        };
+        
+        doPulse();
+    });
+}
+
+async function updateUserCoins(amount) {
+    // Update local game state
+    const previousCoins = gameState.coins;
+    gameState.coins += amount;
+    
+    // Update UI
+    updateAllCoinDisplays();
+    updatePerkButtons();
+    
+    // Save to database if logged in
+    if (currentUser) {
+        try {
+            const { error } = await supabaseClient
+                .from("game_progress")
+                .update({ coins: gameState.coins })
+                .eq("user_id", currentUser.id);
+                
+            if (error) {
+                console.error("Failed to update coins in database:", error);
+                // Revert local change if database save fails
+                gameState.coins = previousCoins;
+                updateAllCoinDisplays();
+                updatePerkButtons();
+                return false;
+            }
+        } catch (err) {
+            console.error("Error updating coins:", err);
+            // Revert local change
+            gameState.coins = previousCoins;
+            updateAllCoinDisplays();
+            updatePerkButtons();
+            return false;
+        }
+    }
+    
+    // Also save to localStorage
+    const progressData = JSON.parse(localStorage.getItem("simploxProgress") || "{}");
+    progressData.coins = gameState.coins;
+    localStorage.setItem("simploxProgress", JSON.stringify(progressData));
+    
+    return true;
+}
+
+function positionOptionsMenu() {
+    const optionsMenu = document.getElementById('options-menu');
+    const settingsToggle = document.getElementById('settings-toggle');
+    
+    if (!optionsMenu || !settingsToggle) return;
+    
+    // Check if menu is shown
+    if (!optionsMenu.classList.contains('show')) return;
+    
+    // Get viewport dimensions
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Get menu and toggle button dimensions and positions
+    const menuRect = optionsMenu.getBoundingClientRect();
+    const toggleRect = settingsToggle.getBoundingClientRect();
+    
+    // Calculate menu position
+    let left = toggleRect.left + (toggleRect.width / 2) - (menuRect.width / 2);
+    let top = toggleRect.bottom + 10; // 10px below toggle button
+    
+    // Check if menu would overflow right edge
+    if (left + menuRect.width > viewportWidth - 10) {
+      left = viewportWidth - menuRect.width - 10;
+    }
+    
+    // Check if menu would overflow left edge
+    if (left < 10) {
+      left = 10;
+    }
+    
+    // Check if menu would overflow bottom edge
+    if (top + menuRect.height > viewportHeight - 10) {
+      // Position above toggle button instead
+      top = toggleRect.top - menuRect.height - 10;
+      
+      // If still overflowing (not enough space above either)
+      if (top < 10) {
+        // Center in viewport as fallback
+        top = Math.max(10, (viewportHeight - menuRect.height) / 2);
+        
+        // Ensure menu is fully on screen by checking height
+        if (top + menuRect.height > viewportHeight - 10) {
+          // Limit height if necessary and add scrolling
+          const maxHeight = viewportHeight - 20;
+          optionsMenu.style.maxHeight = `${maxHeight}px`;
+          optionsMenu.style.overflow = 'auto';
+        }
+      }
+    }
+    
+    // Apply calculated position
+    optionsMenu.style.left = `${left}px`;
+    optionsMenu.style.top = `${top}px`;
+    optionsMenu.style.transform = 'none'; // Remove default transform
+  }
+
+  // Find where the arcade button click is defined in the code
+document.addEventListener('DOMContentLoaded', function() {
+    // Find the arcade button by its data-action attribute
+    const arcadeButton = document.querySelector('.carousel-button[data-action="showArcadeModal()"]');
+    
+    if (arcadeButton) {
+      // Remove any existing click handlers
+      arcadeButton.removeEventListener('click', window.showArcadeModal);
+      
+      // Add our direct click handler
+      arcadeButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        console.log('Arcade button clicked - directly calling showArcadeModal');
+        showArcadeModal();
+      });
+    } else {
+      console.error('Arcade button not found in the DOM');
+    }
+  });
+
+  // Simple debugging version of showArcadeModal
+function openArcadeModalSimple() {
+    console.log('Simple arcade modal opener called');
+    const modal = document.getElementById('arcade-modal');
+    
+    if (!modal) {
+      console.error('Arcade modal element not found');
+      return;
+    }
+    
+    console.log('Found arcade modal, displaying it');
+    modal.style.display = 'block';
+    
+    // Get the player view and teacher view
+    const teacherView = document.getElementById('teacher-view');
+    const playerView = document.getElementById('player-view');
+    
+    if (teacherView && playerView) {
+      // Default to player view for everyone for testing
+      teacherView.style.display = 'none';
+      playerView.style.display = 'block';
+      console.log('Showing player view');
+    } else {
+      console.error('Teacher or player view elements not found');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add a direct click handler to the Arcade button in the carousel
+    document.querySelectorAll('.carousel-button').forEach(button => {
+      const buttonText = button.querySelector('span')?.textContent?.trim();
+      if (buttonText === 'Arcade') {
+        button.onclick = function() {
+          console.log('Arcade button clicked through direct handler');
+          // Try the simplified function first for debugging
+          openArcadeModalSimple();
+          // If that works, switch back to the full function
+          // showArcadeModal();
+        };
+      }
+    });
+    
+    // Also add a direct click handler to any element with showArcadeModal in onclick attribute
+    document.querySelectorAll('[onclick*="showArcadeModal"]').forEach(element => {
+      element.onclick = function(e) {
+        e.preventDefault();
+        console.log('Element with showArcadeModal onclick attribute clicked');
+        // Try the simplified function first for debugging
+        openArcadeModalSimple();
+        // If that works, switch back to the full function
+        // showArcadeModal();
+        return false;
+      };
+    });
+  });
+
+  // Add this to help diagnose the modal structure
+function checkArcadeModalStructure() {
+    console.log('Checking arcade modal structure...');
+    
+    const modal = document.getElementById('arcade-modal');
+    if (!modal) {
+      console.error('Arcade modal element not found');
+      return false;
+    }
+    
+    console.log('Modal element found:', modal);
+    
+    const teacherView = document.getElementById('teacher-view');
+    const playerView = document.getElementById('player-view');
+    
+    if (!teacherView) {
+      console.error('Teacher view not found in modal');
+    } else {
+      console.log('Teacher view found:', teacherView);
+    }
+    
+    if (!playerView) {
+      console.error('Player view not found in modal');
+    } else {
+      console.log('Player view found:', playerView);
+    }
+    
+    return true;
+  }
   
+  // Call this on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(checkArcadeModalStructure, 1000); // Give the page a second to fully load
+  });
+
+  // Function to ensure the arcade modal exists
+function ensureArcadeModalExists() {
+    let modal = document.getElementById('arcade-modal');
+    
+    if (!modal) {
+      console.log('Creating arcade modal element as it was not found');
+      modal = document.createElement('div');
+      modal.id = 'arcade-modal';
+      modal.className = 'modal';
+      
+      // Create basic structure
+      modal.innerHTML = `
+        <div class="modal-content">
+          <div id="teacher-view" style="display: none;">
+            <h2>Host Arcade Session</h2>
+            <p>Game Code: <span id="otp">----</span></p>
+            <p>Players: <span id="player-count">0</span></p>
+            <div class="stage-selector">
+              <h3>Select Word Pools:</h3>
+              <div class="stage-checkboxes">
+                <!-- Stage checkboxes will go here -->
+              </div>
+            </div>
+            <button class="main-button" onclick="startArcade()">Start Session</button>
+            <button class="end-arcade-button" onclick="endArcade()">End Session</button>
+          </div>
+          
+          <div id="player-view" style="display: none;">
+            <h2>Join Arcade</h2>
+            <div class="input-group">
+              <input type="text" id="arcadeUsername" placeholder="Choose your username" maxlength="15">
+              <input type="text" id="otpInput" placeholder="Enter 4-digit Game Code" maxlength="4" pattern="[0-9]{4}" inputmode="numeric">
+            </div>
+            <button class="join-button" onclick="joinArcadeWithUsername()">Join Game</button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // Call this on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    ensureArcadeModalExists();
+  });
+
+  // Direct fix for the arcade modal issue
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded - Setting up arcade button handlers');
+    
+    // 1. Make sure the arcade modal exists
+    const modalExists = ensureArcadeModalExists();
+    if (modalExists) {
+      console.log('Created arcade modal as it was missing');
+    }
+    
+    // 2. Add click handlers to all possible arcade buttons
+    document.querySelectorAll('.carousel-button').forEach(button => {
+      const buttonText = button.querySelector('span')?.textContent?.trim();
+      if (buttonText === 'Arcade') {
+        console.log('Found Arcade button in carousel, adding direct click handler');
+        
+        button.onclick = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('Arcade button clicked');
+          
+          // Show the modal directly first
+          const modal = document.getElementById('arcade-modal');
+          if (modal) {
+            modal.style.display = 'block';
+            
+            // Then try to configure it
+            try {
+              showArcadeModal();
+            } catch (error) {
+              console.error('Error in showArcadeModal:', error);
+              
+              // Fallback to basic configuration
+              const teacherView = document.getElementById('teacher-view');
+              const playerView = document.getElementById('player-view');
+              
+              if (teacherView && playerView) {
+                teacherView.style.display = 'none';
+                playerView.style.display = 'block';
+              }
+            }
+          } else {
+            console.error('Arcade modal not found even after ensuring it exists');
+          }
+          
+          return false;
+        };
+      }
+    });
+    
+    // 3. Also fix any elements with onclick="showArcadeModal()"
+    document.querySelectorAll('[onclick*="showArcadeModal"]').forEach(element => {
+      console.log('Found element with showArcadeModal onclick attribute, replacing handler');
+      
+      element.setAttribute('onclick', ''); // Remove the attribute
+      element.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Element with showArcadeModal onclick clicked');
+        
+        // Show the modal directly first
+        const modal = document.getElementById('arcade-modal');
+        if (modal) {
+          modal.style.display = 'block';
+          
+          // Then try to configure it
+          try {
+            showArcadeModal();
+          } catch (error) {
+            console.error('Error in showArcadeModal:', error);
+            
+            // Fallback to basic configuration
+            const teacherView = document.getElementById('teacher-view');
+            const playerView = document.getElementById('player-view');
+            
+            if (teacherView && playerView) {
+              teacherView.style.display = 'none';
+              playerView.style.display = 'block';
+            }
+          }
+        }
+        
+        return false;
+      };
+    });
+  });
+
+
+  
+function initializeWaitingGame() {
+  // Add shuffle function if not already defined
+  if (typeof shuffleArray !== 'function') {
+    window.shuffleArray = function(array) {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    };
+  }
+  
+  // Get DOM elements
+  const gameContainer = document.getElementById('waiting-game-container');
+  const playerElement = document.getElementById('waiting-game-player');
+  const scoreElement = document.getElementById('waiting-game-score');
+  const livesElement = document.getElementById('waiting-game-lives');
+  
+  if (!gameContainer) {
+    console.error('Game container not found!');
+    return;
+  }
+  
+  if (!playerElement) {
+    console.error('Player element not found!');
+    return;
+  }
+  
+  if (!scoreElement) {
+    console.error('Score element not found!');
+    return;
+  }
+  
+  // Create lives display if it doesn't exist
+  if (!livesElement) {
+    const livesDiv = document.createElement('div');
+    livesDiv.id = 'waiting-game-lives';
+    livesDiv.style.cssText = 'position: absolute; top: 40px; right: 10px; color: var(--gold); font-size: 1.2rem; z-index: 10;';
+    livesDiv.textContent = '❤️❤️❤️';
+    gameContainer.appendChild(livesDiv);
+  }
+  
+  // Show the game container
+  gameContainer.style.display = 'block';
+  
+  // Get appropriate vocabulary words from stage 1
+  let wordPairs = [];
+  try {
+    for (const key in vocabularySets) {
+      if (key.startsWith('1_')) {
+        const words = vocabularySets[key].words;
+        const translations = vocabularySets[key].translations;
+        for (let i = 0; i < words.length && i < translations.length; i++) {
+          wordPairs.push({
+            hebrew: words[i],
+            english: translations[i]
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error loading vocabulary for waiting game:', e);
+    // Fallback words if vocabulary isn't available
+    wordPairs = [
+      { hebrew: 'כלב', english: 'dog' },
+      { hebrew: 'חתול', english: 'cat' },
+      { hebrew: 'בית', english: 'house' },
+      { hebrew: 'אוכל', english: 'food' },
+      { hebrew: 'מים', english: 'water' },
+      { hebrew: 'ספר', english: 'book' },
+      { hebrew: 'יד', english: 'hand' },
+      { hebrew: 'עיר', english: 'city' },
+      { hebrew: 'ילד', english: 'child' },
+      { hebrew: 'אישה', english: 'woman' }
+    ];
+  }
+  
+  // Shuffle the word pairs
+  wordPairs = window.shuffleArray([...wordPairs]);
+  
+  // Game state
+  let gameActive = true;
+  let score = 0;
+  let speed = 1;
+  let fallingWords = [];
+  let currentHebrewWord = '';
+  let playerPosition = gameContainer.offsetWidth / 2;
+  let gameLoopId = null;
+  let spawnIntervalId = null;
+  let lives = 3;
+  let missedMatches = 0;
+  const maxMissed = 3;
+  
+  // Initialize player with random Hebrew word
+  function setRandomHebrewWord() {
+    const randomPair = wordPairs[Math.floor(Math.random() * wordPairs.length)];
+    currentHebrewWord = randomPair.hebrew;
+    playerElement.textContent = currentHebrewWord;
+  }
+  
+  function createFallingWord() {
+    if (!gameActive) return;
+    
+    // Find English words that match our current Hebrew word and some that don't
+    const matchingWord = wordPairs.find(pair => pair.hebrew === currentHebrewWord)?.english;
+    const nonMatchingWords = wordPairs
+      .filter(pair => pair.hebrew !== currentHebrewWord)
+      .map(pair => pair.english);
+    
+    // Decide whether to spawn a matching word (higher chance) or random word
+    const isMatching = Math.random() < 0.4; // 40% chance for matching word
+    
+    // Create the falling word element
+    const wordElement = document.createElement('div');
+    wordElement.className = 'falling-word';
+    
+    // Choose the word text
+    if (isMatching && matchingWord) {
+      wordElement.textContent = matchingWord;
+      wordElement.dataset.matching = 'true';
+    } else {
+      const randomNonMatching = nonMatchingWords[Math.floor(Math.random() * nonMatchingWords.length)];
+      wordElement.textContent = randomNonMatching || 'word';
+      wordElement.dataset.matching = 'false';
+    }
+    
+    // Style the falling word
+    wordElement.style.cssText = `
+      position: absolute;
+      top: -30px;
+      left: ${Math.random() * (gameContainer.offsetWidth - 80) + 40}px;
+      padding: 5px 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      color: white;
+      transition: top 0.1s linear;
+    `;
+    
+    gameContainer.appendChild(wordElement);
+    
+    // Add to tracking array
+    fallingWords.push({
+      element: wordElement,
+      y: -30,
+      x: parseFloat(wordElement.style.left),
+      width: 0, // Will be set in the game loop after element is rendered
+      isMatching: wordElement.dataset.matching === 'true'
+    });
+  }
+  
+  function gameLoop() {
+    if (!gameActive) return;
+    
+    const containerBottom = gameContainer.offsetHeight;
+    const playerTop = containerBottom - 60;
+    
+    // Update position and check collision for each falling word
+    for (let i = fallingWords.length - 1; i >= 0; i--) {
+      const word = fallingWords[i];
+      
+      // Set width if not set yet
+      if (word.width === 0) {
+        word.width = word.element.offsetWidth;
+      }
+      
+      // Move the word down
+      word.y += speed;
+      word.element.style.top = `${word.y}px`;
+      
+      // Check if word has reached the bottom
+      if (word.y > containerBottom) {
+        // Check if we missed a matching word
+        if (word.isMatching) {
+          missedMatches++;
+          
+          // Show a missed indicator
+          const missIndicator = document.createElement('div');
+          missIndicator.textContent = `Missed match! (${missedMatches}/${maxMissed})`;
+          missIndicator.style.cssText = `
+            position: absolute;
+            left: ${word.x}px;
+            bottom: 10px;
+            color: var(--error);
+            font-weight: bold;
+            animation: float-up 1s forwards;
+            z-index: 5;
+          `;
+          gameContainer.appendChild(missIndicator);
+          setTimeout(() => {
+            gameContainer.removeChild(missIndicator);
+          }, 1000);
+          
+          // Update lives display
+          const livesDisplay = document.getElementById('waiting-game-lives');
+          if (livesDisplay) {
+            livesDisplay.textContent = '❤️'.repeat(Math.max(0, 3 - missedMatches));
+          }
+          
+          // Check for game over
+          if (missedMatches >= maxMissed) {
+            gameOver();
+          }
+        }
+        
+        // Remove the word
+        gameContainer.removeChild(word.element);
+        fallingWords.splice(i, 1);
+        continue;
+      }
+      
+      // Check for collision with player
+      const playerRect = playerElement.getBoundingClientRect();
+      const wordRect = word.element.getBoundingClientRect();
+      
+      if (word.y + word.element.offsetHeight >= playerTop &&
+          word.x + word.width >= playerPosition - playerElement.offsetWidth/2 &&
+          word.x <= playerPosition + playerElement.offsetWidth/2) {
+        
+        // Check if this is the correct word to match
+        if (word.isMatching) {
+          // Matching word - add points
+          score += 10;
+          scoreElement.textContent = `Score: ${score}`;
+          
+          // Create a +10 animation
+          const pointAnimation = document.createElement('div');
+          pointAnimation.textContent = '+10';
+          pointAnimation.style.cssText = `
+            position: absolute;
+            left: ${word.x}px;
+            top: ${word.y}px;
+            color: var(--gold);
+            font-weight: bold;
+            animation: float-up 1s forwards;
+            z-index: 5;
+          `;
+          gameContainer.appendChild(pointAnimation);
+          setTimeout(() => {
+            gameContainer.removeChild(pointAnimation);
+          }, 1000);
+          
+          // Increase difficulty slightly
+          speed += 0.05;
+          
+          // Change the Hebrew word
+          setRandomHebrewWord();
+        } else {
+          // Wrong word - subtract points and lose a life
+          score = Math.max(0, score - 5);
+          scoreElement.textContent = `Score: ${score}`;
+          
+          lives--;
+          
+          // Update lives display
+          const livesDisplay = document.getElementById('waiting-game-lives');
+          if (livesDisplay) {
+            livesDisplay.textContent = '❤️'.repeat(lives);
+          }
+          
+          // Create a -5 animation
+          const pointAnimation = document.createElement('div');
+          pointAnimation.textContent = '-5';
+          pointAnimation.style.cssText = `
+            position: absolute;
+            left: ${word.x}px;
+            top: ${word.y}px;
+            color: var(--error);
+            font-weight: bold;
+            animation: float-up 1s forwards;
+            z-index: 5;
+          `;
+          gameContainer.appendChild(pointAnimation);
+          setTimeout(() => {
+            gameContainer.removeChild(pointAnimation);
+          }, 1000);
+          
+          // Check for game over
+          if (lives <= 0) {
+            gameOver();
+          }
+        }
+        
+        // Remove the word
+        gameContainer.removeChild(word.element);
+        fallingWords.splice(i, 1);
+      }
+    }
+    
+    // Request next frame
+    gameLoopId = requestAnimationFrame(gameLoop);
+  }
+  
+  function gameOver() {
+    gameActive = false;
+    clearInterval(spawnIntervalId);
+    
+    // Create game over message
+    const gameOverMsg = document.createElement('div');
+    gameOverMsg.style.cssText = `
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.8);
+      padding: 1rem 2rem;
+      border-radius: 10px;
+      text-align: center;
+      z-index: 20;
+    `;
+    gameOverMsg.innerHTML = `
+      <h3 style="color: var(--error); margin-bottom: 0.5rem;">Game Over!</h3>
+      <p style="margin-bottom: 1rem;">Score: ${score}</p>
+      <button id="game-restart-btn" class="start-button" style="font-size: 0.9rem; padding: 0.5rem 1rem;">Play Again</button>
+    `;
+    
+    gameContainer.appendChild(gameOverMsg);
+    
+    // Add restart button handler
+    document.getElementById('game-restart-btn').addEventListener('click', () => {
+      gameContainer.removeChild(gameOverMsg);
+      startGame();
+    });
+  }
+  
+  // Add event handlers for player movement
+  let isDragging = false;
+  
+  function handleStart(e) {
+    isDragging = true;
+    const pageX = e.type.includes('touch') ? e.touches[0].pageX : e.pageX;
+    const containerRect = gameContainer.getBoundingClientRect();
+    playerPosition = pageX - containerRect.left;
+    updatePlayerPosition();
+    
+    if (e.type.includes('touch')) {
+      e.preventDefault();
+    }
+  }
+  
+  function handleMove(e) {
+    if (!isDragging) return;
+    
+    const pageX = e.type.includes('touch') ? e.touches[0].pageX : e.pageX;
+    const containerRect = gameContainer.getBoundingClientRect();
+    playerPosition = pageX - containerRect.left;
+    updatePlayerPosition();
+    
+    if (e.type.includes('touch')) {
+      e.preventDefault();
+    }
+  }
+  
+  function handleEnd() {
+    isDragging = false;
+  }
+  
+  function updatePlayerPosition() {
+    // Ensure player stays within boundaries
+    playerPosition = Math.max(playerElement.offsetWidth/2, 
+                     Math.min(gameContainer.offsetWidth - playerElement.offsetWidth/2, 
+                     playerPosition));
+    
+    playerElement.style.left = `${playerPosition}px`;
+  }
+  
+  // Add CSS animation
+  const styleId = 'waiting-game-styles';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      @keyframes float-up {
+        0% { transform: translateY(0); opacity: 1; }
+        100% { transform: translateY(-30px); opacity: 0; }
+      }
+      
+      .falling-word {
+        animation: gentle-wobble 2s infinite alternate;
+      }
+      
+      @keyframes gentle-wobble {
+        0% { transform: translateX(0px); }
+        100% { transform: translateX(5px); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  // Add event listeners for player movement
+  playerElement.addEventListener('mousedown', handleStart);
+  document.addEventListener('mousemove', handleMove);
+  document.addEventListener('mouseup', handleEnd);
+  
+  // Touch events for mobile
+  playerElement.addEventListener('touchstart', handleStart, { passive: false });
+  document.addEventListener('touchmove', handleMove, { passive: false });
+  document.addEventListener('touchend', handleEnd);
+  
+  function startGame() {
+    // Reset game
+    gameActive = true;
+    score = 0;
+    speed = 1;
+    lives = 3;
+    missedMatches = 0;
+    
+    // Update lives display
+    const livesDisplay = document.getElementById('waiting-game-lives');
+    if (livesDisplay) {
+      livesDisplay.textContent = '❤️❤️❤️';
+    }
+    
+    // Clear existing words
+    fallingWords.forEach(word => {
+      if (word.element.parentNode) {
+        gameContainer.removeChild(word.element);
+      }
+    });
+    fallingWords = [];
+    
+    // Reset score
+    scoreElement.textContent = `Score: ${score}`;
+    
+    // Set initial Hebrew word
+    setRandomHebrewWord();
+    
+    // Start game loop
+    gameLoopId = requestAnimationFrame(gameLoop);
+    
+    // Start spawning words
+    spawnIntervalId = setInterval(createFallingWord, 2000);
+  }
+  
+  // Watch for game cancelation when arcade starts
+  function checkArcadeStatus() {
+    if (currentArcadeSession && currentArcadeSession.state === 'active') {
+      // Clean up game
+      clearInterval(spawnIntervalId);
+      cancelAnimationFrame(gameLoopId);
+      gameContainer.style.display = 'none';
+      
+      // Remove event listeners
+      playerElement.removeEventListener('mousedown', handleStart);
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleEnd);
+      playerElement.removeEventListener('touchstart', handleStart);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('touchend', handleEnd);
+      
+      // Clear interval for this check
+      clearInterval(arcadeCheckId);
+    }
+  }
+  
+  const arcadeCheckId = setInterval(checkArcadeStatus, 1000);
+  
+  // Start the game
+  startGame();
+  
+  return {
+    stop: function() {
+      gameActive = false;
+      clearInterval(spawnIntervalId);
+      cancelAnimationFrame(gameLoopId);
+      clearInterval(arcadeCheckId);
+    }
+  };
+}
+
+function debugGameProgress() {
+    console.group("Game Progress Debug");
+    console.log("Current Stage:", gameState.currentStage);
+    console.log("Current Set:", gameState.currentSet);
+    console.log("Current Level:", gameState.currentLevel);
+    
+    console.log("Unlocked Sets:");
+    Object.entries(gameState.unlockedSets).forEach(([stage, sets]) => {
+        console.log(`Stage ${stage}:`, Array.from(sets).sort((a, b) => a - b));
+    });
+    
+    console.log("Unlocked Levels:");
+    Object.entries(gameState.unlockedLevels).forEach(([setKey, levels]) => {
+        console.log(`Set ${setKey}:`, Array.from(levels).sort((a, b) => a - b));
+    });
+    
+    console.log("Completed Levels:", Array.from(gameState.completedLevels).sort());
+    console.log("Perfect Levels:", Array.from(gameState.perfectLevels).sort());
+    console.groupEnd();
+}
+
+
+function updateBossHealthBar() {
+  // Only update if we're in boss level
+  if (!currentGame.isBossLevel) return;
+  
+  console.log("Updating boss health bar");
+
+  const progressCircle = document.querySelector('.progress-circle');
+  if (!progressCircle) {
+    console.error("Progress circle not found");
+    return;
+  }
+  
+  const progress = progressCircle.querySelector('.progress');
+  if (!progress) {
+    console.error("Progress element not found");
+    return;
+  }
+  
+  // Calculate health values
+  const totalWords = currentGame.words.length;
+  const currentIndex = currentGame.currentIndex || 0;
+  const remainingWords = Math.max(0, totalWords - currentIndex);
+  const remainingPercentage = remainingWords / totalWords;
+  
+  console.log(`Boss health: ${remainingPercentage.toFixed(2) * 100}% (${remainingWords}/${totalWords})`);
+  
+  // Calculate the circumference
+  const circumference = 2 * Math.PI * 54;
+  
+  // Update the stroke dash offset (reverse of normal progress)
+  progress.style.strokeDashoffset = circumference * (1 - remainingPercentage);
+  
+  // Add boss-health class if not already present
+  if (!progress.classList.contains('boss-health')) {
+    progress.classList.add('boss-health');
+  }
+  
+  // Change color based on health
+  if (remainingPercentage > 0.66) {
+    // Full health - green
+    progress.style.stroke = '#4CAF50';
+    progress.classList.remove('warning');
+  } else if (remainingPercentage > 0.33) {
+    // Medium health - yellow/orange
+    progress.style.stroke = '#FFA500';
+    progress.classList.remove('warning');
+    
+    // Boss health restoration at 2/3 health (once)
+    if (remainingPercentage <= 0.66 && !currentGame.bossFirstHealthRestored) {
+      currentGame.bossFirstHealthRestored = true;
+      console.log("First boss health restoration");
+      
+      // Partially restore health (reduce current index)
+      const newIndex = Math.floor(totalWords * 0.25); // 75% health
+      currentGame.currentIndex = newIndex;
+      
+      // Show visual effect
+      const bossOrb = document.querySelector('.boss-orb-inner');
+      if (bossOrb) {
+        bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #FFEB3B, #FFA500)';
+        setTimeout(() => {
+          bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #ff3333, #990000)';
+        }, 1000);
+      }
+      
+      // Update health bar after restoring
+      setTimeout(() => updateBossHealthBar(), 100);
+    }
+  } else {
+    // Low health - red
+    progress.style.stroke = '#FF3333';
+    progress.classList.add('warning');
+    
+    // Boss health restoration at 1/3 health (once)
+    if (remainingPercentage <= 0.33 && !currentGame.bossSecondHealthRestored) {
+      currentGame.bossSecondHealthRestored = true;
+      console.log("Second boss health restoration");
+      
+      // Partially restore health (reduce current index)
+      const newIndex = Math.floor(totalWords * 0.5); // 50% health
+      currentGame.currentIndex = newIndex;
+      
+      // Show visual effect
+      const bossOrb = document.querySelector('.boss-orb-inner');
+      if (bossOrb) {
+        bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #4CAF50, #388E3C)';
+        setTimeout(() => {
+          bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #ff3333, #990000)';
+        }, 1000);
+      }
+      
+      // Update health bar after restoring
+      setTimeout(() => updateBossHealthBar(), 100);
+    }
+  }
+}
+
+function healBoss(newHealthPercentage, flashColor) {
+  const progressCircle = document.querySelector('.progress-circle');
+  const progress = progressCircle ? progressCircle.querySelector('.progress') : null;
+  const bossOrb = document.querySelector('.boss-orb-inner');
+  
+  if (!progress || !bossOrb) return;
+  
+  // Flash the boss orb with the specified color
+  const originalColor = bossOrb.style.background;
+  bossOrb.style.background = flashColor;
+  bossOrb.classList.add('boss-restore-health');
+  
+  // Flash the screen
+  const questionScreen = document.querySelector('.question-screen');
+  if (questionScreen) {
+    questionScreen.style.animation = 'none';
+    questionScreen.offsetHeight; // Trigger reflow
+    questionScreen.style.animation = 'bossRestoreHealth 1s';
+  }
+  
+  // Calculate new offset
+  const circumference = 2 * Math.PI * 54;
+  const newOffset = circumference * (1 - newHealthPercentage);
+  
+  // Animate health bar filling
+  setTimeout(() => {
+    progress.style.transition = 'stroke-dashoffset 1s ease-out';
+    progress.style.strokeDashoffset = newOffset;
+    
+    // Reset boss orb
+    setTimeout(() => {
+      bossOrb.style.background = originalColor;
+      bossOrb.classList.remove('boss-restore-health');
+    }, 1000);
+  }, 300);
+}
+
+function showBossHitEffect(randomColor = false) {
+  const bossOrb = document.querySelector('.boss-orb-inner');
+  if (!bossOrb) return;
+  
+  // Store original background
+  const originalBg = bossOrb.style.background;
+  
+  // Apply random color if requested
+  if (randomColor) {
+    const colors = ['yellow', 'purple', 'turquoise', 'darkgreen', 'brown'];
+    const randomColorChoice = colors[Math.floor(Math.random() * colors.length)];
+    bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColorChoice}, #990000)`;
+  }
+  
+  // Add hit effect
+  bossOrb.classList.add('boss-orb-hit');
+  
+  // Reset after animation
+  setTimeout(() => {
+    bossOrb.classList.remove('boss-orb-hit');
+    // Reset background only if we changed it
+    if (randomColor) {
+      bossOrb.style.background = originalBg;
+    }
+  }, 300);
+}
+
+
+function applyBossLevelStyles() {
+  console.log("Forcefully applying boss level styles");
+  
+  const questionScreen = document.getElementById("question-screen");
+  if (questionScreen) {
+    questionScreen.style.setProperty("background", "linear-gradient(135deg, #800000, #3a0000)", "important");
+    questionScreen.style.setProperty("animation", "pulseBg 4s infinite", "important");
+  }
+  
+  // Add boss animations stylesheet if not already present
+  if (!document.getElementById("boss-animations")) {
+    const styleElem = document.createElement("style");
+    styleElem.id = "boss-animations";
+    styleElem.textContent = `
+      @keyframes pulseBg {
+        0%, 100% { filter: brightness(1); }
+        50% { filter: brightness(1.2); }
+      }
+      
+      @keyframes pulseOrb {
+        0%, 100% { transform: scale(1); filter: brightness(1); }
+        50% { transform: scale(1.3); filter: brightness(1.4); }
+      }
+      
+      @keyframes pulseWord {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+    `;
+    document.head.appendChild(styleElem);
+  }
+  
+  // Style the question word
+  const questionWord = document.getElementById("question-word");
+  if (questionWord) {
+    questionWord.style.setProperty("color", "#ff3333", "important");
+    questionWord.style.setProperty("text-shadow", "0 0 10px rgba(255, 0, 0, 0.5)", "important");
+    questionWord.style.setProperty("animation", "pulseWord 2s infinite", "important");
+  }
+  
+  // Replace coins container with boss orb
+  const coinsContainer = document.querySelector(".coins-container");
+  if (coinsContainer) {
+    if (!window.originalCoinsHTML) {
+      window.originalCoinsHTML = coinsContainer.innerHTML;
+    }
+    
+    coinsContainer.innerHTML = `
+    <div class="boss-orb" style="
+      width: 85px;
+      height: 85px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-75%, -75%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    ">
+      <div class="boss-orb-inner" style="
+        width: 50px;
+        height: 50px;
+        background: radial-gradient(circle at 30% 30%, #ff3333, #990000);
+        border-radius: 50%;
+        box-shadow: 0 0 20px #ff3333, inset 0 0 10px rgba(255,255,255,0.3);
+        animation: pulseOrb 1s infinite;
+      "></div>
+    </div>
+  `;
+  }
+}
+
+function handleBossAnswer(correct) {
+  if (correct) {
+    // Make progress bar flicker
+    const progressCircle = document.querySelector(".progress-circle");
+    const progressBar = progressCircle?.querySelector(".progress");
+    
+    if (progressBar) {
+      // Save original stroke color
+      const originalColor = progressBar.style.stroke;
+      
+      // Create and apply flicker animation
+      const flickerColors = ["#ffffff", "#ffff00", "#800080", "#990000"];
+      const randomColor = flickerColors[Math.floor(Math.random() * flickerColors.length)];
+      
+      progressBar.style.transition = "stroke 0.2s ease";
+      progressBar.style.stroke = randomColor;
+      
+      // Reset back to green after flicker
+      setTimeout(() => {
+        progressBar.style.stroke = originalColor;
+      }, 200);
+    }
+  }
+}
+
+// Boss Level Visual and Interaction Enhancements
+
+function createBossTimer() {
+    const timerContainer = document.createElement('div');
+    timerContainer.id = 'boss-timer';
+    timerContainer.style.cssText = `
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        justify-content: center;
+        z-index: 10;
+    `;
+    
+    const timerDisplay = document.createElement('div');
+    timerDisplay.style.cssText = `
+        background-color: rgba(255, 215, 0, 0.8);
+        color: #000;
+        font-family: 'Digital', monospace;
+        font-size: 2rem;
+        padding: 5px 10px;
+        border-radius: 5px;
+        letter-spacing: 3px;
+    `;
+    
+    timerContainer.appendChild(timerDisplay);
+    return { container: timerContainer, display: timerDisplay };
+}
+
+function updateBossTimer(timerDisplay, timeRemaining) {
+    if (timerDisplay) {
+        const minutes = Math.floor(timeRemaining / 60);
+        const seconds = timeRemaining % 60;
+        timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+}
+
+function createLightningEffect() {
+    const lightningContainer = document.createElement('div');
+    lightningContainer.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        z-index: 1000;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.1s ease;
+    `;
+    document.body.appendChild(lightningContainer);
+
+    const flickerCount = Math.floor(Math.random() * 3) + 1;
+    let delay = 0;
+
+    for (let i = 0; i < flickerCount; i++) {
+        setTimeout(() => {
+            lightningContainer.style.opacity = '1';
+            setTimeout(() => {
+                lightningContainer.style.opacity = '0';
+            }, 50);
+        }, delay);
+        delay += 200;
+    }
+
+    setTimeout(() => {
+        document.body.removeChild(lightningContainer);
+    }, delay + 500);
+}
+
+function createBossRainingLetters() {
+    const questionScreen = document.getElementById('question-screen');
+    if (!questionScreen) return;
+
+    // Clear any existing intervals
+    if (window.rainingLettersInterval) {
+        clearInterval(window.rainingLettersInterval);
+    }
+
+    const letters = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', ...'אבגדהוזחטיכלמנסעפצקרשת'];
+    const screenWidth = questionScreen.clientWidth;
+
+    window.rainingLettersInterval = setInterval(() => {
+        const particleCount = Math.floor(Math.random() * 3) + 1;
+        
+        for (let i = 0; i < particleCount; i++) {
+            const letter = document.createElement('div');
+            letter.className = 'boss-raining-letter';
+            letter.textContent = letters[Math.floor(Math.random() * letters.length)];
+            
+            letter.style.cssText = `
+                position: absolute;
+                top: -20px;
+                left: ${Math.random() * screenWidth}px;
+                color: rgba(255, 0, 0, 0.4);
+                font-size: 16px;
+                animation: boss-letter-rain 5s linear forwards;
+                z-index: 1;
+                text-shadow: 0 0 5px rgba(255, 0, 0, 0.3);
+            `;
+
+            questionScreen.appendChild(letter);
+
+            // Remove letter after animation
+            setTimeout(() => {
+                if (letter.parentNode === questionScreen) {
+                    questionScreen.removeChild(letter);
+                }
+            }, 5000);
+        }
+    }, 300);
+}
+
+function stopBossRainingLetters() {
+    if (window.rainingLettersInterval) {
+        clearInterval(window.rainingLettersInterval);
+        window.rainingLettersInterval = null;
+    }
+}
+
+function createBossStyleSheet() {
+  const styleElem = document.createElement("style");
+  styleElem.id = "boss-level-styles";
+  styleElem.textContent = `
+    @keyframes boss-letter-rain {
+      0% { 
+        transform: translateY(-20px);
+        opacity: 0.6;
+      }
+      100% { 
+        transform: translateY(100vh);
+        opacity: 0;
+      }
+    }
+
+    @keyframes boss-shrink {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.8); opacity: 0.8; }
+      100% { transform: scale(0); opacity: 0; }
+    }
+
+    @keyframes fade-to-blue {
+      0% { background: linear-gradient(135deg, #800000, #3a0000); }
+      20% { background: linear-gradient(135deg, #800000, #3a0000); }
+      60% { background: linear-gradient(135deg, #4a1582, #0d47a1); }
+      100% { background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%); }
+    }
+    
+    @keyframes incinerateEffect {
+      0% { transform: scale(0); opacity: 0; }
+      10% { transform: scale(0.5); opacity: 0.8; }
+      50% { transform: scale(1.5); opacity: 1; }
+      100% { transform: scale(3); opacity: 0; }
+    }
+    
+    .incineration-effect {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: radial-gradient(circle, #ff9900, #ff3300);
+      opacity: 0;
+      transform: scale(0);
+      animation: incinerateEffect 1.5s forwards;
+    }
+  `;
+  document.head.appendChild(styleElem);
+}
+
+function showModernBossVictoryScreen() {
+    const victoryOverlay = document.createElement('div');
+    victoryOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        opacity: 0;
+        transition: opacity 0.5s ease;
+    `;
+
+    const victoryContent = document.createElement('div');
+    victoryContent.style.cssText = `
+        background: linear-gradient(135deg, #00c6ff, #0072ff);
+        padding: 2rem;
+        border-radius: 20px;
+        text-align: center;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    `;
+
+    victoryContent.innerHTML = `
+        <h2 style="color: white; font-size: 2.5rem; margin-bottom: 1rem;">🏆 Boss Defeated!</h2>
+        <div class="victory-stats" style="display: flex; justify-content: space-around; margin: 1.5rem 0; color: white;">
+            <div>
+                <div style="font-size: 1.2rem; opacity: 0.7;">Words Learned</div>
+                <div style="font-size: 2rem; font-weight: bold;">${currentGame.words.length}</div>
+            </div>
+            <div>
+                <div style="font-size: 1.2rem; opacity: 0.7;">Coins Earned</div>
+                <div style="font-size: 2rem; font-weight: bold;">100</div>
+            </div>
+        </div>
+        <div style="display: flex; justify-content: center; gap: 1rem;">
+            <button class="continue-btn" style="
+                background: #4CAF50; 
+                color: white; 
+                border: none; 
+                padding: 1rem 2rem; 
+                border-radius: 50px; 
+                font-size: 1rem; 
+                cursor: pointer;
+                transition: transform 0.3s ease;
+            ">Continue to Next Set</button>
+            <button class="home-btn" style="
+                background: rgba(255,255,255,0.2); 
+                color: white; 
+                border: 2px solid white; 
+                padding: 1rem 2rem; 
+                border-radius: 50px; 
+                font-size: 1rem; 
+                cursor: pointer;
+                transition: transform 0.3s ease;
+            ">Return Home</button>
+        </div>
+    `;
+
+    const continueBtn = victoryContent.querySelector('.continue-btn');
+    const homeBtn = victoryContent.querySelector('.home-btn');
+
+    [continueBtn, homeBtn].forEach(btn => {
+        btn.addEventListener('mouseenter', () => {
+            btn.style.transform = 'scale(1.05)';
+        });
+        btn.addEventListener('mouseleave', () => {
+            btn.style.transform = 'scale(1)';
+        });
+    });
+
+    continueBtn.addEventListener('click', () => {
+        victoryOverlay.style.opacity = '0';
+        setTimeout(() => {
+            victoryOverlay.remove();
+            unlockNextSet();
+            const nextSet = gameState.currentSet + 1;
+            gameState.currentSet = nextSet;
+            gameState.currentLevel = 1;
+            startLevel(1);
+        }, 500);
+    });
+
+    homeBtn.addEventListener('click', () => {
+        victoryOverlay.style.opacity = '0';
+        setTimeout(() => {
+            victoryOverlay.remove();
+            unlockNextSet();
+            showScreen('welcome-screen');
+        }, 500);
+    });
+
+    victoryOverlay.appendChild(victoryContent);
+    document.body.appendChild(victoryOverlay);
+
+    // Trigger fade-in
+    requestAnimationFrame(() => {
+        victoryOverlay.style.opacity = '1';
+    });
+}
+
+function showBossDefeatEffect() {
+    console.log('Starting boss defeat effect sequence');
+    
+    if (currentGame.bossDefeatedEffectShown) {
+        console.log('Boss defeat effect already shown, skipping');
+        return;
+    }
+    
+    // Set animation flag to block other coin updates
+    window.bossVictoryAnimationInProgress = true;
+    
+    // Set flag to prevent multiple executions
+    currentGame.bossDefeatedEffectShown = true;
+    
+    // Store current coin value for animation
+    const originalCoins = gameState.coins;
+    const targetCoins = originalCoins + 100;
+    
+    // Flag that we've acknowledged the boss reward
+    currentGame.bossRewardApplied = true;
+    
+    // Background transition
+    const questionScreen = document.querySelector('.question-screen');
+    if (questionScreen) {
+        console.log('Creating background transition overlay');
+        
+        const transitionOverlay = document.createElement('div');
+        transitionOverlay.className = 'background-transition-overlay';
+        transitionOverlay.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #800000, #3a0000); 
+            z-index: -1;
+            animation: fade-to-blue 5s ease-in-out forwards;
+            pointer-events: none;
+        `;
+        
+        questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
+    }
+    
+    // Boss orb disappearing animation
+    setTimeout(() => {
+        const bossOrb = document.querySelector('.boss-orb-inner');
+        
+        if (bossOrb) {
+            console.log('Disintegrating boss orb');
+            
+            const incinerationEffect = document.createElement('div');
+            incinerationEffect.className = 'incineration-effect';
+            bossOrb.appendChild(incinerationEffect);
+            
+            bossOrb.style.animation = 'boss-shrink 2.5s forwards';
+            
+            // After boss orb starts disappearing, show coin animation
+            setTimeout(() => {
+                console.log('Applying coin reward animation');
+                
+                const coinsContainer = document.querySelector('.coins-container');
+                
+                if (coinsContainer && window.originalCoinsHTML) {
+                    // Restore original coins HTML
+                    coinsContainer.innerHTML = window.originalCoinsHTML;
+                    
+                    // Protect ALL coin displays from other updates during animation
+                    document.querySelectorAll('.coin-count').forEach(el => {
+                        el.dataset.protectedValue = 'true';
+                        el.textContent = originalCoins;
+                    });
+                    
+                    const coinIcon = coinsContainer.querySelector('.coin-icon');
+                    const coinCount = coinsContainer.querySelector('.coin-count');
+                    
+                    if (coinCount) {
+                        // Make it prominent
+                        coinsContainer.style.transform = 'scale(1.2)';
+                        coinsContainer.style.transition = 'transform 0.3s ease';
+                        
+                        // Visual animation for the 100 coins
+                        const steps = 60;
+                        const stepDelay = 2000 / steps;
+                        let currentStep = 0;
+                        
+                        const animateCoins = () => {
+                            if (currentStep <= steps) {
+                                const progress = currentStep / steps;
+                                const currentValue = Math.round(originalCoins + (targetCoins - originalCoins) * progress);
+                                
+                                // Update ALL coin displays
+                                document.querySelectorAll('.coin-count').forEach(el => {
+                                    el.textContent = currentValue;
+                                    el.style.color = 'var(--gold)';
+                                    el.style.textShadow = '0 0 10px var(--gold)';
+                                });
+                                
+                                currentStep++;
+                                setTimeout(animateCoins, stepDelay);
+                            } else {
+                                // Animation complete - update actual game state
+                                gameState.coins = targetCoins;
+                                saveProgress();
+                                
+                                // Ensure final value shown matches target on all displays
+                                document.querySelectorAll('.coin-count').forEach(el => {
+                                    el.textContent = targetCoins;
+                                    delete el.dataset.protectedValue;
+                                });
+                                
+                                // Maintain emphasis for a while
+                                setTimeout(() => {
+                                    document.querySelectorAll('.coin-count').forEach(el => {
+                                        el.style.color = '';
+                                        el.style.textShadow = '';
+                                    });
+                                    coinsContainer.style.transform = 'scale(1)';
+                                }, 1000);
+                            }
+                        };
+                        
+                        // Start animation
+                        animateCoins();
+                        
+                        // Pulse coin icon
+                        if (coinIcon) {
+                            coinIcon.classList.add('coin-pulse');
+                            coinIcon.style.animation = 'coinPulse 0.5s ease-in-out 6';
+                        }
+                    }
+                }
+            }, 500);
+            
+            // Show victory notification after animations
+            setTimeout(() => {
+                console.log('Showing victory notification');
+                
+                // Victory notification does NOT need to add coins again
+                showBossVictoryNotification(false);
+            }, 5000);
+        } else {
+            setTimeout(() => {
+                showBossVictoryNotification(false);
+            }, 3000);
+        }
+    }, 1000);
+
+    // Add animation styles if needed
+    if (!document.getElementById('boss-transition-style')) {
+        const styleEl = document.createElement('style');
+        styleEl.id = 'boss-transition-style';
+        styleEl.textContent = `
+            @keyframes fade-to-blue {
+                0% { background: linear-gradient(135deg, #800000, #3a0000); }
+                20% { background: linear-gradient(135deg, #800000, #3a0000); }
+                60% { background: linear-gradient(135deg, #4a1582, #0d47a1); }
+                100% { background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%); }
+            }
+            
+            @keyframes boss-shrink {
+                0% { transform: scale(1); opacity: 1; }
+                30% { transform: scale(0.8); opacity: 0.8; }
+                100% { transform: scale(0); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(styleEl);
+    }
+}
+
+// ADD a function to update coins after boss victory
+function updateCoinsAfterBossVictory() {
+    const currentCoins = gameState.coins;
+    const newCoins = currentCoins;
+    
+    // Update gameState.coins but don't use CoinsManager to avoid duplicate animations
+    gameState.coins = newCoins;
+    
+    // Update all coin displays with animation
+    document.querySelectorAll('.coin-count').forEach(el => {
+        animateCoinsChange(el, currentCoins, newCoins);
+    });
+    
+    // Pulse the coin icons
+    document.querySelectorAll('.coin-icon').forEach(icon => {
+        icon.classList.add('coin-pulse');
+        setTimeout(() => {
+            icon.classList.remove('coin-pulse');
+        }, 1500);
+    });
+    
+    // Save progress
+    saveProgress();
+}
+
+function showBossVictoryNotification(coinRewardNeeded = false) {
+    // Apply coins only if needed (should not be needed anymore as it's done earlier)
+    if (coinRewardNeeded) {
+        console.log("Adding 100 coin bonus in showBossVictoryNotification");
+        saveProgress();
+    }
+    
+    // Clear animation flag
+    window.bossVictoryAnimationInProgress = false;
+    
+    // DO NOT call updateAllCoinDisplays() here - it would trigger another animation
+    
+    const modal = document.createElement('div');
+    modal.className = 'arcade-completion-modal';
+    modal.innerHTML = `
+    <div class="completion-modal-content">
+      <h2 style="color: var(--gold)">Boss Defeated!</h2>
+      <p style="font-size: 1.2rem; margin: 1rem 0;">Congratulations! You've conquered this challenge!</p>
+      
+      <div class="completion-stats">
+        <div class="stat-item">
+          <i class="fas fa-skull" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
+          <span style="display: block; margin-bottom: 0.25rem;">Boss Defeated</span>
+          <strong style="font-size: 1.5rem;">✓</strong>
+        </div>
+        <div class="stat-item">
+          <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
+          <span style="display: block; margin-bottom: 0.25rem;">Bonus Coins</span>
+          <strong style="font-size: 1.5rem;">100</strong>
+        </div>
+        <div class="stat-item">
+          <i class="fas fa-unlock" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
+          <span style="display: block; margin-bottom: 0.25rem;">New Set</span>
+          <strong style="font-size: 1.5rem;">Unlocked</strong>
+        </div>
+      </div>
+      
+      <div style="display: flex; justify-content: space-around; margin-top: 2rem; gap: 1rem;">
+        <button onclick="handleBossVictoryContinue()" class="start-button" style="
+          background: var(--accent);
+          color: var(--text);
+          border: none;
+          padding: 1rem 2rem;
+          border-radius: 50px;
+          font-size: 1.1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
+        ">
+          Next Set
+        </button>
+        <button onclick="handleBossVictoryHome()" class="start-button" style="
+          background: transparent;
+          color: var(--text);
+          border: 2px solid var(--accent);
+          padding: 1rem 2rem;
+          border-radius: 50px;
+          font-size: 1.1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        ">
+          Return Home
+        </button>
+      </div>
+    </div>
+  `;
+    
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add('show'));
+}
+
+function handleBossVictoryContinue() {
+  console.log("Boss victory continue button clicked");
+  const modal = document.querySelector(".arcade-completion-modal");
+  
+  // Now that everything is complete, we can safely update all displays
+  updateAllCoinDisplays();
+  
+  if (modal) {
+    modal.classList.remove("show");
+    setTimeout(() => {
+      modal.remove();
+      
+      const bgTransition = document.querySelector(".background-transition-overlay");
+      
+      if (bgTransition) {
+        console.log("Using existing transition overlay for smooth transition");
+        bgTransition.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
+        resetBossStyles(true);
+      } else {
+        resetBossStyles();
+      }
+      
+      unlockNextSet();
+      
+      // Get current stage configuration
+      const currentStage = gameState.currentStage;
+      const currentSet = gameState.currentSet;
+      const stageStructure = gameStructure.stages[currentStage-1];
+      
+      if (!stageStructure) {
+        console.error(`Invalid stage: ${currentStage}`);
+        showScreen("welcome-screen");
+        return;
+      }
+      
+      const userStatus = currentUser ? currentUser.status : "unregistered";
+      
+      // Check if this is the last set in the stage
+      const isLastSetInStage = currentSet >= stageStructure.numSets;
+      
+      if (isLastSetInStage) {
+        // This is the last set in the stage, should move to next stage
+        if (currentStage < 5) {
+          // Move to first set of next stage
+          if (currentStage >= 2 && userStatus !== "premium") {
+            // Non-premium users can't access beyond first set of stages 2-5
+            console.log("Non-premium user attempted to access next stage, showing upgrade prompt");
+            showScreen("welcome-screen");
+            setTimeout(() => {
+              showUpgradePrompt();
+            }, 500);
+            return;
+          }
+          
+          // For premium users or stage 1 users, proceed to next stage
+          gameState.currentStage += 1;
+          gameState.currentSet = 1;
+          gameState.currentLevel = 1;
+          
+          console.log(`Moving to Stage ${gameState.currentStage}, Set 1, Level 1`);
+        } else {
+          // This is the final stage (5), show stage selection screen
+          console.log("Final stage completed, showing stage selection");
+          showScreen("stage-screen");
+          return;
+        }
+      } else {
+        // Not the last set, move to next set in current stage
+        const nextSet = currentSet + 1;
+        
+        // Premium check for stages 2-5
+        if (currentStage >= 2 && nextSet > 1 && userStatus !== "premium") {
+          console.log("Non-premium user attempted to access premium set, showing upgrade prompt");
+          showScreen("welcome-screen");
+          setTimeout(() => {
+            showUpgradePrompt();
+          }, 500);
+          return;
+        }
+        
+        gameState.currentSet = nextSet;
+        gameState.currentLevel = 1;
+        console.log(`Moving to Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level 1`);
+      }
+      
+      // Save progress
+      saveProgress();
+      
+      setTimeout(() => {
+        console.log("Starting next level");
+        if (bgTransition && bgTransition.parentNode) {
+          bgTransition.parentNode.removeChild(bgTransition);
+        }
+        startLevel(1);
+      }, 500);
+    }, 300);
+  }
+  
+  // Ensure animation flag is cleared
+  window.bossVictoryAnimationInProgress = false;
+}
+
+function resetBossStyles(e = false) {
+  console.log("Resetting boss styles", e ? "(preserving overlay)" : "");
+
+  // Reset boss health bar styling
+  const progressCircle = document.querySelector('.progress-circle');
+  if (progressCircle) {
+    const progress = progressCircle.querySelector('.progress');
+    if (progress) {
+      progress.classList.remove('warning', 'boss-health');
+      progress.style.stroke = '';  // Reset to default color
+      progress.style.animation = 'none';
+      
+      // Force reflow to make sure animation removal takes effect
+      void progress.offsetWidth;
+      progress.style.animation = '';
+    }
+  }
+  
+  const t = document.getElementById("question-screen");
+  if (t) {
+    const n = t.querySelector(".background-transition-overlay");
+    e && n && n.remove();
+    t.removeAttribute("style");
+    e && n && t.insertBefore(n, t.firstChild);
+    e || (t.querySelectorAll(".background-transition-overlay").forEach(e => e.remove()),
+    setTimeout(() => {
+      t.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
+    }, 10));
+  }
+  
+  const n = document.getElementById("question-word");
+  n && n.removeAttribute("style");
+  
+  "function" == typeof stopBossRainingLetters && stopBossRainingLetters();
+  
+  const r = e ? ".incineration-effect, .boss-orb" : ".incineration-effect, .boss-orb, .background-transition-overlay";
+  document.querySelectorAll(r).forEach(e => {
+    e.parentNode && e.parentNode.removeChild(e);
+  });
+}
+
+function handleBossVictoryHome() {
+  console.log("Boss victory home button clicked");
+  const modal = document.querySelector(".arcade-completion-modal");
+  updateAllCoinDisplays();
+  
+  if (modal) {
+    modal.classList.remove("show");
+    setTimeout(() => {
+      modal.remove();
+      resetBossStyles();
+      
+      unlockNextSet();
+      
+      // Get current stage configuration
+      const currentStage = gameState.currentStage;
+      const currentSet = gameState.currentSet;
+      const stageStructure = gameStructure.stages[currentStage-1];
+      
+      if (!stageStructure) {
+        console.error(`Invalid stage: ${currentStage}`);
+        showScreen("welcome-screen");
+        return;
+      }
+      
+      // Check if this is the last set in the stage
+      const isLastSetInStage = currentSet >= stageStructure.numSets;
+      const userStatus = currentUser ? currentUser.status : "unregistered";
+      
+      if (isLastSetInStage) {
+        // This is the last set in the stage, should move to next stage
+        if (currentStage < 5) {
+          // Move to first set of next stage
+          gameState.currentStage += 1;
+          gameState.currentSet = 1;
+          gameState.currentLevel = 1;
+        }
+        // For the last stage, we just keep the same values
+      } else {
+        // Still have more sets in this stage
+        gameState.currentSet += 1;
+        gameState.currentLevel = 1;
+      }
+      
+      // Show upgrade if needed for non-premium users
+      if (gameState.currentStage >= 2 && gameState.currentSet > 1 && userStatus !== "premium") {
+        setTimeout(() => {
+          showUpgradePrompt();
+        }, 500);
+      }
+      
+      saveProgress();
+      showScreen("welcome-screen");
+    }, 300);
+  }
+}
+
+createBossStyleSheet();
+
+// Add this to your CSS or create a style tag in your head
+const avatarButtonStyle = document.createElement('style');
+avatarButtonStyle.textContent = `
+  /* Hide avatar button during arcade mode and modals */
+  .arcade-active .avatar-button,
+  .modal-open .avatar-button,
+  #question-screen.visible .avatar-button,
+  #moderator-screen.visible .avatar-button,
+  #arcade-modal[style*="display: block"] ~ .avatar-button {
+    display: none !important;
+  }
+`;
+document.head.appendChild(avatarButtonStyle);
+
+// Add a function to toggle the class when entering/exiting arcade mode
+function toggleArcadeUIMode(isActive) {
+  document.body.classList.toggle('arcade-active', isActive);
+}
+
+// Then call this when showing the arcade modal
+const originalShowArcadeModal = showArcadeModal;
+showArcadeModal = function() {
+  document.body.classList.add('modal-open');
+  toggleArcadeUIMode(true);
+  originalShowArcadeModal.apply(this, arguments);
+};
+
+// And when starting arcade game
+const originalStartArcadeGame = startArcadeGame;
+startArcadeGame = function() {
+  toggleArcadeUIMode(true);
+  originalStartArcadeGame.apply(this, arguments);
+};
+
+// And when exiting arcade
+const originalExitArcade = exitArcade;
+exitArcade = function() {
+  toggleArcadeUIMode(false);
+  document.body.classList.remove('modal-open');
+  originalExitArcade.apply(this, arguments);
+};

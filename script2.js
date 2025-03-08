@@ -176,18 +176,6 @@ function handleArcadeAnswer(isCorrect) {
         currentGame.isProcessingAnswer = true;
         currentGame.lastAnswerTime = now;
         
-        // Initialize tracking structures if they don't exist
-        if (!currentGame.coinAwardedWords) {
-          currentGame.coinAwardedWords = new Set();
-        }
-        
-        if (!currentGame.mistakeRegisteredWords) {
-          currentGame.mistakeRegisteredWords = new Set();
-        }
-        
-        // Get current word key for tracking
-        const currentWordKey = currentGame.currentIndex.toString();
-        
         const playerName = currentArcadeSession.playerName || 
                           currentUser?.user_metadata?.username || 
                           getRandomSimploName();
@@ -217,14 +205,15 @@ function handleArcadeAnswer(isCorrect) {
                 }
             }
             
-            // Only award coins if this word hasn't already earned coins
-            let coinReward = 0;
-            if (!currentGame.coinAwardedWords.has(currentWordKey)) {
-                // Mark this word as having earned coins
-                currentGame.coinAwardedWords.add(currentWordKey);
-                
-                // Award 10 coins for correct answer
-                coinReward = 10;
+            // Calculate coin reward
+            let coinReward = 5;
+            if (currentGame.correctStreak >= 3) {
+                coinReward += 5;
+            }
+            
+            // Premium users get extra coins in arcade mode
+            if (currentUser && currentUser.status === 'premium') {
+                coinReward += 2; // Add premium bonus directly here
             }
             
             // Use the enhanced CoinsManager for consistent updates
@@ -271,13 +260,9 @@ function handleArcadeAnswer(isCorrect) {
                 setTimeout(loadNextArcadeQuestion, 500);
             });
         } else {
-            // Only register a mistake once per word
-            if (!currentGame.mistakeRegisteredWords.has(currentWordKey)) {
-                currentGame.mistakeRegisteredWords.add(currentWordKey);
-                // Handle incorrect answer
-                currentGame.correctStreak = 0;
-                currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
-            }
+            // Handle incorrect answer
+            currentGame.correctStreak = 0;
+            currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
             
             // Update player progress in the leaderboard
             updatePlayerProgress({
@@ -303,6 +288,37 @@ function handleArcadeAnswer(isCorrect) {
         setTimeout(loadNextArcadeQuestion, 1000);
     }
 }
+
+// ADD this new utility function to synchronize coin display updates
+const CoinController = {
+    lastUpdate: 0,
+    
+    // Get current coins from game state
+    getCurrentCoins() {
+        return currentGame?.coins || 0;
+    },
+    
+    // Update local coin display without backend sync
+    updateLocalCoins(newTotal) {
+        if (!currentGame) return false;
+        
+        const oldValue = currentGame.coins || 0;
+        currentGame.coins = newTotal;
+        
+        // Update all coin displays with animation
+        document.querySelectorAll('.coin-count').forEach(el => {
+            animateCoinsChange(el, oldValue, newTotal);
+        });
+        
+        // Update available powerups after coin change
+        if (typeof updateArcadePowerups === 'function') {
+            updateArcadePowerups();
+        }
+        
+        this.lastUpdate = Date.now();
+        return true;
+    }
+};
 
 function updatePlayerProgress(e) {
     if (!e || !e.username) return false;
@@ -1158,78 +1174,90 @@ let isFrozen = false;
 let resetProgressTimeout = null;
 let isFirstResetAttempt = true;
 
-function startTimer(questionCount) {
-    clearTimer();
-    if (currentGame.currentIndex >= currentGame.words.length) return;
-    
-    // Set initial time only if not already set
-    if (!currentGame.initialTimeRemaining) {
-        // Set time based on level type
-        const secondsPerQuestion = currentGame.isBossLevel ? 4 : 5;
-        currentGame.initialTimeRemaining = questionCount * secondsPerQuestion;
-        timeRemaining = currentGame.initialTimeRemaining;
-        currentGame.totalTime = timeRemaining; // Store the initial total time
-    } else {
-        // Use the remaining time from the previous interval
-        timeRemaining = currentGame.initialTimeRemaining;
-    }
-    
-    console.log('Starting timer with:', timeRemaining, 'seconds');
-    currentGame.questionStartTime = Date.now();
-    updateTimerDisplay();
-    updateTimerCircle(timeRemaining, currentGame.totalTime); // Use stored total time
-    
-    timer = setInterval(() => {
-        if (!isFrozen) {
-            timeRemaining = Math.max(0, timeRemaining - 1);
-            updateTimerDisplay();
-            updateTimerCircle(timeRemaining, currentGame.totalTime); // Use stored total time
-            
-            // Update the initialTimeRemaining to track remaining time
-            currentGame.initialTimeRemaining = timeRemaining;
-            
-            if (timeRemaining <= 10) {
-                document.querySelector('.timer-value').classList.add('warning');
-            }
-            
-            if (timeRemaining <= 0) {
-                handleTimeUp();
-            }
-        }
-    }, 1000);
-}
+
 
 function updateTimerDisplay() {
     const minutes = Math.floor(timeRemaining / 60);
     const seconds = timeRemaining % 60;
     const timerElement = document.querySelector('.timer-value');
-    timerElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     
-    if (timeRemaining <= 10) {
-        timerElement.classList.add('warning');
-    } else {
-        timerElement.classList.remove('warning');
+    if (timerElement) {
+        timerElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        
+        // Only add warning class if time remaining is 10 seconds or less
+        if (timeRemaining <= 10) {
+            timerElement.classList.add('warning');
+        } else {
+            timerElement.classList.remove('warning');
+        }
     }
 }
 
 function clearTimer() {
     if (timer) {
-        clearInterval(timer);
-        timer = null;
+      clearInterval(timer);
+      timer = null;
     }
     timeRemaining = 0;
     isFrozen = false;
     
-    const timerProgress = document.querySelector('.timer-progress');
-    if (timerProgress) {
-        timerProgress.classList.remove('warning');
+    const timerElement = document.querySelector('.timer-value');
+    if (timerElement) {
+      timerElement.classList.remove('warning');
     }
     
     updateTimerCircle(0, 1); // This will empty the circle
+  }
+  
+
+  function startTimer(questionCount) {
+    clearTimer();
+    if (currentGame.currentIndex >= currentGame.words.length) return;
+    
+    // Set initial time only if not already set
+    if (!currentGame.initialTimeRemaining) {
+      // Set time based on level type
+      const secondsPerQuestion = currentGame.isBossLevel ? 4 : 5;
+      currentGame.initialTimeRemaining = questionCount * secondsPerQuestion;
+      timeRemaining = currentGame.initialTimeRemaining;
+      currentGame.totalTime = timeRemaining; // Store the initial total time
+    } else {
+      // Use the remaining time from the previous interval
+      timeRemaining = currentGame.initialTimeRemaining;
+    }
+    
+    console.log('Starting timer with:', timeRemaining, 'seconds');
+    currentGame.questionStartTime = Date.now();
+    
+    // Initial display update (do only once)
+    updateTimerDisplay();
+    updateTimerCircle(timeRemaining, currentGame.totalTime, true); // Added optimization flag
+    
+    let lastTickTime = Date.now();
+    timer = setInterval(() => {
+      if (!isFrozen) {
+        const currentTime = Date.now();
+        // Only update visual every 250ms (4 times per second) instead of every second
+        const shouldUpdateVisual = (currentTime - lastTickTime) >= 250;
+        
+        timeRemaining = Math.max(0, timeRemaining - 1);
+        updateTimerDisplay(); // Text update is fast, always do this
+        
+        // Only update the visual circle less frequently
+        if (shouldUpdateVisual) {
+          updateTimerCircle(timeRemaining, currentGame.totalTime);
+          lastTickTime = currentTime;
+        }
+        
+        // Update the initialTimeRemaining to track remaining time
+        currentGame.initialTimeRemaining = timeRemaining;
+        
+        if (timeRemaining <= 0) {
+          handleTimeUp();
+        }
+      }
+    }, 1000);
 }
-
-
-
 
 
 const LEADERBOARD_UPDATE_INTERVAL = 7000; // 10 seconds
@@ -1440,7 +1468,7 @@ function broadcastCurrentParticipantData() {
     }
   }
 
-  function requestAllPlayerStats() {
+function requestAllPlayerStats() {
     if (!window.arcadeChannel) return;
     
     console.log("Requesting latest stats from all players");
@@ -2293,69 +2321,80 @@ function handleLevelProgression() {
   } else startLevel(gameState.currentLevel + 1)
 }
 
-
+// REPLACE the updateProgressCircle function
 function updateProgressCircle() {
-    // Ensure streak animation styles exist
-    addProgressStreakStyles();
-    
     const progressElement = document.querySelector('.progress-circle .progress');
+    if (!progressElement) return;
+    
+    // Tell browser to prepare for animation
+    progressElement.style.willChange = 'stroke-dashoffset, stroke';
+    
     const circumference = 2 * Math.PI * 54;
     const progress = currentGame.currentIndex / currentGame.words.length;
   
+    // Add smooth transition only when needed
+    const transitionNeeded = !progressElement.dataset.lastProgress || 
+                            Math.abs(parseFloat(progressElement.dataset.lastProgress) - progress) > 0.01;
+                            
+    if (transitionNeeded) {
+        progressElement.style.transition = 'stroke-dashoffset 0.3s ease-out, stroke 0.3s ease-out';
+    } else {
+        progressElement.style.transition = 'none';
+    }
+    
+    // Store current progress for next comparison
+    progressElement.dataset.lastProgress = progress.toString();
+  
     progressElement.style.strokeDasharray = `${circumference} ${circumference}`;
     progressElement.style.strokeDashoffset = circumference * (1 - progress);
-  
-    // Create a smooth, logical color transition with more hues
+    
+    // Simplified color scheme - only 4 colors instead of continuous gradient
     if (progress <= 0.25) {
-      // Red to orange gradient (0-25%)
-      const hue = Math.floor(progress * 4 * 30); // 0 to 30
-      progressElement.style.stroke = `hsl(${hue}, 100%, 45%)`;
+        progressElement.style.stroke = '#F44336'; // Red
     } else if (progress <= 0.5) {
-      // Orange to yellow-green gradient (25-50%)
-      const hue = 30 + Math.floor((progress - 0.25) * 4 * 40); // 30 to 70
-      progressElement.style.stroke = `hsl(${hue}, 100%, 45%)`;
+        progressElement.style.stroke = '#FF9800'; // Orange
     } else if (progress <= 0.75) {
-      // Yellow-green to green gradient (50-75%)
-      const hue = 70 + Math.floor((progress - 0.5) * 4 * 40); // 70 to 110
-      progressElement.style.stroke = `hsl(${hue}, 100%, 40%)`;
+        progressElement.style.stroke = '#FFC107'; // Yellow
     } else {
-      // Green to bright green gradient (75-100%)
-      const hue = 110 + Math.floor((progress - 0.75) * 4 * 30); // 110 to 140
-      progressElement.style.stroke = `hsl(${hue}, 100%, 40%)`;
+        progressElement.style.stroke = '#4CAF50'; // Green
     }
   
-    // Add pulsing effect if on a streak of 3 or more
+    // Optimize streak effects
     if (currentGame.correctStreak >= 3) {
-      if (!progressElement.classList.contains('streaking')) {
-        progressElement.classList.add('streaking');
-      }
-      
-      // Show streak notification if not already shown for this streak count
-      if (!currentGame.lastNotifiedStreak || currentGame.lastNotifiedStreak !== currentGame.correctStreak) {
-        showNotification(`${currentGame.correctStreak} answer streak!`, 'success');
-        currentGame.lastNotifiedStreak = currentGame.correctStreak;
-      }
+        if (!progressElement.classList.contains('streaking')) {
+            progressElement.classList.add('streaking');
+            
+            // Show streak notification if not already shown for this streak count
+            if (!currentGame.lastNotifiedStreak || currentGame.lastNotifiedStreak !== currentGame.correctStreak) {
+                showNotification(`${currentGame.correctStreak} answer streak!`, 'success');
+                currentGame.lastNotifiedStreak = currentGame.correctStreak;
+            }
+        }
     } else {
-      progressElement.classList.remove('streaking');
-      currentGame.lastNotifiedStreak = 0;
+        progressElement.classList.remove('streaking');
+        currentGame.lastNotifiedStreak = 0;
     }
-  }
+    
+    // Clean up willChange after animation completes
+    setTimeout(() => {
+        progressElement.style.willChange = 'auto';
+    }, 1000);
+}
 
-// REPLACE animation code with CSS-based alternatives
+// REPLACE the addProgressStreakStyles function
 function addProgressStreakStyles() {
     if (!document.getElementById("progress-streak-styles")) {
       const styleElement = document.createElement("style");
       styleElement.id = "progress-streak-styles";
       styleElement.textContent = `
         @keyframes progressStreak {
-          0%, 100% { filter: brightness(1); }
-          50% { filter: brightness(1.5) drop-shadow(0 0 5px var(--gold, gold));
-                stroke: var(--gold, gold); }
+          0%, 100% { opacity: 0.9; }
+          50% { opacity: 1; stroke: var(--gold, gold); }
         }
         
         .progress-circle .progress.streaking {
           animation: progressStreak 1.2s ease-in-out infinite;
-          will-change: filter, stroke;
+          will-change: opacity, stroke;
         }
         
         .coin-pulse {
@@ -2371,7 +2410,9 @@ function addProgressStreakStyles() {
       `;
       document.head.appendChild(styleElement);
     }
-  }
+}
+
+
 
 
 // ADD this game loop manager
@@ -2516,81 +2557,88 @@ function detectMobileDevice() {
     PerformanceSettings.init();
   });
   
+// REPLACE the loadNextQuestion function
 function loadNextQuestion() {
-  // Clear any previous button classes
-  document.querySelectorAll('.buttons button').forEach(button => {
-    button.classList.remove('correct', 'wrong');
-  });
-
-  // Check if there are any words left
-  if (currentGame.currentIndex >= currentGame.words.length) return;
-
-  if (!currentGame.answerTimes) {
-    currentGame.answerTimes = [];
-  }
-
-  // Record the time when the question is shown
-  currentGame.questionStartTime = Date.now();
-
-  const questionWordElement = document.getElementById('question-word');
+    // Clear any previous button classes
+    document.querySelectorAll('.buttons button').forEach(button => {
+      button.classList.remove('correct', 'wrong');
+    });
   
-  // Determine if we should show Hebrew or English based on level or random factor
-  const isSpecialLevel = [3, 6, 9, 10, 13, 16, 19, 20, 21].includes(gameState.currentLevel);
-  const isHebrewToEnglish = isSpecialLevel && Math.random() < 0.5;
+    // Check if there are any words left
+    if (currentGame.currentIndex >= currentGame.words.length) return;
   
-  const index = currentGame.currentIndex;
-  const wordToDisplay = isHebrewToEnglish ? currentGame.translations[index] : currentGame.words[index];
-  const correctAnswer = isHebrewToEnglish ? currentGame.words[index] : currentGame.translations[index];
+    if (!currentGame.answerTimes) {
+      currentGame.answerTimes = [];
+    }
   
-  // Get the pool of potential answers
-  const answerPool = isHebrewToEnglish ? currentGame.words : currentGame.translations;
+    // Record the time when the question is shown
+    currentGame.questionStartTime = Date.now();
   
-  // Create a set to avoid duplicates, starting with the correct answer
-  const answerSet = new Set([correctAnswer]);
-  
-  // Add random incorrect answers until we have 3 options
-  while (answerSet.size < 3) {
-    const randomAnswer = answerPool[Math.floor(Math.random() * answerPool.length)];
-    if (randomAnswer !== correctAnswer) {
-      answerSet.add(randomAnswer);
+    const questionWordElement = document.getElementById('question-word');
+    
+    // Determine if we should show Hebrew or English based on level or random factor
+    const isSpecialLevel = [3, 6, 9, 10, 13, 16, 19, 20, 21].includes(gameState.currentLevel);
+    const isHebrewToEnglish = isSpecialLevel && Math.random() < 0.5;
+    
+    const index = currentGame.currentIndex;
+    const wordToDisplay = isHebrewToEnglish ? currentGame.translations[index] : currentGame.words[index];
+    const correctAnswer = isHebrewToEnglish ? currentGame.words[index] : currentGame.translations[index];
+    
+    // Get the pool of potential answers
+    const answerPool = isHebrewToEnglish ? currentGame.words : currentGame.translations;
+    
+    // Create a set to avoid duplicates, starting with the correct answer
+    const answerSet = new Set([correctAnswer]);
+    
+    // Add random incorrect answers until we have 3 options
+    while (answerSet.size < 3) {
+      const randomAnswer = answerPool[Math.floor(Math.random() * answerPool.length)];
+      if (randomAnswer !== correctAnswer) {
+        answerSet.add(randomAnswer);
+      }
+    }
+    
+    // Generate buttons with the answers
+    const buttonsContainer = document.getElementById('buttons');
+    buttonsContainer.innerHTML = '';
+    
+    // Convert set to array and shuffle
+    const shuffledAnswers = Array.from(answerSet).sort(() => Math.random() - 0.5);
+    
+    // Create buttons for each answer
+    shuffledAnswers.forEach(answer => {
+      const button = document.createElement('button');
+      button.textContent = answer;
+      button.onclick = () => handleAnswer(answer === correctAnswer);
+      buttonsContainer.appendChild(button);
+    });
+    
+    // Apply simplified animation based on performance settings
+    if (PerformanceSettings.isMobileOrSlow) {
+      // Simple text update without animation for low-power devices
+      questionWordElement.textContent = wordToDisplay;
+    } else {
+      // Apply 3D carousel animation for powerful devices
+      if (currentGame.currentIndex > 0) {
+        questionWordElement.classList.add('exiting');
+        setTimeout(() => {
+          questionWordElement.textContent = wordToDisplay;
+          questionWordElement.classList.remove('exiting');
+          questionWordElement.classList.add('entering');
+          setTimeout(() => {
+            questionWordElement.classList.remove('entering');
+          }, 500); // Match the animation duration
+        }, 500); // Match the animation duration
+      } else {
+        // First word just appears
+        questionWordElement.textContent = wordToDisplay;
+        questionWordElement.classList.add('entering');
+        setTimeout(() => {
+          questionWordElement.classList.remove('entering');
+        }, 500);
+      }
     }
   }
-  
-  // Generate buttons with the answers
-  const buttonsContainer = document.getElementById('buttons');
-  buttonsContainer.innerHTML = '';
-  
-  // Convert set to array and shuffle
-  const shuffledAnswers = Array.from(answerSet).sort(() => Math.random() - 0.5);
-  
-  // Create buttons for each answer
-  shuffledAnswers.forEach(answer => {
-    const button = document.createElement('button');
-    button.textContent = answer;
-    button.onclick = () => handleAnswer(answer === correctAnswer);
-    buttonsContainer.appendChild(button);
-  });
-  
-  // Apply 3D carousel animation
-  if (currentGame.currentIndex > 0) {
-    questionWordElement.classList.add('exiting');
-    setTimeout(() => {
-      questionWordElement.textContent = wordToDisplay;
-      questionWordElement.classList.remove('exiting');
-      questionWordElement.classList.add('entering');
-      setTimeout(() => {
-        questionWordElement.classList.remove('entering');
-      }, 500); // Match the animation duration
-    }, 500); // Match the animation duration
-  } else {
-    // First word just appears
-    questionWordElement.textContent = wordToDisplay;
-    questionWordElement.classList.add('entering');
-    setTimeout(() => {
-      questionWordElement.classList.remove('entering');
-    }, 500);
-  }
-}
 
 function showBossVictoryScreen() {
   console.log("Boss victory screen function called - redirecting to new implementation");
@@ -8235,8 +8283,8 @@ function updateArcadePowerups() {
 }
 
 function updateArcadeCoinDisplay() {
-    // Use the single source of truth from CoinController
-    const currentCoins = CoinController.getCurrentCoins();
+    // Use the single source of truth from currentGame
+    const currentCoins = currentGame.coins || 0;
     
     // Update ALL coin displays to match this single source of truth
     document.querySelectorAll(".coin-count").forEach(element => {
@@ -8249,7 +8297,7 @@ function updateArcadeCoinDisplay() {
     
     // Update powerup availability
     updatePowerupAvailability();
-}
+  }
 
 
 function addCoinAnimationStyles() {
@@ -10505,7 +10553,6 @@ function closePersonalVictory() {
     }
   }
 
-
   function handleCustomLevelCompletion() {
     // Clear the timer
     clearTimer();
@@ -10530,42 +10577,34 @@ function closePersonalVictory() {
       isPerfect: isPerfect,
       mistakes: currentGame.mistakeRegisteredWords ? currentGame.mistakeRegisteredWords.size : (currentGame.progressLost || 0),
       timeElapsed: Date.now() - currentGame.levelStartTime, // Time taken to complete level
-      coinsEarned: 0, // Will be updated below
+      coinsEarned: 0, // Don't award additional coins on level completion
       correctAnswers: currentGame.correctAnswers || 0,
       incorrectAnswers: currentGame.words.length - currentGame.correctAnswers || 0,
       totalQuestions: currentGame.words.length || 0,
-      timeBonus: 0 // No more time bonus, just perfect level bonus
+      timeBonus: 0 // No more time bonus
     };
     
     // Debug the stats 
     debugLevelStats(completionStats, 'handleCustomLevelCompletion');
     
     if (isPerfect) {
-      // Award bonus coins for perfect completion
-      const coinsToAward = 5;
-      completionStats.coinsEarned = coinsToAward;
+      // Mark level as completed
+      customGameState.wordsCompleted += currentGame.words.length;
+      customGameState.completedLevels.add(customGameState.currentLevel);
       
-      CoinsManager.updateCoins(coinsToAward).then(() => {
-        pulseCoins(1);
-        
-        // Mark level as completed
-        customGameState.wordsCompleted += currentGame.words.length;
-        customGameState.completedLevels.add(customGameState.currentLevel);
-        
-        // Create particle effect
-        const rect = document.getElementById("question-screen").getBoundingClientRect();
-        createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2);
-        
-        // Check if this was the final level or move to next level
-        const nextLevel = customGameState.currentLevel + 1;
-        const nextLevelData = customGameState.getWordsForLevel(nextLevel);
-        
-        if (!nextLevelData || nextLevelData.words.length === 0 || currentGame.isFinalLevel) {
-          setTimeout(() => showCustomCompletionScreen(), 1500);
-        } else {
-          setTimeout(() => startCustomLevel(nextLevel), 1500);
-        }
-      });
+      // Create particle effect
+      const rect = document.getElementById("question-screen").getBoundingClientRect();
+      createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      
+      // Check if this was the final level or move to next level
+      const nextLevel = customGameState.currentLevel + 1;
+      const nextLevelData = customGameState.getWordsForLevel(nextLevel);
+      
+      if (!nextLevelData || nextLevelData.words.length === 0 || currentGame.isFinalLevel) {
+        setTimeout(() => showCustomCompletionScreen(), 1500);
+      } else {
+        setTimeout(() => startCustomLevel(nextLevel), 1500);
+      }
     } else {
       // If not perfect, retry the level
       setTimeout(() => startCustomLevel(customGameState.currentLevel), 1500);
@@ -10575,206 +10614,211 @@ function closePersonalVictory() {
     saveProgress();
   }
 
-  function showCustomCompletionScreen() {
-    const overlay = document.createElement("div");
-    overlay.className = "level-completion-overlay";
-    overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(5px);
-      z-index: 1000;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      opacity: 0;
-      transition: opacity 0.5s ease;
-    `;
+function showCustomCompletionScreen() {
+  // Clear the timer
+  clearTimer();
+  
+  // Calculate statistics
+  const coinsEarned = gameState.coins - customGameState.startCoins;
+  const totalQuestions = customGameState.wordsCompleted || 0;
+  const correctAnswers = currentGame.correctAnswers || 0;
+  const incorrectAnswers = Math.max(0, totalQuestions - correctAnswers);
+  const scorePercentage = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+  const averageTime = currentGame.answerTimes && currentGame.answerTimes.length > 0 
+    ? (currentGame.answerTimes.reduce((sum, time) => sum + time, 0) / currentGame.answerTimes.length).toFixed(1)
+    : "N/A";
+  
+  // Create overlay
+  const overlay = document.createElement("div");
+  overlay.className = "level-completion-overlay";
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  `;
+  
+  // Create completion modal content
+  const completionContent = document.createElement('div');
+  completionContent.className = 'level-completion-modal';
+  completionContent.style.cssText = `
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 3rem;
+    width: 500px;
+    max-width: 90%;
+    text-align: center;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transform: scale(0.9);
+    opacity: 0;
+    transition: transform 0.5s ease, opacity 0.5s ease;
+    margin: 0;
+  `;
+  
+  completionContent.innerHTML = `
+    <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
+      Practice Complete!
+    </h1>
+    <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${scorePercentage >= 70 ? 'var(--success)' : 'var(--error)'}">
+      ${scorePercentage >= 70 ? 'Great job!' : 'Try again to improve your score'}
+    </h2>
     
-    // Calculate statistics
-    const coinsEarned = gameState.coins - customGameState.startCoins;
-    const totalQuestions = customGameState.wordsCompleted || 0;
-    const correctAnswers = currentGame.correctAnswers || 0;
-    const incorrectAnswers = Math.max(0, totalQuestions - correctAnswers);
-    const scorePercentage = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
-    const averageTime = currentGame.answerTimes && currentGame.answerTimes.length > 0 
-      ? (currentGame.answerTimes.reduce((sum, time) => sum + time, 0) / currentGame.answerTimes.length).toFixed(1)
-      : "N/A";
-    
-    // Create completion modal content
-    const completionContent = document.createElement('div');
-    completionContent.className = 'level-completion-modal';
-    completionContent.style.cssText = `
-      background: var(--glass);
-      backdrop-filter: blur(10px);
-      border-radius: 20px;
-      padding: 2.5rem;
-      width: 500px;
-      max-width: 90%;
-      text-align: center;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      transform: scale(0.9);
-      opacity: 0;
-      transition: transform 0.5s ease, opacity 0.5s ease;
-    `;
-    
-    completionContent.innerHTML = `
-      <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
-        Practice Complete!
-      </h1>
-      <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${scorePercentage >= 70 ? 'var(--success)' : 'var(--error)'}">
-        ${scorePercentage >= 70 ? 'Great job!' : 'Try again to improve your score'}
-      </h2>
-      
-      <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
-        <div class="stat-item" style="text-align: center; flex: 1;">
-          <div style="font-size: 2rem; color: var(--accent);">${correctAnswers}/${totalQuestions}</div>
-          <div style="opacity: 0.7;">Correct</div>
-        </div>
-        <div class="stat-item" style="text-align: center; flex: 1;">
-          <div style="font-size: 2rem; color: #ff4136;">${incorrectAnswers}</div>
-          <div style="opacity: 0.7;">Mistakes</div>
-        </div>
-        <div class="stat-item coin-counter-container" style="text-align: center; flex: 1; position: relative;">
-          <div class="coins-display" style="display: inline-flex; align-items: center; justify-content: center;">
-            <span class="coin-value" style="font-size: 2rem; color: var(--gold); font-weight: bold;">${coinsEarned}</span>
-            <span class="coin-icon" style="margin-left: 5px; display: inline-block;">
-              <svg width="24" height="24" viewBox="0 0 24 24" style="transform: translateY(2px);">
-                <circle cx="12" cy="12" r="10" fill="var(--gold)" />
-                <text x="12" y="16" text-anchor="middle" fill="black" style="font-size: 14px; font-weight: bold;">¢</text>
-              </svg>
-            </span>
-          </div>
-          <div style="opacity: 0.7;">Coins</div>
-        </div>
+    <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
+      <div class="stat-item" style="text-align: center; flex: 1;">
+        <div style="font-size: 2rem; color: var(--accent);">${correctAnswers}/${totalQuestions}</div>
+        <div style="opacity: 0.7;">Correct</div>
       </div>
-      
-      <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
-        <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">Average Response Time</div>
-        <div style="font-size: 2.5rem; color: var(--accent); font-weight: bold;">
-          ${averageTime}s
+      <div class="stat-item" style="text-align: center; flex: 1;">
+        <div style="font-size: 2rem; color: #ff4136;">${incorrectAnswers}</div>
+        <div style="opacity: 0.7;">Mistakes</div>
+      </div>
+      <div class="stat-item coin-counter-container" style="text-align: center; flex: 1; position: relative;">
+        <!-- Using the in-game coin counter style -->
+        <div class="coins-display" style="display: inline-flex; align-items: center; justify-content: center;">
+          <span class="coin-value" style="font-size: 2rem; color: var(--gold); font-weight: bold;">${gameState.coins}</span>
+          <span class="coin-icon" style="margin-left: 5px; display: inline-block;">
+            <svg width="24" height="24" viewBox="0 0 24 24" style="transform: translateY(2px);">
+              <circle cx="12" cy="12" r="10" fill="var(--gold)" />
+              <text x="12" y="16" text-anchor="middle" fill="black" style="font-size: 14px; font-weight: bold;">¢</text>
+            </svg>
+          </span>
         </div>
+        <div style="opacity: 0.7;">Coins</div>
+        ${coinsEarned > 0 ? `<div class="time-bonus-badge" style="position: absolute; top: -10px; right: -10px; background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">+${coinsEarned}</div>` : ''}
       </div>
-      
-      <div class="button-container" style="display: flex; justify-content: center; margin-top: 2rem;">
-        <button onclick="exitCustomPractice()" class="start-button" style="padding: 1rem 2.5rem; font-size: 1.2rem;">Continue</button>
+    </div>
+    
+    <!-- Average response time section -->
+    <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
+      <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">Average Response Time</div>
+      <div style="font-size: 2.5rem; color: var(--accent); font-weight: bold;">
+        ${averageTime}s
       </div>
-    `;
+    </div>
     
-    // Append modal to the body
-    document.body.appendChild(overlay);
-    overlay.appendChild(completionContent);
+    <!-- List name display -->
+    <div class="custom-list-name" style="margin: 1.5rem 0; text-align: center;">
+      <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">List Name</div>
+      <div style="font-size: 1.5rem; color: var(--text); font-weight: bold;">
+        ${customGameState.currentList?.name || "Custom List"}
+      </div>
+    </div>
     
-    // Trigger animation
-    setTimeout(() => {
-      overlay.style.opacity = '1';
-      completionContent.style.transform = 'scale(1)';
-      completionContent.style.opacity = '1';
-    }, 100);
-  }
-
-
-async function handleCustomPracticeAnswer(e, t = false) {
-  if (e) {
-    // Increment index after correct answer
-    currentGame.currentIndex++;
-    
-    if (!t) {
-      let coinReward = 0;
-      const timeBonus = awardTimeBonus();
-      if (timeBonus > 0) {
-        coinReward += timeBonus;
-        pulseCoins(timeBonus);
+    <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
+      ${scorePercentage >= 70 ? 
+        `<button class="continue-button start-button" style="background: var(--accent);">Continue</button>` : 
+        `<button class="retry-button start-button" style="background: var(--accent);">Try Again</button>`
       }
-      
-      if (currentGame.firstAttempt) {
-        coinReward += 3;
-        pulseCoins(3);
-      } else {
-        coinReward += 1;
-        pulseCoins(1);
-      }
-      
-      try {
-        await CoinsManager.updateCoins(coinReward);
-        updatePerkButtons();
-      } catch (e) {
-        console.error("Error updating total coins:", e);
-      }
-      
-      currentGame.correctAnswers++;
-      
-      if (currentUser && currentUser.status === "premium") {
-        const wordIndex = currentGame.currentIndex - 1; // Since we already incremented
-        const word = currentGame.isHebrewToEnglish
-          ? currentGame.words[wordIndex]
-          : currentGame.translations[wordIndex];
-        await trackWordEncounter(word, "custom");
-      }
-    }
-  } else {
-    currentGame.firstAttempt = false;
-    currentGame.streakBonus = false;
-    currentGame.wrongStreak++;
-    
-    try {
-      await CoinsManager.updateCoins(-3);
-      updatePerkButtons();
-    } catch (e) {
-      console.error("Error updating coins:", e);
-    }
-    
-    if (currentGame.currentIndex > 0) {
-      currentGame.progressLost++;
-      currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
-    }
-    
-    if (currentGame.wrongStreak >= 3) {
-      showGameOverOverlay();
-      document.querySelector(".restart-button").onclick = () => {
-        document.querySelector(".failure-overlay").style.display = "none";
-        startCustomLevel(currentGame.customLevel);
-      }
-      return;
-    }
-  }
+      <button class="exit-button start-button" style="background: rgba(255,255,255,0.1); border: 1px solid var(--accent);">Return Home</button>
+    </div>
+  `;
   
-  // Get current question's correct answer (before loading next)
-  const currentCorrectAnswer = currentGame.isHebrewToEnglish
-    ? currentGame.words[Math.max(0, currentGame.currentIndex - 1)]
-    : currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
+  // Append to the body
+  document.body.appendChild(overlay);
+  overlay.appendChild(completionContent);
   
-  // Highlight correct/wrong answer only for current question
-  const allButtons = document.querySelectorAll(".buttons button");
-  allButtons.forEach((button) => {
-    if (button.textContent === currentCorrectAnswer) {
-      button.classList.add("correct");
-    } else if (!e && event && event.target && button.textContent === event.target.textContent) {
-      button.classList.add("wrong");
-    }
-  });
-  
-  updateProgressCircle();
-  saveProgress();
-  
-  // Wait for animation before loading next
-  setTimeout(() => {
-    // Clear all button classes before loading next question
-    allButtons.forEach(btn => {
-      btn.classList.remove("correct", "wrong");
+  // Add event listeners to buttons
+  const continueOrRetryButton = completionContent.querySelector('.continue-button, .retry-button');
+  if (continueOrRetryButton) {
+    continueOrRetryButton.addEventListener('click', () => {
+      // Fade out
+      overlay.style.opacity = '0';
+      completionContent.style.transform = 'scale(0.9)';
+      completionContent.style.opacity = '0';
+      
+      // Remove after animation
+      setTimeout(() => {
+        overlay.remove();
+        
+        // If passed, continue to next level (if available), otherwise retry current level
+        if (scorePercentage >= 70) {
+          const nextLevel = customGameState.currentLevel + 1;
+          const nextLevelData = customGameState.getWordsForLevel(nextLevel);
+          
+          if (nextLevelData && nextLevelData.words && nextLevelData.words.length > 0) {
+            startCustomLevel(nextLevel);
+          } else {
+            // No more levels, return to custom practice screen
+            exitCustomPractice();
+          }
+        } else {
+          // Retry current level
+          startCustomLevel(customGameState.currentLevel);
+        }
+      }, 500);
     });
+  }
+  
+  const exitButton = completionContent.querySelector('.exit-button');
+  if (exitButton) {
+    exitButton.addEventListener('click', () => {
+      // Fade out
+      overlay.style.opacity = '0';
+      completionContent.style.transform = 'scale(0.9)';
+      completionContent.style.opacity = '0';
+      
+      // Remove after animation
+      setTimeout(() => {
+        overlay.remove();
+        exitCustomPractice();
+      }, 500);
+    });
+  }
+  
+  // Trigger animation
+  setTimeout(() => {
+    overlay.style.opacity = '1';
+    completionContent.style.transform = 'scale(1)';
+    completionContent.style.opacity = '1';
     
-    if (currentGame.currentIndex < currentGame.words.length) {
-      loadNextQuestion();
-      updatePerkButtons();
-    } else {
-      handleCustomLevelCompletion();
+    // Animate coin counter if there are earned coins
+    if (coinsEarned > 0) {
+      const coinValue = completionContent.querySelector('.coin-value');
+      if (coinValue) {
+        // Animate coin count increasing
+        let startValue = gameState.coins - coinsEarned;
+        const endValue = gameState.coins;
+        const duration = 1500; // 1.5 seconds
+        const stepTime = 50; // Update every 50ms
+        const totalSteps = duration / stepTime;
+        const stepValue = (endValue - startValue) / totalSteps;
+        
+        // Add a glowing effect to the coin icon
+        const coinIcon = completionContent.querySelector('.coin-icon');
+        if (coinIcon) {
+          coinIcon.style.filter = 'drop-shadow(0 0 5px var(--gold))';
+          coinIcon.style.transition = 'filter 0.5s ease';
+        }
+        
+        const counterInterval = setInterval(() => {
+          startValue += stepValue;
+          if (startValue >= endValue) {
+            startValue = endValue;
+            clearInterval(counterInterval);
+            
+            // Remove glow effect after animation completes
+            setTimeout(() => {
+              if (coinIcon) {
+                coinIcon.style.filter = 'none';
+              }
+            }, 500);
+          }
+          coinValue.textContent = Math.round(startValue);
+        }, stepTime);
+      }
     }
-  }, 333);
+  }, 100);
 }
 
 
@@ -13189,65 +13233,7 @@ function startCustomListPractice(id) {
   }
 }
 
-/**
- * Start a level in custom practice mode
- * @param {number} level - The level number
- */
-function startCustomLevel(level) {
-  // Hide powerups in custom practice
-  const powerupsContainer = document.querySelector(".powerups-container");
-  if (powerupsContainer) {
-    powerupsContainer.style.display = "none";
-  }
-  
-  // Get words for this level
-  const levelData = customGameState.getWordsForLevel(level);
-  if (!levelData || !levelData.words.length) {
-    showNotification("Practice completed!", "success");
-    showScreen("custom-practice-screen");
-    return;
-  }
-  
-  // Set up the current level
-  customGameState.currentLevel = level;
-  
-  // Initialize game state
-  currentGame = {
-    words: levelData.words,
-    translations: levelData.translations,
-    currentIndex: 0,
-    correctAnswers: 0,
-    firstAttempt: true,
-    isHebrewToEnglish: levelData.isTest ? Math.random() < 0.5 : false,
-    mixed: levelData.isTest,
-    speedChallenge: false,
-    isCustomPractice: true,
-    startingCoins: gameState.coins,
-    startingPerks: { ...gameState.perks },
-    timeBonus: 0,
-    initialTimeRemaining: null,
-    streakBonus: true,
-    levelStartTime: Date.now(),
-    questionStartTime: 0,
-    wrongStreak: 0,
-    progressLost: 0,
-    customList: customGameState.currentList,
-    customLevel: level,
-    isFinalLevel: levelData.isFinal
-  };
-  
-  // Show level intro and start the level
-  showLevelIntro(level, () => {
-    showScreen("question-screen");
-    updateProgressCircle();
-    loadNextQuestion();
-    startTimer(10 * currentGame.words.length);
-  });
-}
 
-/**
- * Handle completion of a custom level
- */
 function handleCustomLevelCompletion() {
   // Clear the timer
   clearTimer();
@@ -13330,78 +13316,139 @@ function exitCustomPractice() {
   showScreen("custom-practice-screen");
 }
 
-async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
-    if (isCorrect) {
-      // Increment index after correct answer
+function handleCustomPracticeAnswer(correct, skipAnimation = false) {
+    // Record the answer time for statistics
+    if (currentGame.questionStartTime) {
+      const answerTime = (Date.now() - currentGame.questionStartTime) / 1000;
+      if (!currentGame.answerTimes) {
+        currentGame.answerTimes = [];
+      }
+      currentGame.answerTimes.push(answerTime);
+    }
+    
+    // Reset the question start time for the next question
+    currentGame.questionStartTime = 0;
+    
+    // Track words that have already been awarded coins
+    if (!currentGame.coinAwardedWords) {
+      currentGame.coinAwardedWords = new Set();
+    }
+    
+    // Get current word key for tracking
+    const currentWordKey = currentGame.currentIndex.toString();
+    
+    if (correct) {
+      // Record the correct answer and increment index
       currentGame.currentIndex++;
       
-      if (!isSkip) {
-        // Always award exactly 10 coins for each correct answer
+      if (!skipAnimation && !currentGame.coinAwardedWords.has(currentWordKey)) {
+        // Exactly 10 coins for correct answer - mark this word to prevent duplicate awards
+        currentGame.coinAwardedWords.add(currentWordKey);
         const coinReward = 10;
         
-        try {
-          await CoinsManager.updateCoins(coinReward);
+        // IMPORTANT: Use a single method to update coins to prevent duplicate awards
+        if (typeof CoinsManager !== 'undefined' && CoinsManager.updateCoins) {
+          CoinsManager.updateCoins(coinReward).then(() => {
+            updatePerkButtons();
+          }).catch(error => {
+            console.error("Error updating coins:", error);
+          });
+        } else {
+          // Direct update as fallback
+          const oldCoins = gameState.coins || 0;
+          gameState.coins = oldCoins + coinReward;
+          updateAllCoinDisplays();
           updatePerkButtons();
-          pulseCoins(1);
-        } catch (e) {
-          console.error("Error updating total coins:", e);
         }
         
+        // Update correct answers count
         currentGame.correctAnswers++;
         
-        // Track word for any registered user, not just premium
-        if (currentUser) {
+        // Track word encounter for premium users
+        if (currentUser && currentUser.status === "premium") {
           const wordIndex = currentGame.currentIndex - 1; // Since we already incremented
-          const word = currentGame.isHebrewToEnglish ? 
-                      currentGame.words[wordIndex] : 
-                      currentGame.translations[wordIndex];
+          const word = currentGame.isHebrewToEnglish
+            ? currentGame.words[wordIndex]
+            : currentGame.translations[wordIndex];
           
-          await trackWordEncounter(word, "custom");
+          // Use trackWordEncounterWithoutCoins to avoid additional coin awards
+          if (typeof trackWordEncounterWithoutCoins === 'function') {
+            trackWordEncounterWithoutCoins(word, "custom");
+          } else {
+            trackWordEncounter(word, "custom");
+          }
         }
       }
     } else {
+      // Handle incorrect answer
       currentGame.firstAttempt = false;
       currentGame.streakBonus = false;
-      currentGame.wrongStreak++;
       
-      try {
-        await CoinsManager.updateCoins(-3);
-        updatePerkButtons();
-      } catch (e) {
-        console.error("Error updating coins:", e);
+      // Only register a mistake once per word
+      if (!currentGame.mistakeRegisteredWords) {
+        currentGame.mistakeRegisteredWords = new Set();
       }
       
+      if (!currentGame.mistakeRegisteredWords.has(currentWordKey)) {
+        currentGame.mistakeRegisteredWords.add(currentWordKey);
+        currentGame.wrongStreak++;
+        
+        // Penalty for wrong answer
+        if (typeof CoinsManager !== 'undefined' && CoinsManager.updateCoins) {
+          CoinsManager.updateCoins(-3).then(() => {
+            updatePerkButtons();
+          }).catch(error => {
+            console.error("Error updating coins:", error);
+          });
+        } else {
+          // Fallback to direct update
+          gameState.coins = Math.max(0, gameState.coins - 3);
+          updateAllCoinDisplays();
+          updatePerkButtons();
+        }
+      }
+      
+      // Move back one question on incorrect answer (but not below 0)
       if (currentGame.currentIndex > 0) {
         currentGame.progressLost++;
         currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
       }
       
+      // Game over after 3 wrong answers in a row
       if (currentGame.wrongStreak >= 3) {
         showGameOverOverlay();
-        document.querySelector(".restart-button").onclick = () => {
-          document.querySelector(".failure-overlay").style.display = "none";
-          startCustomLevel(currentGame.customLevel);
+        const restartButton = document.querySelector(".restart-button");
+        if (restartButton) {
+          restartButton.onclick = () => {
+            const failureOverlay = document.querySelector(".failure-overlay");
+            if (failureOverlay) {
+              failureOverlay.style.display = "none";
+            }
+            startCustomLevel(customGameState.currentLevel);
+          };
         }
         return;
       }
     }
     
-    // Get current question's correct answer (before loading next)
-    const currentCorrectAnswer = currentGame.isHebrewToEnglish ? 
-                               currentGame.words[Math.max(0, currentGame.currentIndex - 1)] : 
-                               currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
+    updateProgressCircle();
     
-    // Highlight correct/wrong answer only for current question
+    // Get current question's correct answer (before loading next)
+    const currentCorrectAnswer = currentGame.isHebrewToEnglish
+      ? currentGame.words[Math.max(0, currentGame.currentIndex - 1)]
+      : currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
+    
+    // Highlight correct/wrong answer
     const allButtons = document.querySelectorAll(".buttons button");
     allButtons.forEach((button) => {
       if (button.textContent === currentCorrectAnswer) {
         button.classList.add("correct");
-      } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
+      } else if (!correct && event && event.target && button === event.target) {
         button.classList.add("wrong");
       }
     });
     
-    updateProgressCircle();
+    // Save progress
     saveProgress();
     
     // Wait for animation before loading next
@@ -13411,20 +13458,16 @@ async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
         btn.classList.remove("correct", "wrong");
       });
       
+      // Either load next question or complete the level
       if (currentGame.currentIndex < currentGame.words.length) {
         loadNextQuestion();
         updatePerkButtons();
       } else {
         handleCustomLevelCompletion();
       }
-    }, 333);
+    }, 500);
   }
 
-/**
- * Update schema for a custom list
- * @param {Object} list - The list to update
- * @returns {Object} - The updated list
- */
 function updateCustomListSchema(list) {
   if (!list) return list;
   
@@ -13836,63 +13879,130 @@ function toggleListCollapse(id) {
   }
 }
 
-function startCustomLevel(level) {
-  // Hide powerups in custom practice
-  const powerupsContainer = document.querySelector(".powerups-container");
-  if (powerupsContainer) {
-    powerupsContainer.style.display = "none";
-  }
-  
-  // Reset admin skip button if it exists
-  if (typeof addAdminSkipButton === "function") {
-    addAdminSkipButton();
-  }
-  
-  // Get words for this level
-  const levelData = customGameState.getWordsForLevel(level);
-  if (!levelData || !levelData.words.length) {
-    showNotification("Practice completed!", "success");
-    showScreen("custom-practice-screen");
-    return;
-  }
-  
-  // Set up the current level
-  customGameState.currentLevel = level;
-  
-  // Initialize game state
-  currentGame = {
-    words: levelData.words,
-    translations: levelData.translations,
-    currentIndex: 0,
-    correctAnswers: 0,
-    firstAttempt: true,
-    isHebrewToEnglish: levelData.isTest ? Math.random() < 0.5 : false,
-    mixed: levelData.isTest,
-    speedChallenge: false,
-    isCustomPractice: true,
-    customGameState: true,
-    startingCoins: gameState.coins,
-    startingPerks: { ...gameState.perks },
-    timeBonus: 0,
-    initialTimeRemaining: null,
-    streakBonus: true,
-    levelStartTime: Date.now(),
-    questionStartTime: 0,
-    wrongStreak: 0,
-    progressLost: 0,
-    customList: customGameState.currentList,
-    customLevel: level,
-    isFinalLevel: levelData.isFinal
-  };
-  
-  // Show level intro and start the level
-  showLevelIntro(level, () => {
-    showScreen("question-screen");
-    updateProgressCircle();
-    loadNextQuestion();
-    // Set timer to 5 seconds per question
-    startTimer(5 * currentGame.words.length);
-  });
+function startCustomLevel(level, practiceState = null) {
+    console.log(`Starting custom level ${level} ${practiceState ? 'with existing state' : 'fresh'}`);
+    
+    // Hide powerups in custom practice
+    const powerupsContainer = document.querySelector(".powerups-container");
+    if (powerupsContainer) {
+      powerupsContainer.style.display = "none";
+    }
+    
+    // Show perks container but make buttons invisible
+    const perksContainer = document.querySelector(".perks-container");
+    if (perksContainer) {
+      perksContainer.style.display = "flex";
+      document.querySelectorAll('.perk-button').forEach(btn => {
+        btn.style.display = 'flex';
+      });
+    }
+    
+    // Get words for this level, either from practiceState or from custom game state
+    let levelData;
+    if (practiceState) {
+      // If we're continuing from a saved state
+      levelData = practiceState;
+    } else {
+      // Get fresh words for this level
+      levelData = customGameState.getWordsForLevel(level);
+      if (!levelData || !levelData.words || !levelData.words.length) {
+        console.warn("No words found for custom level:", level);
+        showNotification("No practice words found!", "error");
+        showScreen("custom-practice-screen");
+        return;
+      }
+    }
+    
+    // Set up the current level in custom game state
+    customGameState.currentLevel = level;
+    
+    // Ensure we have a valid level data structure
+    if (!levelData.words || !levelData.translations) {
+      console.error("Invalid level data structure:", levelData);
+      showNotification("Invalid practice data", "error");
+      showScreen("custom-practice-screen");
+      return;
+    }
+    
+    // Initialize game state
+    currentGame = {
+      words: levelData.words,
+      translations: levelData.translations,
+      currentIndex: practiceState ? practiceState.currentIndex || 0 : 0,
+      correctAnswers: practiceState ? practiceState.correctAnswers || 0 : 0,
+      firstAttempt: true,
+      isHebrewToEnglish: levelData.isTest ? Math.random() < 0.5 : false,
+      mixed: levelData.isTest || false,
+      speedChallenge: false,
+      isCustomPractice: true,
+      practiceState: practiceState,
+      startingCoins: gameState.coins,
+      startingPerks: { ...gameState.perks },
+      timeBonus: 0,
+      initialTimeRemaining: null,
+      streakBonus: true,
+      levelStartTime: Date.now(),
+      questionStartTime: 0,
+      wrongStreak: 0,
+      progressLost: 0,
+      customList: customGameState.currentList,
+      customLevel: level,
+      isFinalLevel: levelData.isFinalLevel || false,
+      answerTimes: []  // Track answer times for stats
+    };
+    
+    console.log(`Custom level initialized with ${currentGame.words.length} words`);
+    
+    // Show level intro and start the level
+    const startCustomGame = () => {
+      showScreen("question-screen");
+      
+      // Reset any timer warning status
+      const timerValue = document.querySelector('.timer-value');
+      if (timerValue) {
+        timerValue.classList.remove('warning');
+      }
+      
+      // *** REDUCED TIME PER WORD FROM 5 TO 3 SECONDS ***
+      // Ensure minimum of 10 seconds no matter how few words
+      const secondsPerWord = 3; // This is where we reduce the time
+      const wordCount = currentGame.words.length;
+      const totalSeconds = Math.max(10, secondsPerWord * wordCount);
+      
+      console.log(`Setting custom level timer: ${totalSeconds} seconds (${secondsPerWord} sec per word, ${wordCount} words)`);
+      
+      // Store initial value for reference
+      currentGame.initialTimeRemaining = totalSeconds;
+      currentGame.totalTime = totalSeconds;
+      
+      // Update UI and load first question
+      updateProgressCircle();
+      loadNextQuestion();
+      
+      // Initialize the timer with the word count
+      // Important: Pass totalSeconds, not wordCount
+      startTimer(totalSeconds);
+      
+      // Reset the question screen if needed
+      const questionScreen = document.getElementById("question-screen");
+      if (questionScreen) {
+        questionScreen.style.background = "";
+        
+        // Remove any boss-related styles
+        questionScreen.querySelectorAll('.boss-orb, .boss-health-bar').forEach(el => {
+          el.remove();
+        });
+      }
+    };
+    
+    // Either show intro or start directly based on practice state
+    if (practiceState) {
+      // If resuming, start directly
+      startCustomGame();
+    } else {
+      // Show intro first for fresh starts
+      showLevelIntro(level, startCustomGame);
+    }
 }
 
 /**
@@ -14125,475 +14235,7 @@ async function ensureUserInitialization(userId) {
   }
 }
 
-function initializeWaitingGame() {
-  // Add shuffle function if not already defined
-  if (typeof shuffleArray !== 'function') {
-    window.shuffleArray = function(array) {
-      const shuffled = [...array];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      return shuffled;
-    };
-  }
-  
-  // Get DOM elements
-  const gameContainer = document.getElementById('waiting-game-container');
-  const playerElement = document.getElementById('waiting-game-player');
-  const scoreElement = document.getElementById('waiting-game-score');
-  const livesElement = document.getElementById('waiting-game-lives');
-  
-  if (!gameContainer) {
-    console.error('Game container not found!');
-    return;
-  }
-  
-  if (!playerElement) {
-    console.error('Player element not found!');
-    return;
-  }
-  
-  if (!scoreElement) {
-    console.error('Score element not found!');
-    return;
-  }
-  
-  // Create lives display if it doesn't exist
-  if (!livesElement) {
-    const livesDiv = document.createElement('div');
-    livesDiv.id = 'waiting-game-lives';
-    livesDiv.style.cssText = 'position: absolute; top: 40px; right: 10px; color: var(--gold); font-size: 1.2rem; z-index: 10;';
-    livesDiv.textContent = '❤️❤️❤️';
-    gameContainer.appendChild(livesDiv);
-  }
-  
-  // Show the game container
-  gameContainer.style.display = 'block';
-  
-  // Get appropriate vocabulary words from stage 1
-  let wordPairs = [];
-  try {
-    for (const key in vocabularySets) {
-      if (key.startsWith('1_')) {
-        const words = vocabularySets[key].words;
-        const translations = vocabularySets[key].translations;
-        for (let i = 0; i < words.length && i < translations.length; i++) {
-          wordPairs.push({
-            hebrew: words[i],
-            english: translations[i]
-          });
-        }
-      }
-    }
-  } catch (e) {
-    console.error('Error loading vocabulary for waiting game:', e);
-    // Fallback words if vocabulary isn't available
-    wordPairs = [
-      { hebrew: 'כלב', english: 'dog' },
-      { hebrew: 'חתול', english: 'cat' },
-      { hebrew: 'בית', english: 'house' },
-      { hebrew: 'אוכל', english: 'food' },
-      { hebrew: 'מים', english: 'water' },
-      { hebrew: 'ספר', english: 'book' },
-      { hebrew: 'יד', english: 'hand' },
-      { hebrew: 'עיר', english: 'city' },
-      { hebrew: 'ילד', english: 'child' },
-      { hebrew: 'אישה', english: 'woman' }
-    ];
-  }
-  
-  // Shuffle the word pairs
-  wordPairs = window.shuffleArray([...wordPairs]);
-  
-  // Game state
-  let gameActive = true;
-  let score = 0;
-  let speed = 1;
-  let fallingWords = [];
-  let currentHebrewWord = '';
-  let playerPosition = gameContainer.offsetWidth / 2;
-  let gameLoopId = null;
-  let spawnIntervalId = null;
-  let lives = 3;
-  let missedMatches = 0;
-  const maxMissed = 3;
-  
-  // Initialize player with random Hebrew word
-  function setRandomHebrewWord() {
-    const randomPair = wordPairs[Math.floor(Math.random() * wordPairs.length)];
-    currentHebrewWord = randomPair.hebrew;
-    playerElement.textContent = currentHebrewWord;
-  }
-  
-  function createFallingWord() {
-    if (!gameActive) return;
-    
-    // Find English words that match our current Hebrew word and some that don't
-    const matchingWord = wordPairs.find(pair => pair.hebrew === currentHebrewWord)?.english;
-    const nonMatchingWords = wordPairs
-      .filter(pair => pair.hebrew !== currentHebrewWord)
-      .map(pair => pair.english);
-    
-    // Decide whether to spawn a matching word (higher chance) or random word
-    const isMatching = Math.random() < 0.4; // 40% chance for matching word
-    
-    // Create the falling word element
-    const wordElement = document.createElement('div');
-    wordElement.className = 'falling-word';
-    
-    // Choose the word text
-    if (isMatching && matchingWord) {
-      wordElement.textContent = matchingWord;
-      wordElement.dataset.matching = 'true';
-    } else {
-      const randomNonMatching = nonMatchingWords[Math.floor(Math.random() * nonMatchingWords.length)];
-      wordElement.textContent = randomNonMatching || 'word';
-      wordElement.dataset.matching = 'false';
-    }
-    
-    // Style the falling word
-    wordElement.style.cssText = `
-      position: absolute;
-      top: -30px;
-      left: ${Math.random() * (gameContainer.offsetWidth - 80) + 40}px;
-      padding: 5px 10px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 15px;
-      color: white;
-      transition: top 0.1s linear;
-    `;
-    
-    gameContainer.appendChild(wordElement);
-    
-    // Add to tracking array
-    fallingWords.push({
-      element: wordElement,
-      y: -30,
-      x: parseFloat(wordElement.style.left),
-      width: 0, // Will be set in the game loop after element is rendered
-      isMatching: wordElement.dataset.matching === 'true'
-    });
-  }
-  
-  function gameLoop() {
-    if (!gameActive) return;
-    
-    const containerBottom = gameContainer.offsetHeight;
-    const playerTop = containerBottom - 60;
-    
-    // Update position and check collision for each falling word
-    for (let i = fallingWords.length - 1; i >= 0; i--) {
-      const word = fallingWords[i];
-      
-      // Set width if not set yet
-      if (word.width === 0) {
-        word.width = word.element.offsetWidth;
-      }
-      
-      // Move the word down
-      word.y += speed;
-      word.element.style.top = `${word.y}px`;
-      
-      // Check if word has reached the bottom
-      if (word.y > containerBottom) {
-        // Check if we missed a matching word
-        if (word.isMatching) {
-          missedMatches++;
-          
-          // Show a missed indicator
-          const missIndicator = document.createElement('div');
-          missIndicator.textContent = `Missed match! (${missedMatches}/${maxMissed})`;
-          missIndicator.style.cssText = `
-            position: absolute;
-            left: ${word.x}px;
-            bottom: 10px;
-            color: var(--error);
-            font-weight: bold;
-            animation: float-up 1s forwards;
-            z-index: 5;
-          `;
-          gameContainer.appendChild(missIndicator);
-          setTimeout(() => {
-            gameContainer.removeChild(missIndicator);
-          }, 1000);
-          
-          // Update lives display
-          const livesDisplay = document.getElementById('waiting-game-lives');
-          if (livesDisplay) {
-            livesDisplay.textContent = '❤️'.repeat(Math.max(0, 3 - missedMatches));
-          }
-          
-          // Check for game over
-          if (missedMatches >= maxMissed) {
-            gameOver();
-          }
-        }
-        
-        // Remove the word
-        gameContainer.removeChild(word.element);
-        fallingWords.splice(i, 1);
-        continue;
-      }
-      
-      // Check for collision with player
-      const playerRect = playerElement.getBoundingClientRect();
-      const wordRect = word.element.getBoundingClientRect();
-      
-      if (word.y + word.element.offsetHeight >= playerTop &&
-          word.x + word.width >= playerPosition - playerElement.offsetWidth/2 &&
-          word.x <= playerPosition + playerElement.offsetWidth/2) {
-        
-        // Check if this is the correct word to match
-        if (word.isMatching) {
-          // Matching word - add points
-          score += 10;
-          scoreElement.textContent = `Score: ${score}`;
-          
-          // Create a +10 animation
-          const pointAnimation = document.createElement('div');
-          pointAnimation.textContent = '+10';
-          pointAnimation.style.cssText = `
-            position: absolute;
-            left: ${word.x}px;
-            top: ${word.y}px;
-            color: var(--gold);
-            font-weight: bold;
-            animation: float-up 1s forwards;
-            z-index: 5;
-          `;
-          gameContainer.appendChild(pointAnimation);
-          setTimeout(() => {
-            gameContainer.removeChild(pointAnimation);
-          }, 1000);
-          
-          // Increase difficulty slightly
-          speed += 0.05;
-          
-          // Change the Hebrew word
-          setRandomHebrewWord();
-        } else {
-          // Wrong word - subtract points and lose a life
-          score = Math.max(0, score - 5);
-          scoreElement.textContent = `Score: ${score}`;
-          
-          lives--;
-          
-          // Update lives display
-          const livesDisplay = document.getElementById('waiting-game-lives');
-          if (livesDisplay) {
-            livesDisplay.textContent = '❤️'.repeat(lives);
-          }
-          
-          // Create a -5 animation
-          const pointAnimation = document.createElement('div');
-          pointAnimation.textContent = '-5';
-          pointAnimation.style.cssText = `
-            position: absolute;
-            left: ${word.x}px;
-            top: ${word.y}px;
-            color: var(--error);
-            font-weight: bold;
-            animation: float-up 1s forwards;
-            z-index: 5;
-          `;
-          gameContainer.appendChild(pointAnimation);
-          setTimeout(() => {
-            gameContainer.removeChild(pointAnimation);
-          }, 1000);
-          
-          // Check for game over
-          if (lives <= 0) {
-            gameOver();
-          }
-        }
-        
-        // Remove the word
-        gameContainer.removeChild(word.element);
-        fallingWords.splice(i, 1);
-      }
-    }
-    
-    // Request next frame
-    gameLoopId = requestAnimationFrame(gameLoop);
-  }
-  
-  function gameOver() {
-    gameActive = false;
-    clearInterval(spawnIntervalId);
-    
-    // Create game over message
-    const gameOverMsg = document.createElement('div');
-    gameOverMsg.style.cssText = `
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.8);
-      padding: 1rem 2rem;
-      border-radius: 10px;
-      text-align: center;
-      z-index: 20;
-    `;
-    gameOverMsg.innerHTML = `
-      <h3 style="color: var(--error); margin-bottom: 0.5rem;">Game Over!</h3>
-      <p style="margin-bottom: 1rem;">Score: ${score}</p>
-      <button id="game-restart-btn" class="start-button" style="font-size: 0.9rem; padding: 0.5rem 1rem;">Play Again</button>
-    `;
-    
-    gameContainer.appendChild(gameOverMsg);
-    
-    // Add restart button handler
-    document.getElementById('game-restart-btn').addEventListener('click', () => {
-      gameContainer.removeChild(gameOverMsg);
-      startGame();
-    });
-  }
-  
-  // Add event handlers for player movement
-  let isDragging = false;
-  
-  function handleStart(e) {
-    isDragging = true;
-    const pageX = e.type.includes('touch') ? e.touches[0].pageX : e.pageX;
-    const containerRect = gameContainer.getBoundingClientRect();
-    playerPosition = pageX - containerRect.left;
-    updatePlayerPosition();
-    
-    if (e.type.includes('touch')) {
-      e.preventDefault();
-    }
-  }
-  
-  function handleMove(e) {
-    if (!isDragging) return;
-    
-    const pageX = e.type.includes('touch') ? e.touches[0].pageX : e.pageX;
-    const containerRect = gameContainer.getBoundingClientRect();
-    playerPosition = pageX - containerRect.left;
-    updatePlayerPosition();
-    
-    if (e.type.includes('touch')) {
-      e.preventDefault();
-    }
-  }
-  
-  function handleEnd() {
-    isDragging = false;
-  }
-  
-  function updatePlayerPosition() {
-    // Ensure player stays within boundaries
-    playerPosition = Math.max(playerElement.offsetWidth/2, 
-                     Math.min(gameContainer.offsetWidth - playerElement.offsetWidth/2, 
-                     playerPosition));
-    
-    playerElement.style.left = `${playerPosition}px`;
-  }
-  
-  // Add CSS animation
-  const styleId = 'waiting-game-styles';
-  if (!document.getElementById(styleId)) {
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      @keyframes float-up {
-        0% { transform: translateY(0); opacity: 1; }
-        100% { transform: translateY(-30px); opacity: 0; }
-      }
-      
-      .falling-word {
-        animation: gentle-wobble 2s infinite alternate;
-      }
-      
-      @keyframes gentle-wobble {
-        0% { transform: translateX(0px); }
-        100% { transform: translateX(5px); }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-  
-  // Add event listeners for player movement
-  playerElement.addEventListener('mousedown', handleStart);
-  document.addEventListener('mousemove', handleMove);
-  document.addEventListener('mouseup', handleEnd);
-  
-  // Touch events for mobile
-  playerElement.addEventListener('touchstart', handleStart, { passive: false });
-  document.addEventListener('touchmove', handleMove, { passive: false });
-  document.addEventListener('touchend', handleEnd);
-  
-  function startGame() {
-    // Reset game
-    gameActive = true;
-    score = 0;
-    speed = 1;
-    lives = 3;
-    missedMatches = 0;
-    
-    // Update lives display
-    const livesDisplay = document.getElementById('waiting-game-lives');
-    if (livesDisplay) {
-      livesDisplay.textContent = '❤️❤️❤️';
-    }
-    
-    // Clear existing words
-    fallingWords.forEach(word => {
-      if (word.element.parentNode) {
-        gameContainer.removeChild(word.element);
-      }
-    });
-    fallingWords = [];
-    
-    // Reset score
-    scoreElement.textContent = `Score: ${score}`;
-    
-    // Set initial Hebrew word
-    setRandomHebrewWord();
-    
-    // Start game loop
-    gameLoopId = requestAnimationFrame(gameLoop);
-    
-    // Start spawning words
-    spawnIntervalId = setInterval(createFallingWord, 2000);
-  }
-  
-  // Watch for game cancelation when arcade starts
-  function checkArcadeStatus() {
-    if (currentArcadeSession && currentArcadeSession.state === 'active') {
-      // Clean up game
-      clearInterval(spawnIntervalId);
-      cancelAnimationFrame(gameLoopId);
-      gameContainer.style.display = 'none';
-      
-      // Remove event listeners
-      playerElement.removeEventListener('mousedown', handleStart);
-      document.removeEventListener('mousemove', handleMove);
-      document.removeEventListener('mouseup', handleEnd);
-      playerElement.removeEventListener('touchstart', handleStart);
-      document.removeEventListener('touchmove', handleMove);
-      document.removeEventListener('touchend', handleEnd);
-      
-      // Clear interval for this check
-      clearInterval(arcadeCheckId);
-    }
-  }
-  
-  const arcadeCheckId = setInterval(checkArcadeStatus, 1000);
-  
-  // Start the game
-  startGame();
-  
-  return {
-    stop: function() {
-      gameActive = false;
-      clearInterval(spawnIntervalId);
-      cancelAnimationFrame(gameLoopId);
-      clearInterval(arcadeCheckId);
-    }
-  };
-}
+
 
 function updatePlayerRankDisplay() {
   if (!currentArcadeSession || !currentArcadeSession.playerName) return;
@@ -15032,601 +14674,4 @@ function saveInlineEdit(listId) {
   });
 }
 
-// Add input event handlers to clear error styling when user starts typing
 
-
-
-// Add this to help diagnose issues
-window.debugUpgrade = function() {
-  checkPopupStatus();
-  console.log('Upgrade screen visible:', document.getElementById('upgrade-screen').classList.contains('visible'));
-  console.log('Upgrade form:', document.getElementById('upgradeForm'));
-  console.log('Current user:', currentUser);
-};
-
-
-
-
-
-
-
-// Add a debug function to check popup status
-window.debugUpgrade = function() {
-  const popups = document.querySelectorAll('.confirmation-popup');
-  
-  if (popups.length === 0) {
-    console.log("No confirmation popups found in the DOM");
-  } else {
-    popups.forEach((popup, index) => {
-      console.log(`Popup ${index + 1}:`, {
-        visibility: window.getComputedStyle(popup).visibility,
-        opacity: window.getComputedStyle(popup).opacity,
-        display: window.getComputedStyle(popup).display,
-        zIndex: window.getComputedStyle(popup).zIndex,
-        transform: window.getComputedStyle(popup).transform,
-        position: window.getComputedStyle(popup).position
-      });
-    });
-  }
-  
-  console.log("Upgrade screen visible:", document.getElementById('upgrade-screen').classList.contains('visible'));
-  console.log("Upgrade form:", document.getElementById('upgradeForm'));
-  
-}
-
-document.addEventListener('fullscreenchange', function() {
-    const fullscreenIcon = document.querySelector('#nav-fullscreen-btn i');
-    if (fullscreenIcon) {
-        if (document.fullscreenElement) {
-            fullscreenIcon.className = 'fas fa-compress';
-        } else {
-            fullscreenIcon.className = 'fas fa-expand';
-        }
-    }
-});
-
-const CoinController = {
-    // Lock to prevent race conditions
-    updateLock: false,
-    pendingUpdates: [],
-    activeAnimations: new Map(), // Track ongoing animations by element
-    lastUpdateTimestamp: 0,
-    
-    // Single source of truth for updating coins
-    // Inside CoinController object, replace the updateLocalCoins method
-    updateLocalCoins: function(newCoins, animate = true) {
-        // Skip if boss victory animation is in progress
-        if (window.bossVictoryAnimationInProgress) {
-            console.log('Boss victory animation in progress, skipping coin update');
-            this.pendingUpdates.push({newCoins, animate});
-            return false;
-        }
-        
-        if (this.updateLock) {
-            // Queue the update to be processed later
-            this.pendingUpdates.push({newCoins, animate});
-            return false;
-        }
-        
-        try {
-            this.updateLock = true;
-            this.lastUpdateTimestamp = Date.now();
-            
-            // Store current value for animation
-            const oldCoins = currentGame?.coins || 0;
-            
-            // Update to new value
-            if (currentGame) {
-                currentGame.coins = newCoins;
-            }
-            
-            // Update all coin displays
-            document.querySelectorAll('.coin-count').forEach(el => {
-                if (animate) {
-                    this.animateCoinDisplay(el, oldCoins, newCoins);
-                } else {
-                    el.textContent = newCoins;
-                }
-            });
-            
-            // Update participant data for arcade mode
-            if (currentArcadeSession?.playerName) {
-                const index = currentArcadeSession.participants.findIndex(
-                    p => p.username === currentArcadeSession.playerName
-                );
-                
-                if (index !== -1) {
-                    currentArcadeSession.participants[index].coins = newCoins;
-                }
-            }
-            
-            // ALWAYS broadcast updates in arcade mode
-            if (window.arcadeChannel && 
-                currentArcadeSession?.playerName && 
-                currentArcadeSession.state === 'active' &&
-                window.arcadeChannel.subscription?.state === "SUBSCRIBED") {
-                
-                window.arcadeChannel.send({
-                    type: 'broadcast',
-                    event: 'progress_update',
-                    payload: {
-                        username: currentArcadeSession.playerName,
-                        wordsCompleted: currentGame?.wordsCompleted || 0,
-                        coins: newCoins,
-                        timestamp: Date.now(),
-                        source: 'coinController'
-                    }
-                });
-            }
-            
-            // Always update powerups when coins change
-            if (typeof updateArcadePowerups === 'function') {
-                updateArcadePowerups();
-            }
-            
-            return true;
-        } finally {
-            // Always unlock after a delay, even if there's an error
-            setTimeout(() => {
-                this.updateLock = false;
-                
-                // Process any pending updates
-                if (this.pendingUpdates.length > 0) {
-                    const nextUpdate = this.pendingUpdates.shift();
-                    this.updateLocalCoins(nextUpdate.newCoins, nextUpdate.animate);
-                }
-            }, 300);
-        }
-    },
-    
-animateCoinDisplay: function(element, startValue, endValue) {
-    if (!element) return;
-    
-    // Skip animation for protected elements during boss victory
-    if (element.dataset.protectedValue === 'true') {
-        console.log('Skipping animation for protected element during boss victory');
-        return;
-    }
-    
-    // Cancel any ongoing animation for this element
-    if (this.activeAnimations.has(element)) {
-        cancelAnimationFrame(this.activeAnimations.get(element));
-    }
-    
-    startValue = parseFloat(startValue) || 0;
-    endValue = parseFloat(endValue) || 0;
-    
-    // Skip animation if values are the same
-    if (startValue === endValue) {
-        element.textContent = endValue;
-        return;
-    }},
-    
-    // Add coins safely
-    addCoins: function(amount) {
-        if (!currentGame) return false;
-        
-        const newTotal = (currentGame.coins || 0) + amount;
-        return this.updateLocalCoins(newTotal);
-    },
-    
-    // Safe way to get current coins
-    getCurrentCoins: function() {
-        return currentGame?.coins || 0;
-    }
-};
-
-function cleanupArcadeMode() {
-    // Clear any arcade intervals
-    if (window.arcadeStatsInterval) {
-      clearInterval(window.arcadeStatsInterval);
-      window.arcadeStatsInterval = null;
-    }
-    
-    // Clear any timeout
-    if (window.arcadeTimeouts) {
-      window.arcadeTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
-      window.arcadeTimeouts = [];
-    }
-  }
-
-function updateAllCoinDisplays() {
-    // Skip if boss victory animation is in progress
-    if (window.bossVictoryAnimationInProgress) {
-        console.log('Boss victory animation in progress, skipping updateAllCoinDisplays');
-        return;
-    }
-    
-    const displays = document.querySelectorAll('.coin-count');
-    displays.forEach(display => {
-        // Skip protected elements
-        if (display.dataset.protectedValue === 'true') {
-            console.log('Skipping protected element in updateAllCoinDisplays');
-            return;
-        }
-        
-        const currentValue = parseInt(display.textContent) || 0;
-        let targetValue;
-
-        // Determine the target value based on the context
-        if (window.location.pathname.includes('arcade')) {
-            targetValue = currentGame.coins || 0;
-        } else {
-            targetValue = gameState.coins || 0;
-        }
-
-        // Ensure we're using actual numeric values
-        const startNum = Number(currentValue);
-        const endNum = Number(targetValue);
-
-        animateNumber(display, startNum, endNum);
-    });
-}
-function pulseCoins(times = 1) {
-    // Update both the header coin icon and the in-game coin icon
-    const coinIcons = document.querySelectorAll('.coin-icon');
-    
-    coinIcons.forEach(coinIcon => {
-        let pulseCount = 0;
-        const doPulse = () => {
-            coinIcon.classList.add('coin-pulse');
-            setTimeout(() => {
-                coinIcon.classList.remove('coin-pulse');
-                pulseCount++;
-                if (pulseCount < times) {
-                    setTimeout(doPulse, 100);
-                }
-            }, 500);
-        };
-        
-        doPulse();
-    });
-}
-
-async function updateUserCoins(amount) {
-    // Update local game state
-    const previousCoins = gameState.coins;
-    gameState.coins += amount;
-    
-    // Update UI
-    updateAllCoinDisplays();
-    updatePerkButtons();
-    
-    // Save to database if logged in
-    if (currentUser) {
-        try {
-            const { error } = await supabaseClient
-                .from("game_progress")
-                .update({ coins: gameState.coins })
-                .eq("user_id", currentUser.id);
-                
-            if (error) {
-                console.error("Failed to update coins in database:", error);
-                // Revert local change if database save fails
-                gameState.coins = previousCoins;
-                updateAllCoinDisplays();
-                updatePerkButtons();
-                return false;
-            }
-        } catch (err) {
-            console.error("Error updating coins:", err);
-            // Revert local change
-            gameState.coins = previousCoins;
-            updateAllCoinDisplays();
-            updatePerkButtons();
-            return false;
-        }
-    }
-    
-    // Also save to localStorage
-    const progressData = JSON.parse(localStorage.getItem("simploxProgress") || "{}");
-    progressData.coins = gameState.coins;
-    localStorage.setItem("simploxProgress", JSON.stringify(progressData));
-    
-    return true;
-}
-
-function positionOptionsMenu() {
-    const optionsMenu = document.getElementById('options-menu');
-    const settingsToggle = document.getElementById('settings-toggle');
-    
-    if (!optionsMenu || !settingsToggle) return;
-    
-    // Check if menu is shown
-    if (!optionsMenu.classList.contains('show')) return;
-    
-    // Get viewport dimensions
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    
-    // Get menu and toggle button dimensions and positions
-    const menuRect = optionsMenu.getBoundingClientRect();
-    const toggleRect = settingsToggle.getBoundingClientRect();
-    
-    // Calculate menu position
-    let left = toggleRect.left + (toggleRect.width / 2) - (menuRect.width / 2);
-    let top = toggleRect.bottom + 10; // 10px below toggle button
-    
-    // Check if menu would overflow right edge
-    if (left + menuRect.width > viewportWidth - 10) {
-      left = viewportWidth - menuRect.width - 10;
-    }
-    
-    // Check if menu would overflow left edge
-    if (left < 10) {
-      left = 10;
-    }
-    
-    // Check if menu would overflow bottom edge
-    if (top + menuRect.height > viewportHeight - 10) {
-      // Position above toggle button instead
-      top = toggleRect.top - menuRect.height - 10;
-      
-      // If still overflowing (not enough space above either)
-      if (top < 10) {
-        // Center in viewport as fallback
-        top = Math.max(10, (viewportHeight - menuRect.height) / 2);
-        
-        // Ensure menu is fully on screen by checking height
-        if (top + menuRect.height > viewportHeight - 10) {
-          // Limit height if necessary and add scrolling
-          const maxHeight = viewportHeight - 20;
-          optionsMenu.style.maxHeight = `${maxHeight}px`;
-          optionsMenu.style.overflow = 'auto';
-        }
-      }
-    }
-    
-    // Apply calculated position
-    optionsMenu.style.left = `${left}px`;
-    optionsMenu.style.top = `${top}px`;
-    optionsMenu.style.transform = 'none'; // Remove default transform
-  }
-
-  // Find where the arcade button click is defined in the code
-document.addEventListener('DOMContentLoaded', function() {
-    // Find the arcade button by its data-action attribute
-    const arcadeButton = document.querySelector('.carousel-button[data-action="showArcadeModal()"]');
-    
-    if (arcadeButton) {
-      // Remove any existing click handlers
-      arcadeButton.removeEventListener('click', window.showArcadeModal);
-      
-      // Add our direct click handler
-      arcadeButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        console.log('Arcade button clicked - directly calling showArcadeModal');
-        showArcadeModal();
-      });
-    } else {
-      console.error('Arcade button not found in the DOM');
-    }
-  });
-
-  // Simple debugging version of showArcadeModal
-function openArcadeModalSimple() {
-    console.log('Simple arcade modal opener called');
-    const modal = document.getElementById('arcade-modal');
-    
-    if (!modal) {
-      console.error('Arcade modal element not found');
-      return;
-    }
-    
-    console.log('Found arcade modal, displaying it');
-    modal.style.display = 'block';
-    
-    // Get the player view and teacher view
-    const teacherView = document.getElementById('teacher-view');
-    const playerView = document.getElementById('player-view');
-    
-    if (teacherView && playerView) {
-      // Default to player view for everyone for testing
-      teacherView.style.display = 'none';
-      playerView.style.display = 'block';
-      console.log('Showing player view');
-    } else {
-      console.error('Teacher or player view elements not found');
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', function() {
-    // Add a direct click handler to the Arcade button in the carousel
-    document.querySelectorAll('.carousel-button').forEach(button => {
-      const buttonText = button.querySelector('span')?.textContent?.trim();
-      if (buttonText === 'Arcade') {
-        button.onclick = function() {
-          console.log('Arcade button clicked through direct handler');
-          // Try the simplified function first for debugging
-          openArcadeModalSimple();
-          // If that works, switch back to the full function
-          // showArcadeModal();
-        };
-      }
-    });
-    
-    // Also add a direct click handler to any element with showArcadeModal in onclick attribute
-    document.querySelectorAll('[onclick*="showArcadeModal"]').forEach(element => {
-      element.onclick = function(e) {
-        e.preventDefault();
-        console.log('Element with showArcadeModal onclick attribute clicked');
-        // Try the simplified function first for debugging
-        openArcadeModalSimple();
-        // If that works, switch back to the full function
-        // showArcadeModal();
-        return false;
-      };
-    });
-  });
-
-  // Add this to help diagnose the modal structure
-function checkArcadeModalStructure() {
-    console.log('Checking arcade modal structure...');
-    
-    const modal = document.getElementById('arcade-modal');
-    if (!modal) {
-      console.error('Arcade modal element not found');
-      return false;
-    }
-    
-    console.log('Modal element found:', modal);
-    
-    const teacherView = document.getElementById('teacher-view');
-    const playerView = document.getElementById('player-view');
-    
-    if (!teacherView) {
-      console.error('Teacher view not found in modal');
-    } else {
-      console.log('Teacher view found:', teacherView);
-    }
-    
-    if (!playerView) {
-      console.error('Player view not found in modal');
-    } else {
-      console.log('Player view found:', playerView);
-    }
-    
-    return true;
-  }
-  
-  // Call this on page load
-  document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(checkArcadeModalStructure, 1000); // Give the page a second to fully load
-  });
-
-  // Function to ensure the arcade modal exists
-function ensureArcadeModalExists() {
-    let modal = document.getElementById('arcade-modal');
-    
-    if (!modal) {
-      console.log('Creating arcade modal element as it was not found');
-      modal = document.createElement('div');
-      modal.id = 'arcade-modal';
-      modal.className = 'modal';
-      
-      // Create basic structure
-      modal.innerHTML = `
-        <div class="modal-content">
-          <div id="teacher-view" style="display: none;">
-            <h2>Host Arcade Session</h2>
-            <p>Game Code: <span id="otp">----</span></p>
-            <p>Players: <span id="player-count">0</span></p>
-            <div class="stage-selector">
-              <h3>Select Word Pools:</h3>
-              <div class="stage-checkboxes">
-                <!-- Stage checkboxes will go here -->
-              </div>
-            </div>
-            <button class="main-button" onclick="startArcade()">Start Session</button>
-            <button class="end-arcade-button" onclick="endArcade()">End Session</button>
-          </div>
-          
-          <div id="player-view" style="display: none;">
-            <h2>Join Arcade</h2>
-            <div class="input-group">
-              <input type="text" id="arcadeUsername" placeholder="Choose your username" maxlength="15">
-              <input type="text" id="otpInput" placeholder="Enter 4-digit Game Code" maxlength="4" pattern="[0-9]{4}" inputmode="numeric">
-            </div>
-            <button class="join-button" onclick="joinArcadeWithUsername()">Join Game</button>
-          </div>
-        </div>
-      `;
-      
-      document.body.appendChild(modal);
-      return true;
-    }
-    
-    return false;
-  }
-  
-  // Call this on page load
-  document.addEventListener('DOMContentLoaded', function() {
-    ensureArcadeModalExists();
-  });
-
-  // Direct fix for the arcade modal issue
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded - Setting up arcade button handlers');
-    
-    // 1. Make sure the arcade modal exists
-    const modalExists = ensureArcadeModalExists();
-    if (modalExists) {
-      console.log('Created arcade modal as it was missing');
-    }
-    
-    // 2. Add click handlers to all possible arcade buttons
-    document.querySelectorAll('.carousel-button').forEach(button => {
-      const buttonText = button.querySelector('span')?.textContent?.trim();
-      if (buttonText === 'Arcade') {
-        console.log('Found Arcade button in carousel, adding direct click handler');
-        
-        button.onclick = function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          console.log('Arcade button clicked');
-          
-          // Show the modal directly first
-          const modal = document.getElementById('arcade-modal');
-          if (modal) {
-            modal.style.display = 'block';
-            
-            // Then try to configure it
-            try {
-              showArcadeModal();
-            } catch (error) {
-              console.error('Error in showArcadeModal:', error);
-              
-              // Fallback to basic configuration
-              const teacherView = document.getElementById('teacher-view');
-              const playerView = document.getElementById('player-view');
-              
-              if (teacherView && playerView) {
-                teacherView.style.display = 'none';
-                playerView.style.display = 'block';
-              }
-            }
-          } else {
-            console.error('Arcade modal not found even after ensuring it exists');
-          }
-          
-          return false;
-        };
-      }
-    });
-    
-    // 3. Also fix any elements with onclick="showArcadeModal()"
-    document.querySelectorAll('[onclick*="showArcadeModal"]').forEach(element => {
-      console.log('Found element with showArcadeModal onclick attribute, replacing handler');
-      
-      element.setAttribute('onclick', ''); // Remove the attribute
-      element.onclick = function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('Element with showArcadeModal onclick clicked');
-        
-        // Show the modal directly first
-        const modal = document.getElementById('arcade-modal');
-        if (modal) {
-          modal.style.display = 'block';
-          
-          // Then try to configure it
-          try {
-            showArcadeModal();
-          } catch (error) {
-            console.error('Error in showArcadeModal:', error);
-            
-            // Fallback to basic configuration
-            const teacherView = document.getElementById('teacher-view');
-            const playerView = document.getElementById('player-view');
-            
-            if (teacherView && playerView) {
-              teacherView.style.display = 'none';
-              playerView.style.display = 'block';
-            }
-          }
-        }
-        
-        return false;
-      };
-    });
-  });
