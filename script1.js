@@ -4906,34 +4906,12 @@ function skipUpgrade() {
       localStorage.setItem('upgradeRequested_guest', 'true');
     }
     
-    // Get the stored stage/set/level that the user was trying to access
-    const storedContext = localStorage.getItem("gameContext");
-    let targetStage = gameState.currentStage;
-    let targetSet = gameState.currentSet;
-    let targetLevel = gameState.currentLevel;
-    
-    if (storedContext) {
-      try {
-        const context = JSON.parse(storedContext);
-        if (context.stage) targetStage = context.stage;
-        if (context.set) targetSet = context.set;
-        if (context.level) targetLevel = context.level;
-      } catch (e) {
-        console.error("Error parsing saved context:", e);
-      }
-    }
-    
-    // Set the current game state
-    gameState.currentStage = targetStage;
-    gameState.currentSet = targetSet;
-    gameState.currentLevel = targetLevel;
-    
     // Hide the upgrade screen
     document.getElementById('upgrade-screen').classList.remove('visible');
     
-    // Start the level directly
-    startLevel(gameState.currentLevel);
-  }
+    // Just navigate back to welcome screen instead of starting a level
+    showScreen('welcome-screen');
+}
 
   function handleUpgradeSubmit(event) {
     event.preventDefault();

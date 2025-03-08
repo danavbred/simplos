@@ -176,6 +176,18 @@ function handleArcadeAnswer(isCorrect) {
         currentGame.isProcessingAnswer = true;
         currentGame.lastAnswerTime = now;
         
+        // Initialize tracking structures if they don't exist
+        if (!currentGame.coinAwardedWords) {
+          currentGame.coinAwardedWords = new Set();
+        }
+        
+        if (!currentGame.mistakeRegisteredWords) {
+          currentGame.mistakeRegisteredWords = new Set();
+        }
+        
+        // Get current word key for tracking
+        const currentWordKey = currentGame.currentIndex.toString();
+        
         const playerName = currentArcadeSession.playerName || 
                           currentUser?.user_metadata?.username || 
                           getRandomSimploName();
@@ -205,15 +217,14 @@ function handleArcadeAnswer(isCorrect) {
                 }
             }
             
-            // Calculate coin reward
-            let coinReward = 5;
-            if (currentGame.correctStreak >= 3) {
-                coinReward += 5;
-            }
-            
-            // Premium users get extra coins in arcade mode
-            if (currentUser && currentUser.status === 'premium') {
-                coinReward += 2; // Add premium bonus directly here
+            // Only award coins if this word hasn't already earned coins
+            let coinReward = 0;
+            if (!currentGame.coinAwardedWords.has(currentWordKey)) {
+                // Mark this word as having earned coins
+                currentGame.coinAwardedWords.add(currentWordKey);
+                
+                // Award 10 coins for correct answer
+                coinReward = 10;
             }
             
             // Use the enhanced CoinsManager for consistent updates
@@ -260,9 +271,13 @@ function handleArcadeAnswer(isCorrect) {
                 setTimeout(loadNextArcadeQuestion, 500);
             });
         } else {
-            // Handle incorrect answer
-            currentGame.correctStreak = 0;
-            currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
+            // Only register a mistake once per word
+            if (!currentGame.mistakeRegisteredWords.has(currentWordKey)) {
+                currentGame.mistakeRegisteredWords.add(currentWordKey);
+                // Handle incorrect answer
+                currentGame.correctStreak = 0;
+                currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
+            }
             
             // Update player progress in the leaderboard
             updatePlayerProgress({
@@ -939,7 +954,8 @@ function buyPerk(perkType) {
             break;
 
         case 'skip':
-            handleAnswer(true, true);
+            // Skip question but mark it as answered correctly
+            handleAnswer(true, true);  // true=correct, true=skipMode
             break;
 
         case 'clue':
@@ -958,27 +974,37 @@ function buyPerk(perkType) {
             }
             break;
 
-        // REPLACE the reveal case in buyPerk function
-case 'reveal':
-    const correctAns = currentGame.isHebrewToEnglish ? 
-        currentGame.words[currentGame.currentIndex] : 
-        currentGame.translations[currentGame.currentIndex];
-    
-    document.querySelectorAll('.buttons button').forEach(btn => {
-        if (btn.textContent === correctAns) {
-            btn.classList.add('correct');
-            // Store original background
-            const originalBackground = btn.style.background;
-            btn.style.background = 'var(--success)';
+        case 'reveal':
+            const correctAns = currentGame.isHebrewToEnglish ? 
+                currentGame.words[currentGame.currentIndex] : 
+                currentGame.translations[currentGame.currentIndex];
             
-            // Reset after 5 seconds
-            setTimeout(() => {
-                btn.classList.remove('correct');
-                btn.style.background = originalBackground;
-            }, 5000);
-        }
-    });
-    break;
+            document.querySelectorAll('.buttons button').forEach(btn => {
+                if (btn.textContent === correctAns) {
+                    btn.classList.add('correct');
+                    // Store original background
+                    const originalBackground = btn.style.background;
+                    btn.style.background = 'var(--success)';
+                    
+                    // Reset after 5 seconds
+                    setTimeout(() => {
+                        btn.classList.remove('correct');
+                        btn.style.background = originalBackground;
+                    }, 5000);
+                }
+            });
+            break;
+
+        case 'rewind':
+            // Add time to the timer
+            timeRemaining = Math.min(currentGame.totalTime, timeRemaining + 5);
+            
+            // Update visuals immediately
+            updateTimerDisplay();
+            updateTimerCircle(timeRemaining, currentGame.totalTime);
+            
+            showNotification("Time rewind! +5 seconds", "success");
+            break;
     }
 
     saveProgress();
@@ -1132,25 +1158,15 @@ let isFrozen = false;
 let resetProgressTimeout = null;
 let isFirstResetAttempt = true;
 
-
-
-
-
-
-
-
-
-
-
-// Timer Functions
-// Replace the startTimer function:
 function startTimer(questionCount) {
     clearTimer();
     if (currentGame.currentIndex >= currentGame.words.length) return;
     
     // Set initial time only if not already set
     if (!currentGame.initialTimeRemaining) {
-        currentGame.initialTimeRemaining = currentGame.words.length * 10;
+        // Set time based on level type
+        const secondsPerQuestion = currentGame.isBossLevel ? 4 : 5;
+        currentGame.initialTimeRemaining = questionCount * secondsPerQuestion;
         timeRemaining = currentGame.initialTimeRemaining;
         currentGame.totalTime = timeRemaining; // Store the initial total time
     } else {
@@ -1566,10 +1582,6 @@ function handleTimeUp() {
 }
 
 
-
-
-
-
 // Add full-screen event listener
 document.addEventListener('fullscreenchange', function() {
     if (!document.fullscreenElement) {
@@ -1983,89 +1995,90 @@ function generateAnswerChoices(correctAnswer, vocabulary) {
 }
 
 function startLevel(level) {
-  gameState.currentLevel = level;
-  
-  // Save game context
-  const gameContext = {
-    stage: gameState.currentStage,
-    set: gameState.currentSet,
-    level: level,
-    timestamp: Date.now()
-  };
-  
-  console.log("Setting game context at level start:", gameContext);
-  localStorage.setItem("gameContext", JSON.stringify(gameContext));
-  
-  // Reset game state
-  currentGame.wrongStreak = 0;
-  currentGame.correctAnswers = 0;
-  currentGame.levelStartTime = Date.now();
-  currentGame.firstAttempt = true;
-  currentGame.streakBonus = true;
-  updatePerkButtons();
-  
-  console.log("Current unlocked levels:", gameState.unlockedLevels);
-  
-  const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-  console.log(`Current set key: ${setKey}, unlocked levels in set:`, 
-    gameState.unlockedLevels[setKey] ? Array.from(gameState.unlockedLevels[setKey]) : "none");
-  
-  // Show/hide UI elements
-  const perksContainer = document.querySelector('.perks-container');
-  const powerupsContainer = document.querySelector('.powerups-container');
-  
-  if (perksContainer) perksContainer.style.display = 'flex';
-  if (powerupsContainer) powerupsContainer.style.display = 'none';
-  
-  const coinCount = document.querySelector('.coin-count');
-  if (coinCount) coinCount.textContent = gameState.coins || 0;
-  
-  const coinsContainer = document.querySelector('.coins-container');
-  if (coinsContainer) coinsContainer.style.display = 'flex';
-  
-  gameState.currentStage = gameState.currentStage || 1;
-  gameState.currentSet = gameState.currentSet || 1;
-  gameState.currentLevel = level;
-  
-  console.log(`Starting level: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${level}`);
-  addAdminTestButton();
-  
-  // Check if premium is required
-  const userStatus = currentUser ? currentUser.status : 'unregistered';
-  if ([2, 5, 8, 11, 14, 18, 20].includes(level) && userStatus !== 'premium') {
-    const currentLevel = level;
+    gameState.currentLevel = level;
     
-    if (!currentUser) {
-      return showUnregisteredWarning(() => {
-        proceedWithLevel(currentLevel);
-      });
+    // Save game context
+    const gameContext = {
+      stage: gameState.currentStage,
+      set: gameState.currentSet,
+      level: level,
+      timestamp: Date.now()
+    };
+    
+    console.log("Setting game context at level start:", gameContext);
+    localStorage.setItem("gameContext", JSON.stringify(gameContext));
+    
+    // Reset game state
+    currentGame.wrongStreak = 0;
+    currentGame.correctAnswers = 0;
+    currentGame.levelStartTime = Date.now();
+    currentGame.firstAttempt = true;
+    currentGame.streakBonus = true;
+    // Initialize tracking for coin earning and mistakes
+    currentGame.coinAwardedWords = new Set();
+    currentGame.mistakeRegisteredWords = new Set();
+    updatePerkButtons();
+    
+    console.log("Current unlocked levels:", gameState.unlockedLevels);
+    
+    const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+    console.log(`Current set key: ${setKey}, unlocked levels in set:`, 
+      gameState.unlockedLevels[setKey] ? Array.from(gameState.unlockedLevels[setKey]) : "none");
+    
+    // Show/hide UI elements
+    const perksContainer = document.querySelector('.perks-container');
+    const powerupsContainer = document.querySelector('.powerups-container');
+    
+    if (perksContainer) perksContainer.style.display = 'flex';
+    if (powerupsContainer) powerupsContainer.style.display = 'none';
+    
+    const coinCount = document.querySelector('.coin-count');
+    if (coinCount) coinCount.textContent = gameState.coins || 0;
+    
+    const coinsContainer = document.querySelector('.coins-container');
+    if (coinsContainer) coinsContainer.style.display = 'flex';
+    
+    gameState.currentStage = gameState.currentStage || 1;
+    gameState.currentSet = gameState.currentSet || 1;
+    gameState.currentLevel = level;
+    
+    console.log(`Starting level: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${level}`);
+    addAdminTestButton();
+    
+    // Check if premium is required
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    if ([2, 5, 8, 11, 14, 18, 20].includes(level) && userStatus !== 'premium') {
+      const currentLevel = level;
+      
+      if (!currentUser) {
+        return showUnregisteredWarning(() => {
+          proceedWithLevel(currentLevel);
+        });
+      }
+      
+      if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
+        return showUpgradePrompt(() => {
+          proceedWithLevel(currentLevel);
+        });
+      }
     }
     
-    if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
-      return showUpgradePrompt(() => {
-        proceedWithLevel(currentLevel);
-      });
+    // Determine if this is a boss level
+    if (level === 21) {
+      currentGame.isBossLevel = true;
+      console.log("Boss level detected");
+      setTimeout(applyBossLevelStyles, 100);
+      setTimeout(applyBossLevelStyles, 500);
+    } else {
+      currentGame.isBossLevel = false;
     }
+    
+    // Determine if we need to show the full intro
+    // Force full intro for boss levels or first level of a set
+    const forceFullIntro = level === 21 || level === 1;
+    
+    proceedWithLevel(level, forceFullIntro);
   }
-  
-  // Determine if this is a boss level
-  if (level === 21) {
-    currentGame.isBossLevel = true;
-    console.log("Boss level detected");
-    setTimeout(applyBossLevelStyles, 100);
-    setTimeout(applyBossLevelStyles, 500);
-  } else {
-    currentGame.isBossLevel = false;
-  }
-  
-  // Determine if we need to show the full intro
-  // Force full intro for boss levels or first level of a set
-  const forceFullIntro = level === 21 || level === 1;
-  
-  proceedWithLevel(level, forceFullIntro);
-}
-
-
 
 function findFurthestProgression() {
     console.log("Finding furthest progression");
@@ -2613,14 +2626,16 @@ function addAdminTestingButton() {
 }
 
 function awardTimeBonus() {
-   const timeSpent = (Date.now() - currentGame.questionStartTime) / 1000;
-   const maxTime = 10; // Maximum time allowed per question
-   if (timeSpent < maxTime) {
-       const bonusCoins = Math.floor(maxTime - timeSpent);
-       currentGame.timeBonus += bonusCoins;
-       return bonusCoins;
-   }
-   return 0;
+    // Time per question is now 5 seconds (or 4 for boss levels)
+    const maxTime = currentGame.isBossLevel ? 4 : 5;
+    
+    const timeSpent = (Date.now() - currentGame.questionStartTime) / 1000;
+    
+    if (timeSpent < maxTime) {
+        // No more time bonus coins - perfect level bonus is handled elsewhere
+        return 0;
+    }
+    return 0;
 }
 
 
@@ -2754,22 +2769,19 @@ function handleLevelCompletion() {
     clearTimer();
     
     if (currentGame.isBossLevel) {
-        if (currentGame.bossRewardApplied) {
-            // Boss reward already applied, just restore and show effect
-            console.log("Boss already defeated and rewarded, just showing effects");
-            restoreFromBossLevel();
-            showBossDefeatEffect();
-        } else {
-            // This is the initial boss defeat
-            console.log("First boss defeat, applying reward");
-            restoreFromBossLevel();
-            // Don't add coins here! Let showBossDefeatEffect handle it
-            currentGame.bossRewardApplied = true;
-            showBossDefeatEffect();
-        }
-        return;
+      if (currentGame.bossRewardApplied) {
+        console.log("Boss already defeated and rewarded, just showing effects");
+        restoreFromBossLevel();
+        showBossDefeatEffect();
+      } else {
+        console.log("First boss defeat, applying reward");
+        restoreFromBossLevel();
+        currentGame.bossRewardApplied = true;
+        showBossDefeatEffect();
+      }
+      return;
     }
-
+  
     // Non-boss level completion code follows...
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
     console.log(`Completing level: ${levelKey}`);
@@ -2777,64 +2789,95 @@ function handleLevelCompletion() {
     const wasAlreadyCompleted = gameState.perfectLevels.has(levelKey) || gameState.completedLevels.has(levelKey);
     console.log(`Level was previously completed: ${wasAlreadyCompleted}`);
     
-    const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
+    // A perfect level has no mistakes AND was completed in less than 2/3 of the total time
+    const totalLevelTime = currentGame.totalTime || (currentGame.words.length * 5); // seconds
+    const actualTime = (Date.now() - currentGame.levelStartTime) / 1000; // convert to seconds
+    
+    const noMistakes = currentGame.mistakeRegisteredWords ? 
+                        currentGame.mistakeRegisteredWords.size === 0 : 
+                        currentGame.streakBonus;
+                        
+    const fastCompletion = actualTime < (totalLevelTime * 2/3);
+    const isPerfect = noMistakes && fastCompletion;
+    
+    console.log(`Level completion stats: No mistakes: ${noMistakes}, Fast completion: ${fastCompletion}, Perfect: ${isPerfect}`);
+    console.log(`Time stats: Total time: ${totalLevelTime}s, Actual time: ${actualTime}s, 2/3 threshold: ${totalLevelTime * 2/3}s`);
+    
+    // Calculate stats for completion modal
+    const completionStats = {
+      isPerfect: isPerfect,
+      mistakes: currentGame.mistakeRegisteredWords ? currentGame.mistakeRegisteredWords.size : (currentGame.progressLost || 0),
+      timeElapsed: Date.now() - currentGame.levelStartTime, // Time taken to complete level
+      coinsEarned: 0, // Will be updated below
+      correctAnswers: currentGame.correctAnswers || 0,
+      incorrectAnswers: currentGame.words.length - currentGame.correctAnswers || 0,
+      totalQuestions: currentGame.words.length || 0,
+      timeBonus: 0 // No more time bonus, just perfect level bonus
+    };
+    
+    // Debug the stats before showing the modal
+    debugLevelStats(completionStats, 'handleLevelCompletion');
     
     if (!wasAlreadyCompleted && isPerfect) {
-        // Perfect completion of a new level
-        const coinReward = 5;
-        CoinsManager.updateCoins(coinReward).then(() => {
-            updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, true);
-            const questionScreen = document.getElementById('question-screen').getBoundingClientRect();
-            createParticles(questionScreen.left + questionScreen.width/2, questionScreen.top + questionScreen.height/2);
-        });
+      // Perfect completion of a new level - award 5 coin bonus
+      const coinReward = 5;
+      completionStats.coinsEarned = coinReward;
+      
+      CoinsManager.updateCoins(coinReward).then(() => {
+        updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, true);
+        const questionScreen = document.getElementById('question-screen').getBoundingClientRect();
+        createParticles(questionScreen.left + questionScreen.width/2, questionScreen.top + questionScreen.height/2);
+      });
     } else if (!wasAlreadyCompleted) {
-        // Non-perfect completion of a new level
-        updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, false);
+      // Non-perfect completion of a new level
+      updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, false);
     }
     
     pulseCoins(5);
     updatePerkButtons();
   
-  // Determine next steps
-  const stageData = gameStructure.stages[gameState.currentStage - 1];
-  const isLastLevelInSet = gameState.currentLevel === stageData.levelsPerSet;
-  const isLastSetInStage = gameState.currentSet === stageData.numSets;
-  const userStatus = currentUser ? currentUser.status : "unregistered";
-  
-  // Check if we completed a set
-  if (isLastLevelInSet) {
-    // Update game progression by checking set completion
-    checkSetCompletion(gameState.currentStage, gameState.currentSet);
+    // Determine what happens next
+    const stageData = gameStructure.stages[gameState.currentStage - 1];
+    const isLastLevelInSet = gameState.currentLevel === stageData.levelsPerSet;
+    const isLastSetInStage = gameState.currentSet === stageData.numSets;
+    const userStatus = currentUser ? currentUser.status : "unregistered";
     
-    if (isLastSetInStage) {
-      // Completed the last set in the stage
-      if (userStatus === "premium" && gameState.currentStage < 5) {
-        // Premium user, not on last stage, go to next stage
-        setTimeout(() => {
-          gameState.currentStage++;
-          gameState.currentSet = 1;
+    // Show level completion modal with appropriate next action
+    if (isLastLevelInSet) {
+      // Update game progression by checking set completion
+      checkSetCompletion(gameState.currentStage, gameState.currentSet);
+      
+      if (isLastSetInStage) {
+        // Completed the last set in the stage
+        if (userStatus === "premium" && gameState.currentStage < 5) {
+          // Premium user, not on last stage, go to next stage
+          showLevelCompletionModal(completionStats, () => {
+            gameState.currentStage++;
+            gameState.currentSet = 1;
+            gameState.currentLevel = 1;
+            startLevel(1);
+          });
+        } else {
+          // Either not premium, or last stage reached
+          showLevelCompletionModal(completionStats, () => {
+            showScreen("stage-cascade-screen");
+          });
+        }
+      } else {
+        // Last level in set but not last set in stage
+        showLevelCompletionModal(completionStats, () => {
+          gameState.currentSet++;
           gameState.currentLevel = 1;
           startLevel(1);
-        }, 1500);
-      } else {
-        // Either not premium, or last stage reached
-        setTimeout(() => showScreen("stage-cascade-screen"), 1500);
+        });
       }
     } else {
-      // Last level in set but not last set in stage
-      setTimeout(() => {
-        gameState.currentSet++;
-        gameState.currentLevel = 1;
-        startLevel(1);
-      }, 1500);
+      // Not the last level in set, simply go to next level
+      showLevelCompletionModal(completionStats, () => {
+        gameState.currentLevel++;
+        startLevel(gameState.currentLevel);
+      });
     }
-  } else {
-    // Not the last level in set, simply go to next level
-    setTimeout(() => {
-      gameState.currentLevel++;
-      startLevel(gameState.currentLevel);
-    }, 1500);
-  }
 }
 
 function checkSetCompletion(stage, set) {
@@ -3595,161 +3638,508 @@ function unlockNextStage() {
 }
 
 function showLevelIntro(level, callback, forceFull = false) {
-  // Skip the animation if we're in a continuous session unless forced
-  if (!(!gameState.sessionStartTime || (Date.now() - gameState.sessionStartTime > 1800000) || forceFull)) {
-    // Simple transition for continuous play
-    const transitionDiv = document.createElement('div');
-    transitionDiv.className = 'simple-level-transition';
-    transitionDiv.style.display = 'flex';
-    transitionDiv.style.justifyContent = 'center';
-    transitionDiv.style.alignItems = 'center';
-
-    // Create light streaks for effect
-    for (let i = 0; i < 3; i++) {
-      const streak = document.createElement('div');
-      streak.className = 'light-streak';
-      streak.style.top = (20 + 25 * i) + '%';
-      streak.style.animationDelay = (0.2 * i) + 's';
-      transitionDiv.appendChild(streak);
+    // Clear any existing level intros first
+    document.querySelectorAll('.level-intro-overlay').forEach(el => el.remove());
+    
+    // Create overlay - EXACTLY like the completion modal
+    const overlay = document.createElement('div');
+    overlay.className = 'level-intro-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    `;
+    
+    // Determine level type
+    const isTestLevel = [3, 6, 9, 10, 13, 16, 19, 20].includes(level);
+    const isBossLevel = level === 21;
+    const isCustomLevel = currentGame && currentGame.isCustomPractice;
+    
+    // Calculate number of new words for this level
+    let newWordsCount = 0;
+    let reviewWordsCount = 0;
+    
+    if (!isCustomLevel) {
+      const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+      const vocabulary = vocabularySets[setKey];
+      
+      if (vocabulary) {
+        const levelData = calculateWordsForLevel(level, vocabulary);
+        if (levelData) {
+          if (isTestLevel) {
+            reviewWordsCount = levelData.count || 0;
+          } else {
+            newWordsCount = levelData.count || 0;
+          }
+        }
+      }
     }
-
-    const announcementDiv = document.createElement('div');
-    announcementDiv.className = 'level-announcement simple';
-    announcementDiv.style.position = 'relative';
-
-    // Progress bar
-    const progressBar = document.createElement('div');
-    progressBar.className = 'transition-progress';
-
-    // Check if this is a custom practice level
-    if (currentGame && currentGame.isCustomPractice) {
+    
+    // Create announcement content directly - NO CLASSES EXCEPT MINIMAL ONES
+    const announcementContent = document.createElement('div');
+    announcementContent.style.cssText = `
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 3rem;
+      width: 500px;
+      max-width: 90%;
+      text-align: center;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transform: scale(0.9);
+      opacity: 0;
+      transition: transform 0.5s ease, opacity 0.5s ease;
+      margin: 0;
+    `;
+    
+    // Set content based on level type
+    if (isCustomLevel) {
       if (currentGame.mixed) {
         // Test level in custom practice
-        announcementDiv.innerHTML = `
-          <div class="level-number">Test</div>
-          <div class="level-text">Review Challenge</div>
+        announcementContent.innerHTML = `
+          <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">Test Challenge</h1>
+          <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem;">Combined Words Review</h2>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem; margin-bottom: 1rem;">
+            <div style="display: inline-block; padding: 0.5rem 1.5rem; border-radius: 50px; font-weight: bold; margin-top: 1rem; background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); color: #ffffff;">Review Challenge</div>
+            <button class="start-button" style="margin-top: 1rem;">Start</button>
+          </div>
         `;
       } else {
         // Regular round in custom practice
-        announcementDiv.innerHTML = `
-          <div class="level-number">Round ${level}</div>
-          <div class="level-text">Custom Practice</div>
+        announcementContent.innerHTML = `
+          <h1 style="color: var(--accent); margin-bottom: 0.5rem; font-size: 2.5rem;">Round ${level}</h1>
+          <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem;">Custom Practice</h2>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem; margin-bottom: 1rem;">
+            ${isTestLevel ? '<div style="display: inline-block; padding: 0.5rem 1.5rem; border-radius: 50px; font-weight: bold; margin-top: 1rem; background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); color: #ffffff;">Review Challenge</div>' : ''}
+            <button class="start-button" style="margin-top: 1rem;">Start</button>
+          </div>
         `;
       }
+    } else if (isBossLevel) {
+      // Boss level
+      announcementContent.innerHTML = `
+        <h1 style="color: #ff4136; margin-bottom: 0.5rem; font-size: 2.5rem;">BOSS FIGHT!</h1>
+        <h2 style="margin-bottom: 1rem; opacity: 0.9; font-size: 1.5rem;">FINAL CHALLENGE</h2>
+        <p style="margin-bottom: 1.5rem; font-size: 1.1rem;">All ${reviewWordsCount} words from this set</p>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem; margin-bottom: 1rem;">
+          <div style="display: inline-block; padding: 0.5rem 1.5rem; border-radius: 50px; font-weight: bold; margin-top: 1rem; background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); color: #ffffff;">DANGER ZONE</div>
+          <button class="start-button" style="margin-top: 1rem; background: #ff4136;">BEGIN</button>
+        </div>
+      `;
     } else {
-      // Regular game level
-      announcementDiv.innerHTML = `
-        <div class="level-number">${level}</div>
-        <div class="level-text">Stage ${gameState.currentStage} - Set ${gameState.currentSet}</div>
+      // Regular level
+      announcementContent.innerHTML = `
+        <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">Stage ${gameState.currentStage}</h1>
+        <h2 style="color: var(--gold); margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.8rem;">Set ${gameState.currentSet}</h2>
+        <h3 style="margin-bottom: 1rem; opacity: 0.9; font-size: 1.5rem;">Level ${level}/${gameStructure.stages[gameState.currentStage-1].levelsPerSet}</h3>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem; margin-bottom: 1rem;">
+          ${isTestLevel ? 
+            `<p style="margin-bottom: 1rem; font-size: 1.1rem;">Review ${reviewWordsCount} words from previous levels</p>
+             <div style="display: inline-block; padding: 0.5rem 1.5rem; border-radius: 50px; font-weight: bold; background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); color: #ffffff;">Review Challenge</div>` : 
+            `<p style="margin-bottom: 1rem; font-size: 1.1rem;">Learn ${newWordsCount} new words</p>`
+          }
+          <button class="start-button" style="margin-top: 1rem;">Start</button>
+        </div>
       `;
     }
-
-    announcementDiv.appendChild(progressBar);
-    transitionDiv.appendChild(announcementDiv);
-    document.body.appendChild(transitionDiv);
     
-    // Animate progress bar
+    // Apply special styling for boss level
+    if (isBossLevel) {
+      announcementContent.style.background = 'linear-gradient(135deg, rgba(255, 65, 108, 0.9), rgba(255, 75, 43, 0.9))';
+      announcementContent.style.boxShadow = '0 15px 35px rgba(255, 0, 0, 0.3)';
+    }
+    
+    // SIMPLIFIED STRUCTURE: Append content directly to overlay
+    overlay.appendChild(announcementContent);
+    
+    // Append overlay to the body
+    document.body.appendChild(overlay);
+    
+    // Trigger animations after a short delay
     setTimeout(() => {
-      progressBar.style.width = '100%';
-    }, 50);
-
-    // Remove after animation completes
-    setTimeout(() => {
-      transitionDiv.classList.add('fade-out');
-      setTimeout(() => {
-        callback();
-        document.body.removeChild(transitionDiv);
-      }, 300);
-    }, 800);
-    return;
+      overlay.style.opacity = '1';
+      announcementContent.style.transform = 'scale(1)';
+      announcementContent.style.opacity = '1';
+    }, 100);
+    
+    // Add click handler to start button
+    const startButton = announcementContent.querySelector('.start-button');
+    if (startButton) {
+      startButton.addEventListener('click', () => {
+        // Fade out
+        overlay.style.opacity = '0';
+        announcementContent.style.transform = 'scale(0.9)';
+        announcementContent.style.opacity = '0';
+        
+        // Remove after animation
+        setTimeout(() => {
+          document.body.removeChild(overlay);
+          callback(); // Continue to the level
+        }, 500);
+      });
+    }
   }
 
-  // Full animation for new sessions or when forced
-  const isTestLevel = [3, 6, 9, 10, 13, 16, 19, 20].includes(level);
-  const isBossLevel = level === 21;
-  
-  let levelClass = 'normal-level';
-  if (isTestLevel) levelClass = 'test-level';
-  if (isBossLevel) levelClass = 'boss-level';
-
-  const transitionDiv = document.createElement('div');
-  transitionDiv.className = 'level-transition';
-
-  // Custom practice level announcements
-  if (currentGame && currentGame.isCustomPractice) {
-    if (currentGame.mixed) {
-      // Test level in custom practice
-      transitionDiv.innerHTML = `
-        <div class="level-announcement ${levelClass}">
-          <h1>Test Challenge</h1>
-          <h2>Combined Words Review</h2>
-          <div class="test-badge">Review Challenge</div>
+  function showLevelCompletionModal(levelStats, callback) {
+    // Ensure levelStats has valid values to prevent undefined/NaN
+    levelStats = levelStats || {};
+    levelStats.correctAnswers = levelStats.correctAnswers || 0;
+    levelStats.incorrectAnswers = Math.abs(levelStats.incorrectAnswers || 0); // Ensure positive value
+    levelStats.totalQuestions = levelStats.totalQuestions || 
+                               (levelStats.correctAnswers + levelStats.incorrectAnswers) || 1;
+    levelStats.timeBonus = levelStats.timeBonus || 0;
+    
+    // Safely get current coins
+    const currentCoins = gameState.coins || 0;
+    const newCoinsTotal = currentCoins + levelStats.timeBonus;
+    
+    // Determine pass/fail status (assuming 70% is passing threshold)
+    const scorePercentage = Math.round((levelStats.correctAnswers / levelStats.totalQuestions) * 100);
+    const isPassed = scorePercentage >= 70;
+    
+    // Get current progress within the set
+    const stageData = gameStructure.stages[gameState.currentStage - 1];
+    const totalLevelsInSet = stageData.levelsPerSet;
+    const currentLevelProgress = gameState.currentLevel / totalLevelsInSet;
+    
+    // Clear any existing modals first
+    document.querySelectorAll('.level-completion-overlay').forEach(el => el.remove());
+    
+    // Create overlay that covers the entire screen
+    const overlay = document.createElement('div');
+    overlay.className = 'level-completion-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    `;
+    
+    // Create completion modal content
+    const completionContent = document.createElement('div');
+    completionContent.className = 'level-completion-modal';
+    completionContent.style.cssText = `
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 3rem;
+      width: 500px;
+      max-width: 90%;
+      text-align: center;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transform: scale(0.9);
+      opacity: 0;
+      transition: transform 0.5s ease, opacity 0.5s ease;
+      margin: 0;
+    `;
+    
+    completionContent.innerHTML = `
+      <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
+        Level Complete!
+      </h1>
+      <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${isPassed ? 'var(--success)' : 'var(--error)'}">
+        ${isPassed ? 'Great job!' : 'Try again to improve your score'}
+      </h2>
+      
+      <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
+        <div class="stat-item" style="text-align: center; flex: 1;">
+          <div style="font-size: 2rem; color: var(--accent);">${levelStats.correctAnswers}/${levelStats.totalQuestions}</div>
+          <div style="opacity: 0.7;">Correct</div>
         </div>
-      `;
-    } else {
-      // Regular round in custom practice
-      transitionDiv.innerHTML = `
-        <div class="level-announcement ${levelClass}">
-          <h1>Round ${level}</h1>
-          <h2>Custom Practice</h2>
-          ${isTestLevel ? '<div class="test-badge">Review Challenge</div>' : ''}
+        <div class="stat-item" style="text-align: center; flex: 1;">
+          <div style="font-size: 2rem; color: #ff4136;">${levelStats.incorrectAnswers}</div>
+          <div style="opacity: 0.7;">Mistakes</div>
         </div>
-      `;
-    }
-  } else {
-    // Regular game level announcement
-    transitionDiv.innerHTML = `
-      <div class="level-announcement ${levelClass}">
-        <h1>${isBossLevel ? 'BOSS FIGHT!' : `Stage ${gameState.currentStage}`}</h1>
-        <h2>${isBossLevel ? 'FINAL CHALLENGE' : `Level ${gameState.currentSet}-${level}`}</h2>
-        ${isTestLevel ? '<div class="test-badge">Review Challenge</div>' : ''}
-        ${isBossLevel ? '<div class="boss-badge">DANGER ZONE</div>' : ''}
+        <div class="stat-item coin-counter-container" style="text-align: center; flex: 1; position: relative;">
+          <!-- Using the in-game coin counter style -->
+          <div class="coins-display" style="display: inline-flex; align-items: center; justify-content: center;">
+            <span class="coin-value" style="font-size: 2rem; color: var(--gold); font-weight: bold;">${currentCoins}</span>
+            <span class="coin-icon" style="margin-left: 5px; display: inline-block;">
+              <svg width="24" height="24" viewBox="0 0 24 24" style="transform: translateY(2px);">
+                <circle cx="12" cy="12" r="10" fill="var(--gold)" />
+                <text x="12" y="16" text-anchor="middle" fill="black" style="font-size: 14px; font-weight: bold;">¢</text>
+              </svg>
+            </span>
+          </div>
+          <div style="opacity: 0.7;">Coins</div>
+          ${levelStats.timeBonus > 0 ? `<div class="time-bonus-badge" style="position: absolute; top: -10px; right: -10px; background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">+${levelStats.timeBonus}</div>` : ''}
+        </div>
+      </div>
+      
+      <!-- Progress bar for set completion -->
+      <div class="set-progress-container" style="width: 100%; margin: 2rem 0; padding: 0 1rem;">
+        <div style="text-align: left; margin-bottom: 0.5rem; opacity: 0.7; font-size: 0.9rem;">
+          Set Progress (Level ${gameState.currentLevel}/${totalLevelsInSet})
+        </div>
+        <div class="set-progress-bar" style="
+          width: 100%;
+          height: 10px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 5px;
+          overflow: hidden;
+          position: relative;
+        ">
+          <div class="set-progress-fill" style="
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 0%; /* Start at 0, will be animated */
+            background: linear-gradient(90deg, var(--accent), var(--gold));
+            border-radius: 5px;
+            transition: width 1s ease-in-out;
+          "></div>
+        </div>
+      </div>
+      
+      <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
+        ${isPassed ? 
+          `<button class="continue-button start-button" style="background: var(--accent);">Continue</button>` : 
+          `<button class="retry-button start-button" style="background: var(--accent);">Try Again</button>`
+        }
       </div>
     `;
-  }
-
-  document.body.appendChild(transitionDiv);
-  const announcementElement = transitionDiv.querySelector('.level-announcement');
-  
-  // Force reflow
-  transitionDiv.offsetHeight;
-  
-  // Add animation classes
-  transitionDiv.classList.add('show');
-  announcementElement.classList.add('show');
-
-  // Special styling for boss level
-  if (isBossLevel) {
-    const announcementEl = transitionDiv.querySelector('.level-announcement');
-    if (announcementEl) {
-      announcementEl.style.background = 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)';
-      announcementEl.style.boxShadow = '0 0 30px rgba(255, 0, 0, 0.5)';
-      
-      const titleEl = announcementEl.querySelector('h1');
-      if (titleEl) {
-        titleEl.style.color = '#ffffff';
-        titleEl.style.textShadow = '0 0 20px rgba(255, 0, 0, 0.8)';
-      }
-    }
-  }
-
-  // Remove after animation completes
-  setTimeout(() => {
-    callback();
-    transitionDiv.classList.remove('show');
-    announcementElement.classList.remove('show');
+    
+    // Append overlay to the body
+    document.body.appendChild(overlay);
+    overlay.appendChild(completionContent);
+    
+    // Trigger animations after a short delay
     setTimeout(() => {
-      document.body.removeChild(transitionDiv);
-    }, 400);
-  }, 1500);
+      overlay.style.opacity = '1';
+      completionContent.style.transform = 'scale(1)';
+      completionContent.style.opacity = '1';
+      
+      // Animate the progress bar filling
+      setTimeout(() => {
+        const progressFill = completionContent.querySelector('.set-progress-fill');
+        if (progressFill) {
+          progressFill.style.width = `${currentLevelProgress * 100}%`;
+        }
+        
+        // Animate coin counter if there's a time bonus
+        if (levelStats.timeBonus > 0) {
+          const coinValue = completionContent.querySelector('.coin-value');
+          if (coinValue) {
+            // Animate coin count increasing
+            let startValue = currentCoins;
+            const endValue = newCoinsTotal;
+            const duration = 1500; // 1.5 seconds
+            const stepTime = 50; // Update every 50ms
+            const totalSteps = duration / stepTime;
+            const stepValue = (endValue - startValue) / totalSteps;
+            
+            // Add a glowing effect to the coin icon
+            const coinIcon = completionContent.querySelector('.coin-icon');
+            if (coinIcon) {
+              coinIcon.style.filter = 'drop-shadow(0 0 5px var(--gold))';
+              coinIcon.style.transition = 'filter 0.5s ease';
+            }
+            
+            const counterInterval = setInterval(() => {
+              startValue += stepValue;
+              if (startValue >= endValue) {
+                startValue = endValue;
+                clearInterval(counterInterval);
+                
+                // Remove glow effect after animation completes
+                setTimeout(() => {
+                  if (coinIcon) {
+                    coinIcon.style.filter = 'none';
+                  }
+                }, 500);
+              }
+              coinValue.textContent = Math.round(startValue);
+            }, stepTime);
+          }
+        }
+      }, 500); // Slight delay for the animations
+    }, 100);
+    
+    // Add click handler to continue/retry button
+    const actionButton = completionContent.querySelector(isPassed ? '.continue-button' : '.retry-button');
+    if (actionButton) {
+      actionButton.addEventListener('click', () => {
+        // Fade out
+        overlay.style.opacity = '0';
+        completionContent.style.transform = 'scale(0.9)';
+        completionContent.style.opacity = '0';
+        
+        // Remove after animation
+        setTimeout(() => {
+          document.body.removeChild(overlay);
+          callback(isPassed); // Continue with the callback, passing whether the level was passed
+        }, 500);
+      });
+    }
 }
+
+function handleLevelCompletion() {
+    clearTimer();
+    
+    if (currentGame.isBossLevel) {
+      if (currentGame.bossRewardApplied) {
+        console.log("Boss already defeated and rewarded, just showing effects");
+        restoreFromBossLevel();
+        showBossDefeatEffect();
+      } else {
+        console.log("First boss defeat, applying reward");
+        restoreFromBossLevel();
+        currentGame.bossRewardApplied = true;
+        showBossDefeatEffect();
+      }
+      return;
+    }
+  
+    // Non-boss level completion code follows...
+    const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
+    console.log(`Completing level: ${levelKey}`);
+    
+    const wasAlreadyCompleted = gameState.perfectLevels.has(levelKey) || gameState.completedLevels.has(levelKey);
+    console.log(`Level was previously completed: ${wasAlreadyCompleted}`);
+    
+    const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
+    
+    // Calculate time bonus (if completed in less than 2/3 of the total time)
+    let timeBonus = 0;
+    const totalLevelTime = currentGame.totalTime || (currentGame.words.length * 10); // default of 10 seconds per word
+    const actualTime = Date.now() - currentGame.levelStartTime;
+    const fastThreshold = totalLevelTime * 1000 * (2/3); // Convert to milliseconds and apply 2/3 threshold
+    
+    if (actualTime < fastThreshold) {
+        timeBonus = 5; // Award 5 coins for fast completion
+        currentGame.timeBonus = timeBonus;
+    }
+    
+    // Calculate stats for completion modal
+    const completionStats = {
+      isPerfect: isPerfect,
+      mistakes: currentGame.progressLost || 0, // Number of mistakes
+      timeElapsed: actualTime, // Time taken to complete level
+      coinsEarned: 0, // Will be updated below
+      correctAnswers: currentGame.correctAnswers || 0,
+      incorrectAnswers: currentGame.words.length - currentGame.correctAnswers || 0,
+      totalQuestions: currentGame.words.length || 0,
+      timeBonus: timeBonus
+    };
+    
+    // Debug the stats before showing the modal
+    debugLevelStats(completionStats, 'handleLevelCompletion');
+    
+    if (!wasAlreadyCompleted && isPerfect) {
+      // Perfect completion of a new level
+      const coinReward = 5 + timeBonus; // Add time bonus to the perfect completion reward
+      completionStats.coinsEarned = coinReward;
+      
+      CoinsManager.updateCoins(coinReward).then(() => {
+        updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, true);
+        const questionScreen = document.getElementById('question-screen').getBoundingClientRect();
+        createParticles(questionScreen.left + questionScreen.width/2, questionScreen.top + questionScreen.height/2);
+      });
+    } else if (!wasAlreadyCompleted) {
+      // Non-perfect completion of a new level, still award time bonus if earned
+      if (timeBonus > 0) {
+        CoinsManager.updateCoins(timeBonus).then(() => {
+          // Visual feedback for time bonus
+          pulseCoins(1);
+        });
+      }
+      updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, false);
+    } else if (timeBonus > 0) {
+      // Already completed but award time bonus if earned
+      CoinsManager.updateCoins(timeBonus).then(() => {
+        pulseCoins(1);
+      });
+    }
+    
+    updatePerkButtons();
+  
+    // Determine what happens next
+    const stageData = gameStructure.stages[gameState.currentStage - 1];
+    const isLastLevelInSet = gameState.currentLevel === stageData.levelsPerSet;
+    const isLastSetInStage = gameState.currentSet === stageData.numSets;
+    const userStatus = currentUser ? currentUser.status : "unregistered";
+    
+    // Show level completion modal with appropriate next action
+    if (isLastLevelInSet) {
+      // Update game progression by checking set completion
+      checkSetCompletion(gameState.currentStage, gameState.currentSet);
+      
+      if (isLastSetInStage) {
+        // Completed the last set in the stage
+        if (userStatus === "premium" && gameState.currentStage < 5) {
+          // Premium user, not on last stage, go to next stage
+          showLevelCompletionModal(completionStats, () => {
+            gameState.currentStage++;
+            gameState.currentSet = 1;
+            gameState.currentLevel = 1;
+            startLevel(1);
+          });
+        } else {
+          // Either not premium, or last stage reached
+          showLevelCompletionModal(completionStats, () => {
+            showScreen("stage-cascade-screen");
+          });
+        }
+      } else {
+        // Last level in set but not last set in stage
+        showLevelCompletionModal(completionStats, () => {
+          gameState.currentSet++;
+          gameState.currentLevel = 1;
+          startLevel(1);
+        });
+      }
+    } else {
+      // Not the last level in set, simply go to next level
+      showLevelCompletionModal(completionStats, () => {
+        gameState.currentLevel++;
+        startLevel(gameState.currentLevel);
+      });
+    }
+}
+
+
+
+// Add this temporarily to debug the level stats
+function debugLevelStats(stats, caller) {
+    console.log(`Level stats from ${caller}:`, {
+      correctAnswers: stats.correctAnswers || 0,
+      incorrectAnswers: stats.incorrectAnswers || 0,
+      totalQuestions: stats.totalQuestions || 0,
+      timeBonus: stats.timeBonus || 0,
+      isPerfect: stats.isPerfect || false,
+      mistakes: stats.mistakes || 0,
+      timeElapsed: stats.timeElapsed || 0,
+      coinsEarned: stats.coinsEarned || 0
+    });
+  }
 
 const customPracticeLists = {
     lists: [],
     currentList: null,
     maxLists: 5
 };
-
 
 // Function to add a new word list
 function addCustomWordList(name = null) {
@@ -6698,6 +7088,19 @@ function handleAnswer(isCorrect, skipMode = false) {
     
     currentGame.lastAnswerTime = now;
     
+    // Track words that have already been awarded coins
+    if (!currentGame.coinAwardedWords) {
+      currentGame.coinAwardedWords = new Set();
+    }
+    
+    // Track words that have already registered mistakes
+    if (!currentGame.mistakeRegisteredWords) {
+      currentGame.mistakeRegisteredWords = new Set();
+    }
+    
+    // Get current word key for tracking
+    const currentWordKey = currentGame.currentIndex.toString();
+    
     try {
       if (isCorrect) {
         currentGame.currentIndex++;
@@ -6749,27 +7152,20 @@ function handleAnswer(isCorrect, skipMode = false) {
           updateProgressCircle();
         }
         
-        if (!skipMode) {
-          let coinsEarned = 0;
-          const timeBonus = awardTimeBonus();
-          if (timeBonus > 0) {
-            coinsEarned += timeBonus;
-          }
+        // Award coins only if not in skip mode and word hasn't already earned coins
+        if (!skipMode && !currentGame.coinAwardedWords.has(currentWordKey)) {
+          // Mark this word as having earned coins
+          currentGame.coinAwardedWords.add(currentWordKey);
           
-          if (currentGame.firstAttempt) {
-            coinsEarned += 3;
-          } else {
-            coinsEarned += 1;
-          }
+          // Award exactly 10 coins for each correct answer
+          const coinsEarned = 10;
           
-          if (coinsEarned > 0) {
-            CoinsManager.updateCoins(coinsEarned).then(() => {
-              updatePerkButtons();
-              pulseCoins(coinsEarned > 3 ? 2 : 1); // Pulsate based on amount
-            }).catch(err => {
-              console.error("Error updating total coins:", err);
-            });
-          }
+          CoinsManager.updateCoins(coinsEarned).then(() => {
+            updatePerkButtons();
+            pulseCoins(1); // Pulse for visual feedback
+          }).catch(err => {
+            console.error("Error updating total coins:", err);
+          });
           
           currentGame.correctAnswers++;
           
@@ -6790,13 +7186,19 @@ function handleAnswer(isCorrect, skipMode = false) {
       } else {
         currentGame.firstAttempt = false;
         currentGame.streakBonus = false;
-        currentGame.wrongStreak++;
         
-        CoinsManager.updateCoins(-3).then(() => {
-          updatePerkButtons();
-        }).catch(err => {
-          console.error("Error updating coins:", err);
-        });
+        // Only register a mistake once per word
+        if (!currentGame.mistakeRegisteredWords.has(currentWordKey)) {
+          currentGame.mistakeRegisteredWords.add(currentWordKey);
+          currentGame.wrongStreak++;
+          
+          // Deduct coins only once per word
+          CoinsManager.updateCoins(-3).then(() => {
+            updatePerkButtons();
+          }).catch(err => {
+            console.error("Error updating coins:", err);
+          });
+        }
         
         if (currentGame.currentIndex > 0) {
           currentGame.progressLost++;
@@ -6877,7 +7279,7 @@ function handleAnswer(isCorrect, skipMode = false) {
         showScreen("welcome-screen");
       }
     }
-  }
+}
 
 // Helper function to track words without awarding coins
 async function trackWordEncounterWithoutCoins(word, gameMode = 'arcade') {
@@ -10082,81 +10484,74 @@ function closePersonalVictory() {
   }
 
 
-// REPLACE: Just the handleCustomLevelCompletion function
-function handleCustomLevelCompletion() {
+  function handleCustomLevelCompletion() {
+    // Clear the timer
     clearTimer();
     
-    console.log("Custom level completion: Level " + customGameState.currentLevel);
-    console.log("Words count in list: " + customGameState.words.length);
+    // Calculate if level was completed perfectly
+    // A perfect level has no mistakes AND was completed in less than 2/3 of the total time
+    const totalLevelTime = currentGame.totalTime || (currentGame.words.length * 5); // seconds
+    const actualTime = (Date.now() - currentGame.levelStartTime) / 1000; // convert to seconds
     
-    const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
+    const noMistakes = currentGame.mistakeRegisteredWords ? 
+                        currentGame.mistakeRegisteredWords.size === 0 : 
+                        currentGame.streakBonus;
+                        
+    const fastCompletion = actualTime < (totalLevelTime * 2/3);
+    const isPerfect = noMistakes && fastCompletion;
+    
+    console.log(`Custom level completion stats: No mistakes: ${noMistakes}, Fast completion: ${fastCompletion}, Perfect: ${isPerfect}`);
+    console.log(`Time stats: Total time: ${totalLevelTime}s, Actual time: ${actualTime}s, 2/3 threshold: ${totalLevelTime * 2/3}s`);
+    
+    // Calculate stats for completion modal
+    const completionStats = {
+      isPerfect: isPerfect,
+      mistakes: currentGame.mistakeRegisteredWords ? currentGame.mistakeRegisteredWords.size : (currentGame.progressLost || 0),
+      timeElapsed: Date.now() - currentGame.levelStartTime, // Time taken to complete level
+      coinsEarned: 0, // Will be updated below
+      correctAnswers: currentGame.correctAnswers || 0,
+      incorrectAnswers: currentGame.words.length - currentGame.correctAnswers || 0,
+      totalQuestions: currentGame.words.length || 0,
+      timeBonus: 0 // No more time bonus, just perfect level bonus
+    };
+    
+    // Debug the stats 
+    debugLevelStats(completionStats, 'handleCustomLevelCompletion');
     
     if (isPerfect) {
-        const bonus = currentGame.firstAttempt ? 5 : 3;
-        CoinsManager.updateCoins(bonus).then(() => {
-            pulseCoins(bonus);
-            customGameState.wordsCompleted += currentGame.words.length;
-            customGameState.completedLevels.add(customGameState.currentLevel);
-            
-            // Calculate max level for this list size
-            const wordCount = customGameState.words.length;
-            const maxLevel = wordCount >= 12 ? 9 : 
-                             wordCount >= 9 ? 6 : 3;
-            
-            console.log("Max level for this list: " + maxLevel);
-            console.log("Current level: " + customGameState.currentLevel);
-            
-            // CRITICAL FIX: If this is level 3 and we have 6 or fewer words, show completion
-            if (customGameState.currentLevel === 3 && wordCount <= 6) {
-                console.log("Level 3 completed with 6 or fewer words - showing completion");
-                setTimeout(() => showCustomCompletionScreen(), 1500);
-                return;
-            }
-            
-            // CRITICAL FIX: If this is level 6 and we have 7-9 words, show completion
-            if (customGameState.currentLevel === 6 && wordCount <= 9) {
-                console.log("Level 6 completed with 7-9 words - showing completion");
-                setTimeout(() => showCustomCompletionScreen(), 1500);
-                return;
-            }
-            
-            // CRITICAL FIX: If this is level 9 and we have 10+ words, show completion
-            if (customGameState.currentLevel === 9 && wordCount >= 10) {
-                console.log("Level 9 completed with 10+ words - showing completion");
-                setTimeout(() => showCustomCompletionScreen(), 1500);
-                return;
-            }
-            
-            // CRITICAL FIX: If this is the max level for any list size, show completion
-            if (customGameState.currentLevel >= maxLevel) {
-                console.log("Max level reached - showing completion");
-                setTimeout(() => showCustomCompletionScreen(), 1500);
-                return;
-            }
-            
-            const nextLevel = customGameState.currentLevel + 1;
-            const nextLevelData = customGameState.getWordsForLevel(nextLevel);
-            
-            const screenRect = document.getElementById('question-screen').getBoundingClientRect();
-            createParticles(screenRect.left + screenRect.width / 2, screenRect.top + screenRect.height / 2);
-            
-            if (!nextLevelData || nextLevelData.words.length === 0) {
-                console.log("No valid data for next level - showing completion");
-                setTimeout(() => showCustomCompletionScreen(), 1500);
-            } else {
-                console.log("Moving to next level: " + nextLevel);
-                customGameState.currentLevel = nextLevel;
-                setTimeout(() => startCustomLevel(nextLevel), 1500);
-            }
-        });
+      // Award bonus coins for perfect completion
+      const coinsToAward = 5;
+      completionStats.coinsEarned = coinsToAward;
+      
+      CoinsManager.updateCoins(coinsToAward).then(() => {
+        pulseCoins(1);
+        
+        // Mark level as completed
+        customGameState.wordsCompleted += currentGame.words.length;
+        customGameState.completedLevels.add(customGameState.currentLevel);
+        
+        // Create particle effect
+        const rect = document.getElementById("question-screen").getBoundingClientRect();
+        createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        
+        // Check if this was the final level or move to next level
+        const nextLevel = customGameState.currentLevel + 1;
+        const nextLevelData = customGameState.getWordsForLevel(nextLevel);
+        
+        if (!nextLevelData || nextLevelData.words.length === 0 || currentGame.isFinalLevel) {
+          setTimeout(() => showCustomCompletionScreen(), 1500);
+        } else {
+          setTimeout(() => startCustomLevel(nextLevel), 1500);
+        }
+      });
     } else {
-        // If not perfect, restart the same level
-        console.log("Level not completed perfectly - restarting level " + customGameState.currentLevel);
-        setTimeout(() => startCustomLevel(customGameState.currentLevel), 1500);
+      // If not perfect, retry the level
+      setTimeout(() => startCustomLevel(customGameState.currentLevel), 1500);
     }
     
+    // Save progress
     saveProgress();
-}
+  }
 
 function showCustomCompletionScreen() {
     const overlay = document.createElement('div');
@@ -12838,118 +13233,118 @@ function exitCustomPractice() {
   showScreen("custom-practice-screen");
 }
 
-/**
- * Handle an answer in custom practice mode
- * @param {boolean} isCorrect - Whether the answer is correct
- * @param {boolean} isSkip - Whether this was a skip action
- */
 async function handleCustomPracticeAnswer(isCorrect, isSkip = false) {
-  if (isCorrect) {
-    // Handle correct answer
-    currentGame.currentIndex++;
-    
-    if (isCorrect && !isSkip) {
-      let coinsToAward = 0;
+    // Initialize tracking structures if they don't exist
+    if (!currentGame.coinAwardedWords) {
+      currentGame.coinAwardedWords = new Set();
+    }
+  
+    if (!currentGame.mistakeRegisteredWords) {
+      currentGame.mistakeRegisteredWords = new Set();
+    }
+  
+    // Get current word key for tracking
+    const currentWordKey = currentGame.currentIndex.toString();
+  
+    if (isCorrect) {
+      // Increment index after correct answer
+      currentGame.currentIndex++;
       
-      // Award time bonus
-      const timeBonus = awardTimeBonus();
-      if (timeBonus > 0) {
-        coinsToAward += timeBonus;
-        pulseCoins(timeBonus);
-      }
-      
-      // Award correctness bonus
-      if (currentGame.firstAttempt) {
-        coinsToAward += 3;
-        pulseCoins(3);
-      } else {
-        coinsToAward += 1;
-        pulseCoins(1);
-      }
-      
-      try {
-        await CoinsManager.updateCoins(coinsToAward);
-        updatePerkButtons();
-      } catch (error) {
-        console.error("Error updating total coins:", error);
-      }
-      
-      currentGame.correctAnswers++;
-      
-      // Track word for any registered user, not just premium
-      if (currentUser) {
-        const index = currentGame.currentIndex - 1; // Fix index to get the word that was just answered
-        const word = currentGame.isHebrewToEnglish ? 
-                    currentGame.words[index] : 
-                    currentGame.translations[index];
+      // Award coins only if not in skip mode and word hasn't already earned coins
+      if (!isSkip && !currentGame.coinAwardedWords.has(currentWordKey)) {
+        // Mark this word as having earned coins
+        currentGame.coinAwardedWords.add(currentWordKey);
         
-        await trackWordEncounter(word, "custom");
+        // Award exactly 10 coins for each correct answer
+        const coinReward = 10;
+        
+        try {
+          await CoinsManager.updateCoins(coinReward);
+          updatePerkButtons();
+          pulseCoins(1);
+        } catch (e) {
+          console.error("Error updating total coins:", e);
+        }
+        
+        currentGame.correctAnswers++;
+        
+        // Track word for any registered user, not just premium
+        if (currentUser) {
+          const wordIndex = currentGame.currentIndex - 1; // Since we already incremented
+          const word = currentGame.isHebrewToEnglish ? 
+                      currentGame.words[wordIndex] : 
+                      currentGame.translations[wordIndex];
+          
+          await trackWordEncounter(word, "custom");
+        }
+      }
+    } else {
+      currentGame.firstAttempt = false;
+      currentGame.streakBonus = false;
+      
+      // Only register a mistake once per word
+      if (!currentGame.mistakeRegisteredWords.has(currentWordKey)) {
+        currentGame.mistakeRegisteredWords.add(currentWordKey);
+        currentGame.wrongStreak++;
+        
+        try {
+          await CoinsManager.updateCoins(-3);
+          updatePerkButtons();
+        } catch (error) {
+          console.error("Error updating coins:", error);
+        }
+      }
+      
+      if (currentGame.currentIndex > 0) {
+        currentGame.progressLost++;
+        currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
+      }
+      
+      // Show game over screen if too many wrong answers in a row
+      if (currentGame.wrongStreak >= 3) {
+        showGameOverOverlay();
+        
+        // Set up restart button
+        document.querySelector(".restart-button").onclick = () => {
+          document.querySelector(".failure-overlay").style.display = "none";
+          startCustomLevel(currentGame.customLevel);
+        };
+        
+        return;
       }
     }
-  } else {
-    // Handle wrong answer
-    currentGame.firstAttempt = false;
-    currentGame.streakBonus = false;
-    currentGame.wrongStreak++;
     
-    try {
-      await CoinsManager.updateCoins(-3);
-      updatePerkButtons();
-    } catch (error) {
-      console.error("Error updating coins:", error);
-    }
+    // Highlight correct/incorrect answers
+    const correctWord = currentGame.isHebrewToEnglish ? 
+                       currentGame.words[Math.max(0, currentGame.currentIndex - 1)] : 
+                       currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
     
-    // Move back if too many wrong answers
-    if (currentGame.currentIndex > 0) {
-      currentGame.progressLost++;
-      currentGame.currentIndex = Math.max(0, currentGame.currentIndex - 1);
-    }
-    
-    // Show game over screen if too many wrong answers in a row
-    if (currentGame.wrongStreak >= 3) {
-      showGameOverOverlay();
-      
-      // Set up restart button
-      document.querySelector(".restart-button").onclick = () => {
-        document.querySelector(".failure-overlay").style.display = "none";
-        startCustomLevel(currentGame.customLevel);
-      };
-      
-      return;
-    }
-  }
-  
-  // Highlight correct/incorrect answers
-  const correctWord = currentGame.isHebrewToEnglish ? 
-                     currentGame.words[Math.max(0, currentGame.currentIndex - 1)] : 
-                     currentGame.translations[Math.max(0, currentGame.currentIndex - 1)];
-  
-  document.querySelectorAll(".buttons button").forEach(button => {
-    if (button.textContent === correctWord) {
-      button.classList.add("correct");
-    } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
-      button.classList.add("wrong");
-    }
-  });
-  
-  // Update UI and save progress
-  updateProgressCircle();
-  saveProgress();
-  
-  // Load next question or finish level
-  setTimeout(() => {
-    document.querySelectorAll(".buttons button").forEach(btn => {
-      btn.classList.remove("correct", "wrong");
+    document.querySelectorAll(".buttons button").forEach(button => {
+      if (button.textContent === correctWord) {
+        button.classList.add("correct");
+      } else if (!isCorrect && event && event.target && button.textContent === event.target.textContent) {
+        button.classList.add("wrong");
+      }
     });
     
-    if (currentGame.currentIndex < currentGame.words.length) {
-      loadNextQuestion();
-      updatePerkButtons();
-    } else {
-      handleCustomLevelCompletion();
-    }
-  }, 333);
-}
+    // Update UI and save progress
+    updateProgressCircle();
+    saveProgress();
+    
+    // Load next question or finish level
+    setTimeout(() => {
+      document.querySelectorAll(".buttons button").forEach(btn => {
+        btn.classList.remove("correct", "wrong");
+      });
+      
+      if (currentGame.currentIndex < currentGame.words.length) {
+        loadNextQuestion();
+        updatePerkButtons();
+      } else {
+        handleCustomLevelCompletion();
+      }
+    }, 333);
+  }
 
 /**
  * Update schema for a custom list
