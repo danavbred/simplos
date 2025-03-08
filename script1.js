@@ -1207,9 +1207,15 @@ function showSuccessToast(message) {
     }, 3000);
 }
 
+// REPLACE the showScreen function
 function showScreen(screenId, forceRefresh = false) {
     // Debug statement to help track screen navigation
     console.log(`Attempting to show screen: ${screenId}`);
+    
+    // Special handling for stage-cascade-screen
+    if (screenId === "stage-cascade-screen") {
+        return renderStageCascadeScreen();
+    }
     
     // Prevent unregistered users from seeing upgrade screen
     if (screenId === "upgrade-screen" && !currentUser) {
@@ -1346,8 +1352,8 @@ function showScreen(screenId, forceRefresh = false) {
                
         case "stage-cascade-screen":
           // Handle the cascading stage screen specially
-          if (typeof showStageCascadeScreen === 'function') {
-            return showStageCascadeScreen();
+          if (typeof renderStageCascadeScreen === 'function') {
+            return renderStageCascadeScreen();
           }
           break;
           
@@ -1693,123 +1699,79 @@ function showSetScreen(stageId) {
 }
 
 function showStageCascadeScreen() {
-    // First, ensure we have the latest game state
-    if (currentUser) {
-        // For logged-in users, optionally refresh from database
-        const savedProgress = localStorage.getItem("simploxProgress");
-        if (savedProgress) {
-            try {
-                const progress = JSON.parse(savedProgress);
-                updateGameStateFromProgress(progress);
-            } catch (error) {
-                console.error("Error parsing local progress:", error);
-            }
-        }
-    }
-    
-    console.log("Showing stage cascade screen, current game state:", {
-        currentStage: gameState.currentStage,
-        unlockedSets: gameState.unlockedSets,
-        completedLevels: gameState.completedLevels ? Array.from(gameState.completedLevels).length : 0
+    // First, hide all screens
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('visible');
     });
     
-    const container = document.querySelector('.stages-container');
-    if (!container) return;
+    // Then show the stage-cascade screen
+    const stageCascadeScreen = document.getElementById('stage-cascade-screen');
+    if (stageCascadeScreen) {
+        stageCascadeScreen.classList.add('visible');
+    }
     
-    // Clear existing content
-    container.innerHTML = '';
+    // Now populate the content
+    let stageCascadeContainer = document.querySelector('.stage-cascade-container');
+    if (!stageCascadeContainer) {
+        // Create container if it doesn't exist
+        const container = document.createElement('div');
+        container.className = 'stage-cascade-container';
+        stageCascadeScreen.appendChild(container);
+        stageCascadeContainer = container; // Now works with let instead of const
+    } else {
+        // Clear existing content
+        stageCascadeContainer.innerHTML = '';
+    }
     
-    // Create stage wrappers for each stage
-    gameStructure.stages.forEach(stage => {
-        // Create stage wrapper
-        const stageWrapper = document.createElement('div');
-        stageWrapper.className = 'stage-wrapper';
-        stageWrapper.dataset.stage = stage.id;
+    // Create stage cards for each stage
+    const totalStages = gameStructure.stages.length;
+    for (let stageIndex = 0; stageIndex < totalStages; stageIndex++) {
+        const stage = gameStructure.stages[stageIndex];
+        const stageNumber = stageIndex + 1;
         
-        // Get stage completion data
-        const totalSets = stage.numSets;
-        const unlockedSets = gameState.unlockedSets[stage.id] || new Set();
+        // Create stage card
+        const stageCard = document.createElement('div');
+        stageCard.className = 'stage-card';
         
-        console.log(`Stage ${stage.id} unlocked sets:`, Array.from(unlockedSets));
+        // Determine if stage is unlocked
+        const isUnlocked = gameState.unlockedSets[stageNumber] && gameState.unlockedSets[stageNumber].size > 0;
+        if (!isUnlocked) {
+            stageCard.classList.add('locked');
+        }
         
-        const unlockedCount = unlockedSets.size;
-        let completedSets = 0;
+        // Add content to stage card
+        stageCard.innerHTML = `
+            <div class="stage-header">
+                <h2>Stage ${stageNumber}</h2>
+                <span class="stage-description">${getStageDescription(stageNumber)}</span>
+            </div>
+            <div class="stage-sets">
+                ${createSetsHTML(stageNumber, stage)}
+            </div>
+            ${!isUnlocked ? '<div class="locked-overlay"><i class="fas fa-lock"></i></div>' : ''}
+        `;
         
-        // Count completed sets
-        if (unlockedSets.size > 0) {
-            unlockedSets.forEach(setId => {
-                const setKey = `${stage.id}_${setId}`;
-                const levelCount = gameStructure.stages[stage.id - 1].levelsPerSet;
-                const completedLevels = new Set();
-                
-                // Count levels that are in completedLevels or perfectLevels
-                for (let level = 1; level <= levelCount; level++) {
-                    const levelKey = `${stage.id}_${setId}_${level}`;
-                    if (gameState.completedLevels.has(levelKey) || gameState.perfectLevels.has(levelKey)) {
-                        completedLevels.add(level);
-                    }
-                }
-                
-                // If all levels in a set are completed, count it as a completed set
-                if (completedLevels.size === levelCount) {
-                    completedSets++;
-                    console.log(`Set ${stage.id}-${setId} is fully completed`);
-                }
+        // Add click handler if unlocked
+        if (isUnlocked) {
+            stageCard.addEventListener('click', () => {
+                gameState.currentStage = stageNumber;
+                showStageScreen();
             });
         }
         
-        // Stage button content
-        const stageIcon = getStageIcon(stage.id);
-        const stageName = getStageHebrewName(stage.id);
-        const stageDesc = getStageDescription(stage.id);
-        const stageStatus = getStageStatus(stage.id, completedSets, totalSets);
-        
-        // Create stage button
-        stageWrapper.innerHTML = `
-            <div class="stage-button">
-                <div class="stage-info">
-                    <div class="stage-icon">
-                        <i class="${stageIcon}"></i>
-                    </div>
-                    <div class="stage-text">
-                        <div class="stage-name">${stageName} - Stage ${stage.id}</div>
-                        <div class="stage-desc">${stageDesc}</div>
-                    </div>
-                </div>
-                <div class="stage-status">${stageStatus}</div>
-                <div class="stage-toggle">
-                    <i class="fas fa-chevron-down"></i>
-                </div>
-            </div>
-            
-            <div class="sets-container">
-                <div class="sets-grid" id="sets-grid-${stage.id}"></div>
-            </div>
-        `;
-        
-        container.appendChild(stageWrapper);
-        
-        // Populate sets grid
-        populateSetsGrid(stage.id);
-    });
-    
-    // Add event listeners to stage buttons
-    addStageToggleListeners();
-    
-    // Initial state: open the current stage
-    if (gameState.currentStage) {
-        const currentStageWrapper = document.querySelector(`.stage-wrapper[data-stage="${gameState.currentStage}"]`);
-        if (currentStageWrapper) {
-            currentStageWrapper.classList.add('open');
-        }
+        stageCascadeContainer.appendChild(stageCard);
     }
     
-    const cascadeScreen = document.getElementById('stage-cascade-screen'); 
-    if (cascadeScreen) {
-        document.querySelectorAll('.screen').forEach(screen => {
-            screen.classList.remove('visible');
+    // Add back button if it doesn't exist
+    let backButton = stageCascadeScreen.querySelector('.back-button');
+    if (!backButton) {
+        backButton = document.createElement('button');
+        backButton.className = 'back-button';
+        backButton.innerHTML = '<i class="fas fa-arrow-left"></i> Back';
+        backButton.addEventListener('click', () => {
+            showScreen('welcome-screen');
         });
-        cascadeScreen.classList.add('visible');
+        stageCascadeScreen.appendChild(backButton);
     }
 }
 
@@ -8601,44 +8563,97 @@ function handleBossVictoryHome() {
 
 createBossStyleSheet();
 
-// Add this to your CSS or create a style tag in your head
-const avatarButtonStyle = document.createElement('style');
-avatarButtonStyle.textContent = `
-  /* Hide avatar button during arcade mode and modals */
-  .arcade-active .avatar-button,
-  .modal-open .avatar-button,
-  #question-screen.visible .avatar-button,
-  #moderator-screen.visible .avatar-button,
-  #arcade-modal[style*="display: block"] ~ .avatar-button {
-    display: none !important;
-  }
-`;
-document.head.appendChild(avatarButtonStyle);
-
-// Add a function to toggle the class when entering/exiting arcade mode
-function toggleArcadeUIMode(isActive) {
-  document.body.classList.toggle('arcade-active', isActive);
+function showStageCascadeScreen() {
+    console.log("Showing stage cascade screen");
+    
+    // First, hide all screens
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('visible');
+    });
+    
+    // Then show the stage-cascade screen
+    const stageCascadeScreen = document.getElementById('stage-cascade-screen');
+    if (stageCascadeScreen) {
+        stageCascadeScreen.classList.add('visible');
+    } else {
+        console.error("Stage cascade screen element not found");
+        return;
+    }
+    
+    // Now populate the content
+    const stagesContainer = stageCascadeScreen.querySelector('.stages-container');
+    if (!stagesContainer) {
+        // Create container if it doesn't exist
+        const container = document.createElement('div');
+        container.className = 'stages-container';
+        stageCascadeScreen.appendChild(container);
+    }
+    
+    // Clear existing content
+    stagesContainer.innerHTML = '';
+    
+    // Create stage wrappers for each stage
+    gameStructure.stages.forEach(stage => {
+        // Create stage wrapper
+        const stageWrapper = document.createElement('div');
+        stageWrapper.className = 'stage-wrapper';
+        stageWrapper.dataset.stage = stage.id;
+        
+        // Get stage completion data
+        const totalSets = stage.numSets;
+        const unlockedSets = gameState.unlockedSets[stage.id] || new Set();
+        let completedSets = 0;
+        
+        // Count completed sets
+        unlockedSets.forEach(setId => {
+            if (isSetCompleted(stage.id, setId)) {
+                completedSets++;
+            }
+        });
+        
+        // Stage button content
+        const stageIcon = getStageIcon(stage.id);
+        const stageName = getStageHebrewName(stage.id);
+        const stageDesc = getStageDescription(stage.id);
+        const stageStatus = getStageStatus(stage.id, completedSets, totalSets);
+        
+        // Create stage button
+        stageWrapper.innerHTML = `
+            <div class="stage-button">
+                <div class="stage-info">
+                    <div class="stage-icon">
+                        <i class="${stageIcon}"></i>
+                    </div>
+                    <div class="stage-text">
+                        <div class="stage-name">${stageName} - Stage ${stage.id}</div>
+                        <div class="stage-desc">${stageDesc}</div>
+                    </div>
+                </div>
+                <div class="stage-status">${stageStatus}</div>
+                <div class="stage-toggle">
+                    <i class="fas fa-chevron-down"></i>
+                </div>
+            </div>
+            
+            <div class="sets-container">
+                <div class="sets-grid" id="sets-grid-${stage.id}"></div>
+            </div>
+        `;
+        
+        stagesContainer.appendChild(stageWrapper);
+        
+        // Populate sets grid
+        populateSetsGrid(stage.id);
+    });
+    
+    // Add event listeners to stage buttons
+    addStageToggleListeners();
+    
+    // Initial state: open the current stage
+    if (gameState.currentStage) {
+        const currentStageWrapper = document.querySelector(`.stage-wrapper[data-stage="${gameState.currentStage}"]`);
+        if (currentStageWrapper) {
+            currentStageWrapper.classList.add('open');
+        }
+    }
 }
-
-// Then call this when showing the arcade modal
-const originalShowArcadeModal = showArcadeModal;
-showArcadeModal = function() {
-  document.body.classList.add('modal-open');
-  toggleArcadeUIMode(true);
-  originalShowArcadeModal.apply(this, arguments);
-};
-
-// And when starting arcade game
-const originalStartArcadeGame = startArcadeGame;
-startArcadeGame = function() {
-  toggleArcadeUIMode(true);
-  originalStartArcadeGame.apply(this, arguments);
-};
-
-// And when exiting arcade
-const originalExitArcade = exitArcade;
-exitArcade = function() {
-  toggleArcadeUIMode(false);
-  document.body.classList.remove('modal-open');
-  originalExitArcade.apply(this, arguments);
-};

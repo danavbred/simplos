@@ -5959,6 +5959,21 @@ async function startArcade() {
     }
 }
 
+function updateModeratorScreenButtons() {
+  const startArcadeBtn = document.querySelector('.start-arcade-button');
+  const endArcadeBtn = document.querySelector('.end-arcade-button');
+  
+  if (currentArcadeSession && currentArcadeSession.state === 'started' || currentArcadeSession.state === 'active') {
+    // Hide Start button, show End button
+    if (startArcadeBtn) startArcadeBtn.style.display = 'none';
+    if (endArcadeBtn) endArcadeBtn.style.display = 'block';
+  } else {
+    // Show Start button, hide End button
+    if (startArcadeBtn) startArcadeBtn.style.display = 'block';
+    if (endArcadeBtn) endArcadeBtn.style.display = 'none';
+  }
+}
+
 async function generateCombinedWordPool(selectedListIds, selectedStages, wordGoal) {
     console.log('Generating combined word pool with:', { 
         selectedListIds, 
