@@ -3923,12 +3923,12 @@ function updateListsDisplay() {
             listItem.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
             listItem.dataset.listId = list.id;
             
-            // Create list item HTML - INCLUDING THE SHARE BUTTON FOR PREMIUM USERS
+            // MODIFIED: Changed the word count display format
             listItem.innerHTML = `
                 <div class="list-actions">
                     <button class="main-button practice-button" ${hasSufficientWords ? "" : "disabled"}>
-                        ${hasSufficientWords ? "Practice" : `Need ${6 - wordCount} more`}
-                    </button>
+    ${hasSufficientWords ? "Practice" : `${6 - wordCount} more`}
+</button>
                     <button class="main-button edit-button">Edit</button>
                     <button class="main-button delete-button">Delete</button>
                     ${userStatus === "premium" ? `
@@ -3940,8 +3940,7 @@ function updateListsDisplay() {
                 <div class="list-header">
                     <h3>${list.name || "Unnamed List"}</h3>
                     <div class="list-summary">
-                        <span class="word-count ${hasSufficientWords ? "" : "insufficient"}">${wordCount} words</span>
-                        ${hasSufficientWords ? "" : '<span class="warning-text">(Minimum 6 needed)</span>'}
+                        <span class="word-count ${hasSufficientWords ? "" : "insufficient"}">${wordCount}/${hasSufficientWords ? wordCount : 6}</span>
                         ${playsAvailableHtml}
                         <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0, 5).join(", ") : ""}${list.words && list.words.length > 5 ? "..." : ""}</p>
                     </div>
@@ -12400,13 +12399,44 @@ function processCustomWords() {
     
     // Create word items with translations
     words.forEach(word => {
-      const wordItem = createWordItem(word, findTranslation(word));
+      const wordItem = document.createElement("div");
+      wordItem.className = "word-translation-item";
+      wordItem.draggable = true;
+      
+      wordItem.innerHTML = `
+        <div class="drag-handle">
+            <i class="fas fa-grip-vertical"></i>
+        </div>
+        <span class="source-word" contenteditable="true">${word}</span>
+        <input type="text" class="target-word" value="${findTranslation(word)}" placeholder="Hebrew translation">
+        <button class="delete-word-btn" onclick="deleteWord(this)">
+            <i class="fas fa-times"></i>
+        </button>
+      `;
+      
       wordList.appendChild(wordItem);
+      makeItemDraggable(wordItem);
     });
     
-    // Initialize drag and drop
-    setupDragAndDrop();
-  }
+    // Add "Add Word" button if it doesn't exist
+    const addWordButton = document.getElementById("add-word-btn");
+    if (!addWordButton) {
+        const addButton = document.createElement("button");
+        addButton.id = "add-word-btn";
+        addButton.className = "main-button add-word-button";
+        addButton.innerHTML = '<i class="fas fa-plus"></i> Add Word';
+        addButton.onclick = function() { addNewWord(); };
+        
+        const container = document.querySelector(".translation-input-container") || 
+                       wordList.parentNode;
+        if (container) {
+            container.appendChild(addButton);
+        }
+    }
+    
+    // Setup drag and drop functionality
+    setupDraggableWordList();
+}
 
 /**
  * Find a translation for a given word
@@ -12507,62 +12537,6 @@ function createWordItem(word, translation) {
     wordItem.querySelector(".source-word").focus();
   }
   
-  function editCustomList(listId) {
-    const list = CustomListsManager.lists.find(list => list.id === listId);
-    if (!list) return showNotification("List not found", "error");
-  
-    // First, show the custom practice screen
-    showScreen("custom-practice-screen");
-    
-    // Set the list name in the input field
-    const nameInput = document.getElementById("custom-list-name");
-    if (nameInput) {
-        nameInput.value = list.name || "";
-    }
-    
-    // Clear and populate the word translation list
-    const translationResults = document.getElementById("translation-results");
-    const wordList = document.getElementById("word-translation-list");
-    
-    if (wordList) {
-        // Clear existing content
-        wordList.innerHTML = "";
-        
-        // Add each word-translation pair
-        if (Array.isArray(list.words)) {
-            list.words.forEach((word, index) => {
-                const translation = list.translations && index < list.translations.length 
-                    ? list.translations[index] 
-                    : "";
-                
-                const wordItem = document.createElement("div");
-                wordItem.className = "word-translation-item";
-                wordItem.innerHTML = `
-                    <div class="drag-handle">
-                        <i class="fas fa-grip-vertical"></i>
-                    </div>
-                    <span class="source-word" contenteditable="true">${word}</span>
-                    <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
-                    <button class="delete-word-btn">❌</button>
-                `;
-                
-                wordList.appendChild(wordItem);
-            });
-        }
-        
-        // Set up drag and drop functionality
-        addDragAndDropStyles();
-        setupDraggableWordList();
-        
-        // Show the translation results
-        if (translationResults) {
-            translationResults.style.display = "block";
-        }
-    }
-    
-    // Set the current list being edited
-    CustomListsManager.currentList = list;
-  }
 
   function deleteWord(button) {
     if (!button) return;
@@ -12719,91 +12693,114 @@ function setupWordListKeyNavigation() {
   });
 }
 
-/**
- * Save the current list
- */
 async function saveCurrentList() {
-  const nameInput = document.getElementById("custom-list-name");
-  const wordList = document.getElementById("word-translation-list");
-  
-  // Get list name (use default if empty)
-  const name = nameInput.value.trim() || 
-               (CustomListsManager.currentList ? 
-                CustomListsManager.currentList.name : 
-                `List ${CustomListsManager.lists.length + 1}`);
-  
-  // Collect words and translations
-  const words = [];
-  const translations = [];
-  
-  wordList.querySelectorAll(".word-translation-item").forEach(item => {
-    const word = item.querySelector(".source-word").textContent.trim();
-    const translation = item.querySelector(".target-word").value.trim();
-    
-    if (word && translation) {
-      words.push(word);
-      translations.push(translation);
+    try {
+      const nameInput = document.getElementById("custom-list-name");
+      const wordList = document.getElementById("word-translation-list");
+      
+      // Check if word list exists
+      if (!wordList) {
+        console.error("Word list container not found");
+        showNotification("Error: Word list container not found", "error");
+        return;
+      }
+      
+      // Get list name (use default if empty)
+      const name = nameInput && nameInput.value ? nameInput.value.trim() : 
+                  (CustomListsManager.currentList ? 
+                    CustomListsManager.currentList.name : 
+                    `List ${CustomListsManager.lists.length + 1}`);
+      
+      // Collect words and translations
+      const words = [];
+      const translations = [];
+      
+      wordList.querySelectorAll(".word-translation-item").forEach(item => {
+        // Add null checks to prevent accessing properties of null
+        const sourceWordElement = item.querySelector(".source-word");
+        const targetWordElement = item.querySelector(".target-word");
+        
+        // Only proceed if both elements exist
+        if (sourceWordElement && targetWordElement) {
+          const word = sourceWordElement.textContent.trim();
+          const translation = targetWordElement.value.trim();
+          
+          if (word && translation) {
+            words.push(word);
+            translations.push(translation);
+          }
+        }
+      });
+      
+      // Check if we have any words
+      if (words.length === 0) {
+        showNotification("Please add at least one word with translation", "error");
+        return;
+      }
+      
+      // Check word limit
+      const limits = CustomListsManager.getListLimits();
+      if (words.length > limits.maxWords) {
+        showNotification(`You can only create lists with up to ${limits.maxWords} words`, "error");
+        return;
+      }
+      
+      // Handle list editing vs creation
+      let listToSave;
+      const isEditing = CustomListsManager.currentList !== null;
+      
+      if (!isEditing && !CustomListsManager.canCreateMoreLists()) {
+        showNotification(`Maximum lists limit reached`, "error");
+        return;
+      }
+      
+      if (isEditing) {
+        listToSave = {
+          ...CustomListsManager.currentList,
+          name: name,
+          words: words,
+          translations: translations
+        };
+      } else {
+        listToSave = {
+          tempId: Date.now(),
+          name: name,
+          words: words,
+          translations: translations
+        };
+      }
+      
+      // Save the list
+      const savedList = await CustomListsManager.save(listToSave);
+      
+      if (savedList) {
+        // Reset form
+        if (nameInput) nameInput.value = "";
+        wordList.innerHTML = "";
+        const translationResults = document.getElementById("translation-results");
+        if (translationResults) translationResults.style.display = "none";
+        CustomListsManager.currentList = null;
+        
+        // Refresh lists
+        if (currentUser) {
+          await CustomListsManager.loadFromSupabase();
+        } else {
+          CustomListsManager.loadFromLocalStorage();
+        }
+        
+        showNotification("List saved successfully", "success");
+        showScreen("custom-practice-screen");
+        updateListsDisplay();
+      } else {
+        showNotification("Failed to save list", "error");
+      }
+    } catch (error) {
+      console.error("Error saving custom list:", error);
+      showNotification("An unexpected error occurred while saving", "error");
     }
-  });
-  
-  // Check word limit
-  const limits = CustomListsManager.getListLimits();
-  if (words.length > limits.maxWords) {
-    showNotification(`You can only create lists with up to ${limits.maxWords} words`, "error");
-    return;
   }
-  
-  // Handle list editing vs creation
-  let listToSave;
-  const isEditing = CustomListsManager.currentList !== null;
-  
-  if (!isEditing && !CustomListsManager.canCreateMoreLists()) {
-    showNotification(`Maximum lists limit reached`, "error");
-    return;
-  }
-  
-  if (isEditing) {
-    listToSave = {
-      ...CustomListsManager.currentList,
-      name: name,
-      words: words,
-      translations: translations
-    };
-  } else {
-    listToSave = {
-      tempId: Date.now(),
-      name: name,
-      words: words,
-      translations: translations
-    };
-  }
-  
-  // Save the list
-  const savedList = await CustomListsManager.save(listToSave);
-  
-  if (savedList) {
-    // Reset form
-    nameInput.value = "";
-    wordList.innerHTML = "";
-    document.getElementById("translation-results").style.display = "none";
-    CustomListsManager.currentList = null;
-    
-    // Refresh lists
-    if (currentUser) {
-      await CustomListsManager.loadFromSupabase();
-    } else {
-      CustomListsManager.loadFromLocalStorage();
-    }
-    
-    showNotification("List saved successfully", "success");
-    showScreen("custom-practice-screen");
-    updateListsDisplay();
-  } else {
-    showNotification("Failed to save list", "error");
-  }
-}
 
-function editCustomList(listId) {
+  function editCustomList(listId) {
     const list = CustomListsManager.lists.find(list => list.id === listId);
     if (!list) return showNotification("List not found", "error");
 
@@ -12818,10 +12815,11 @@ function editCustomList(listId) {
     
     // Clear and populate the word translation list
     const translationResults = document.getElementById("translation-results");
-    const wordTranslationList = document.getElementById("word-translation-list");
+    const wordList = document.getElementById("word-translation-list");
     
-    if (wordTranslationList) {
-        wordTranslationList.innerHTML = "";
+    if (wordList) {
+        // Clear existing content
+        wordList.innerHTML = "";
         
         // Add each word-translation pair
         if (Array.isArray(list.words)) {
@@ -12833,6 +12831,7 @@ function editCustomList(listId) {
                 const wordItem = document.createElement("div");
                 wordItem.className = "word-translation-item";
                 wordItem.draggable = true;
+                
                 wordItem.innerHTML = `
                     <div class="drag-handle">
                         <i class="fas fa-grip-vertical"></i>
@@ -12840,17 +12839,51 @@ function editCustomList(listId) {
                     <span class="source-word" contenteditable="true">${word}</span>
                     <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
                     <button class="delete-word-btn" onclick="deleteWord(this)">
-                        <i class="fas fa-times" style="font-size: 12px;"></i>
+                        <i class="fas fa-times"></i>
                     </button>
                 `;
                 
-                wordTranslationList.appendChild(wordItem);
-                initializeDragAndDrop(wordItem);
+                wordList.appendChild(wordItem);
+                makeItemDraggable(wordItem);
             });
         }
         
-        // Make the list draggable
-        makeWordListDraggable();
+        // If no words exist, add an empty word entry
+        if (wordList.children.length === 0) {
+            const emptyWordItem = document.createElement("div");
+            emptyWordItem.className = "word-translation-item";
+            emptyWordItem.draggable = true;
+            
+            emptyWordItem.innerHTML = `
+                <div class="drag-handle">
+                    <i class="fas fa-grip-vertical"></i>
+                </div>
+                <span class="source-word" contenteditable="true"></span>
+                <input type="text" class="target-word" value="" placeholder="Hebrew translation">
+                <button class="delete-word-btn" onclick="deleteWord(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            wordList.appendChild(emptyWordItem);
+            makeItemDraggable(emptyWordItem);
+        }
+        
+        // Add event to add a new word
+        const addWordButton = document.getElementById("add-word-btn");
+        if (!addWordButton) {
+            const addButton = document.createElement("button");
+            addButton.id = "add-word-btn";
+            addButton.className = "main-button add-word-button";
+            addButton.innerHTML = '<i class="fas fa-plus"></i> Add Word';
+            addButton.onclick = function() { addNewWord(); };
+            
+            const container = document.querySelector(".translation-input-container") || 
+                           wordList.parentNode;
+            if (container) {
+                container.appendChild(addButton);
+            }
+        }
         
         // Show the translation results
         if (translationResults) {
@@ -12860,6 +12893,35 @@ function editCustomList(listId) {
     
     // Set the current list being edited
     CustomListsManager.currentList = list;
+}
+
+function addNewWord() {
+    const wordList = document.getElementById("word-translation-list");
+    if (!wordList) return;
+    
+    const wordItem = document.createElement("div");
+    wordItem.className = "word-translation-item";
+    wordItem.draggable = true;
+    
+    wordItem.innerHTML = `
+        <div class="drag-handle">
+            <i class="fas fa-grip-vertical"></i>
+        </div>
+        <span class="source-word" contenteditable="true"></span>
+        <input type="text" class="target-word" placeholder="Hebrew translation">
+        <button class="delete-word-btn" onclick="deleteWord(this)">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    // Add to list
+    wordList.appendChild(wordItem);
+    
+    // Make it draggable
+    makeItemDraggable(wordItem);
+    
+    // Focus on the new word field
+    wordItem.querySelector(".source-word").focus();
 }
 
 async function deleteCustomList(id) {
@@ -14344,14 +14406,13 @@ function setupDraggableWordList() {
     items.forEach(item => makeItemDraggable(item));
   }
   
-  // Make a single item draggable
   function makeItemDraggable(item) {
-    if (!item) return;
+    if (!item) return null;
     
     // Create a fresh clone to remove any existing handlers
     const clone = item.cloneNode(true);
     if (item.parentNode) {
-      item.parentNode.replaceChild(clone, item);
+        item.parentNode.replaceChild(clone, item);
     }
     
     // Work with the clone now
@@ -14361,29 +14422,40 @@ function setupDraggableWordList() {
     newItem.setAttribute('draggable', 'true');
     
     newItem.addEventListener('dragstart', (e) => {
-      e.stopPropagation();
-      newItem.classList.add('dragging');
-      e.dataTransfer.setData('text/plain', ''); // Needed for Firefox
-      e.dataTransfer.effectAllowed = 'move';
+        e.stopPropagation();
+        newItem.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', ''); // Needed for Firefox
+        e.dataTransfer.effectAllowed = 'move';
     });
     
     newItem.addEventListener('dragend', (e) => {
-      e.stopPropagation();
-      newItem.classList.remove('dragging');
+        e.stopPropagation();
+        newItem.classList.remove('dragging');
     });
     
     // Set up delete button
     const deleteBtn = newItem.querySelector('.delete-word-btn');
     if (deleteBtn) {
-      deleteBtn.onclick = function() {
-        if (newItem.parentNode) {
-          newItem.parentNode.removeChild(newItem);
-        }
-      };
+        deleteBtn.onclick = function() {
+            if (newItem.parentNode) {
+                newItem.parentNode.removeChild(newItem);
+            }
+        };
+    }
+    
+    // Ensure proper class names on source and target elements
+    const sourceWord = newItem.querySelector('[contenteditable="true"]');
+    if (sourceWord && !sourceWord.classList.contains('source-word')) {
+        sourceWord.className = 'source-word';
+    }
+    
+    const targetWord = newItem.querySelector('input[placeholder="Hebrew translation"]');
+    if (targetWord && !targetWord.classList.contains('target-word')) {
+        targetWord.className = 'target-word';
     }
     
     return newItem;
-  }
+}
   
   // Calculate drop position
   function getDropPosition(container, y) {
