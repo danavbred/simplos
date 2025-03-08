@@ -1240,10 +1240,10 @@ function showScreen(screenId, forceRefresh = false) {
       cleanupLeaderboard();
     }
      
-    const event = new CustomEvent('screenChange', { 
-        detail: { screen: screenId } 
-      });
-      document.dispatchEvent(event);
+  const event = new CustomEvent('screenChange', { 
+    detail: { screen: screenId } 
+  });
+  document.dispatchEvent(event);
 
     // Get currently visible screen
     const currentScreen = document.querySelector('.screen.visible');
