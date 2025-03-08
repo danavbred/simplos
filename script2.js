@@ -15196,22 +15196,21 @@ document.addEventListener('DOMContentLoaded', function() {
     setupMobileRedirect();
 });
 
-// IMMEDIATELY INVOKED FUNCTION to set up mobile redirection
+// IMMEDIATELY INVOKED FUNCTION for mobile responsive lists view
 (function() {
     // Debug logging function
     function logDebug(message) {
         console.log(`[Mobile Lists Debug]: ${message}`);
     }
 
-    // Improved mobile detection
-    function isMobileDevice() {
-        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-        const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-        const isMobile = mobileRegex.test(userAgent) || 
-                        (window.innerWidth <= 768) || 
-                        ('ontouchstart' in document.documentElement);
+    // Mobile detection based purely on screen width
+    function isSmallScreen() {
+        // Define our breakpoint - 768px is a common mobile breakpoint
+        const MOBILE_BREAKPOINT = 768;
+        const screenWidth = window.innerWidth;
+        const isMobile = screenWidth <= MOBILE_BREAKPOINT;
         
-        logDebug(`Mobile detection: ${isMobile ? 'MOBILE' : 'DESKTOP'}`);
+        logDebug(`Screen width: ${screenWidth}px - ${isMobile ? 'SMALL SCREEN' : 'LARGE SCREEN'}`);
         return isMobile;
     }
 
@@ -15534,7 +15533,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         // Then show our screen
-        const mobileScreen = document.getElementById('mobile-custom-lists-screen');
+        const mobileScreen = document.getElementById('mobile-custom-lists-screen') || createMobileListsScreen();
         if (mobileScreen) {
             mobileScreen.style.display = 'flex';
             mobileScreen.classList.add('visible', 'active');
@@ -15568,7 +15567,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Override the custom practice button click for mobile
+    // Helper function to show a screen (copied from your app's likely implementation)
+    function showScreen(screenId) {
+        const screen = document.getElementById(screenId);
+        if (screen) {
+            // First hide all other screens
+            document.querySelectorAll('.screen').forEach(s => {
+                if (s.id !== screenId) {
+                    s.style.display = 'none';
+                    s.classList.remove('visible', 'active');
+                }
+            });
+            
+            // Then show the requested screen
+            screen.style.display = '';
+            screen.classList.add('visible', 'active');
+        }
+    }
+
+    // Override the custom practice button click based on screen size
     function setupButtonOverride() {
         logDebug("Setting up button override");
         
@@ -15589,16 +15606,16 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Override the click handler
             button.onclick = function(event) {
-                if (isMobileDevice()) {
-                    // On mobile: Show our custom screen
+                if (isSmallScreen()) {
+                    // On small screens: Show our custom screen
                     event.preventDefault();
                     event.stopPropagation();
-                    logDebug("Mobile detected - redirecting to mobile lists screen");
+                    logDebug("Small screen detected - redirecting to mobile lists screen");
                     showMobileListsScreen();
                     return false;
                 } else {
                     // On desktop: Use original behavior
-                    logDebug("Desktop detected - using original button behavior");
+                    logDebug("Large screen detected - using original button behavior");
                     if (typeof originalOnClick === 'function') {
                         return originalOnClick.call(this, event);
                     } else if (button.getAttribute('onclick')) {
@@ -15616,17 +15633,48 @@ document.addEventListener('DOMContentLoaded', function() {
         logDebug("Button override setup complete");
     }
 
+    // Handle window resize to adapt to orientation changes
+    function handleWindowResize() {
+        // If we're on the custom practice screen and the screen size changes,
+        // we might need to switch views
+        const customPracticeScreen = document.getElementById('custom-practice-screen');
+        const mobileListsScreen = document.getElementById('mobile-custom-lists-screen');
+        
+        if (customPracticeScreen && 
+            (customPracticeScreen.classList.contains('visible') || 
+             customPracticeScreen.style.display !== 'none')) {
+            
+            if (isSmallScreen()) {
+                // If now small screen but showing desktop view, switch to mobile
+                logDebug("Window resized to small screen while on custom practice screen - switching to mobile view");
+                showMobileListsScreen();
+            }
+        } else if (mobileListsScreen && 
+                  (mobileListsScreen.classList.contains('visible') || 
+                   mobileListsScreen.style.display !== 'none')) {
+            
+            if (!isSmallScreen()) {
+                // If now large screen but showing mobile view, switch to desktop
+                logDebug("Window resized to large screen while on mobile lists screen - switching to desktop view");
+                hideScreen('mobile-custom-lists-screen');
+                showScreen('custom-practice-screen');
+            }
+        }
+    }
+
     // Initialize everything when the page is ready
     function initialize() {
-        logDebug("Initializing mobile lists functionality");
+        logDebug("Initializing responsive lists functionality");
         addMobileStyles();
         createMobileListsScreen();
         
-        // Setup button override after a short delay to ensure DOM is ready
-        setTimeout(() => {
-            setupButtonOverride();
-            logDebug("Initialization complete");
-        }, 1000);
+        // Setup button override
+        setupButtonOverride();
+        
+        // Add window resize listener
+        window.addEventListener('resize', handleWindowResize);
+        
+        logDebug("Initialization complete");
     }
     
     // Run initialization when DOM is ready
