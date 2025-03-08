@@ -5283,58 +5283,208 @@ function getRandomSimploName() {
     return names[Math.floor(Math.random() * names.length)];
 }
 
-function showWaitingScreen() {
-  if ("active" === currentArcadeSession.state) {
-    return void startArcadeGame();
-  }
-  
-  document.querySelectorAll(".screen").forEach((e) => {
-    e.classList.remove("visible");
-  });
-  
-  const waitingScreen = document.getElementById("waiting-screen");
-  waitingScreen.classList.add("visible");
-  
-  const joinGameButton = document.getElementById("joinGameButton");
-  if (joinGameButton) {
-    joinGameButton.style.display = "active" === currentArcadeSession.state ? "block" : "none";
-  }
-  
-  // Start the mini-game while waiting
-  try {
-    initializeWaitingGame();
-  } catch (error) {
-    console.error("Error initializing waiting game:", error);
-  }
-  
-  const intervalId = setInterval(() => {
-    if (window.arcadeChannel) {
-      try {
-        window.arcadeChannel.send({
-          type: "broadcast",
-          event: "check_game_status",
-          payload: {
-            username: currentArcadeSession.playerName,
-            requestType: "waitingCheck"
-          }
-        });
-      } catch (e) {
-        console.error("Error checking game status:", e);
-      }
+function initializeWaitingGame() {
+    // Add the waiting game styles first
+    addWaitingGameStyles();
+    
+    const waitingScreen = document.getElementById("waiting-screen");
+    if (!waitingScreen) return;
+    
+    // Clear any previous game
+    waitingScreen.querySelectorAll('.waiting-word-item').forEach(el => el.remove());
+    
+    // Create structured layout if it doesn't exist
+    if (!waitingScreen.querySelector('.waiting-header')) {
+      // Restructure the waiting screen
+      const originalContent = waitingScreen.innerHTML;
+      waitingScreen.innerHTML = `
+        <div class="waiting-header">
+          <h2>Waiting for Game to Start...</h2>
+        </div>
+        <div class="waiting-game-container">
+          <div class="waiting-game-instructions">
+            Catch matching translations, avoid wrong ones!
+          </div>
+          <div class="score-display">
+            Score: <span id="waiting-game-score">0</span>
+            <span class="lives-display">
+              <span class="heart">❤️</span>
+              <span class="heart">❤️</span>
+              <span class="heart">❤️</span>
+            </span>
+          </div>
+          <div class="waiting-game-area">
+            <!-- Words will be placed here -->
+          </div>
+        </div>
+        <div class="waiting-controls">
+          <button id="play-waiting-game" class="start-button">Play</button>
+        </div>
+      `;
     }
-  }, 2000);
-  
-  const playerCountElement = document.getElementById("waiting-player-count");
-  if (playerCountElement) {
-    playerCountElement.parentElement.style.display = "none";
+    
+    // Set up play button
+    const playButton = waitingScreen.querySelector('#play-waiting-game');
+    if (playButton) {
+      playButton.onclick = startWaitingGame;
+    }
+    
+    // Initialize game state
+    window.waitingGameState = {
+      score: 0,
+      lives: 3,
+      isPlaying: false,
+      words: [],
+      gameInterval: null
+    };
+    
+    // Reset score display
+    const scoreDisplay = waitingScreen.querySelector('#waiting-game-score');
+    if (scoreDisplay) {
+      scoreDisplay.textContent = '0';
+    }
+    
+    // Reset lives display
+    const heartsContainer = waitingScreen.querySelector('.lives-display');
+    if (heartsContainer) {
+      heartsContainer.innerHTML = `
+        <span class="heart">❤️</span>
+        <span class="heart">❤️</span>
+        <span class="heart">❤️</span>
+      `;
+    }
   }
-  
-  waitingScreen.dataset.pollInterval = intervalId;
-  
-  setTimeout(() => {
-    if (intervalId) clearInterval(intervalId);
-  }, 300000);
-}
+
+function showWaitingScreen() {
+    if ("active" === currentArcadeSession.state) {
+      return void startArcadeGame();
+    }
+    
+    document.querySelectorAll(".screen").forEach((e) => {
+      e.classList.remove("visible");
+    });
+    
+    const waitingScreen = document.getElementById("waiting-screen");
+    waitingScreen.classList.add("visible");
+    
+    const joinGameButton = document.getElementById("joinGameButton");
+    if (joinGameButton) {
+      joinGameButton.style.display = "active" === currentArcadeSession.state ? "block" : "none";
+    }
+    
+    // Start the mini-game while waiting
+    try {
+      initializeWaitingGame();
+    } catch (error) {
+      console.error("Error initializing waiting game:", error);
+    }
+    
+    const intervalId = setInterval(() => {
+      if (window.arcadeChannel) {
+        try {
+          window.arcadeChannel.send({
+            type: "broadcast",
+            event: "check_game_status",
+            payload: {
+              username: currentArcadeSession.playerName,
+              requestType: "waitingCheck"
+            }
+          });
+        } catch (e) {
+          console.error("Error checking game status:", e);
+        }
+      }
+    }, 2000);
+    
+    const playerCountElement = document.getElementById("waiting-player-count");
+    if (playerCountElement) {
+      playerCountElement.parentElement.style.display = "none";
+    }
+    
+    waitingScreen.dataset.pollInterval = intervalId;
+    
+    setTimeout(() => {
+      if (intervalId) clearInterval(intervalId);
+    }, 300000);
+  }
+
+  function addWaitingGameStyles() {
+    if (!document.getElementById('waiting-game-styles')) {
+      const styleElement = document.createElement('style');
+      styleElement.id = 'waiting-game-styles';
+      styleElement.textContent = `
+        #waiting-screen {
+          display: flex;
+          flex-direction: column;
+          height: 100vh;
+          max-height: 100vh;
+          overflow: hidden;
+          padding: 20px;
+          box-sizing: border-box;
+          justify-content: space-between;
+        }
+        
+        .waiting-header {
+          flex: 0 0 auto;
+          margin-bottom: 15px;
+        }
+        
+        .waiting-game-container {
+          flex: 1 1 auto;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          overflow: hidden;
+          margin-bottom: 15px;
+        }
+        
+        .waiting-game-container .score-display {
+          margin-bottom: 10px;
+        }
+        
+        .waiting-game-area {
+          flex: 1;
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          min-height: 250px;
+          max-height: 60vh;
+        }
+        
+        .waiting-word-item {
+          position: absolute;
+          transform: translateY(0);
+        }
+        
+        .waiting-controls {
+          flex: 0 0 auto;
+          margin-top: 10px;
+        }
+        
+        @media (max-height: 600px) {
+          #waiting-screen {
+            padding: 10px;
+          }
+          
+          .waiting-header h2 {
+            font-size: 1.5rem;
+            margin: 0.5rem 0;
+          }
+          
+          .waiting-game-instructions {
+            font-size: 0.9rem;
+            margin: 0.5rem 0;
+          }
+          
+          .waiting-game-area {
+            min-height: 180px;
+          }
+        }
+      `;
+      document.head.appendChild(styleElement);
+    }
+  }
 
 async function initializeArcade() {
     try {
@@ -5603,6 +5753,273 @@ function updateAllPlayersProgress() {
     // Update session metadata
     document.getElementById('activeParticipantCount').textContent = sortedPlayers.length;
 }
+
+function startWaitingGame() {
+    const waitingScreen = document.getElementById("waiting-screen");
+    const gameArea = waitingScreen.querySelector('.waiting-game-area');
+    const playButton = waitingScreen.querySelector('#play-waiting-game');
+    
+    if (!gameArea || !playButton) return;
+    
+    // Update UI
+    playButton.textContent = 'Restart';
+    
+    // Clear any existing game
+    if (window.waitingGameState.gameInterval) {
+      clearInterval(window.waitingGameState.gameInterval);
+    }
+    gameArea.querySelectorAll('.waiting-word-item').forEach(el => el.remove());
+    
+    // Reset game state
+    window.waitingGameState.score = 0;
+    window.waitingGameState.lives = 3;
+    window.waitingGameState.isPlaying = true;
+    window.waitingGameState.words = [];
+    
+    // Update score display
+    const scoreDisplay = waitingScreen.querySelector('#waiting-game-score');
+    if (scoreDisplay) {
+      scoreDisplay.textContent = '0';
+    }
+    
+    // Reset lives display
+    const heartsContainer = waitingScreen.querySelector('.lives-display');
+    if (heartsContainer) {
+      heartsContainer.innerHTML = `
+        <span class="heart">❤️</span>
+        <span class="heart">❤️</span>
+        <span class="heart">❤️</span>
+      `;
+    }
+    
+    // Get word pairs (English-Hebrew)
+    const wordPairs = generateWaitingGameWordPairs();
+    
+    // Start the game loop
+    window.waitingGameState.gameInterval = setInterval(() => {
+      if (window.waitingGameState.isPlaying) {
+        spawnWaitingGameWord(gameArea, wordPairs);
+      }
+    }, 2000);
+  }
+
+  function generateWaitingGameWordPairs() {
+    // Use vocabulary sets to get word pairs
+    const wordPairs = [];
+    const seenWords = new Set();
+    
+    // Try to get some words from vocabulary sets
+    for (const setKey in vocabularySets) {
+      const set = vocabularySets[setKey];
+      if (set && set.words && set.translations) {
+        for (let i = 0; i < set.words.length && wordPairs.length < 20; i++) {
+          const word = set.words[i];
+          const translation = set.translations[i];
+          
+          if (word && translation && !seenWords.has(word)) {
+            wordPairs.push({ english: word, hebrew: translation });
+            seenWords.add(word);
+          }
+        }
+        
+        // Break once we have enough pairs
+        if (wordPairs.length >= 20) break;
+      }
+    }
+    
+    // Add fallback pairs if needed
+    if (wordPairs.length < 10) {
+      const fallbackPairs = [
+        { english: "hello", hebrew: "שלום" },
+        { english: "goodbye", hebrew: "להתראות" },
+        { english: "thanks", hebrew: "תודה" },
+        { english: "yes", hebrew: "כן" },
+        { english: "no", hebrew: "לא" },
+        { english: "water", hebrew: "מים" },
+        { english: "food", hebrew: "אוכל" },
+        { english: "friend", hebrew: "חבר" },
+        { english: "book", hebrew: "ספר" },
+        { english: "house", hebrew: "בית" }
+      ];
+      
+      for (const pair of fallbackPairs) {
+        if (!seenWords.has(pair.english)) {
+          wordPairs.push(pair);
+          seenWords.add(pair.english);
+        }
+      }
+    }
+    
+    return wordPairs;
+  }
+  
+  function spawnWaitingGameWord(gameArea, wordPairs) {
+    if (!gameArea || !wordPairs || wordPairs.length === 0) return;
+    
+    // Max words on screen
+    if (window.waitingGameState.words.length >= 5) {
+      removeOldestWord();
+    }
+    
+    // Select a random word pair
+    const pairIndex = Math.floor(Math.random() * wordPairs.length);
+    const pair = wordPairs[pairIndex];
+    
+    // Randomly decide if we'll show a correct pair or mismatched pair
+    const showCorrectPair = Math.random() > 0.3;
+    
+    // Create a new word element
+    const wordItem = document.createElement('div');
+    wordItem.className = 'waiting-word-item';
+    
+    // Set the word item's content
+    if (showCorrectPair) {
+      // Correct pair
+      wordItem.innerHTML = `
+        <div class="word english">${pair.english}</div>
+        <div class="word hebrew">${pair.hebrew}</div>
+      `;
+      wordItem.dataset.correct = 'true';
+    } else {
+      // Incorrect pair - use translation from another pair
+      let otherPairIndex;
+      do {
+        otherPairIndex = Math.floor(Math.random() * wordPairs.length);
+      } while (otherPairIndex === pairIndex);
+      
+      wordItem.innerHTML = `
+        <div class="word english">${pair.english}</div>
+        <div class="word hebrew">${wordPairs[otherPairIndex].hebrew}</div>
+      `;
+      wordItem.dataset.correct = 'false';
+    }
+    
+    // Add styling to the word item
+    wordItem.style.cssText = `
+      position: absolute;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      transition: transform 0.2s, background 0.2s;
+      left: ${Math.random() * 65}%;
+      top: ${Math.random() * 70}%;
+    `;
+    
+    // Add click handler
+    wordItem.addEventListener('click', handleWaitingGameWordClick);
+    
+    // Add to game area
+    gameArea.appendChild(wordItem);
+    
+    // Add to tracked words
+    window.waitingGameState.words.push({
+      element: wordItem,
+      timestamp: Date.now()
+    });
+  }
+  
+  function removeOldestWord() {
+    if (!window.waitingGameState.words.length) return;
+    
+    // Sort by timestamp
+    window.waitingGameState.words.sort((a, b) => a.timestamp - b.timestamp);
+    
+    // Remove oldest
+    const oldest = window.waitingGameState.words.shift();
+    if (oldest.element && oldest.element.parentNode) {
+      oldest.element.parentNode.removeChild(oldest.element);
+    }
+  }
+  
+  function handleWaitingGameWordClick(event) {
+    const wordItem = event.currentTarget;
+    if (!wordItem) return;
+    
+    // Remove from tracked words
+    window.waitingGameState.words = window.waitingGameState.words.filter(
+      item => item.element !== wordItem
+    );
+    
+    // Check if the answer is correct
+    const isCorrect = wordItem.dataset.correct === 'true';
+    
+    if (isCorrect) {
+      // Correct answer - add points
+      window.waitingGameState.score += 5;
+      
+      // Update display
+      const scoreDisplay = document.getElementById('waiting-game-score');
+      if (scoreDisplay) {
+        scoreDisplay.textContent = window.waitingGameState.score;
+      }
+      
+      // Visual feedback
+      wordItem.style.background = 'rgba(0, 255, 0, 0.3)';
+      wordItem.style.transform = 'scale(1.1)';
+      
+      setTimeout(() => {
+        if (wordItem.parentNode) {
+          wordItem.parentNode.removeChild(wordItem);
+        }
+      }, 500);
+    } else {
+      // Wrong answer - lose a life
+      window.waitingGameState.lives--;
+      
+      // Update hearts display
+      const heartsContainer = document.querySelector('.lives-display');
+      if (heartsContainer) {
+        const hearts = heartsContainer.querySelectorAll('.heart');
+        if (hearts.length >= window.waitingGameState.lives) {
+          hearts[hearts.length - 1].style.opacity = '0.2';
+        }
+      }
+      
+      // Visual feedback
+      wordItem.style.background = 'rgba(255, 0, 0, 0.3)';
+      wordItem.style.transform = 'scale(0.9)';
+      
+      setTimeout(() => {
+        if (wordItem.parentNode) {
+          wordItem.parentNode.removeChild(wordItem);
+        }
+      }, 500);
+      
+      // Check for game over
+      if (window.waitingGameState.lives <= 0) {
+        endWaitingGame();
+      }
+    }
+  }
+  
+  function endWaitingGame() {
+    // Stop the game
+    window.waitingGameState.isPlaying = false;
+    
+    if (window.waitingGameState.gameInterval) {
+      clearInterval(window.waitingGameState.gameInterval);
+      window.waitingGameState.gameInterval = null;
+    }
+    
+    // Clear the game area
+    const gameArea = document.querySelector('.waiting-game-area');
+    if (gameArea) {
+      gameArea.querySelectorAll('.waiting-word-item').forEach(el => el.remove());
+    }
+    
+    // Update play button
+    const playButton = document.querySelector('#play-waiting-game');
+    if (playButton) {
+      playButton.textContent = 'Play Again';
+    }
+    
+    // Reset state
+    window.waitingGameState.words = [];
+  }
 
 async function startArcade() {
     // Get selected stages
@@ -5964,6 +6381,8 @@ async function startArcadeGame() {
     const playerName = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
     
     updatePlayerRankDisplay();
+    addResponsiveStyles();
+
     
     document.querySelectorAll('.coin-count').forEach(el => {
       el.textContent = "0";
@@ -7403,7 +7822,7 @@ function showPersonalVictoryScreen(rank) {
     if (currentArcadeSession.winnerScreenShown) return;
     currentArcadeSession.winnerScreenShown = true;
     
-    console.log(`Showing personal victory screen with rank: ${rank}`);
+    console.log('Starting personal victory celebration with rank:', rank);
     
     // Create celebration screen
     const overlay = document.createElement('div');
@@ -7422,6 +7841,9 @@ function showPersonalVictoryScreen(rank) {
         justify-content: center;
         opacity: 0;
         transition: opacity 0.5s ease;
+        padding: 0 16px;
+        box-sizing: border-box;
+        overflow: auto;
     `;
     
     // Define content based on rank
@@ -7453,45 +7875,68 @@ function showPersonalVictoryScreen(rank) {
         color: "var(--accent)"
     };
     
-    overlay.innerHTML = `
-        <div style="font-size: 8rem; margin-bottom: 1rem;">${content.emoji}</div>
-        <h1 style="color: ${content.color}; font-size: 3rem; margin-bottom: 1rem;">${content.title}</h1>
-        <p style="font-size: 1.5rem; margin-bottom: 2rem; text-align: center; max-width: 80%;">
+    // Create responsive container
+    const container = document.createElement('div');
+    container.style.cssText = `
+        width: 100%;
+        max-width: 400px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        height: auto;
+        max-height: 95vh;
+    `;
+    
+    const victoryContent = `
+        <div style="font-size: clamp(4rem, 10vw, 8rem); margin-bottom: clamp(0.5rem, 2vh, 1rem);">${content.emoji}</div>
+        <h1 style="color: ${content.color}; font-size: clamp(2rem, 8vw, 3rem); margin: 0 0 clamp(0.5rem, 2vh, 1rem) 0; text-align: center; line-height: 1.2;">${content.title}</h1>
+        <p style="font-size: clamp(1rem, 4vw, 1.5rem); margin-bottom: clamp(1rem, 4vh, 2rem); text-align: center; line-height: 1.4; max-width: 100%;">
             ${content.message}
         </p>
-        <div style="margin: 2rem 0; display: flex; gap: 2rem;">
+        
+        <div style="display: flex; justify-content: space-around; width: 100%; margin: clamp(1rem, 3vh, 2rem) 0;">
             <div style="text-align: center;">
-                <div style="font-size: 1.2rem; color: var(--text); opacity: 0.8;">YOUR RANK</div>
-                <div style="font-size: 3rem; color: ${content.color};">${rank}</div>
+                <div style="font-size: clamp(0.8rem, 3vw, 1.2rem); color: var(--text); opacity: 0.8;">YOUR RANK</div>
+                <div style="font-size: clamp(1.8rem, 6vw, 3rem); color: ${content.color};">${rank}</div>
             </div>
             <div style="text-align: center;">
-                <div style="font-size: 1.2rem; color: var(--text); opacity: 0.8;">WORDS COMPLETED</div>
-                <div style="font-size: 3rem; color: var(--text);">${currentGame.wordsCompleted || 0}</div>
+                <div style="font-size: clamp(0.8rem, 3vw, 1.2rem); color: var(--text); opacity: 0.8;">WORDS COMPLETED</div>
+                <div style="font-size: clamp(1.8rem, 6vw, 3rem); color: var(--text);">${currentGame.wordsCompleted || 0}</div>
             </div>
             <div style="text-align: center;">
-                <div style="font-size: 1.2rem; color: var(--text); opacity: 0.8;">COINS EARNED</div>
-                <div style="font-size: 3rem; color: var(--gold);">${currentGame.coins || 0}</div>
+                <div style="font-size: clamp(0.8rem, 3vw, 1.2rem); color: var(--text); opacity: 0.8;">COINS EARNED</div>
+                <div style="font-size: clamp(1.8rem, 6vw, 3rem); color: var(--gold);">${currentGame.coins || 0}</div>
             </div>
         </div>
-        <button class="victory-button" onclick="closePersonalVictory()" style="
+        
+        <button class="victory-button" style="
             background: var(--accent);
             color: var(--text);
             border: none;
-            padding: 1rem 2.5rem;
+            padding: clamp(0.8rem, 3vh, 1rem) clamp(1.5rem, 5vw, 2.5rem);
             border-radius: 50px;
-            font-size: 1.2rem;
+            font-size: clamp(1rem, 4vw, 1.2rem);
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
-            margin-top: 1.5rem;
-            min-width: 200px;
+            margin-top: clamp(1rem, 4vh, 2rem);
+            min-width: clamp(150px, 40vw, 200px);
         ">
             Continue
         </button>
     `;
     
+    container.innerHTML = victoryContent;
+    overlay.appendChild(container);
     document.body.appendChild(overlay);
+    
+    // Ensure button has click handler
+    const continueBtn = overlay.querySelector('.victory-button');
+    if (continueBtn) {
+        continueBtn.addEventListener('click', closePersonalVictory);
+    }
     
     // Fade in
     setTimeout(() => {
@@ -7500,6 +7945,42 @@ function showPersonalVictoryScreen(rank) {
         // Start player confetti
         startPlayerConfetti();
     }, 100);
+}
+
+function addResponsiveStyles() {
+    if (!document.getElementById('responsive-victory-styles')) {
+        const styleElement = document.createElement('style');
+        styleElement.id = 'responsive-victory-styles';
+        styleElement.textContent = `
+            .personal-victory-overlay {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 16px;
+                box-sizing: border-box;
+                overflow: auto;
+            }
+            
+            @media (max-height: 600px) {
+                .personal-victory-overlay {
+                    align-items: flex-start;
+                    padding-top: 10px;
+                }
+            }
+            
+            .victory-button:hover {
+                transform: translateY(-3px);
+                background: color-mix(in srgb, var(--accent) 80%, white);
+                box-shadow: 0 8px 20px rgba(30, 144, 255, 0.5);
+            }
+            
+            .victory-button:active {
+                transform: translateY(1px);
+                box-shadow: 0 3px 10px rgba(30, 144, 255, 0.3);
+            }
+        `;
+        document.head.appendChild(styleElement);
+    }
 }
 
 function showModeratorVictoryScreen(players) {
@@ -10459,7 +10940,7 @@ function closePersonalVictory() {
         });
       }, 500);
     }
-  }
+}
 
   function handleCustomLevelCompletion() {
     // Clear the timer
