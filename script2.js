@@ -15196,29 +15196,22 @@ document.addEventListener('DOMContentLoaded', function() {
     setupMobileRedirect();
 });
 
-// IMMEDIATELY INVOKED FUNCTION for mobile responsive lists view
+// IMMEDIATELY INVOKED FUNCTION for responsive lists view
 (function() {
     // Debug logging function
     function logDebug(message) {
         console.log(`[Mobile Lists Debug]: ${message}`);
     }
 
-    // Mobile detection based purely on screen width
+    // Mobile detection based on screen width
     function isSmallScreen() {
-        // Define our breakpoint - 768px is a common mobile breakpoint
         const MOBILE_BREAKPOINT = 768;
-        const screenWidth = window.innerWidth;
-        const isMobile = screenWidth <= MOBILE_BREAKPOINT;
-        
-        logDebug(`Screen width: ${screenWidth}px - ${isMobile ? 'SMALL SCREEN' : 'LARGE SCREEN'}`);
-        return isMobile;
+        return window.innerWidth <= MOBILE_BREAKPOINT;
     }
 
     // Create the mobile lists screen HTML
     function createMobileListsScreen() {
-        logDebug("Creating mobile lists screen");
-        
-        // Remove any existing version to avoid duplicates
+        // Remove any existing version
         const existingScreen = document.getElementById('mobile-custom-lists-screen');
         if (existingScreen) {
             existingScreen.remove();
@@ -15228,14 +15221,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const screenElement = document.createElement('div');
         screenElement.id = 'mobile-custom-lists-screen';
         screenElement.className = 'screen';
-        screenElement.style.display = 'none'; // Start hidden
+        screenElement.style.display = 'none';
         
         screenElement.innerHTML = `
-            <div class="mobile-screen-header">
-                <button class="mobile-back-button" id="mobile-lists-back">
+            <div class="screen-header">
+                <button class="back-button" id="mobile-lists-back">
                     <i class="fas fa-arrow-left"></i>
                 </button>
-                <h2>Your Word Lists</h2>
+                <h2 class="screen-title">Your Lists</h2>
             </div>
             <div id="mobile-lists-content"></div>
         `;
@@ -15247,19 +15240,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const backButton = document.getElementById('mobile-lists-back');
         if (backButton) {
             backButton.addEventListener('click', function() {
-                hideScreen('mobile-custom-lists-screen');
+                closeCustomScreen('mobile-custom-lists-screen');
                 showScreen('main-menu');
             });
         }
         
-        logDebug("Mobile screen created and added to DOM");
         return screenElement;
     }
 
     // Add CSS styles for the mobile screen
     function addMobileStyles() {
-        logDebug("Adding mobile styles");
-        
         const styleId = 'mobile-custom-lists-styles';
         if (document.getElementById(styleId)) {
             return; // Already added
@@ -15270,67 +15260,68 @@ document.addEventListener('DOMContentLoaded', function() {
         styleElement.textContent = `
             /* Mobile screen base styles */
             #mobile-custom-lists-screen {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: #0f172a;
-                z-index: 9999;
-                overflow: hidden;
-                display: flex;
-                flex-direction: column;
+                background-color: var(--bg-color, #0f172a);
+                color: var(--text-color, white);
+                max-width: 100%;
             }
             
-            .mobile-screen-header {
+            #mobile-custom-lists-screen .screen-header {
                 display: flex;
                 align-items: center;
-                padding: 16px;
-                background-color: #1e293b;
-                border-bottom: 1px solid #2d3748;
+                justify-content: center;
+                position: relative;
+                padding: 15px 0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             }
             
-            .mobile-screen-header h2 {
-                flex: 1;
-                margin: 0;
-                text-align: center;
-                color: #a3e635;
-                font-size: 20px;
+            #mobile-custom-lists-screen .screen-title {
+                font-size: 22px;
                 font-weight: 600;
+                text-align: center;
+                margin: 0;
+                color: var(--accent, #a3e635);
             }
             
-            .mobile-back-button {
+            #mobile-custom-lists-screen .back-button {
+                position: absolute;
+                left: 15px;
                 background: none;
                 border: none;
                 color: white;
                 font-size: 18px;
-                padding: 8px;
                 cursor: pointer;
+                padding: 5px;
             }
             
             #mobile-lists-content {
-                flex: 1;
+                padding: 10px;
                 overflow-y: auto;
-                padding: 8px;
+                height: calc(100vh - 60px);
             }
             
-            /* WhatsApp-style list items */
+            /* List entries */
             .mobile-list-entry {
-                background-color: #1e293b;
-                border-radius: 8px;
-                margin-bottom: 10px;
+                background: rgba(30, 41, 59, 0.6);
+                border-radius: 10px;
+                margin-bottom: 12px;
                 padding: 16px;
+                position: relative;
                 cursor: pointer;
-                border-left: 3px solid #a3e635;
+                transition: background 0.2s;
+                border-left: 3px solid var(--accent, #a3e635);
+            }
+            
+            .mobile-list-entry:active {
+                background: rgba(42, 53, 71, 0.8);
             }
             
             .mobile-list-entry.shared {
-                border-left-color: #9333ea;
+                border-left-color: #818cf8;
             }
             
             .mobile-list-entry.insufficient {
                 border-left-color: #64748b;
-                opacity: 0.7;
+                opacity: 0.75;
                 cursor: default;
             }
             
@@ -15342,64 +15333,71 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             .mobile-list-name {
-                font-size: 16px;
+                font-size: 18px;
                 font-weight: 600;
                 color: white;
                 margin: 0;
-                max-width: 80%;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
+                max-width: 70%;
             }
             
             .mobile-list-date {
+                color: rgba(255, 255, 255, 0.6);
                 font-size: 12px;
-                color: #94a3b8;
             }
             
             .mobile-list-info {
                 display: flex;
                 flex-wrap: wrap;
-                gap: 8px;
-                margin-bottom: 12px;
+                gap: 10px;
+                margin-bottom: 14px;
+                font-size: 14px;
             }
             
             .mobile-list-words {
-                color: #a3e635;
-                font-size: 13px;
+                color: var(--accent, #a3e635);
+                font-weight: 500;
             }
             
             .mobile-list-shared {
-                background: rgba(147, 51, 234, 0.2);
-                color: #d8b4fe;
-                padding: 2px 6px;
-                border-radius: 4px;
+                background: rgba(129, 140, 248, 0.15);
+                color: #c7d2fe;
+                padding: 3px 8px;
+                border-radius: 12px;
                 font-size: 12px;
             }
             
             .mobile-list-sharedby {
-                color: #94a3b8;
-                font-size: 13px;
+                color: rgba(255, 255, 255, 0.7);
             }
             
             .mobile-practice-btn {
-                background: #a3e635;
-                color: #1e293b;
+                background: var(--accent, #a3e635);
+                color: var(--bg-dark, #1e293b);
                 border: none;
                 width: 100%;
-                padding: 10px;
-                border-radius: 6px;
+                padding: 12px;
+                border-radius: 8px;
+                font-size: 16px;
                 font-weight: 600;
                 cursor: pointer;
+                transition: transform 0.15s, opacity 0.15s;
+            }
+            
+            .mobile-practice-btn:active {
+                transform: scale(0.98);
+                opacity: 0.9;
             }
             
             .mobile-insufficient-notice {
                 text-align: center;
-                color: #f87171;
-                font-size: 13px;
-                background: rgba(248, 113, 113, 0.1);
-                padding: 8px;
-                border-radius: 6px;
+                color: #fb7185;
+                font-size: 14px;
+                background: rgba(251, 113, 133, 0.1);
+                padding: 10px;
+                border-radius: 8px;
             }
             
             .mobile-empty-lists {
@@ -15407,49 +15405,44 @@ document.addEventListener('DOMContentLoaded', function() {
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                height: 100%;
-                color: white;
+                height: 80vh;
                 text-align: center;
                 padding: 20px;
             }
             
             .mobile-empty-lists p {
-                margin: 8px 0;
+                margin: 10px 0;
+                font-size: 18px;
             }
             
             .mobile-empty-lists .hint {
-                color: #94a3b8;
+                color: rgba(255, 255, 255, 0.6);
                 font-size: 14px;
-                max-width: 80%;
+                max-width: 90%;
+                line-height: 1.5;
+                margin-top: 15px;
             }
         `;
         
         document.head.appendChild(styleElement);
-        logDebug("Mobile styles added");
     }
 
     // Load and display lists in the mobile screen
     function loadMobileLists() {
-        logDebug("Loading lists for mobile view");
-        
         const container = document.getElementById('mobile-lists-content');
-        if (!container) {
-            logDebug("ERROR: Lists container not found");
-            return;
-        }
+        if (!container) return;
         
         // Clear container
         container.innerHTML = '';
         
-        // Get lists - safely handling possible undefined values
+        // Get lists
         const lists = window.CustomListsManager?.lists || [];
-        logDebug(`Found ${lists.length} lists to display`);
         
         // Show empty state if no lists
         if (!lists.length) {
             container.innerHTML = `
                 <div class="mobile-empty-lists">
-                    <p>No word lists available</p>
+                    <p>No lists available</p>
                     <p class="hint">Create lists on desktop to practice them on your mobile device</p>
                 </div>
             `;
@@ -15463,9 +15456,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const wordCount = Array.isArray(list.words) ? list.words.length : 0;
             const hasSufficientWords = wordCount >= 6;
             
-            // Format date
-            const createdDate = list.createdAt ? new Date(list.createdAt) : new Date();
-            const formattedDate = createdDate.toLocaleDateString('en-US', {
+            // Format date - use created date or a reasonable fallback
+            let dateToShow = new Date();
+            if (list.createdAt) {
+                dateToShow = new Date(list.createdAt);
+            } else if (list.lastModified) {
+                dateToShow = new Date(list.lastModified);
+            }
+            
+            const formattedDate = dateToShow.toLocaleDateString(undefined, {
                 month: 'short', 
                 day: 'numeric'
             });
@@ -15497,99 +15496,83 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (practiceBtn) {
                     practiceBtn.addEventListener('click', function(e) {
                         e.stopPropagation();
-                        logDebug(`Starting practice for list: ${list.id}`);
-                        hideScreen('mobile-custom-lists-screen');
-                        startCustomListPractice(list.id);
+                        safelyStartPractice(list.id);
                     });
                 }
                 
                 // Also make the whole entry clickable
                 entry.addEventListener('click', function() {
-                    logDebug(`List entry clicked: ${list.id}`);
-                    hideScreen('mobile-custom-lists-screen');
-                    startCustomListPractice(list.id);
+                    safelyStartPractice(list.id);
                 });
             }
             
             container.appendChild(entry);
         });
+    }
+    
+    // Helper function to safely start practicing a list
+    function safelyStartPractice(listId) {
+        // First properly close our custom screen
+        closeCustomScreen('mobile-custom-lists-screen');
         
-        logDebug("Mobile lists loaded successfully");
+        // Small delay to ensure screens have time to transition
+        setTimeout(function() {
+            // Call the app's function to start practice
+            if (typeof startCustomListPractice === 'function') {
+                startCustomListPractice(listId);
+            } else {
+                logDebug("ERROR: startCustomListPractice function not found");
+            }
+        }, 50);
     }
 
     // Show the mobile screen
     function showMobileListsScreen() {
-        logDebug("Showing mobile lists screen");
+        // Ensure mobile screen exists
+        const mobileScreen = document.getElementById('mobile-custom-lists-screen') || createMobileListsScreen();
         
         // First hide all screens
         document.querySelectorAll('.screen').forEach(screen => {
-            screen.style.display = 'none';
-            if (screen.classList.contains('visible')) {
-                screen.classList.remove('visible');
-            }
-            if (screen.classList.contains('active')) {
-                screen.classList.remove('active');
+            if (screen.id !== 'mobile-custom-lists-screen') {
+                screen.classList.remove('visible', 'active');
+                if (screen.style) screen.style.display = 'none';
             }
         });
         
         // Then show our screen
-        const mobileScreen = document.getElementById('mobile-custom-lists-screen') || createMobileListsScreen();
-        if (mobileScreen) {
-            mobileScreen.style.display = 'flex';
-            mobileScreen.classList.add('visible', 'active');
-            
-            // Load the lists
-            try {
-                if (window.CustomListsManager && typeof window.CustomListsManager.initialize === 'function') {
-                    Promise.resolve(window.CustomListsManager.initialize()).then(() => {
-                        loadMobileLists();
-                    }).catch(error => {
-                        logDebug(`Error initializing lists: ${error}`);
-                    });
-                } else {
-                    logDebug("WARNING: CustomListsManager not available or initialize method missing");
-                    loadMobileLists(); // Try anyway
-                }
-            } catch (error) {
-                logDebug(`Error showing lists: ${error}`);
-            }
-        } else {
-            logDebug("ERROR: Mobile screen element not found!");
-        }
-    }
-
-    // Helper function to hide a screen
-    function hideScreen(screenId) {
-        const screen = document.getElementById(screenId);
-        if (screen) {
-            screen.style.display = 'none';
-            screen.classList.remove('visible', 'active');
-        }
-    }
-
-    // Helper function to show a screen (copied from your app's likely implementation)
-    function showScreen(screenId) {
-        const screen = document.getElementById(screenId);
-        if (screen) {
-            // First hide all other screens
-            document.querySelectorAll('.screen').forEach(s => {
-                if (s.id !== screenId) {
-                    s.style.display = 'none';
-                    s.classList.remove('visible', 'active');
-                }
-            });
-            
-            // Then show the requested screen
-            screen.style.display = '';
-            screen.classList.add('visible', 'active');
-        }
-    }
-
-    // Override the custom practice button click based on screen size
-    function setupButtonOverride() {
-        logDebug("Setting up button override");
+        mobileScreen.style.display = 'block';
+        mobileScreen.classList.add('visible', 'active');
         
-        // Find all buttons that might need overriding
+        // Load the lists
+        try {
+            if (window.CustomListsManager && typeof window.CustomListsManager.initialize === 'function') {
+                Promise.resolve(window.CustomListsManager.initialize()).then(() => {
+                    loadMobileLists();
+                }).catch(error => {
+                    logDebug(`Error initializing lists: ${error}`);
+                    loadMobileLists(); // Try anyway
+                });
+            } else {
+                logDebug("WARNING: CustomListsManager not available or initialize method missing");
+                loadMobileLists(); // Try anyway
+            }
+        } catch (error) {
+            logDebug(`Error showing lists: ${error}`);
+        }
+    }
+
+    // Properly close a custom screen
+    function closeCustomScreen(screenId) {
+        const screen = document.getElementById(screenId);
+        if (screen) {
+            screen.classList.remove('visible', 'active');
+            screen.style.display = 'none';
+        }
+    }
+
+    // Override the custom practice button click
+    function setupButtonOverride() {
+        // Find the custom practice button
         const customPracticeButtons = [
             document.getElementById('custom-practice-button'),
             ...document.querySelectorAll('[data-screen="custom-practice-screen"]'),
@@ -15599,82 +15582,65 @@ document.addEventListener('DOMContentLoaded', function() {
         customPracticeButtons.forEach(button => {
             if (!button) return;
             
-            logDebug(`Found button to override: ${button.textContent || button.id || 'unnamed button'}`);
-            
             // Store original click handler
             const originalOnClick = button.onclick;
             
             // Override the click handler
             button.onclick = function(event) {
                 if (isSmallScreen()) {
-                    // On small screens: Show our custom screen
+                    // Prevent default action
                     event.preventDefault();
                     event.stopPropagation();
-                    logDebug("Small screen detected - redirecting to mobile lists screen");
+                    
+                    // Show our custom screen instead
                     showMobileListsScreen();
                     return false;
                 } else {
-                    // On desktop: Use original behavior
-                    logDebug("Large screen detected - using original button behavior");
+                    // Use original behavior for desktop
                     if (typeof originalOnClick === 'function') {
                         return originalOnClick.call(this, event);
                     } else if (button.getAttribute('onclick')) {
-                        // The button has an inline onclick attribute
                         return true; // Let the inline handler run
                     } else if (button.dataset.screen) {
-                        // Try to show the screen using data-screen attribute
                         showScreen(button.dataset.screen);
                         return false;
                     }
                 }
             };
         });
-        
-        logDebug("Button override setup complete");
     }
 
-    // Handle window resize to adapt to orientation changes
-    function handleWindowResize() {
-        // If we're on the custom practice screen and the screen size changes,
-        // we might need to switch views
-        const customPracticeScreen = document.getElementById('custom-practice-screen');
-        const mobileListsScreen = document.getElementById('mobile-custom-lists-screen');
-        
-        if (customPracticeScreen && 
-            (customPracticeScreen.classList.contains('visible') || 
-             customPracticeScreen.style.display !== 'none')) {
-            
-            if (isSmallScreen()) {
-                // If now small screen but showing desktop view, switch to mobile
-                logDebug("Window resized to small screen while on custom practice screen - switching to mobile view");
-                showMobileListsScreen();
-            }
-        } else if (mobileListsScreen && 
-                  (mobileListsScreen.classList.contains('visible') || 
-                   mobileListsScreen.style.display !== 'none')) {
-            
-            if (!isSmallScreen()) {
-                // If now large screen but showing mobile view, switch to desktop
-                logDebug("Window resized to large screen while on mobile lists screen - switching to desktop view");
-                hideScreen('mobile-custom-lists-screen');
-                showScreen('custom-practice-screen');
+    // Helper function to show a screen (uses the app's existing function if available)
+    function showScreen(screenId) {
+        if (typeof window.showScreen === 'function') {
+            window.showScreen(screenId);
+        } else {
+            const screen = document.getElementById(screenId);
+            if (screen) {
+                document.querySelectorAll('.screen').forEach(s => {
+                    if (s.id !== screenId) {
+                        s.classList.remove('visible', 'active');
+                    }
+                });
+                
+                screen.classList.add('visible', 'active');
             }
         }
     }
 
-    // Initialize everything when the page is ready
+    // Initialize everything
     function initialize() {
-        logDebug("Initializing responsive lists functionality");
         addMobileStyles();
         createMobileListsScreen();
-        
-        // Setup button override
         setupButtonOverride();
         
         // Add window resize listener
-        window.addEventListener('resize', handleWindowResize);
-        
-        logDebug("Initialization complete");
+        window.addEventListener('resize', function() {
+            // Check if screens need to be adjusted based on current size
+            if (document.getElementById('custom-practice-screen')?.classList.contains('visible') && isSmallScreen()) {
+                showMobileListsScreen();
+            }
+        });
     }
     
     // Run initialization when DOM is ready
