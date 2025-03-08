@@ -3830,8 +3830,9 @@ function updateListsDisplay() {
     const container = document.getElementById("custom-lists-container");
     if (!container) return void console.error("Custom lists container not found");
 
-    // Extensive user object logging
-    console.log("Current user object:", currentUser);
+    // Comprehensive logging
+    console.log("Current user:", currentUser);
+    console.log("User status:", currentUser?.status);
     console.log("User metadata:", currentUser?.user_metadata);
     console.log("App metadata:", currentUser?.app_metadata);
     
@@ -3862,7 +3863,10 @@ function updateListsDisplay() {
     }
     
     const limits = CustomListsManager.getListLimits();
-    const userStatus = currentUser?.status || 'unregistered';
+    const userStatus = currentUser?.status || "unregistered";
+    
+    // Debug message about premium status
+    console.log("User premium status check:", userStatus === "premium");
     
     // Various checks for teacher status
     let isTeacherFound = false;
@@ -3893,13 +3897,13 @@ function updateListsDisplay() {
     
     console.log(`Is teacher found: ${isTeacherFound}, Property: ${teacherPropertyFound}`);
     
-    // Determine if user can share lists
+    // TEMPORARY: Until we find the correct teacher attribute
     const isPremiumUser = userStatus === "premium";
     const isAdminEmail = currentUser && currentUser.email && 
                         (currentUser.email.includes("admin") || 
                          currentUser.email.includes("teacher"));
     
-    const canShare = isPremiumUser && isAdminEmail;
+    const canShare = isPremiumUser;
     console.log(`Can share: ${canShare}, Premium: ${isPremiumUser}, Admin email: ${isAdminEmail}`);
     
     container.innerHTML = "";
@@ -3919,7 +3923,7 @@ function updateListsDisplay() {
             listItem.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
             listItem.dataset.listId = list.id;
             
-            // Create list item HTML with conditional share button
+            // Create list item HTML - INCLUDING THE SHARE BUTTON FOR PREMIUM USERS
             listItem.innerHTML = `
                 <div class="list-actions">
                     <button class="main-button practice-button" ${hasSufficientWords ? "" : "disabled"}>
@@ -3927,7 +3931,7 @@ function updateListsDisplay() {
                     </button>
                     <button class="main-button edit-button">Edit</button>
                     <button class="main-button delete-button">Delete</button>
-                    ${canShare ? `
+                    ${userStatus === "premium" ? `
                         <button class="main-button share-button">
                             <i class="fas fa-share-alt"></i> Share
                         </button>
@@ -3946,13 +3950,11 @@ function updateListsDisplay() {
             
             container.appendChild(listItem);
             
-            // Debug logging for share button
-            if (canShare) {
-                const hasShareButton = !!listItem.querySelector('.share-button');
-                console.log(`List ${list.id} - Share button exists: ${hasShareButton}, Can share: ${canShare}`);
-            }
+            // Double-check if share button exists after rendering
+            const hasShareButton = !!listItem.querySelector('.share-button');
+            console.log(`List ${list.id} - Share button exists: ${hasShareButton}, Premium user: ${userStatus === "premium"}`);
             
-            // Set up event handlers
+            // Set up the button event handlers
             const practiceButton = listItem.querySelector(".practice-button");
             if (practiceButton) {
                 if (hasSufficientWords) {
@@ -3979,6 +3981,7 @@ function updateListsDisplay() {
                 };
             }
             
+            // Make sure the share button has the proper click handler
             const shareButton = listItem.querySelector(".share-button");
             if (shareButton) {
                 shareButton.onclick = function() {
