@@ -1618,174 +1618,7 @@ document.addEventListener('fullscreenchange', function() {
 });
 
 
-function showLevelScreen(setId) {
-    gameState.currentSet = setId;
-    debugUnlockState(); // Add debug call here
-    
-    // Clear existing screen
-    const container = document.getElementById('level-container');
-    if (!container) return;
-    container.innerHTML = '';
-    
-    const stage = gameStructure.stages[gameState.currentStage - 1];
-    if (!stage) return;
-    
-    // Create level header
-    const levelHeader = document.createElement('div');
-    levelHeader.className = 'level-header';
-    
-    // Calculate level completion stats
-    const totalLevels = stage.levelsPerSet;
-    let completedCount = 0;
-    let perfectCount = 0;
-    
-    for (let i = 1; i <= totalLevels; i++) {
-        const levelKey = `${gameState.currentStage}_${setId}_${i}`;
-        if (gameState.perfectLevels.has(levelKey)) {
-            perfectCount++;
-            completedCount++;
-        } else if (gameState.completedLevels.has(levelKey)) {
-            completedCount++;
-        }
-    }
-    
-    const progressPercentage = Math.round((completedCount / totalLevels) * 100);
-    const setIcon = getSetIcon(gameState.currentStage, setId);
-    const setDescription = getSetDescription(gameState.currentStage, setId);
-    
-    // Populate header
-    levelHeader.innerHTML = `
-        <div class="level-title-area">
-            <div class="set-icon">
-                <i class="${setIcon}"></i>
-            </div>
-            <div class="set-details">
-                <div class="set-name">Stage ${gameState.currentStage} - Set ${setId}</div>
-                <div class="set-desc">${setDescription}</div>
-            </div>
-        </div>
-        <div class="set-progress">
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: ${progressPercentage}%"></div>
-            </div>
-            <div class="progress-text">${completedCount}/${totalLevels} levels</div>
-        </div>
-    `;
-    
-    container.appendChild(levelHeader);
-    
-    // Create level grid
-    const levelGrid = document.createElement('div');
-    levelGrid.className = 'level-grid';
-    
-    const testLevels = [3, 6, 9, 10, 13, 16, 19, 20];
-    const setKey = `${gameState.currentStage}_${setId}`;
-    
-    // Ensure unlockedLevels exists for this set
-    if (!gameState.unlockedLevels[setKey]) {
-        gameState.unlockedLevels[setKey] = new Set([1]); // At minimum, level 1 should be unlocked
-    }
-    
-    console.log(`Rendering levels for ${setKey}. Unlocked levels:`, 
-                Array.from(gameState.unlockedLevels[setKey] || []));
-    
-    for (let i = 1; i <= stage.levelsPerSet; i++) {
-        const levelItem = document.createElement('div');
-        const levelKey = `${gameState.currentStage}_${setId}_${i}`;
-        
-        // Check if level is unlocked - use more direct access with fallback
-        const isUnlocked = gameState.unlockedLevels[setKey]?.has(i);
-        console.log(`Level ${i} unlocked:`, isUnlocked);
-        
-        const isPerfect = gameState.perfectLevels.has(levelKey);
-        const isCompleted = gameState.completedLevels.has(levelKey);
-        const isBossLevel = i === stage.bossLevel;
-        const isTestLevel = testLevels.includes(i);
-        
-        // Set appropriate classes
-        levelItem.className = 'level-item';
-        if (isUnlocked) levelItem.classList.add('unlocked');
-        if (isPerfect) levelItem.classList.add('perfect');
-        else if (isCompleted) levelItem.classList.add('completed');
-        if (isBossLevel) levelItem.classList.add('boss');
-        if (isTestLevel) levelItem.classList.add('test');
-        if (!isUnlocked) levelItem.classList.add('locked');
-        
-        levelItem.textContent = i;
-        
-        if (isUnlocked) {
-            levelItem.onclick = () => startLevel(i);
-        }
-        
-        levelGrid.appendChild(levelItem);
-    }
-    
-    container.appendChild(levelGrid);
-    
-    // Add legend
-    const legend = document.createElement('div');
-    legend.className = 'level-type-legend';
-    legend.innerHTML = `
-        <div class="legend-item">
-            <div class="legend-color" style="background: linear-gradient(135deg, var(--accent), rgba(30, 144, 255, 0.7));"></div>
-            <span>Normal</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: linear-gradient(135deg, var(--success), #45b649);"></div>
-            <span>Completed</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: linear-gradient(135deg, var(--gold), #FFA500);"></div>
-            <span>Perfect</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: linear-gradient(135deg, var(--gold), var(--accent));"></div>
-            <span>Boss</span>
-        </div>
-    `;
-    
-    container.appendChild(legend);
-    
-    // Show the screen
-    showScreen('level-screen');
-}
 
-// Helper functions for the level screen
-function getSetIcon(stageId, setId) {
-    const baseIcons = {
-        1: 'fas fa-book',
-        2: 'fas fa-graduation-cap',
-        3: 'fas fa-school',
-        4: 'fas fa-university',
-        5: 'fas fa-brain'
-    };
-    
-    // Adjust icon based on set number
-    const variations = [
-        'fas fa-book-open', 
-        'fas fa-book-reader', 
-        'fas fa-bookmark', 
-        'fas fa-pencil-alt',
-        'fas fa-pen'
-    ];
-    
-    // Use base icon for first set, variations for others
-    return setId === 1 ? baseIcons[stageId] || 'fas fa-star' : 
-        variations[(setId - 2) % variations.length] || 'fas fa-star';
-}
-
-function getSetDescription(stageId, setId) {
-    const stageNames = {
-        1: 'Beginner',
-        2: 'Elementary',
-        3: 'Intermediate',
-        4: 'Advanced',
-        5: 'Expert'
-    };
-    
-    // Generic descriptions that combine stage and set
-    return `${stageNames[stageId] || 'Advanced'} vocabulary - Group ${setId}`;
-}
 
 function calculateWordsForLevel(level, vocabulary) {
     const totalWords = vocabulary.words.length;
@@ -3782,17 +3615,17 @@ function showLevelIntro(level, callback, forceFull = false) {
         `;
       }
     } else if (isBossLevel) {
-      // Boss level
-      announcementContent.innerHTML = `
-        <h1 style="color: #ff4136; margin-bottom: 0.5rem; font-size: 2.5rem;">BOSS FIGHT!</h1>
-        <h2 style="margin-bottom: 1rem; opacity: 0.9; font-size: 1.5rem;">FINAL CHALLENGE</h2>
-        <p style="margin-bottom: 1.5rem; font-size: 1.1rem;">All ${reviewWordsCount} words from this set</p>
-        <div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem; margin-bottom: 1rem;">
-          <div style="display: inline-block; padding: 0.5rem 1.5rem; border-radius: 50px; font-weight: bold; margin-top: 1rem; background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%); color: #ffffff;">DANGER ZONE</div>
-          <button class="start-button" style="margin-top: 1rem; background: #ff4136;">BEGIN</button>
-        </div>
-      `;
-    } else {
+        // Boss level - improved with better color contrast
+        announcementContent.innerHTML = `
+          <h1 style="color: #FFD700; margin-bottom: 0.5rem; font-size: 2.5rem; text-shadow: 0 2px 10px rgba(255, 215, 0, 0.7);">BOSS FIGHT!</h1>
+          <h2 style="margin-bottom: 1rem; color: #FFFFFF; opacity: 0.9; font-size: 1.5rem;">FINAL CHALLENGE</h2>
+          <p style="margin-bottom: 1.5rem; font-size: 1.1rem; color: #E0E0E0;">All words from this set</p>
+          <div style="margin: 1.5rem 0; text-align: center;">
+            <i class="fas fa-dragon" style="font-size: 3.5rem; color: #FFD700; margin-bottom: 1rem; filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));"></i>
+          </div>
+          <button class="start-button" style="margin-top: 1rem; background: linear-gradient(135deg, #2E3192 0%, #1BFFFF 100%); box-shadow: 0 4px 15px rgba(27, 255, 255, 0.4); color: white; font-weight: bold; padding: 1rem 2.5rem; font-size: 1.2rem;">BEGIN</button>
+        `;
+      } else {
       // Regular level
       announcementContent.innerHTML = `
         <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">Stage ${gameState.currentStage}</h1>
@@ -3811,9 +3644,10 @@ function showLevelIntro(level, callback, forceFull = false) {
     
     // Apply special styling for boss level
     if (isBossLevel) {
-      announcementContent.style.background = 'linear-gradient(135deg, rgba(255, 65, 108, 0.9), rgba(255, 75, 43, 0.9))';
-      announcementContent.style.boxShadow = '0 15px 35px rgba(255, 0, 0, 0.3)';
-    }
+        announcementContent.style.background = 'linear-gradient(135deg, rgba(128, 0, 0, 0.95), rgba(220, 20, 60, 0.95))';
+        announcementContent.style.boxShadow = '0 15px 35px rgba(255, 0, 0, 0.3), inset 0 2px 10px rgba(255, 255, 255, 0.2)';
+        announcementContent.style.border = '1px solid rgba(255, 215, 0, 0.3)';
+      }
     
     // SIMPLIFIED STRUCTURE: Append content directly to overlay
     overlay.appendChild(announcementContent);
@@ -3845,287 +3679,6 @@ function showLevelIntro(level, callback, forceFull = false) {
       });
     }
   }
-
-  function showLevelCompletionModal(levelStats, callback) {
-    // Ensure levelStats has valid values to prevent undefined/NaN
-    levelStats = levelStats || {};
-    levelStats.correctAnswers = levelStats.correctAnswers || 0;
-    levelStats.incorrectAnswers = Math.abs(levelStats.incorrectAnswers || 0); 
-    levelStats.totalQuestions = levelStats.totalQuestions || 
-                               (levelStats.correctAnswers + levelStats.incorrectAnswers) || 1;
-    levelStats.timeBonus = levelStats.timeBonus || 0;
-    
-    // Calculate average answer time if available
-    const averageTime = currentGame.answerTimes && currentGame.answerTimes.length > 0 
-      ? (currentGame.answerTimes.reduce((sum, time) => sum + time, 0) / currentGame.answerTimes.length).toFixed(1)
-      : "N/A";
-    
-    // Safely get current coins
-    const currentCoins = gameState.coins || 0;
-    const newCoinsTotal = currentCoins + levelStats.timeBonus;
-    
-    // Determine pass/fail status (assuming 70% is passing threshold)
-    const scorePercentage = Math.round((levelStats.correctAnswers / levelStats.totalQuestions) * 100);
-    const isPassed = scorePercentage >= 70;
-    
-    // Get current progress within the set
-    const stageData = gameStructure.stages[gameState.currentStage - 1];
-    const totalLevelsInSet = stageData.levelsPerSet;
-    const currentLevelProgress = gameState.currentLevel / totalLevelsInSet;
-    
-    // Calculate star rating
-    const noMistakes = levelStats.mistakes === 0;
-    const totalTime = currentGame.totalTime || (levelStats.totalQuestions * 5); // 5 seconds per question default
-    const timeThreshold = totalTime * 0.75 * 1000; // 75% of total time in milliseconds
-    const fastCompletion = levelStats.timeElapsed < timeThreshold;
-    
-    // Determine stars earned (1-3)
-    const starsEarned = 1 + (noMistakes ? 1 : 0) + (fastCompletion ? 1 : 0);
-    
-    // Clear any existing modals first
-    document.querySelectorAll('.level-completion-overlay').forEach(el => el.remove());
-    
-    // Create overlay that covers the entire screen
-    const overlay = document.createElement('div');
-    overlay.className = 'level-completion-overlay';
-    overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(5px);
-      z-index: 1000;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      opacity: 0;
-      transition: opacity 0.5s ease;
-    `;
-    
-    // Create completion modal content
-    const completionContent = document.createElement('div');
-    completionContent.className = 'level-completion-modal';
-    completionContent.style.cssText = `
-      background: var(--glass);
-      backdrop-filter: blur(10px);
-      border-radius: 20px;
-      padding: 3rem;
-      width: 500px;
-      max-width: 90%;
-      text-align: center;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      transform: scale(0.9);
-      opacity: 0;
-      transition: transform 0.5s ease, opacity 0.5s ease;
-      margin: 0;
-    `;
-    
-    completionContent.innerHTML = `
-      <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
-        Level Complete!
-      </h1>
-      <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${isPassed ? 'var(--success)' : 'var(--error)'}">
-        ${isPassed ? 'Great job!' : 'Try again to improve your score'}
-      </h2>
-      
-      <!-- Star Rating -->
-      <div class="star-rating-container" style="margin-bottom: 2rem;">
-        <div class="star-slots" style="display: flex; justify-content: center; gap: 1rem;">
-          <!-- Three star slots, each with empty and filled versions -->
-          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
-            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
-            <div class="star-filled star-1" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
-          </div>
-          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
-            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
-            <div class="star-filled star-2" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
-          </div>
-          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
-            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
-            <div class="star-filled star-3" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
-          </div>
-        </div>
-        <div class="star-criteria" style="margin-top: 0.5rem; font-size: 0.8rem; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between; width: 100%; max-width: 280px; margin-left: auto; margin-right: auto;">
-          <div>Complete</div>
-          <div>No Mistakes</div>
-          <div>Quick Time</div>
-        </div>
-      </div>
-      
-      <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
-        <div class="stat-item" style="text-align: center; flex: 1;">
-          <div style="font-size: 2rem; color: var(--accent);">${levelStats.correctAnswers}/${levelStats.totalQuestions}</div>
-          <div style="opacity: 0.7;">Correct</div>
-        </div>
-        <div class="stat-item" style="text-align: center; flex: 1;">
-          <div style="font-size: 2rem; color: #ff4136;">${levelStats.incorrectAnswers}</div>
-          <div style="opacity: 0.7;">Mistakes</div>
-        </div>
-        <div class="stat-item coin-counter-container" style="text-align: center; flex: 1; position: relative;">
-          <!-- Using the in-game coin counter style -->
-          <div class="coins-display" style="display: inline-flex; align-items: center; justify-content: center;">
-            <span class="coin-value" style="font-size: 2rem; color: var(--gold); font-weight: bold;">${currentCoins}</span>
-            <span class="coin-icon" style="margin-left: 5px; display: inline-block;">
-              <svg width="24" height="24" viewBox="0 0 24 24" style="transform: translateY(2px);">
-                <circle cx="12" cy="12" r="10" fill="var(--gold)" />
-                <text x="12" y="16" text-anchor="middle" fill="black" style="font-size: 14px; font-weight: bold;">¢</text>
-              </svg>
-            </span>
-          </div>
-          <div style="opacity: 0.7;">Coins</div>
-          ${levelStats.timeBonus > 0 ? `<div class="time-bonus-badge" style="position: absolute; top: -10px; right: -10px; background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">+${levelStats.timeBonus}</div>` : ''}
-        </div>
-      </div>
-      
-      <!-- Average response time section -->
-      <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
-        <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">Average Response Time</div>
-        <div style="font-size: 2.5rem; color: var(--accent); font-weight: bold;">
-          ${averageTime}s
-        </div>
-      </div>
-      
-      <!-- Progress bar for set completion -->
-      <div class="set-progress-container" style="width: 100%; margin: 2rem 0; padding: 0 1rem;">
-        <div style="text-align: left; margin-bottom: 0.5rem; opacity: 0.7; font-size: 0.9rem;">
-          Set Progress (Level ${gameState.currentLevel}/${totalLevelsInSet})
-        </div>
-        <div class="set-progress-bar" style="
-          width: 100%;
-          height: 10px;
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 5px;
-          overflow: hidden;
-          position: relative;
-        ">
-          <div class="set-progress-fill" style="
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 0%; /* Start at 0, will be animated */
-            background: linear-gradient(90deg, var(--accent), var(--gold));
-            border-radius: 5px;
-            transition: width 1s ease-in-out;
-          "></div>
-        </div>
-      </div>
-      
-      <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
-        ${isPassed ? 
-          `<button class="continue-button start-button" style="background: var(--accent);">Continue</button>` : 
-          `<button class="retry-button start-button" style="background: var(--accent);">Try Again</button>`
-        }
-      </div>
-    `;
-    
-    // Append overlay to the body
-    document.body.appendChild(overlay);
-    overlay.appendChild(completionContent);
-    
-    // Trigger animations after a short delay
-    setTimeout(() => {
-      overlay.style.opacity = '1';
-      completionContent.style.transform = 'scale(1)';
-      completionContent.style.opacity = '1';
-      
-      // Animate the progress bar filling
-      setTimeout(() => {
-        const progressFill = completionContent.querySelector('.set-progress-fill');
-        if (progressFill) {
-          progressFill.style.width = `${currentLevelProgress * 100}%`;
-        }
-        
-        // Animate star filling with sequential delays
-        setTimeout(() => {
-          const star1 = completionContent.querySelector('.star-1');
-          if (star1) {
-            star1.style.opacity = '1';
-            star1.style.transform = 'scale(1)';
-          }
-          
-          // Second star (no mistakes)
-          if (noMistakes) {
-            setTimeout(() => {
-              const star2 = completionContent.querySelector('.star-2');
-              if (star2) {
-                star2.style.opacity = '1'; 
-                star2.style.transform = 'scale(1)';
-              }
-            }, 300);
-          }
-          
-          // Third star (fast completion)
-          if (fastCompletion) {
-            setTimeout(() => {
-              const star3 = completionContent.querySelector('.star-3');
-              if (star3) {
-                star3.style.opacity = '1';
-                star3.style.transform = 'scale(1)';
-              }
-            }, 600);
-          }
-        }, 400);
-        
-        // Animate coin counter if there's a time bonus
-        if (levelStats.timeBonus > 0) {
-          const coinValue = completionContent.querySelector('.coin-value');
-          if (coinValue) {
-            // Animate coin count increasing
-            let startValue = currentCoins;
-            const endValue = newCoinsTotal;
-            const duration = 1500; // 1.5 seconds
-            const stepTime = 50; // Update every 50ms
-            const totalSteps = duration / stepTime;
-            const stepValue = (endValue - startValue) / totalSteps;
-            
-            // Add a glowing effect to the coin icon
-            const coinIcon = completionContent.querySelector('.coin-icon');
-            if (coinIcon) {
-              coinIcon.style.filter = 'drop-shadow(0 0 5px var(--gold))';
-              coinIcon.style.transition = 'filter 0.5s ease';
-            }
-            
-            const counterInterval = setInterval(() => {
-              startValue += stepValue;
-              if (startValue >= endValue) {
-                startValue = endValue;
-                clearInterval(counterInterval);
-                
-                // Remove glow effect after animation completes
-                setTimeout(() => {
-                  if (coinIcon) {
-                    coinIcon.style.filter = 'none';
-                  }
-                }, 500);
-              }
-              coinValue.textContent = Math.round(startValue);
-            }, stepTime);
-          }
-        }
-      }, 500); // Slight delay for the animations
-    }, 100);
-    
-    // Add click handler to continue/retry button
-    const actionButton = completionContent.querySelector(isPassed ? '.continue-button' : '.retry-button');
-    if (actionButton) {
-      actionButton.addEventListener('click', () => {
-        // Fade out
-        overlay.style.opacity = '0';
-        completionContent.style.transform = 'scale(0.9)';
-        completionContent.style.opacity = '0';
-        
-        // Remove after animation
-        setTimeout(() => {
-          document.body.removeChild(overlay);
-          callback(isPassed); // Continue with the callback, passing whether the level was passed
-        }, 500);
-      });
-    }
-}
 
 function handleLevelCompletion() {
     clearTimer();
@@ -7745,7 +7298,20 @@ function showPersonalVictoryScreen(rank) {
                 <div style="font-size: 3rem; color: var(--gold);">${currentGame.coins || 0}</div>
             </div>
         </div>
-        <button class="start-button" style="margin-top: 2rem; padding: 1rem 2rem;" onclick="closePersonalVictory()">
+        <button class="victory-button" onclick="closePersonalVictory()" style="
+            background: var(--accent);
+            color: var(--text);
+            border: none;
+            padding: 1rem 2.5rem;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
+            margin-top: 1.5rem;
+            min-width: 200px;
+        ">
             Continue
         </button>
     `;
@@ -9367,21 +8933,21 @@ function finishCelebrationAndGoHome() {
     document.querySelector(".home-button-container")?.remove();
     
     if (window.celebrationConfettiInterval) {
-      clearInterval(window.celebrationConfettiInterval);
+        clearInterval(window.celebrationConfettiInterval);
     }
     
     document.querySelectorAll(".confetti, .celebration-emoji, .winner-entry.celebrating").forEach(
-      element => element.remove()
+        element => element.remove()
     );
     
     // Update stats before returning home
     updatePlayerStatsAfterArcade().then(() => {
-      // Clean up monitoring and reset session
-      cleanupModeratorInactivityMonitoring();
-      resetArcadeSession();
-      
-      // Return to welcome screen
-      showScreen("welcome-screen");
+        // Clean up monitoring and reset session
+        cleanupModeratorInactivityMonitoring();
+        resetArcadeSession();
+        
+        // Return to welcome screen
+        showScreen("welcome-screen");
     });
 }
 
@@ -10122,11 +9688,23 @@ function startLeaderboardCelebration(podiumPlayers) {
         inactivityOverlay.classList.remove('visible');
     }
     
+    addCelebrationStyles();
+
     // Create celebration overlay if it doesn't exist
     let celebrationOverlay = document.querySelector('.celebration-overlay');
     if (!celebrationOverlay) {
         celebrationOverlay = document.createElement('div');
         celebrationOverlay.className = 'celebration-overlay';
+        // Give it a very high z-index to appear on top of everything
+        celebrationOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10000;
+            pointer-events: none;
+        `;
         document.body.appendChild(celebrationOverlay);
     }
     
@@ -10178,7 +9756,7 @@ function startLeaderboardCelebration(podiumPlayers) {
             winnerEntry.classList.add('third-place');
         }
         
-        // Style the winner entry
+        // Style the winner entry - with MUCH higher z-index
         winnerEntry.style.cssText = `
             position: fixed;
             left: 50%;
@@ -10194,10 +9772,11 @@ function startLeaderboardCelebration(podiumPlayers) {
             justify-content: space-between;
             padding: 0 30px;
             box-shadow: 0 0 20px rgba(255,255,255,0.3);
-            z-index: ${103 - positionIndex};
+            z-index: 10003;
             color: white;
             font-size: 1.5rem;
             text-align: center;
+            pointer-events: auto;
         `;
         
         // Create inner content container for better alignment
@@ -10279,12 +9858,13 @@ function startLeaderboardCelebration(podiumPlayers) {
             font-weight: bold;
             color: white;
             text-shadow: 0 0 10px rgba(0,0,0,0.5);
+            z-index: 10004;
         `;
         winnerLabel.textContent = rankLabel;
         winnerEntry.appendChild(winnerLabel);
         
         // Add to the document
-        document.body.appendChild(winnerEntry);
+        celebrationOverlay.appendChild(winnerEntry);
         
         // Add emojis animation
         addWinnerEmojis(winnerEntry, emojis, player.rank);
@@ -10314,13 +9894,88 @@ function startLeaderboardCelebration(podiumPlayers) {
     if (!homeButton) {
         homeButton = document.createElement('div');
         homeButton.className = 'home-button-container';
+        homeButton.style.cssText = `
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10005;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            pointer-events: auto;
+        `;
         homeButton.innerHTML = `
             <button class="start-button" onclick="finishCelebrationAndGoHome()">
                 Return to Home
             </button>
         `;
-        document.body.appendChild(homeButton);
-        setTimeout(() => homeButton.classList.add('visible'), 2500);
+        celebrationOverlay.appendChild(homeButton);
+        setTimeout(() => homeButton.style.opacity = "1", 2500);
+    }
+}
+
+function addCelebrationStyles() {
+    if (!document.getElementById('celebration-styles')) {
+        const styleElement = document.createElement('style');
+        styleElement.id = 'celebration-styles';
+        styleElement.textContent = `
+            .celebration-overlay {
+                opacity: 0;
+                transition: opacity 0.5s ease;
+            }
+            
+            .celebration-overlay.visible {
+                opacity: 1;
+            }
+            
+            .winner-entry {
+                opacity: 0;
+                transform: translateX(-50%) scale(0.8);
+                transition: opacity 0.5s ease, transform 0.5s ease;
+            }
+            
+            .winner-entry.celebrating {
+                opacity: 1;
+                transform: translateX(-50%) scale(1);
+            }
+            
+            .celebration-emoji {
+                position: fixed;
+                font-size: 2rem;
+                opacity: 0;
+                animation: fadeInOut 3s ease forwards;
+                z-index: 10004;
+            }
+            
+            @keyframes fadeInOut {
+                0% { opacity: 0; transform: scale(0.5); }
+                20% { opacity: 1; transform: scale(1.2); }
+                80% { opacity: 1; transform: scale(1); }
+                100% { opacity: 0; transform: scale(1.5); }
+            }
+            
+            .confetti {
+                position: fixed;
+                top: -20px;
+                z-index: 10002;
+                animation: confettiFall linear forwards;
+            }
+            
+            @keyframes confettiFall {
+                0% { transform: translateY(0) rotate(0deg); }
+                100% { transform: translateY(100vh) rotate(720deg); }
+            }
+            
+            .home-button-container {
+                opacity: 0;
+                transition: opacity 0.5s ease;
+            }
+            
+            .home-button-container.visible {
+                opacity: 1;
+            }
+        `;
+        document.head.appendChild(styleElement);
     }
 }
 
@@ -10397,7 +10052,7 @@ function addWinnerEmojis(element, emojis, rank) {
             emojiElement.style.fontSize = `${size}rem`;
             emojiElement.style.left = x;
             emojiElement.style.top = y;
-            emojiElement.style.zIndex = 300;
+            emojiElement.style.zIndex = '10004';  // High z-index
             emojiElement.style.animationDelay = `${1.8 + index * 0.3}s`;
             
             document.body.appendChild(emojiElement);
@@ -10442,6 +10097,7 @@ function startConfettiShower() {
             confetti.style.animationDuration = `${duration}s`;
             confetti.style.animationDelay = `${delay}s`;
             confetti.style.borderRadius = isSquare ? '0' : '50%';
+            confetti.style.zIndex = '10002';  // Ensure high z-index
             
             document.body.appendChild(confetti);
             
@@ -10452,8 +10108,6 @@ function startConfettiShower() {
         }
     }
 }
-
-
 
 function setupCelebrationHandler() {
     if (!window.arcadeChannel) return;
@@ -11817,39 +11471,65 @@ function showBossVictoryNotification(coinRewardNeeded = false) {
     // Clear animation flag
     window.bossVictoryAnimationInProgress = false;
     
-    // DO NOT call updateAllCoinDisplays() here - it would trigger another animation
-    
     const modal = document.createElement('div');
     modal.className = 'arcade-completion-modal';
     modal.innerHTML = `
     <div class="completion-modal-content">
-      <h2 style="color: var(--gold)">Boss Defeated!</h2>
-      <p style="font-size: 1.2rem; margin: 1rem 0;">Congratulations! You've conquered this challenge!</p>
+      <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
+        Boss Defeated!
+      </h1>
+      <p style="font-size: 1.2rem; margin: 1rem 0; color: var(--success);">
+        Congratulations! You've conquered this challenge!
+      </p>
       
-      <div class="completion-stats">
-        <div class="stat-item">
+      <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
+        <div class="stat-item" style="text-align: center; flex: 1;">
           <i class="fas fa-skull" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
-          <span style="display: block; margin-bottom: 0.25rem;">Boss Defeated</span>
-          <strong style="font-size: 1.5rem;">✓</strong>
+          <div style="opacity: 0.7;">Boss Defeated</div>
+          <div style="font-size: 1.5rem; color: var(--success); margin-top: 0.5rem;">✓</div>
         </div>
-        <div class="stat-item">
+        <div class="stat-item" style="text-align: center; flex: 1;">
           <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
-          <span style="display: block; margin-bottom: 0.25rem;">Bonus Coins</span>
-          <strong style="font-size: 1.5rem;">100</strong>
+          <div style="opacity: 0.7;">Bonus Coins</div>
+          <div style="font-size: 1.5rem; color: var(--gold); margin-top: 0.5rem;">100</div>
         </div>
-        <div class="stat-item">
+        <div class="stat-item" style="text-align: center; flex: 1;">
           <i class="fas fa-unlock" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
-          <span style="display: block; margin-bottom: 0.25rem;">New Set</span>
-          <strong style="font-size: 1.5rem;">Unlocked</strong>
+          <div style="opacity: 0.7;">New Set</div>
+          <div style="font-size: 1.5rem; color: var(--accent); margin-top: 0.5rem;">Unlocked</div>
         </div>
       </div>
       
-      <div style="display: flex; justify-content: space-around; margin-top: 2rem; gap: 1rem;">
+      <div class="set-progress-container" style="width: 100%; margin: 2rem 0; padding: 0 1rem;">
+        <div style="text-align: left; margin-bottom: 0.5rem; opacity: 0.7; font-size: 0.9rem;">
+          Set Completed
+        </div>
+        <div class="set-progress-bar" style="
+          width: 100%;
+          height: 10px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 5px;
+          overflow: hidden;
+          position: relative;
+        ">
+          <div class="set-progress-fill" style="
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--gold));
+            border-radius: 5px;
+          "></div>
+        </div>
+      </div>
+      
+      <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
         <button onclick="handleBossVictoryContinue()" class="start-button" style="
           background: var(--accent);
           color: var(--text);
           border: none;
-          padding: 1rem 2rem;
+          padding: 1rem 2.5rem;
           border-radius: 50px;
           font-size: 1.1rem;
           font-weight: 600;
@@ -11863,7 +11543,7 @@ function showBossVictoryNotification(coinRewardNeeded = false) {
           background: transparent;
           color: var(--text);
           border: 2px solid var(--accent);
-          padding: 1rem 2rem;
+          padding: 1rem 2.5rem;
           border-radius: 50px;
           font-size: 1.1rem;
           font-weight: 600;
@@ -12514,49 +12194,43 @@ const customGameState = {
   }
 };
 
-/**
- * Process custom words from input field
- */
 function processCustomWords() {
-  const inputField = document.getElementById("custom-word-input");
-  const resultsDiv = document.getElementById("translation-results");
-  const wordList = document.getElementById("word-translation-list");
-  const limits = CustomListsManager.getListLimits();
-  
-  const inputText = inputField.value.trim();
-  if (!inputText) {
-    showNotification("Please enter at least one word.", "error");
-    return;
+    const inputField = document.getElementById("custom-word-input");
+    const resultsDiv = document.getElementById("translation-results");
+    const wordList = document.getElementById("word-translation-list");
+    const limits = CustomListsManager.getListLimits();
+    
+    const inputText = inputField.value.trim();
+    if (!inputText) {
+      showNotification("Please enter at least one word.", "error");
+      return;
+    }
+    
+    // Split input by commas or whitespace based on presence of commas
+    let words = inputText.includes(',') ? 
+      inputText.split(',').map(word => word.trim()).filter(word => word.length > 0) : 
+      inputText.split(/\s+/).filter(word => word.length > 0);
+    
+    // Apply word limit based on user status
+    const maxWords = currentUser ? limits.maxWords : 10;
+    if (words.length > maxWords) {
+      showNotification(`Maximum ${maxWords} words allowed.`, "error");
+      words = words.slice(0, maxWords);
+    }
+    
+    // Clear previous word list
+    wordList.innerHTML = "";
+    resultsDiv.style.display = "block";
+    
+    // Create word items with translations
+    words.forEach(word => {
+      const wordItem = createWordItem(word, findTranslation(word));
+      wordList.appendChild(wordItem);
+    });
+    
+    // Initialize drag and drop
+    setupDragAndDrop();
   }
-  
-  // Split input by commas or newlines
-  let words = inputText.includes(',') ? 
-    inputText.split(',').map(word => word.trim()) : 
-    inputText.split(/\s+/).filter(word => word.length > 0);
-  
-  // Handle phrases (words with spaces)
-  words = words.map(word => word.includes(' ') ? [word] : word.split(/\s+/)).flat();
-  
-  // Apply word limit based on user status
-  const maxWords = currentUser ? limits.maxWords : 10;
-  if (words.length > maxWords) {
-    showNotification(`Maximum ${maxWords} words allowed.`, "error");
-    words = words.slice(0, maxWords);
-  }
-  
-  // Clear previous word list
-  wordList.innerHTML = "";
-  resultsDiv.style.display = "block";
-  
-  // Create word items with translations
-  words.forEach(word => {
-    const wordItem = createWordItem(word, findTranslation(word));
-    wordList.appendChild(wordItem);
-    initializeDragAndDrop(wordItem);
-  });
-  
-  makeWordListDraggable();
-}
 
 /**
  * Find a translation for a given word
@@ -12575,31 +12249,62 @@ function findTranslation(word) {
 }
 
 function createWordItem(word, translation) {
-  const item = document.createElement("div");
-  item.className = "word-translation-item";
-  item.draggable = true;
-  item.innerHTML = `
-    <div class="drag-handle">
-      <i class="fas fa-grip-vertical"></i>
-    </div>
-    <span class="source-word" contenteditable="true">${word}</span>
-    <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
-    <button class="delete-word-btn" onclick="deleteWord(this)">
-      <i class="fas fa-times" style="font-size: 12px;"></i>
-    </button>
-  `;
-  
-  const deleteBtn = item.querySelector(".delete-word-btn");
-  if (deleteBtn) {
-    // Position the delete button at the right edge of the item
-    deleteBtn.style.position = "absolute";
-    deleteBtn.style.right = "10px";
-    deleteBtn.style.top = "50%";
-    deleteBtn.style.transform = "translateY(-50%)";
+    const wordItem = document.createElement("div");
+    wordItem.className = "word-translation-item";
+    wordItem.draggable = true;
+    wordItem.setAttribute("data-word", word);
+    
+    wordItem.innerHTML = `
+      <div class="word">${word}</div>
+      <div class="translation">${translation || 'No translation'}</div>
+      <button class="delete-word-btn">×</button>
+    `;
+    
+    const deleteBtn = wordItem.querySelector(".delete-word-btn");
+    deleteBtn.addEventListener("click", function() {
+      deleteWord(this);
+    });
+    
+    return wordItem;
   }
-  
-  return item;
-}
+
+  function setupDragAndDrop() {
+    const wordList = document.getElementById("word-translation-list");
+    const items = wordList.querySelectorAll(".word-translation-item");
+    
+    items.forEach(item => {
+      // Add drag start event
+      item.addEventListener("dragstart", function(e) {
+        this.classList.add("dragging");
+        e.dataTransfer.setData("text/plain", this.getAttribute("data-word"));
+      });
+      
+      // Add drag end event
+      item.addEventListener("dragend", function() {
+        this.classList.remove("dragging");
+      });
+    });
+    
+    // Add dragover event to container
+    wordList.addEventListener("dragover", function(e) {
+      e.preventDefault();
+      const afterElement = getDragAfterElement(wordList, e.clientY);
+      const draggable = document.querySelector(".dragging");
+      
+      if (draggable) {
+        if (afterElement == null) {
+          wordList.appendChild(draggable);
+        } else {
+          wordList.insertBefore(draggable, afterElement);
+        }
+      }
+    });
+    
+    // Add drop event to container
+    wordList.addEventListener("drop", function(e) {
+      e.preventDefault();
+    });
+  }
 
 function addNewWord() {
   const wordList = document.getElementById("word-translation-list");
@@ -12637,95 +12342,99 @@ function deleteWord(button) {
     }
 }
 
-/**
- * Initialize drag and drop for a word item
- * @param {HTMLElement} element - The element to make draggable
- * @returns {HTMLElement} - The initialized element
- */
 function initializeDragAndDrop(element) {
-  if (!element) return;
-  
-  // Clone the element to remove any existing listeners
-  const clone = element.cloneNode(true);
-  if (element.parentNode) {
-    element.parentNode.replaceChild(clone, element);
-  }
-  
-  // The element is now the clone
-  element = clone;
-  
-  element.setAttribute("draggable", "true");
-  
-  element.addEventListener("dragstart", (event) => {
-    event.stopPropagation();
-    element.classList.add("dragging");
-    event.dataTransfer.setData("text/plain", "");
-  });
-  
-  element.addEventListener("dragend", (event) => {
-    event.stopPropagation();
-    element.classList.remove("dragging");
-  });
-  
-  // Setup delete button
-  const deleteBtn = element.querySelector(".delete-word-btn");
-  if (deleteBtn) {
-    deleteBtn.onclick = () => deleteWord(deleteBtn);
-  }
-  
-  return element;
-}
-
-/**
- * Make the word list draggable
- */
-function makeWordListDraggable() {
-  const wordList = document.getElementById("word-translation-list");
-  if (!wordList) return;
-  
-  wordList.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    const draggingElement = wordList.querySelector(".dragging");
-    if (!draggingElement) return;
+    if (!element) return element;
     
-    const afterElement = getDragAfterElement(wordList, event.clientY);
-    if (afterElement) {
-      wordList.insertBefore(draggingElement, afterElement);
-    } else {
-      wordList.appendChild(draggingElement);
+    // Clone the element to remove any existing listeners
+    const clone = element.cloneNode(true);
+    if (element.parentNode) {
+      element.parentNode.replaceChild(clone, element);
     }
-  });
-  
-  // Initialize all existing items
-  wordList.querySelectorAll(".word-translation-item").forEach(item => 
-    initializeDragAndDrop(item)
-  );
-}
-
-/**
- * Get the element to insert after when dragging
- * @param {HTMLElement} container - The container element
- * @param {number} y - The Y coordinate
- * @returns {HTMLElement|null} - The element to insert after
- */
-function getDragAfterElement(container, y) {
-  if (!container) return null;
-  
-  const draggableElements = [...container.querySelectorAll(".word-translation-item:not(.dragging)")];
-  
-  if (!draggableElements.length) return null;
-  
-  return draggableElements.reduce((closest, child) => {
-    const box = child.getBoundingClientRect();
-    const offset = y - box.top - box.height / 2;
     
-    if (offset < 0 && offset > closest.offset) {
-      return { offset: offset, element: child };
-    } else {
-      return closest;
+    // Set draggable attribute
+    clone.setAttribute("draggable", "true");
+    
+    // Attach the event listeners to the clone
+    clone.addEventListener("dragstart", (event) => {
+      event.stopPropagation();
+      clone.classList.add("dragging");
+      event.dataTransfer.setData("text/plain", "");
+    });
+    
+    clone.addEventListener("dragend", (event) => {
+      event.stopPropagation();
+      clone.classList.remove("dragging");
+    });
+    
+    // Setup delete button on the clone
+    const deleteBtn = clone.querySelector(".delete-word-btn");
+    if (deleteBtn) {
+      deleteBtn.onclick = () => deleteWord(deleteBtn);
     }
-  }, { offset: Number.NEGATIVE_INFINITY }).element;
-}
+    
+    return clone;
+  }
+
+  function makeWordListDraggable() {
+    const wordList = document.getElementById("word-translation-list");
+    if (!wordList) return;
+    
+    wordList.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      const draggingElement = document.querySelector(".word-translation-item.dragging");
+      if (!draggingElement) return;
+      
+      const afterElement = getDragAfterElement(wordList, event.clientY);
+      if (afterElement) {
+        wordList.insertBefore(draggingElement, afterElement);
+      } else {
+        wordList.appendChild(draggingElement);
+      }
+    });
+    
+    // Initialize all existing items
+    wordList.querySelectorAll(".word-translation-item").forEach(item => 
+      initializeDragAndDrop(item)
+    );
+  }
+
+  function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll(".word-translation-item:not(.dragging)")];
+    
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+// Make sure these styles are added to ensure visual feedback during dragging
+function addDragAndDropStyles() {
+    const styleId = "drag-drop-styles";
+    if (!document.getElementById(styleId)) {
+      const styleElement = document.createElement("style");
+      styleElement.id = styleId;
+      styleElement.textContent = `
+        .word-translation-item {
+          cursor: move;
+          user-select: none;
+          transition: background-color 0.2s ease;
+        }
+        
+        .word-translation-item.dragging {
+          opacity: 0.5;
+          background-color: rgba(100, 100, 255, 0.2);
+        }
+      `;
+      document.head.appendChild(styleElement);
+    }
+  }
+
 
 /**
  * Setup keyboard navigation for word list
@@ -14754,3 +14463,303 @@ function saveInlineEdit(listId) {
 }
 
 
+function showLevelCompletionModal(levelStats, callback) {
+  // Ensure levelStats has valid values to prevent undefined/NaN
+  levelStats = levelStats || {};
+  levelStats.correctAnswers = levelStats.correctAnswers || 0;
+  levelStats.incorrectAnswers = Math.abs(levelStats.incorrectAnswers || 0); 
+  levelStats.totalQuestions = levelStats.totalQuestions || 
+                             (levelStats.correctAnswers + levelStats.incorrectAnswers) || 1;
+  levelStats.timeBonus = levelStats.timeBonus || 0;
+  levelStats.coinsEarned = levelStats.coinsEarned || 0;
+  
+  // Calculate average answer time if available
+  const averageTime = currentGame.answerTimes && currentGame.answerTimes.length > 0 
+    ? (currentGame.answerTimes.reduce((sum, time) => sum + time, 0) / currentGame.answerTimes.length).toFixed(1)
+    : "N/A";
+  
+  // Safely get current coins
+  const currentCoins = gameState.coins || 0;
+  
+  // Calculate the total bonus (time bonus + perfect completion bonus)
+  const totalBonusCoins = levelStats.timeBonus + levelStats.coinsEarned;
+  const newCoinsTotal = currentCoins + totalBonusCoins;
+  
+  // Update gameState.coins with the new total immediately
+  if (totalBonusCoins > 0) {
+    gameState.coins = newCoinsTotal;
+    // Save progress to persist the change
+    saveProgress();
+  }
+  
+  // Determine pass/fail status (assuming 70% is passing threshold)
+  const scorePercentage = Math.round((levelStats.correctAnswers / levelStats.totalQuestions) * 100);
+  const isPassed = scorePercentage >= 70;
+  
+  // Get current progress within the set
+  const stageData = gameStructure.stages[gameState.currentStage - 1];
+  const totalLevelsInSet = stageData.levelsPerSet;
+  const currentLevelProgress = gameState.currentLevel / totalLevelsInSet;
+  
+  // Calculate star rating
+  const noMistakes = levelStats.mistakes === 0;
+  const totalTime = currentGame.totalTime || (levelStats.totalQuestions * 5); // 5 seconds per question default
+  const timeThreshold = totalTime * 0.75 * 1000; // 75% of total time in milliseconds
+  const fastCompletion = levelStats.timeElapsed < timeThreshold;
+  
+  // Determine stars earned (1-3)
+  const starsEarned = 1 + (noMistakes ? 1 : 0) + (fastCompletion ? 1 : 0);
+  
+  // Clear any existing modals first
+  document.querySelectorAll('.level-completion-overlay').forEach(el => el.remove());
+  
+  // Create overlay that covers the entire screen
+  const overlay = document.createElement('div');
+  overlay.className = 'level-completion-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  `;
+  
+  // Create completion modal content
+  const completionContent = document.createElement('div');
+  completionContent.className = 'level-completion-modal';
+  completionContent.style.cssText = `
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 3rem;
+    width: 500px;
+    max-width: 90%;
+    text-align: center;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transform: scale(0.9);
+    opacity: 0;
+    transition: transform 0.5s ease, opacity 0.5s ease;
+    margin: 0;
+  `;
+  
+  completionContent.innerHTML = `
+    <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
+      Level Complete!
+    </h1>
+    <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${isPassed ? 'var(--success)' : 'var(--error)'}">
+      ${isPassed ? 'Great job!' : 'Try again to improve your score'}
+    </h2>
+    
+    <!-- Star Rating -->
+    <div class="star-rating-container" style="margin-bottom: 2rem;">
+      <div class="star-slots" style="display: flex; justify-content: center; gap: 1rem;">
+        <!-- Three star slots, each with empty and filled versions -->
+        <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
+          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
+          <div class="star-filled star-1" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+        </div>
+        <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
+          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
+          <div class="star-filled star-2" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+        </div>
+        <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
+          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
+          <div class="star-filled star-3" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+        </div>
+      </div>
+      <div class="star-criteria" style="margin-top: 0.5rem; font-size: 0.8rem; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between; width: 100%; max-width: 280px; margin-left: auto; margin-right: auto;">
+        <div>Complete</div>
+        <div>No Mistakes</div>
+        <div>Quick Time</div>
+      </div>
+    </div>
+    
+    <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
+      <div class="stat-item" style="text-align: center; flex: 1;">
+        <div style="font-size: 2rem; color: var(--accent);">${levelStats.correctAnswers}/${levelStats.totalQuestions}</div>
+        <div style="opacity: 0.7;">Correct</div>
+      </div>
+      <div class="stat-item" style="text-align: center; flex: 1;">
+        <div style="font-size: 2rem; color: #ff4136;">${levelStats.incorrectAnswers}</div>
+        <div style="opacity: 0.7;">Mistakes</div>
+      </div>
+      <div class="stat-item coin-counter-container" style="text-align: center; flex: 1; position: relative;">
+        <!-- Using the in-game coin counter style -->
+        <div class="coins-display" style="display: inline-flex; align-items: center; justify-content: center;">
+          <span class="coin-value" style="font-size: 2rem; color: var(--gold); font-weight: bold;">${currentCoins}</span>
+          <span class="coin-icon" style="margin-left: 5px; display: inline-block;">
+            <svg width="24" height="24" viewBox="0 0 24 24" style="transform: translateY(2px);">
+              <circle cx="12" cy="12" r="10" fill="var(--gold)" />
+              <text x="12" y="16" text-anchor="middle" fill="black" style="font-size: 14px; font-weight: bold;">¢</text>
+            </svg>
+          </span>
+        </div>
+        <div style="opacity: 0.7;">Coins</div>
+        ${totalBonusCoins > 0 ? `<div class="time-bonus-badge" style="position: absolute; top: -10px; right: -10px; background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">+${totalBonusCoins}</div>` : ''}
+      </div>
+    </div>
+    
+    <!-- Average response time section -->
+    <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
+      <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">Average Response Time</div>
+      <div style="font-size: 2.5rem; color: var(--accent); font-weight: bold;">
+        ${averageTime}s
+      </div>
+    </div>
+    
+    <!-- Progress bar for set completion -->
+    <div class="set-progress-container" style="width: 100%; margin: 2rem 0; padding: 0 1rem;">
+      <div style="text-align: left; margin-bottom: 0.5rem; opacity: 0.7; font-size: 0.9rem;">
+        Set Progress (Level ${gameState.currentLevel}/${totalLevelsInSet})
+      </div>
+      <div class="set-progress-bar" style="
+        width: 100%;
+        height: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 5px;
+        overflow: hidden;
+        position: relative;
+      ">
+        <div class="set-progress-fill" style="
+          position: absolute;
+          top: 0;
+          left: 0;
+          height: 100%;
+          width: 0%; /* Start at 0, will be animated */
+          background: linear-gradient(90deg, var(--accent), var(--gold));
+          border-radius: 5px;
+          transition: width 1s ease-in-out;
+        "></div>
+      </div>
+    </div>
+    
+    <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
+      ${isPassed ? 
+        `<button class="continue-button start-button" style="background: var(--accent);">Continue</button>` : 
+        `<button class="retry-button start-button" style="background: var(--accent);">Try Again</button>`
+      }
+    </div>
+  `;
+  
+  // Append overlay to the body
+  document.body.appendChild(overlay);
+  overlay.appendChild(completionContent);
+  
+  // Trigger animations after a short delay
+  setTimeout(() => {
+    overlay.style.opacity = '1';
+    completionContent.style.transform = 'scale(1)';
+    completionContent.style.opacity = '1';
+    
+    // Animate the progress bar filling
+    setTimeout(() => {
+      const progressFill = completionContent.querySelector('.set-progress-fill');
+      if (progressFill) {
+        progressFill.style.width = `${currentLevelProgress * 100}%`;
+      }
+      
+      // Animate star filling with sequential delays
+      setTimeout(() => {
+        const star1 = completionContent.querySelector('.star-1');
+        if (star1) {
+          star1.style.opacity = '1';
+          star1.style.transform = 'scale(1)';
+        }
+        
+        // Second star (no mistakes)
+        if (noMistakes) {
+          setTimeout(() => {
+            const star2 = completionContent.querySelector('.star-2');
+            if (star2) {
+              star2.style.opacity = '1'; 
+              star2.style.transform = 'scale(1)';
+            }
+          }, 300);
+        }
+        
+        // Third star (fast completion)
+        if (fastCompletion) {
+          setTimeout(() => {
+            const star3 = completionContent.querySelector('.star-3');
+            if (star3) {
+              star3.style.opacity = '1';
+              star3.style.transform = 'scale(1)';
+            }
+          }, 600);
+        }
+      }, 400);
+      
+      // Animate coin counter if there's a bonus
+      if (totalBonusCoins > 0) {
+        const coinValue = completionContent.querySelector('.coin-value');
+        if (coinValue) {
+          // Animate coin count increasing
+          let startValue = currentCoins;
+          const endValue = newCoinsTotal;
+          const duration = 1500; // 1.5 seconds
+          const stepTime = 50; // Update every 50ms
+          const totalSteps = duration / stepTime;
+          const stepValue = (endValue - startValue) / totalSteps;
+          
+          // Add a glowing effect to the coin icon
+          const coinIcon = completionContent.querySelector('.coin-icon');
+          if (coinIcon) {
+            coinIcon.style.filter = 'drop-shadow(0 0 5px var(--gold))';
+            coinIcon.style.transition = 'filter 0.5s ease';
+          }
+          
+          const counterInterval = setInterval(() => {
+            startValue += stepValue;
+            if (startValue >= endValue) {
+              startValue = endValue;
+              clearInterval(counterInterval);
+              
+              // Remove glow effect after animation completes
+              setTimeout(() => {
+                if (coinIcon) {
+                  coinIcon.style.filter = 'none';
+                }
+              }, 500);
+            }
+            coinValue.textContent = Math.round(startValue);
+          }, stepTime);
+        }
+      }
+    }, 500); // Slight delay for the animations
+  }, 100);
+  
+  // Update all coin displays in the game after modal animation
+  setTimeout(() => {
+    updateAllCoinDisplays();
+  }, 2000);
+  
+  // Add click handler to continue/retry button
+  const actionButton = completionContent.querySelector(isPassed ? '.continue-button' : '.retry-button');
+  if (actionButton) {
+    actionButton.addEventListener('click', () => {
+      // Fade out
+      overlay.style.opacity = '0';
+      completionContent.style.transform = 'scale(0.9)';
+      completionContent.style.opacity = '0';
+      
+      // Remove after animation
+      setTimeout(() => {
+        document.body.removeChild(overlay);
+        
+        // Ensure coins are updated in all displays before continuing
+        updateAllCoinDisplays();
+        
+        callback(isPassed); // Continue with the callback, passing whether the level was passed
+      }, 500);
+    });
+  }
+}

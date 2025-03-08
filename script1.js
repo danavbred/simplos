@@ -1207,42 +1207,18 @@ function showSuccessToast(message) {
     }, 3000);
 }
 
-// REPLACE the showScreen function
 function showScreen(screenId, forceRefresh = false) {
     // Debug statement to help track screen navigation
     console.log(`Attempting to show screen: ${screenId}`);
     
     // Special handling for stage-cascade-screen
     if (screenId === "stage-cascade-screen") {
-        return renderStageCascadeScreen();
+      return renderStageCascadeScreen();
     }
     
-    // Prevent unregistered users from seeing upgrade screen
-    if (screenId === "upgrade-screen" && !currentUser) {
-      console.log("Unregistered user attempt to access upgrade screen, redirecting to auth modal");
-      screenId = "welcome-screen"; // Redirect to welcome screen first
-      
-      // Show auth modal with signup form after a brief delay
-      setTimeout(() => {
-        showAuthModal();
-        // Switch to signup form
-        setTimeout(() => {
-          const loginForm = document.getElementById('loginForm');
-          const signupForm = document.getElementById('signupForm');
-          if (loginForm && signupForm) {
-            loginForm.classList.add('hidden');
-            signupForm.classList.remove('hidden');
-          }
-        }, 100);
-      }, 200);
-    }
-  
-    // When returning to welcome screen, clear game context
-    if (screenId === "welcome-screen") {
-      console.log("Returning to welcome screen, clearing game context");
-      localStorage.removeItem("gameContext");
-    }
-     
+    // MODIFIED: Remove the unregistered user restriction for upgrade screen
+    // Now everyone can access the upgrade screen, registered or not
+    
     console.log("showScreen called with:", {
       screenId: screenId,
       forceRefresh: forceRefresh,
@@ -1380,6 +1356,100 @@ function ensureScreenExists(screenId) {
         screen.className = 'screen';
         document.body.appendChild(screen);
     }
+}
+
+function createOptionsMenu() {
+    // Remove existing menu if it exists
+    const existingMenu = document.getElementById('options-menu');
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+
+    const optionsMenu = document.createElement('div');
+    optionsMenu.id = 'options-menu';
+    optionsMenu.className = 'floating-menu';
+    
+    // Define all possible menu items
+    const menuItems = [
+        {
+            id: 'profile-item',
+            icon: 'fa-user',
+            text: 'Profile',
+            onClick: 'openProfileModal()',
+            visibleTo: ['all'] // visible to all users
+        },
+        {
+            id: 'custom-practice-item',
+            icon: 'fa-pen',
+            text: 'Custom Practice',
+            onClick: 'showScreen(\'custom-practice-screen\')',
+            visibleTo: ['all'] // visible to all users
+        },
+        {
+            id: 'leaderboard-item',
+            icon: 'fa-trophy',
+            text: 'Leaderboard',
+            onClick: 'showLeaderboard()',
+            visibleTo: ['all'] // visible to all users
+        },
+        {
+            id: 'premium-item',
+            icon: 'fa-crown premium-crown',
+            text: 'Premium',
+            onClick: 'showUpgradeScreen()', // This now shows upgrade screen for all non-premium users
+            visibleTo: ['free', 'pending', 'unregistered'] // visible only to non-premium users
+        },
+        {
+            id: 'about-item',
+            icon: 'fa-info-circle',
+            text: 'About',
+            onClick: 'showAboutScreen()',
+            visibleTo: ['all'] // visible to all users
+        },
+        {
+            id: 'shop-item',
+            icon: 'fa-store',
+            text: 'Shop',
+            onClick: 'showScreen(\'shop-screen\')',
+            visibleTo: ['all'] // visible to all users
+        },
+        {
+            id: 'accessibility-item',
+            icon: 'fa-universal-access',
+            text: 'Accessibility',
+            onClick: 'openAccessibilitySettings()',
+            visibleTo: ['all'] // visible to all users
+        }
+    ];
+    
+    // Add menu grid container
+    const menuGrid = document.createElement('div');
+    menuGrid.className = 'menu-grid';
+    optionsMenu.appendChild(menuGrid);
+    
+    // Filter menu items based on user status
+    const userStatus = currentUser ? (currentUser.status || 'free') : 'unregistered';
+    
+    // Add filtered items to the menu
+    menuItems.forEach(item => {
+        // Check if this item should be visible to the current user
+        if (item.visibleTo.includes('all') || item.visibleTo.includes(userStatus)) {
+            const menuItem = document.createElement('div');
+            menuItem.className = 'menu-item';
+            menuItem.id = item.id;
+            menuItem.setAttribute('onclick', item.onClick);
+            
+            menuItem.innerHTML = `
+                <i class="fas ${item.icon}"></i>
+                <span>${item.text}</span>
+            `;
+            
+            menuGrid.appendChild(menuItem);
+        }
+    });
+    
+    document.body.appendChild(optionsMenu);
+    return optionsMenu;
 }
 
 function updateNavigationIcons(screenId) {
@@ -1773,6 +1843,15 @@ function showStageCascadeScreen() {
         });
         stageCascadeScreen.appendChild(backButton);
     }
+
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('visible');
+      });
+      
+      document.getElementById('stage-cascade-screen').classList.add('visible');
+      
+      // Update stage completion stats
+      updateStageCompletionStats();
 }
 
 function renderStageCascadeScreen() {
@@ -2388,13 +2467,24 @@ function checkUpgradeStatus() {
     return !!upgradeRequested;
   }
 
-function showUpgradeScreen() {
+  function showUpgradeScreen() {
+    // Check if user is already premium
+    if (currentUser && currentUser.status === 'premium') {
+        console.log("User is already premium, no need to show upgrade screen");
+        // Maybe show a notification or just do nothing
+        showNotification("You already have premium access!", "info");
+        return;
+    }
+    
     // Check if user already submitted upgrade request
-    if (localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
+    if (currentUser && localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
         hideUpgradePromptAndContinue();
         return;
     }
     
+    console.log("Showing upgrade screen to", currentUser ? currentUser.status : "unregistered user");
+    
+    // Show upgrade screen regardless of user status (registered or not)
     showScreen('upgrade-screen');
 }
 
@@ -3741,6 +3831,7 @@ function updateAuthUI() {
         if (userEmailElement) {
             userEmailElement.textContent = '';
         }
+        
     }
 }
 
@@ -4994,8 +5085,13 @@ function skipUpgrade() {
     showScreen('welcome-screen');
 }
 
-  function handleUpgradeSubmit(event) {
-    event.preventDefault();
+function handleUpgradeSubmit(event) {
+    console.log("Upgrade form submitted");
+    
+    // Prevent the default form submission if this is a direct click
+    if (event) {
+      event.preventDefault();
+    }
     
     // Mark that this user has requested an upgrade
     if (currentUser && currentUser.id) {
@@ -5027,39 +5123,25 @@ function skipUpgrade() {
     // Hide the upgrade screen
     document.getElementById('upgrade-screen').classList.remove('visible');
     
-    // Get the stored stage/set/level that the user was trying to access
-    const storedContext = localStorage.getItem("gameContext");
-    let targetStage = gameState.currentStage;
-    let targetSet = gameState.currentSet;
-    let targetLevel = gameState.currentLevel;
+    // Show confirmation
+    showUpgradeConfirmation();
     
-    if (storedContext) {
-      try {
-        const context = JSON.parse(storedContext);
-        if (context.stage) targetStage = context.stage;
-        if (context.set) targetSet = context.set;
-        if (context.level) targetLevel = context.level;
-      } catch (e) {
-        console.error("Error parsing saved context:", e);
-      }
+    // Do NOT initiate a level or execute callback
+    // Just return to allow user to continue from where they were
+    console.log("Upgrade form closed, user can continue");
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Ensure toggle function is properly set up for the upgrade form
+    const isAdultCheckbox = document.getElementById('isAdult');
+    
+    if (isAdultCheckbox) {
+      isAdultCheckbox.checked = true; // Default to adult checked
+      toggleParentFields(); // Call once to set initial state
+      
+      isAdultCheckbox.addEventListener('change', toggleParentFields);
     }
-    
-    // Set the current game state
-    gameState.currentStage = targetStage;
-    gameState.currentSet = targetSet;
-    gameState.currentLevel = targetLevel;
-    
-    // Execute callback if it exists (resume game)
-    if (typeof window.upgradeCallback === 'function') {
-      setTimeout(() => {
-        window.upgradeCallback();
-        window.upgradeCallback = null;
-      }, 500);
-    } else {
-      // Otherwise, just start the level
-      startLevel(gameState.currentLevel);
-    }
-  }
+  });
 
   async function updateUserStatus(status) {
     if (!currentUser || !currentUser.id) {
@@ -6004,6 +6086,102 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 function initializeCarousel() {
+    // Create floating menu for options
+    function createOptionsMenu() {
+        // Remove existing menu if it exists
+        const existingMenu = document.getElementById('options-menu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+
+        const optionsMenu = document.createElement('div');
+        optionsMenu.id = 'options-menu';
+        optionsMenu.className = 'floating-menu';
+        
+        // Define all possible menu items
+        const menuItems = [
+            {
+                id: 'profile-item',
+                icon: 'fa-user',
+                text: 'Profile',
+                onClick: 'openProfileModal()',
+                visibleTo: ['all'] // visible to all users
+            },
+            {
+                id: 'custom-practice-item',
+                icon: 'fa-pen',
+                text: 'Custom Practice',
+                onClick: 'showScreen(\'custom-practice-screen\')',
+                visibleTo: ['all'] // visible to all users
+            },
+            {
+                id: 'leaderboard-item',
+                icon: 'fa-trophy',
+                text: 'Leaderboard',
+                onClick: 'showLeaderboard()',
+                visibleTo: ['all'] // visible to all users
+            },
+            {
+                id: 'premium-item',
+                icon: 'fa-crown premium-crown',
+                text: 'Premium',
+                onClick: 'showUpgradeScreen()',
+                visibleTo: ['free', 'pending', 'unregistered'] // visible only to non-premium users
+            },
+            {
+                id: 'about-item',
+                icon: 'fa-info-circle',
+                text: 'About',
+                onClick: 'showAboutScreen()',
+                visibleTo: ['all'] // visible to all users
+            },
+            {
+                id: 'shop-item',
+                icon: 'fa-store',
+                text: 'Shop',
+                onClick: 'showScreen(\'shop-screen\')',
+                visibleTo: ['all'] // visible to all users
+            },
+            {
+                id: 'accessibility-item',
+                icon: 'fa-universal-access',
+                text: 'Accessibility',
+                onClick: 'openAccessibilitySettings()',
+                visibleTo: ['all'] // visible to all users
+            }
+        ];
+        
+        // Add menu grid container
+        const menuGrid = document.createElement('div');
+        menuGrid.className = 'menu-grid';
+        optionsMenu.appendChild(menuGrid);
+        
+        // Filter menu items based on user status
+        const userStatus = currentUser ? (currentUser.status || 'free') : 'unregistered';
+        
+        // Add filtered items to the menu
+        menuItems.forEach(item => {
+            // Check if this item should be visible to the current user
+            if (item.visibleTo.includes('all') || item.visibleTo.includes(userStatus)) {
+                const menuItem = document.createElement('div');
+                menuItem.className = 'menu-item';
+                menuItem.id = item.id;
+                menuItem.setAttribute('onclick', item.onClick);
+                
+                menuItem.innerHTML = `
+                    <i class="fas ${item.icon}"></i>
+                    <span>${item.text}</span>
+                `;
+                
+                menuGrid.appendChild(menuItem);
+            }
+        });
+        
+        document.body.appendChild(optionsMenu);
+        return optionsMenu;
+    }
+
+    // Rest of the carousel initialization code remains the same
     const carousel = document.querySelector('.icon-carousel');
     if (!carousel) return;
     
@@ -6060,7 +6238,34 @@ function initializeCarousel() {
         });
     });
     
-    // Container drag functions
+    // Create the options menu for the settings button
+    const optionsMenu = createOptionsMenu();
+    
+    // Settings toggle functionality
+    const settingsToggle = document.getElementById('settings-toggle');
+    if (settingsToggle && optionsMenu) {
+        settingsToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            optionsMenu.classList.toggle('show');
+            
+            if (optionsMenu.classList.contains('show')) {
+                positionOptionsMenu();
+            }
+        });
+        
+        // Close menu when clicking elsewhere
+        document.addEventListener('click', function(e) {
+            if (optionsMenu.classList.contains('show') && 
+                !optionsMenu.contains(e.target) && 
+                e.target !== settingsToggle) {
+                optionsMenu.classList.remove('show');
+            }
+        });
+    }
+    
+    // Rest of the carousel implementation...
+    // (Container drag functions, moveToIndex, updateCarouselState, etc.)
+    
     function handleContainerDragStart(e) {
         // Don't start a new drag if already animating
         if (isAnimating) return;
@@ -6400,6 +6605,50 @@ document.addEventListener('DOMContentLoaded', function() {
             e.target !== settingsToggle) {
           optionsMenu.classList.remove('show');
         }
+      });
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add direct click handler for the premium menu item to ensure it works for unregistered users
+    function setupPremiumButton() {
+      const premiumItem = document.querySelector('#premium-item');
+      if (premiumItem) {
+        // Remove the default onclick attribute and add direct listener
+        const originalAction = premiumItem.getAttribute('onclick');
+        premiumItem.removeAttribute('onclick');
+        
+        premiumItem.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          console.log('Premium menu item clicked by', currentUser ? currentUser.status : 'unregistered user');
+          
+          // Always show the upgrade screen directly
+          showScreen('upgrade-screen');
+          
+          // Close the options menu
+          const optionsMenu = document.getElementById('options-menu');
+          if (optionsMenu) {
+            optionsMenu.classList.remove('show');
+          }
+        });
+        
+        console.log('Direct premium button handler set up');
+      }
+    }
+    
+    // Call setup initially
+    setupPremiumButton();
+    
+    // Also set up after the menu is refreshed
+    document.addEventListener('menuRefreshed', setupPremiumButton);
+    
+    // Re-check when menu is shown
+    const settingsToggle = document.getElementById('settings-toggle');
+    if (settingsToggle) {
+      settingsToggle.addEventListener('click', function() {
+        setTimeout(setupPremiumButton, 100);
       });
     }
   });
@@ -6783,39 +7032,59 @@ function positionOptionsMenu() {
     
     // Check if menu would overflow right edge
     if (left + menuRect.width > viewportWidth - 10) {
-      left = viewportWidth - menuRect.width - 10;
+        left = viewportWidth - menuRect.width - 10;
     }
     
     // Check if menu would overflow left edge
     if (left < 10) {
-      left = 10;
+        left = 10;
     }
     
     // Check if menu would overflow bottom edge
     if (top + menuRect.height > viewportHeight - 10) {
-      // Position above toggle button instead
-      top = toggleRect.top - menuRect.height - 10;
-      
-      // If still overflowing (not enough space above either)
-      if (top < 10) {
-        // Center in viewport as fallback
-        top = Math.max(10, (viewportHeight - menuRect.height) / 2);
+        // Position above toggle button instead
+        top = toggleRect.top - menuRect.height - 10;
         
-        // Ensure menu is fully on screen by checking height
-        if (top + menuRect.height > viewportHeight - 10) {
-          // Limit height if necessary and add scrolling
-          const maxHeight = viewportHeight - 20;
-          optionsMenu.style.maxHeight = `${maxHeight}px`;
-          optionsMenu.style.overflow = 'auto';
+        // If still overflowing (not enough space above either)
+        if (top < 10) {
+            // Center in viewport as fallback
+            top = Math.max(10, (viewportHeight - menuRect.height) / 2);
+            
+            // Ensure menu is fully on screen by checking height
+            if (top + menuRect.height > viewportHeight - 10) {
+                // Limit height if necessary and add scrolling
+                const maxHeight = viewportHeight - 20;
+                optionsMenu.style.maxHeight = `${maxHeight}px`;
+                optionsMenu.style.overflow = 'auto';
+            }
         }
-      }
     }
     
     // Apply calculated position
     optionsMenu.style.left = `${left}px`;
     optionsMenu.style.top = `${top}px`;
     optionsMenu.style.transform = 'none'; // Remove default transform
-  }
+}
+
+function refreshOptionsMenu() {
+    // Find the existing options menu
+    const existingMenu = document.getElementById('options-menu');
+    if (existingMenu) {
+        // Hide the menu before recreating it to avoid visual glitches
+        existingMenu.classList.remove('show');
+        
+        // Create a new menu
+        setTimeout(() => {
+            // Remove the old menu
+            if (existingMenu.parentNode) {
+                existingMenu.parentNode.removeChild(existingMenu);
+            }
+            
+            // Initialize the carousel which will recreate the menu
+            initializeCarousel();
+        }, 100);
+    }
+}
 
   // Find where the arcade button click is defined in the code
 document.addEventListener('DOMContentLoaded', function() {
@@ -8656,4 +8925,251 @@ function showStageCascadeScreen() {
             currentStageWrapper.classList.add('open');
         }
     }
+}
+
+function updateStageCompletionStats() {
+    const stageBlocks = document.querySelectorAll('.stage-block');
+    
+    stageBlocks.forEach((stageBlock, index) => {
+      const stageNumber = index + 1;
+      const stageStructure = gameStructure.stages[stageNumber - 1];
+      
+      if (!stageStructure) return;
+      
+      const totalSets = stageStructure.numSets;
+      let completedSets = 0;
+      
+      // Count completed sets
+      for (let setId = 1; setId <= totalSets; setId++) {
+        let allLevelsInSetCompleted = true;
+        
+        for (let levelId = 1; levelId <= stageStructure.levelsPerSet; levelId++) {
+          const levelKey = `${stageNumber}_${setId}_${levelId}`;
+          if (!gameState.completedLevels.has(levelKey) && !gameState.perfectLevels.has(levelKey)) {
+            allLevelsInSetCompleted = false;
+            break;
+          }
+        }
+        
+        if (allLevelsInSetCompleted) {
+          completedSets++;
+        }
+      }
+      
+      // Update the completion text
+      const completionElement = stageBlock.querySelector('.stage-completion');
+      if (completionElement) {
+        completionElement.textContent = `${completedSets}/${totalSets} sets are completed`;
+      }
+    });
+  }
+
+  function showLevelScreen(setId) {
+    gameState.currentSet = setId;
+    debugUnlockState(); // Add debug call here
+    
+    // Clear existing screen
+    const container = document.getElementById('level-container');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    // Add return arrow to go back to stage-cascade screen
+    const returnArrow = document.createElement('div');
+    returnArrow.className = 'return-arrow';
+    returnArrow.innerHTML = '<i class="fas fa-arrow-left"></i>';
+    returnArrow.style.cssText = `
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        font-size: 24px;
+        color: var(--text);
+        cursor: pointer;
+        z-index: 10;
+    `;
+    returnArrow.onclick = function() {
+        showScreen('stage-cascade-screen');
+        updateStageCompletionStats(); // Update stats when returning
+    };
+    container.appendChild(returnArrow);
+    
+    const stage = gameStructure.stages[gameState.currentStage - 1];
+    if (!stage) return;
+    
+    // Create level header
+    const levelHeader = document.createElement('div');
+    levelHeader.className = 'level-header';
+    
+    // Calculate level completion stats
+    const totalLevels = stage.levelsPerSet;
+    let completedCount = 0;
+    let perfectCount = 0;
+    
+    for (let i = 1; i <= totalLevels; i++) {
+        const levelKey = `${gameState.currentStage}_${setId}_${i}`;
+        if (gameState.perfectLevels.has(levelKey)) {
+            perfectCount++;
+            completedCount++;
+        } else if (gameState.completedLevels.has(levelKey)) {
+            completedCount++;
+        }
+    }
+    
+    const progressPercentage = Math.round((completedCount / totalLevels) * 100);
+    const setIcon = getSetIcon(gameState.currentStage, setId);
+    const setDescription = getSetDescription(gameState.currentStage, setId);
+    
+    // Populate header
+    levelHeader.innerHTML = `
+        <div class="level-title-area">
+            <div class="set-icon">
+                <i class="${setIcon}"></i>
+            </div>
+            <div class="set-details">
+                <div class="set-name">Stage ${gameState.currentStage} - Set ${setId}</div>
+                <div class="set-desc">${setDescription}</div>
+            </div>
+        </div>
+        <div class="set-progress">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${progressPercentage}%"></div>
+            </div>
+            <div class="progress-text">${completedCount}/${totalLevels} levels</div>
+        </div>
+    `;
+    
+    container.appendChild(levelHeader);
+    
+    // Create level grid
+    const levelGrid = document.createElement('div');
+    levelGrid.className = 'level-grid';
+    
+    const testLevels = [3, 6, 9, 10, 13, 16, 19, 20];
+    const setKey = `${gameState.currentStage}_${setId}`;
+    
+    // Ensure unlockedLevels exists for this set
+    if (!gameState.unlockedLevels[setKey]) {
+        gameState.unlockedLevels[setKey] = new Set([1]); // At minimum, level 1 should be unlocked
+    }
+    
+    console.log(`Rendering levels for ${setKey}. Unlocked levels:`, 
+                Array.from(gameState.unlockedLevels[setKey] || []));
+    
+    for (let i = 1; i <= stage.levelsPerSet; i++) {
+        const levelItem = document.createElement('div');
+        const levelKey = `${gameState.currentStage}_${setId}_${i}`;
+        
+        // Check if level is unlocked - use more direct access with fallback
+        const isUnlocked = gameState.unlockedLevels[setKey]?.has(i);
+        console.log(`Level ${i} unlocked:`, isUnlocked);
+        
+        const isPerfect = gameState.perfectLevels.has(levelKey);
+        const isCompleted = gameState.completedLevels.has(levelKey);
+        const isBossLevel = i === stage.bossLevel;
+        const isTestLevel = testLevels.includes(i);
+        
+        // Set appropriate classes
+        levelItem.className = 'level-item';
+        if (isUnlocked) levelItem.classList.add('unlocked');
+        if (isPerfect) levelItem.classList.add('perfect');
+        else if (isCompleted) levelItem.classList.add('completed');
+        if (isBossLevel) levelItem.classList.add('boss');
+        if (isTestLevel) levelItem.classList.add('test');
+        if (!isUnlocked) levelItem.classList.add('locked');
+        
+        levelItem.textContent = i;
+        
+        if (isUnlocked) {
+            levelItem.onclick = () => startLevel(i);
+        }
+        
+        levelGrid.appendChild(levelItem);
+    }
+    
+    container.appendChild(levelGrid);
+    
+    // Add legend
+    const legend = document.createElement('div');
+    legend.className = 'level-type-legend';
+    legend.innerHTML = `
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--accent), rgba(30, 144, 255, 0.7));"></div>
+            <span>Normal</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--success), #45b649);"></div>
+            <span>Completed</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--gold), #FFA500);"></div>
+            <span>Perfect</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--gold), var(--accent));"></div>
+            <span>Boss</span>
+        </div>
+    `;
+    
+    container.appendChild(legend);
+    
+    // Show the screen
+    showScreen('level-screen');
+}
+
+// Add this to the existing styles or in a style tag
+function addReturnArrowStyles() {
+  const styleElement = document.createElement('style');
+  styleElement.id = 'return-arrow-styles';
+  styleElement.textContent = `
+    .return-arrow {
+      transition: transform 0.2s ease, color 0.2s ease;
+    }
+    .return-arrow:hover {
+      transform: scale(1.2);
+      color: var(--accent);
+    }
+  `;
+  document.head.appendChild(styleElement);
+}
+
+// Call this on DOMContentLoaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Add other initializations
+  addReturnArrowStyles();
+});
+
+// Helper functions for the level screen
+function getSetIcon(stageId, setId) {
+    const baseIcons = {
+        1: 'fas fa-book',
+        2: 'fas fa-graduation-cap',
+        3: 'fas fa-school',
+        4: 'fas fa-university',
+        5: 'fas fa-brain'
+    };
+    
+    // Adjust icon based on set number
+    const variations = [
+        'fas fa-book-open', 
+        'fas fa-book-reader', 
+        'fas fa-bookmark', 
+        'fas fa-pencil-alt',
+        'fas fa-pen'
+    ];
+    
+    // Use base icon for first set, variations for others
+    return setId === 1 ? baseIcons[stageId] || 'fas fa-star' : 
+        variations[(setId - 2) % variations.length] || 'fas fa-star';
+}
+
+function getSetDescription(stageId, setId) {
+    const stageNames = {
+        1: 'Beginner',
+        2: 'Elementary',
+        3: 'Intermediate',
+        4: 'Advanced',
+        5: 'Expert'
+    };
+    
+    // Generic descriptions that combine stage and set
+    return `${stageNames[stageId] || 'Advanced'} vocabulary - Group ${setId}`;
 }

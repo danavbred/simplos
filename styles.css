@@ -7964,3 +7964,225 @@ button:focus {
 .modal-backdrop {
     z-index: 999 !important;
 }
+
+.home-button-container {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1050;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+}
+
+.home-button-container.visible {
+    opacity: 1;
+}
+
+.home-button-container button {
+    background: var(--accent);
+    color: var(--text);
+    border: none;
+    padding: 1rem 2.5rem;
+    border-radius: 50px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
+    min-width: 200px;
+}
+
+.home-button-container button:hover {
+    transform: translateY(-3px);
+    background: color-mix(in srgb, var(--accent) 80%, white);
+    box-shadow: 0 8px 20px rgba(30, 144, 255, 0.5);
+}
+
+.home-button-container button:active {
+    transform: translateY(1px);
+    box-shadow: 0 3px 10px rgba(30, 144, 255, 0.3);
+}
+
+.end-arcade-button {
+    display: none;
+    background: linear-gradient(135deg, #ff4d4d, #cc0000);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(204, 0, 0, 0.3);
+    margin-top: 15px;
+    position: relative;
+    overflow: hidden;
+}
+
+.end-arcade-button.visible {
+    display: block;
+    animation: endButtonAppear 0.5s ease forwards;
+}
+
+.end-arcade-button:hover {
+    background: linear-gradient(135deg, #ff6666, #ff0000);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(204, 0, 0, 0.4);
+}
+
+.end-arcade-button:active {
+    transform: translateY(1px);
+    box-shadow: 0 2px 8px rgba(204, 0, 0, 0.3);
+}
+
+.end-arcade-button::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: all 0.6s ease;
+}
+
+.end-arcade-button:hover::before {
+    left: 100%;
+}
+
+@keyframes endButtonAppear {
+    0% { opacity: 0; transform: scale(0.9); }
+    70% { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+/* Optimized Upgrade Form Layout */
+.fullscreen-upgrade-page {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem 1.5rem 2rem;
+    max-height: 100vh;
+  }
+  
+  .upgrade-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--gradient);
+    padding-top: 1rem;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .upgrade-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    max-width: 600px;
+    overflow-y: auto;
+    padding-bottom: 1rem;
+  }
+  
+  .upgrade-form-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  #upgradeForm {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  #upgradeForm .form-group {
+    margin-bottom: 0.5rem;
+  }
+  
+  #upgradeForm label {
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+  
+  .features-list {
+    margin-bottom: 1rem;
+  }
+  
+  .feature-item {
+    margin-bottom: 0.5rem;
+  }
+  
+  .upgrade-now-button {
+    position: relative;
+    margin-top: 1rem;
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+    width: 100%;
+    max-width: 300px;
+    align-self: center;
+  }
+  
+  .upgrade-bottom-container {
+    position: sticky;
+    bottom: 0;
+    background: var(--gradient);
+    padding: 1rem 0;
+    text-align: center;
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  /* Mobile optimizations */
+  @media (max-width: 768px) {
+    .fullscreen-upgrade-page {
+      padding: 1rem 1rem 1.5rem;
+    }
+    
+    .upgrade-title {
+      font-size: 1.6rem;
+    }
+    
+    .upgrade-description {
+      font-size: 1rem;
+    }
+    
+    .upgrade-form-container {
+      padding: 1rem 0.75rem;
+      max-height: calc(100vh - 180px);
+    }
+    
+    .upgrade-now-button {
+      padding: 0.9rem 1.5rem;
+      font-size: 1rem;
+    }
+  }
+  
+  @media (max-height: 700px) {
+    .features-list {
+      display: none; /* Hide feature list on very small screens */
+    }
+    
+    .upgrade-title {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    .upgrade-description {
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    
+    #upgradeForm .form-group {
+      margin-bottom: 0.25rem;
+    }
+  }
