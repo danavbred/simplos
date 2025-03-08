@@ -3873,6 +3873,15 @@ function showLevelIntro(level, callback, forceFull = false) {
     const totalLevelsInSet = stageData.levelsPerSet;
     const currentLevelProgress = gameState.currentLevel / totalLevelsInSet;
     
+    // Calculate star rating
+    const noMistakes = levelStats.mistakes === 0;
+    const totalTime = currentGame.totalTime || (levelStats.totalQuestions * 5); // 5 seconds per question default
+    const timeThreshold = totalTime * 0.75 * 1000; // 75% of total time in milliseconds
+    const fastCompletion = levelStats.timeElapsed < timeThreshold;
+    
+    // Determine stars earned (1-3)
+    const starsEarned = 1 + (noMistakes ? 1 : 0) + (fastCompletion ? 1 : 0);
+    
     // Clear any existing modals first
     document.querySelectorAll('.level-completion-overlay').forEach(el => el.remove());
     
@@ -3921,6 +3930,30 @@ function showLevelIntro(level, callback, forceFull = false) {
       <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${isPassed ? 'var(--success)' : 'var(--error)'}">
         ${isPassed ? 'Great job!' : 'Try again to improve your score'}
       </h2>
+      
+      <!-- Star Rating -->
+      <div class="star-rating-container" style="margin-bottom: 2rem;">
+        <div class="star-slots" style="display: flex; justify-content: center; gap: 1rem;">
+          <!-- Three star slots, each with empty and filled versions -->
+          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
+            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
+            <div class="star-filled star-1" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+          </div>
+          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
+            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
+            <div class="star-filled star-2" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+          </div>
+          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
+            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
+            <div class="star-filled star-3" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+          </div>
+        </div>
+        <div class="star-criteria" style="margin-top: 0.5rem; font-size: 0.8rem; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between; width: 100%; max-width: 280px; margin-left: auto; margin-right: auto;">
+          <div>Complete</div>
+          <div>No Mistakes</div>
+          <div>Quick Time</div>
+        </div>
+      </div>
       
       <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
         <div class="stat-item" style="text-align: center; flex: 1;">
@@ -4006,6 +4039,37 @@ function showLevelIntro(level, callback, forceFull = false) {
           progressFill.style.width = `${currentLevelProgress * 100}%`;
         }
         
+        // Animate star filling with sequential delays
+        setTimeout(() => {
+          const star1 = completionContent.querySelector('.star-1');
+          if (star1) {
+            star1.style.opacity = '1';
+            star1.style.transform = 'scale(1)';
+          }
+          
+          // Second star (no mistakes)
+          if (noMistakes) {
+            setTimeout(() => {
+              const star2 = completionContent.querySelector('.star-2');
+              if (star2) {
+                star2.style.opacity = '1'; 
+                star2.style.transform = 'scale(1)';
+              }
+            }, 300);
+          }
+          
+          // Third star (fast completion)
+          if (fastCompletion) {
+            setTimeout(() => {
+              const star3 = completionContent.querySelector('.star-3');
+              if (star3) {
+                star3.style.opacity = '1';
+                star3.style.transform = 'scale(1)';
+              }
+            }, 600);
+          }
+        }, 400);
+        
         // Animate coin counter if there's a time bonus
         if (levelStats.timeBonus > 0) {
           const coinValue = completionContent.querySelector('.coin-value');
@@ -4061,7 +4125,7 @@ function showLevelIntro(level, callback, forceFull = false) {
         }, 500);
       });
     }
-  }
+}
 
 function handleLevelCompletion() {
     clearTimer();
