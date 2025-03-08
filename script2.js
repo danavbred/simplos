@@ -12697,172 +12697,7 @@ async function deleteCustomList(id) {
   }
 }
 
-function updateListsDisplay() {
-    const container = document.getElementById("custom-lists-container");
-    if (!container) return void console.error("Custom lists container not found");
 
-    // Extensive user object logging
-    console.log("Current user object:", currentUser);
-    console.log("User metadata:", currentUser?.user_metadata);
-    console.log("App metadata:", currentUser?.app_metadata);
-    
-    // Log all properties of the user object for inspection
-    if (currentUser) {
-        console.log("All user properties:");
-        for (const key in currentUser) {
-            if (typeof currentUser[key] !== 'function') {
-                console.log(`- ${key}:`, currentUser[key]);
-            }
-        }
-        
-        // Check user_metadata properties
-        if (currentUser.user_metadata) {
-            console.log("All user_metadata properties:");
-            for (const key in currentUser.user_metadata) {
-                console.log(`- ${key}:`, currentUser.user_metadata[key]);
-            }
-        }
-        
-        // Check app_metadata properties
-        if (currentUser.app_metadata) {
-            console.log("All app_metadata properties:");
-            for (const key in currentUser.app_metadata) {
-                console.log(`- ${key}:`, currentUser.app_metadata[key]);
-            }
-        }
-    }
-    
-    const limits = CustomListsManager.getListLimits();
-    const userStatus = currentUser?.status || 'unregistered';
-    
-    // For debugging: this flags if we think the user is a teacher based on various checks
-    let isTeacherFound = false;
-    let teacherPropertyFound = "";
-    
-    // Various checks for teacher status
-    if (currentUser?.role === "teacher") {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.role";
-    } else if (currentUser?.user_metadata?.role === "teacher") {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.user_metadata.role";
-    } else if (currentUser?.app_metadata?.role === "teacher") {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.app_metadata.role";
-    } else if (currentUser?.user_type === "teacher") {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.user_type";
-    } else if (currentUser?.user_metadata?.user_type === "teacher") {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.user_metadata.user_type";
-    } else if (currentUser?.is_teacher === true) {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.is_teacher";
-    } else if (currentUser?.user_metadata?.is_teacher === true) {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.user_metadata.is_teacher";
-    }
-    
-    console.log(`Is teacher found: ${isTeacherFound}, Property: ${teacherPropertyFound}`);
-    
-    // TEMPORARY: Until we find the correct teacher attribute, only show for premium and email is admin
-    const isPremiumUser = userStatus === "premium";
-    const isAdminEmail = currentUser && currentUser.email && 
-                        (currentUser.email.includes("admin") || 
-                         currentUser.email.includes("teacher"));
-    
-    const canShare = isPremiumUser && isAdminEmail;
-    console.log(`Can share: ${canShare}, Premium: ${isPremiumUser}, Admin email: ${isAdminEmail}`);
-    
-    container.innerHTML = "";
-    
-    if (CustomListsManager.lists && Array.isArray(CustomListsManager.lists) && CustomListsManager.lists.length !== 0) {
-        CustomListsManager.lists.forEach(list => {
-            if (!list || !list.id) return;
-            
-            const wordCount = list.words?.length || 0;
-            const hasSufficientWords = wordCount >= 6;
-            
-            const playsAvailableHtml = userStatus === "premium" ? 
-                "" : 
-                `<span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>`;
-            
-            const listItem = document.createElement("div");
-            listItem.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
-            listItem.dataset.listId = list.id;
-            
-            // Only show share button for users who can share (premium + admin email)
-            listItem.innerHTML = `
-                <div class="list-actions">
-                    <button class="main-button practice-button" ${hasSufficientWords ? "" : "disabled"}>
-                        ${hasSufficientWords ? "Practice" : `Need ${6 - wordCount} more`}
-                    </button>
-                    <button class="main-button edit-button">Edit</button>
-                    <button class="main-button delete-button">Delete</button>
-                    ${canShare ? `
-                        <button class="main-button share-button">
-                            <i class="fas fa-share-alt"></i> Share
-                        </button>
-                    ` : ""}
-                </div>
-                <div class="list-header">
-                    <h3>${list.name || "Unnamed List"}</h3>
-                    <div class="list-summary">
-                        <span class="word-count ${hasSufficientWords ? "" : "insufficient"}">${wordCount} words</span>
-                        ${hasSufficientWords ? "" : '<span class="warning-text">(Minimum 6 needed)</span>'}
-                        ${playsAvailableHtml}
-                        <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0, 5).join(", ") : ""}${list.words && list.words.length > 5 ? "..." : ""}</p>
-                    </div>
-                </div>
-            `;
-            
-            container.appendChild(listItem);
-            
-            // Set up event handlers
-            const practiceButton = listItem.querySelector(".practice-button");
-            if (practiceButton) {
-                if (hasSufficientWords) {
-                    practiceButton.onclick = function() {
-                        startCustomListPractice(list.id);
-                    };
-                } else {
-                    practiceButton.style.opacity = "0.6";
-                    practiceButton.style.cursor = "not-allowed";
-                }
-            }
-            
-            const editButton = listItem.querySelector(".edit-button");
-            if (editButton) {
-                editButton.onclick = function() {
-                    editCustomList(list.id);
-                };
-            }
-            
-            const deleteButton = listItem.querySelector(".delete-button");
-            if (deleteButton) {
-                deleteButton.onclick = function() {
-                    deleteCustomList(list.id);
-                };
-            }
-            
-            const shareButton = listItem.querySelector(".share-button");
-            if (shareButton) {
-                shareButton.onclick = function() {
-                    showShareModal(list.id);
-                };
-            }
-            
-            const listHeader = listItem.querySelector(".list-header");
-            if (listHeader) {
-                listHeader.onclick = function() {
-                    toggleListCollapse(list.id);
-                };
-            }
-        });
-    } else {
-        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
-    }
-}
 
 // Helper function to determine if user is a teacher
 function determineIfUserIsTeacher() {
@@ -13577,30 +13412,387 @@ async function loadCustomLists() {
   });
 }
 
+function addMobileCustomListStyles() {
+    // Check if styles already exist
+    if (document.getElementById('mobile-custom-list-styles')) return;
+    
+    const styleElement = document.createElement('style');
+    styleElement.id = 'mobile-custom-list-styles';
+    styleElement.textContent = `
+        /* Mobile lists container */
+        .mobile-lists-container {
+            padding: 0;
+            margin: 0;
+            max-width: 100%;
+        }
+        
+        .mobile-lists-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            width: 100%;
+            max-height: calc(100vh - 150px);
+            overflow-y: auto;
+        }
+        
+        /* Individual list items */
+        .mobile-list-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 0;
+            margin: 0;
+            position: relative;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .mobile-list-item:active {
+            background: rgba(45, 55, 72, 0.9);
+        }
+        
+        .mobile-list-item.insufficient {
+            opacity: 0.7;
+            cursor: default;
+        }
+        
+        /* List avatar/icon */
+        .list-avatar {
+            width: 50px;
+            height: 50px;
+            min-width: 50px;
+            background: linear-gradient(135deg, var(--accent), var(--primary));
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            margin-right: 15px;
+        }
+        
+        .list-avatar span {
+            font-size: 1.2rem;
+            font-weight: bold;
+            line-height: 1;
+        }
+        
+        .list-avatar small {
+            font-size: 0.7rem;
+            opacity: 0.8;
+        }
+        
+        /* Shared list indicator */
+        .mobile-list-item.shared-list .list-avatar {
+            background: linear-gradient(135deg, #9C27B0, #673AB7);
+        }
+        
+        .shared-badge {
+            font-size: 0.7rem;
+            background: rgba(156, 39, 176, 0.3);
+            padding: 2px 6px;
+            border-radius: 10px;
+            color: #E1BEE7;
+            margin-top: 3px;
+            display: inline-block;
+        }
+        
+        /* List content */
+        .list-content {
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .list-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        
+        .list-title h3 {
+            margin: 0;
+            font-size: 1rem;
+            color: white;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 70%;
+        }
+        
+        .practice-button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            padding: 0;
+        }
+        
+        .practice-button:active {
+            transform: scale(0.95);
+        }
+        
+        .list-preview {
+            margin: 0;
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.7);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        
+        .insufficient-badge {
+            font-size: 0.7rem;
+            background: rgba(244, 67, 54, 0.3);
+            padding: 3px 8px;
+            border-radius: 10px;
+            color: #FFCDD2;
+        }
+        
+        /* Mobile message */
+        .mobile-creation-message {
+            text-align: center;
+            padding: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+            background: rgba(0, 0, 0, 0.2);
+            margin-top: 20px;
+            border-radius: 10px;
+        }
+        
+        .empty-lists-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: white;
+        }
+        
+        .mobile-hint {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            margin-top: 15px;
+        }
+    `;
+    
+    document.head.appendChild(styleElement);
+}
+
+// Call this function when the DOM is loaded
+function initializeMobileCustomLists() {
+    // Add mobile styles
+    addMobileCustomListStyles();
+    
+    // Modify the custom practice screen button to handle mobile view
+    const customPracticeButton = document.getElementById('custom-practice-button');
+    if (customPracticeButton) {
+        const originalOnClick = customPracticeButton.onclick;
+        customPracticeButton.onclick = function() {
+            // First show the screen (original behavior)
+            if (typeof originalOnClick === 'function') {
+                originalOnClick.call(this);
+            } else {
+                showScreen('custom-practice-screen');
+            }
+            
+            // Then initialize with the correct view
+            Promise.resolve(CustomListsManager.initialize()).then(() => {
+                updateListsDisplay();
+                
+                // On mobile, hide the creation button and show only the list
+                if (detectMobileDevice()) {
+                    const createButton = document.querySelector('.create-list-button');
+                    if (createButton) {
+                        createButton.style.display = 'none';
+                    }
+                    
+                    // Set appropriate page title for mobile
+                    const pageTitle = document.querySelector('#custom-practice-screen .screen-title');
+                    if (pageTitle) {
+                        pageTitle.textContent = 'Your Lists';
+                    }
+                }
+            });
+        };
+    }
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    initializeMobileCustomLists();
+    
+    // Also handle window resize events to adapt layout
+    window.addEventListener('resize', function() {
+        // Only update if we're on the custom practice screen
+        const customPracticeScreen = document.getElementById('custom-practice-screen');
+        if (customPracticeScreen && 
+            (customPracticeScreen.classList.contains('visible') || customPracticeScreen.classList.contains('active'))) {
+            updateListsDisplay();
+        }
+    });
+});
+
 function updateListsDisplay() {
     const container = document.getElementById("custom-lists-container");
     if (!container) return void console.error("Custom lists container not found");
 
-    // Comprehensive logging
+    // Check if we're on mobile
+    const isMobile = detectMobileDevice();
+    
+    // Debug logging
     console.log("Current user:", currentUser);
-    console.log("User status:", currentUser?.status);
+    console.log("User metadata:", currentUser?.user_metadata);
+    console.log("App metadata:", currentUser?.app_metadata);
     
-    const limits = CustomListsManager.getListLimits();
+    // Get user status
     const userStatus = currentUser?.status || "unregistered";
+    const isPremium = userStatus === "premium";
     
-    // Debug message about premium status
-    console.log("User premium status check:", userStatus === "premium");
+    // Determine if user can share lists (premium users who are teachers/admins)
+    let isTeacher = false;
     
+    // Various checks for teacher status
+    if (currentUser?.role === "teacher") {
+        isTeacher = true;
+    } else if (currentUser?.user_metadata?.role === "teacher") {
+        isTeacher = true;
+    } else if (currentUser?.app_metadata?.role === "teacher") {
+        isTeacher = true;
+    } else if (currentUser?.user_type === "teacher") {
+        isTeacher = true;
+    } else if (currentUser?.user_metadata?.user_type === "teacher") {
+        isTeacher = true;
+    } else if (currentUser?.is_teacher === true) {
+        isTeacher = true;
+    } else if (currentUser?.user_metadata?.is_teacher === true) {
+        isTeacher = true;
+    }
+    
+    // Email check for admin/teacher
+    const isAdminEmail = currentUser?.email && 
+                        (currentUser.email.includes("admin") || 
+                         currentUser.email.includes("teacher"));
+    
+    // Determine sharing permission
+    const canShare = isPremium && (isTeacher || isAdminEmail);
+    console.log(`Can share: ${canShare}, Premium: ${isPremium}, Teacher: ${isTeacher}, Admin email: ${isAdminEmail}`);
+
+    // Get lists and limits
+    const lists = CustomListsManager.lists || [];
+    const limits = CustomListsManager.getListLimits();
+    
+    // Clear previous content
     container.innerHTML = "";
     
-    if (CustomListsManager.lists && Array.isArray(CustomListsManager.lists) && CustomListsManager.lists.length !== 0) {
-        CustomListsManager.lists.forEach(list => {
+    // Show empty state if no lists
+    if (!lists.length) {
+        container.innerHTML = `
+            <div class="empty-lists-message">
+                <p>No custom lists found</p>
+                ${!isMobile ? 
+                    `<button class="start-button" onclick="showScreen('custom-create-screen')">
+                        <i class="fas fa-plus"></i> Create New List
+                    </button>` : 
+                    `<p class="mobile-hint">Create lists on desktop to practice them on mobile</p>`
+                }
+            </div>
+        `;
+        return;
+    }
+    
+    // Apply mobile-specific container styles
+    if (isMobile) {
+        container.classList.add('mobile-lists-container');
+    } else {
+        container.classList.remove('mobile-lists-container');
+    }
+
+    // Display lists based on device type
+    if (isMobile) {
+        // Mobile WhatsApp-style view
+        const listWrapper = document.createElement('div');
+        listWrapper.className = 'mobile-lists-wrapper';
+        
+        lists.forEach(list => {
+            if (!list || !list.id) return;
+            
+            const wordCount = list.words?.length || 0;
+            const hasSufficientWords = wordCount >= 6;
+            const wordPreview = Array.isArray(list.words) ? 
+                list.words.slice(0, 3).join(", ") + (list.words.length > 3 ? "..." : "") : "";
+            
+            const listItem = document.createElement('div');
+            listItem.className = `mobile-list-item ${list.isShared ? 'shared-list' : ''} ${!hasSufficientWords ? 'insufficient' : ''}`;
+            listItem.dataset.listId = list.id;
+            
+            listItem.innerHTML = `
+                <div class="list-avatar">
+                    <span>${wordCount}</span>
+                    <small>words</small>
+                </div>
+                <div class="list-content">
+                    <div class="list-title">
+                        <h3>${list.name || "Unnamed List"}</h3>
+                        ${hasSufficientWords ? 
+                            `<button class="practice-button">
+                                <i class="fas fa-play"></i>
+                            </button>` : 
+                            `<span class="insufficient-badge">Need more words</span>`
+                        }
+                    </div>
+                    <p class="list-preview">${wordPreview}</p>
+                    ${list.isShared ? '<span class="shared-badge">Shared</span>' : ''}
+                </div>
+            `;
+            
+            // Add event listeners
+            if (hasSufficientWords) {
+                const practiceBtn = listItem.querySelector('.practice-button');
+                if (practiceBtn) {
+                    practiceBtn.onclick = (e) => {
+                        e.stopPropagation(); // Prevent triggering parent click
+                        startCustomListPractice(list.id);
+                    };
+                }
+            }
+            
+            // Full item click also starts practice for convenience
+            if (hasSufficientWords) {
+                listItem.addEventListener('click', () => {
+                    startCustomListPractice(list.id);
+                });
+            }
+            
+            listWrapper.appendChild(listItem);
+        });
+        
+        container.appendChild(listWrapper);
+        
+        // Add a message about desktop creation
+        const mobileMessage = document.createElement('div');
+        mobileMessage.className = 'mobile-creation-message';
+        mobileMessage.innerHTML = `
+            <p>Create and edit lists on desktop to practice on mobile</p>
+        `;
+        container.appendChild(mobileMessage);
+        
+    } else {
+        // Desktop view
+        lists.forEach(list => {
             if (!list || !list.id) return;
             
             const wordCount = list.words?.length || 0;
             const hasSufficientWords = wordCount >= 6;
             
-            const playsAvailableHtml = userStatus === "premium" ? 
+            const playsAvailableHtml = isPremium ? 
                 "" : 
                 `<span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>`;
             
@@ -13608,7 +13800,6 @@ function updateListsDisplay() {
             listItem.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
             listItem.dataset.listId = list.id;
             
-            // Create list item HTML - INCLUDING THE SHARE BUTTON FOR PREMIUM USERS
             listItem.innerHTML = `
                 <div class="list-actions">
                     <button class="main-button practice-button" ${hasSufficientWords ? "" : "disabled"}>
@@ -13616,8 +13807,8 @@ function updateListsDisplay() {
                     </button>
                     <button class="main-button edit-button">Edit</button>
                     <button class="main-button delete-button">Delete</button>
-                    ${userStatus === "premium" ? `
-                        <button class="main-button share-button" onclick="showShareModal('${list.id}')">
+                    ${canShare ? `
+                        <button class="main-button share-button">
                             <i class="fas fa-share-alt"></i> Share
                         </button>
                     ` : ""}
@@ -13635,11 +13826,7 @@ function updateListsDisplay() {
             
             container.appendChild(listItem);
             
-            // Double-check if share button exists after rendering
-            const hasShareButton = !!listItem.querySelector('.share-button');
-            console.log(`List ${list.id} - Share button exists: ${hasShareButton}, Premium user: ${userStatus === "premium"}`);
-            
-            // Set up the button event handlers
+            // Setup desktop event handlers
             const practiceButton = listItem.querySelector(".practice-button");
             if (practiceButton) {
                 if (hasSufficientWords) {
@@ -13666,7 +13853,6 @@ function updateListsDisplay() {
                 };
             }
             
-            // Make sure the share button has the proper click handler
             const shareButton = listItem.querySelector(".share-button");
             if (shareButton) {
                 shareButton.onclick = function() {
@@ -13682,11 +13868,8 @@ function updateListsDisplay() {
                 };
             }
         });
-    } else {
-        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
     }
 }
-
 
 function toggleListCollapse(id) {
   const listItem = document.querySelector(`.custom-list-item[data-list-id="${id}"]`);
