@@ -9173,3 +9173,4 @@ function getSetDescription(stageId, setId) {
     // Generic descriptions that combine stage and set
     return `${stageNames[stageId] || 'Advanced'} vocabulary - Group ${setId}`;
 }
+

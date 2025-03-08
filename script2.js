@@ -14763,3 +14763,414 @@ function showLevelCompletionModal(levelStats, callback) {
     });
   }
 }
+
+
+/**
+ * ActivityLogger - A utility to track and log all game activities in real-time
+ * This can be toggled on/off and provides detailed insights into game function calls and events
+ */
+const ActivityLogger = {
+    isEnabled: false,
+    logLevel: 'info', // 'debug', 'info', 'warn', 'error'
+    startTime: null,
+    trackedFunctions: new Set(),
+    eventCounts: {},
+    
+    // Initialize the activity logger
+    init(options = {}) {
+      this.isEnabled = options.enabled !== undefined ? options.enabled : true;
+      this.logLevel = options.logLevel || 'info';
+      this.startTime = performance.now();
+      this.eventCounts = {};
+      
+      if (this.isEnabled) {
+        this.attachGlobalListeners();
+        console.log('%cActivity Logger Initialized', 'color: #4CAF50; font-weight: bold; font-size: 14px;');
+        console.log(`Log level: ${this.logLevel}, Timestamp: ${new Date().toISOString()}`);
+      }
+      
+      return this;
+    },
+    
+    // Enable or disable logging
+    setEnabled(enabled) {
+      const wasEnabled = this.isEnabled;
+      this.isEnabled = !!enabled;
+      
+      if (!wasEnabled && this.isEnabled) {
+        this.attachGlobalListeners();
+        console.log('%cActivity Logger Enabled', 'color: #4CAF50; font-weight: bold;');
+      } else if (wasEnabled && !this.isEnabled) {
+        this.detachGlobalListeners();
+        console.log('%cActivity Logger Disabled', 'color: #F44336; font-weight: bold;');
+      }
+      
+      return this;
+    },
+    
+    // Set the logging level
+    setLogLevel(level) {
+      const validLevels = ['debug', 'info', 'warn', 'error'];
+      if (validLevels.includes(level)) {
+        this.logLevel = level;
+        this.log('info', `Log level changed to: ${level}`);
+      } else {
+        this.log('error', `Invalid log level: ${level}. Must be one of: ${validLevels.join(', ')}`);
+      }
+      return this;
+    },
+    
+    // Log a message if the specified level is enabled
+    log(level, ...args) {
+      if (!this.isEnabled) return;
+      
+      const levels = {
+        debug: 0,
+        info: 1,
+        warn: 2,
+        error: 3
+      };
+      
+      if (levels[level] >= levels[this.logLevel]) {
+        const timestamp = this.getFormattedTimestamp();
+        const prefix = `[${timestamp}] [${level.toUpperCase()}]`;
+        
+        const color = {
+          debug: '#607D8B',  // Blue grey
+          info: '#2196F3',   // Blue
+          warn: '#FF9800',   // Orange
+          error: '#F44336'   // Red
+        }[level];
+        
+        console[level === 'debug' ? 'log' : level](`%c${prefix}`, `color: ${color}; font-weight: bold;`, ...args);
+      }
+    },
+    
+    // Get a nicely formatted timestamp for logging
+    getFormattedTimestamp() {
+      if (!this.startTime) this.startTime = performance.now();
+      const elapsed = (performance.now() - this.startTime).toFixed(2);
+      return `+${elapsed}ms`;
+    },
+    
+    // Track a function call
+    trackFunction(target, functionName, thisArg, args) {
+      if (!this.isEnabled) return;
+      
+      // Create a unique identifier for the function
+      const functionId = thisArg ? `${thisArg.constructor.name}.${functionName}` : functionName;
+      
+      // Count this call
+      this.eventCounts[functionId] = (this.eventCounts[functionId] || 0) + 1;
+      
+      // Log the function call
+      this.log('info', `📌 Function Call: ${functionId}`, {
+        args: Array.from(args),
+        callCount: this.eventCounts[functionId]
+      });
+    },
+    
+    // Create a wrapped version of a function that logs when it's called
+    wrapFunction(originalFn, name) {
+      const logger = this;
+      
+      // Skip if already wrapped
+      if (originalFn.__loggerWrapped) return originalFn;
+      
+      const wrappedFn = function(...args) {
+        logger.trackFunction(originalFn, name, this, args);
+        
+        try {
+          // Call the original function
+          const result = originalFn.apply(this, args);
+          
+          // If the result is a Promise, log its resolution or rejection
+          if (result instanceof Promise) {
+            result.then(
+              (value) => logger.log('debug', `✅ ${name} resolved:`, value),
+              (error) => logger.log('error', `❌ ${name} rejected:`, error)
+            );
+          }
+          
+          return result;
+        } catch (error) {
+          logger.log('error', `💥 Exception in ${name}:`, error);
+          throw error; // Re-throw the error
+        }
+      };
+      
+      // Mark as wrapped to avoid double-wrapping
+      wrappedFn.__loggerWrapped = true;
+      wrappedFn.__originalFn = originalFn;
+      
+      return wrappedFn;
+    },
+    
+    // Wrap all methods of an object to log when they're called
+    wrapObject(obj, objName) {
+      if (!obj || typeof obj !== 'object') return obj;
+      
+      Object.getOwnPropertyNames(obj).forEach(prop => {
+        if (typeof obj[prop] === 'function' && !prop.startsWith('__')) {
+          const fullName = objName ? `${objName}.${prop}` : prop;
+          obj[prop] = this.wrapFunction(obj[prop], fullName);
+          this.trackedFunctions.add(fullName);
+        }
+      });
+      
+      return obj;
+    },
+    
+    // Track DOM events
+    trackEvent(e) {
+      if (!this.isEnabled) return;
+      
+      const target = e.target;
+      const targetInfo = this.getElementInfo(target);
+      
+      // Group events by type to reduce log spam
+      this.eventCounts[e.type] = (this.eventCounts[e.type] || 0) + 1;
+      
+      // Only log every nth event for high-frequency events like mousemove
+      const throttle = {
+        mousemove: 10,
+        mouseover: 5,
+        mouseout: 5
+      }[e.type] || 1;
+      
+      if (this.eventCounts[e.type] % throttle !== 0) return;
+      
+      // Log the event details
+      this.log('debug', `🎮 Event: ${e.type}`, {
+        target: targetInfo,
+        event: e.type,
+        pos: e.clientX !== undefined ? {x: e.clientX, y: e.clientY} : null,
+        count: this.eventCounts[e.type]
+      });
+    },
+    
+    // Get useful information about a DOM element
+    getElementInfo(element) {
+      if (!element || !element.tagName) return 'unknown-element';
+      
+      const info = {
+        tag: element.tagName.toLowerCase(),
+        id: element.id || null,
+        classes: element.className ? element.className.split(' ').filter(c => c) : [],
+        text: element.textContent ? (element.textContent.substring(0, 20) + (element.textContent.length > 20 ? '...' : '')) : null
+      };
+      
+      // Add data attributes
+      const dataAttrs = {};
+      for (const attr of element.attributes) {
+        if (attr.name.startsWith('data-')) {
+          dataAttrs[attr.name] = attr.value;
+        }
+      }
+      
+      if (Object.keys(dataAttrs).length > 0) {
+        info.data = dataAttrs;
+      }
+      
+      return info;
+    },
+    
+    // Attach global event listeners to track user interactions
+    attachGlobalListeners() {
+      if (!window || !document) return;
+      
+      // Store references to the bound handlers so we can remove them later
+      this.boundHandlers = {
+        mouseEventHandler: this.trackEvent.bind(this),
+        keyboardEventHandler: this.trackEvent.bind(this),
+        touchEventHandler: this.trackEvent.bind(this),
+        focusEventHandler: this.trackEvent.bind(this)
+      };
+      
+      // Mouse events
+      ['click', 'dblclick', 'mousedown', 'mouseup', 'mousemove', 'contextmenu'].forEach(eventType => {
+        document.addEventListener(eventType, this.boundHandlers.mouseEventHandler, { capture: true, passive: true });
+      });
+      
+      // Keyboard events
+      ['keydown', 'keyup', 'keypress'].forEach(eventType => {
+        document.addEventListener(eventType, this.boundHandlers.keyboardEventHandler, { capture: true, passive: true });
+      });
+      
+      // Touch events
+      ['touchstart', 'touchend', 'touchmove'].forEach(eventType => {
+        document.addEventListener(eventType, this.boundHandlers.touchEventHandler, { capture: true, passive: true });
+      });
+      
+      // Focus events
+      ['focus', 'blur', 'focusin', 'focusout'].forEach(eventType => {
+        document.addEventListener(eventType, this.boundHandlers.focusEventHandler, { capture: true, passive: true });
+      });
+      
+      // Track specific game-related events
+      this.monitorGameFunctions();
+    },
+    
+    // Detach all global event listeners
+    detachGlobalListeners() {
+      if (!window || !document || !this.boundHandlers) return;
+      
+      // Mouse events
+      ['click', 'dblclick', 'mousedown', 'mouseup', 'mousemove', 'contextmenu'].forEach(eventType => {
+        document.removeEventListener(eventType, this.boundHandlers.mouseEventHandler, { capture: true });
+      });
+      
+      // Keyboard events
+      ['keydown', 'keyup', 'keypress'].forEach(eventType => {
+        document.removeEventListener(eventType, this.boundHandlers.keyboardEventHandler, { capture: true });
+      });
+      
+      // Touch events
+      ['touchstart', 'touchend', 'touchmove'].forEach(eventType => {
+        document.removeEventListener(eventType, this.boundHandlers.touchEventHandler, { capture: true });
+      });
+      
+      // Focus events
+      ['focus', 'blur', 'focusin', 'focusout'].forEach(eventType => {
+        document.removeEventListener(eventType, this.boundHandlers.focusEventHandler, { capture: true });
+      });
+    },
+    
+    // Monitor specific game functions
+    monitorGameFunctions() {
+      // Wrap important global game objects and their methods
+      const gameObjects = [
+        { obj: window.gameState, name: 'gameState' },
+        { obj: window.currentGame, name: 'currentGame' },
+        { obj: window.currentArcadeSession, name: 'currentArcadeSession' },
+        { obj: window.CoinsManager, name: 'CoinsManager' },
+        { obj: window.CustomListsManager, name: 'CustomListsManager' },
+        { obj: window.GameLoop, name: 'GameLoop' },
+        { obj: window.CoinController, name: 'CoinController' },
+        { obj: window.DOMCache, name: 'DOMCache' }
+      ];
+      
+      gameObjects.forEach(({obj, name}) => {
+        if (obj && typeof obj === 'object') {
+          this.wrapObject(obj, name);
+        }
+      });
+      
+      // Wrap common game functions
+      const gameFunctions = [
+        'startLevel', 'handleAnswer', 'updateProgressCircle', 'loadNextQuestion', 'handleLevelCompletion',
+        'showScreen', 'updatePerkButtons', 'buyPerk', 'handleArcadeAnswer', 'updatePlayerProgress',
+        'updateAllPlayersProgress', 'broadcastCurrentParticipantData', 'saveProgress', 'trackWordEncounter'
+      ];
+      
+      gameFunctions.forEach(funcName => {
+        if (typeof window[funcName] === 'function') {
+          window[funcName] = this.wrapFunction(window[funcName], funcName);
+          this.trackedFunctions.add(funcName);
+        }
+      });
+      
+      this.log('info', `Monitoring ${this.trackedFunctions.size} game functions`);
+    },
+    
+    // Create a keyboard shortcut to toggle logging
+    createToggleShortcut(keys = 'Alt+L') {
+      const keyCombo = keys.toLowerCase().split('+');
+      
+      const keyHandler = (e) => {
+        const key = e.key.toLowerCase();
+        const alt = e.altKey;
+        const ctrl = e.ctrlKey;
+        const shift = e.shiftKey;
+        
+        // Compose what keys are pressed
+        const pressed = [];
+        if (alt) pressed.push('alt');
+        if (ctrl) pressed.push('ctrl');
+        if (shift) pressed.push('shift');
+        pressed.push(key);
+        
+        // Check if the pressed keys match our combo
+        const pressedCombo = pressed.join('+');
+        const matchesShortcut = keyCombo.every(k => pressedCombo.includes(k));
+        
+        if (matchesShortcut) {
+          this.setEnabled(!this.isEnabled);
+          e.preventDefault();
+        }
+      };
+      
+      document.addEventListener('keydown', keyHandler);
+      this.log('info', `Keyboard shortcut enabled: ${keys} to toggle logging`);
+    },
+    
+    // Log the current state of the game
+    logGameState() {
+      if (!this.isEnabled) return;
+      
+      console.group('%cGame State Snapshot', 'color: #9C27B0; font-weight: bold;');
+      
+      // Log game state
+      if (window.gameState) {
+        console.log('%cgameState:', 'font-weight: bold;', {
+          stage: gameState.currentStage,
+          set: gameState.currentSet,
+          level: gameState.currentLevel,
+          coins: gameState.coins,
+          completedLevels: gameState.completedLevels?.size || 0,
+          perfectLevels: gameState.perfectLevels?.size || 0
+        });
+      }
+      
+      // Log current game
+      if (window.currentGame) {
+        console.log('%ccurrentGame:', 'font-weight: bold;', {
+          index: currentGame.currentIndex,
+          words: currentGame.words?.length || 0,
+          correctAnswers: currentGame.correctAnswers,
+          isCustomPractice: currentGame.isCustomPractice,
+          isBossLevel: currentGame.isBossLevel,
+          streakBonus: currentGame.streakBonus
+        });
+      }
+      
+      // Log arcade session if active
+      if (window.currentArcadeSession?.state === 'active') {
+        console.log('%carcadeSession:', 'font-weight: bold;', {
+          state: currentArcadeSession.state,
+          wordGoal: currentArcadeSession.wordGoal,
+          participants: currentArcadeSession.participants?.length || 0,
+          playerName: currentArcadeSession.playerName,
+          completedPlayers: currentArcadeSession.completedPlayers?.length || 0
+        });
+      }
+      
+      // Log current screen
+      const visibleScreen = document.querySelector('.screen.visible, .screen.active');
+      if (visibleScreen) {
+        console.log('%cCurrent Screen:', 'font-weight: bold;', visibleScreen.id);
+      }
+      
+      console.groupEnd();
+    }
+  };
+  
+  // Initialize activity logger with defaults
+  ActivityLogger.init({
+    enabled: true,
+    logLevel: 'info'
+  });
+  
+  // Create keyboard shortcut to toggle logger (Alt+L)
+  ActivityLogger.createToggleShortcut('Alt+L');
+  
+  // Add global reference so it can be used from console
+  window.ActivityLogger = ActivityLogger;
+  
+  // Example usage from console:
+  // ActivityLogger.setEnabled(true/false)  - Enable/disable logging
+  // ActivityLogger.setLogLevel('debug')     - Set logging detail level
+  // ActivityLogger.logGameState()           - Log current game state snapshot
+  
+  console.log('%cActivity Logger Ready', 'color: #4CAF50; font-weight: bold; font-size: 16px;', 
+              'Press Alt+L to toggle, type ActivityLogger in console to access methods');
