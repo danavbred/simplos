@@ -12306,44 +12306,110 @@ function createWordItem(word, translation) {
     });
   }
 
-function addNewWord() {
-  const wordList = document.getElementById("word-translation-list");
-  if (!wordList) return;
-  
-  const wordItem = document.createElement("div");
-  wordItem.className = "word-translation-item";
-  wordItem.draggable = true;
-  wordItem.innerHTML = `
-    <div class="drag-handle">
-      <i class="fas fa-grip-vertical"></i>
-    </div>
-    <span class="source-word" contenteditable="true"></span>
-    <input type="text" class="target-word" placeholder="Hebrew translation">
-    <button class="delete-word-btn" onclick="deleteWord(this)">❌</button>
-  `;
-  
-  const newItem = wordList.appendChild(wordItem);
-  initializeDragAndDrop(newItem);
-  
-  if (wordList.children.length === 1) {
-    makeWordListDraggable();
+  function addNewWord() {
+    const wordList = document.getElementById("word-translation-list");
+    if (!wordList) return;
+    
+    const wordItem = document.createElement("div");
+    wordItem.className = "word-translation-item";
+    wordItem.innerHTML = `
+      <div class="drag-handle">
+        <i class="fas fa-grip-vertical"></i>
+      </div>
+      <span class="source-word" contenteditable="true"></span>
+      <input type="text" class="target-word" placeholder="Hebrew translation">
+      <button class="delete-word-btn">❌</button>
+    `;
+    
+    // Add to list
+    wordList.appendChild(wordItem);
+    
+    // Make it draggable
+    makeItemDraggable(wordItem);
+    
+    // Focus on the new word field
+    wordItem.querySelector(".source-word").focus();
   }
   
-  // Focus on the new word field
-  newItem.querySelector(".source-word").focus();
-}
+  function editCustomList(listId) {
+    const list = CustomListsManager.lists.find(list => list.id === listId);
+    if (!list) return showNotification("List not found", "error");
+  
+    // First, show the custom practice screen
+    showScreen("custom-practice-screen");
+    
+    // Set the list name in the input field
+    const nameInput = document.getElementById("custom-list-name");
+    if (nameInput) {
+        nameInput.value = list.name || "";
+    }
+    
+    // Clear and populate the word translation list
+    const translationResults = document.getElementById("translation-results");
+    const wordList = document.getElementById("word-translation-list");
+    
+    if (wordList) {
+        // Clear existing content
+        wordList.innerHTML = "";
+        
+        // Add each word-translation pair
+        if (Array.isArray(list.words)) {
+            list.words.forEach((word, index) => {
+                const translation = list.translations && index < list.translations.length 
+                    ? list.translations[index] 
+                    : "";
+                
+                const wordItem = document.createElement("div");
+                wordItem.className = "word-translation-item";
+                wordItem.innerHTML = `
+                    <div class="drag-handle">
+                        <i class="fas fa-grip-vertical"></i>
+                    </div>
+                    <span class="source-word" contenteditable="true">${word}</span>
+                    <input type="text" class="target-word" value="${translation}" placeholder="Hebrew translation">
+                    <button class="delete-word-btn">❌</button>
+                `;
+                
+                wordList.appendChild(wordItem);
+            });
+        }
+        
+        // Set up drag and drop functionality
+        addDragAndDropStyles();
+        setupDraggableWordList();
+        
+        // Show the translation results
+        if (translationResults) {
+            translationResults.style.display = "block";
+        }
+    }
+    
+    // Set the current list being edited
+    CustomListsManager.currentList = list;
+  }
 
-function deleteWord(button) {
+  function deleteWord(button) {
     if (!button) return;
     
     const wordItem = button.closest(".word-translation-item");
-    if (wordItem) {
-        wordItem.remove();
+    if (wordItem && wordItem.parentNode) {
+      wordItem.parentNode.removeChild(wordItem);
     }
-}
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    addDragAndDropStyles();
+    
+    // Listen for custom practice screen display
+    document.addEventListener('screenChange', function(e) {
+      if (e.detail && e.detail.screen === 'custom-practice-screen') {
+        setTimeout(setupDraggableWordList, 100); // Wait for DOM to update
+      }
+    });
+  });
 
 function initializeDragAndDrop(element) {
-    if (!element) return element;
+    if (!element) return;
     
     // Clone the element to remove any existing listeners
     const clone = element.cloneNode(true);
@@ -12351,28 +12417,29 @@ function initializeDragAndDrop(element) {
       element.parentNode.replaceChild(clone, element);
     }
     
-    // Set draggable attribute
-    clone.setAttribute("draggable", "true");
+    // The element is now the clone
+    element = clone;
     
-    // Attach the event listeners to the clone
-    clone.addEventListener("dragstart", (event) => {
+    element.setAttribute("draggable", "true");
+    
+    element.addEventListener("dragstart", (event) => {
       event.stopPropagation();
-      clone.classList.add("dragging");
+      element.classList.add("dragging");
       event.dataTransfer.setData("text/plain", "");
     });
     
-    clone.addEventListener("dragend", (event) => {
+    element.addEventListener("dragend", (event) => {
       event.stopPropagation();
-      clone.classList.remove("dragging");
+      element.classList.remove("dragging");
     });
     
-    // Setup delete button on the clone
-    const deleteBtn = clone.querySelector(".delete-word-btn");
+    // Setup delete button
+    const deleteBtn = element.querySelector(".delete-word-btn");
     if (deleteBtn) {
       deleteBtn.onclick = () => deleteWord(deleteBtn);
     }
     
-    return clone;
+    return element;
   }
 
   function makeWordListDraggable() {
@@ -12381,7 +12448,7 @@ function initializeDragAndDrop(element) {
     
     wordList.addEventListener("dragover", (event) => {
       event.preventDefault();
-      const draggingElement = document.querySelector(".word-translation-item.dragging");
+      const draggingElement = wordList.querySelector(".dragging");
       if (!draggingElement) return;
       
       const afterElement = getDragAfterElement(wordList, event.clientY);
@@ -12399,7 +12466,11 @@ function initializeDragAndDrop(element) {
   }
 
   function getDragAfterElement(container, y) {
+    if (!container) return null;
+    
     const draggableElements = [...container.querySelectorAll(".word-translation-item:not(.dragging)")];
+    
+    if (!draggableElements.length) return null;
     
     return draggableElements.reduce((closest, child) => {
       const box = child.getBoundingClientRect();
@@ -14262,71 +14333,204 @@ function populateInlineWordList(listId, container) {
 }
 
 function initializeInlineDragAndDrop(element) {
-  if (!element) return;
-  
-  const clone = element.cloneNode(true);
-  if (element.parentNode) {
-    element.parentNode.replaceChild(clone, element);
-  }
-  
-  element = clone;
-  element.setAttribute('draggable', 'true');
-  
-  element.addEventListener('dragstart', (e) => {
-    e.stopPropagation();
-    element.classList.add('dragging');
-    e.dataTransfer.setData('text/plain', '');
-  });
-  
-  element.addEventListener('dragend', (e) => {
-    e.stopPropagation();
-    element.classList.remove('dragging');
-  });
-  
-  const deleteBtn = element.querySelector('.delete-word-btn');
-  if (deleteBtn) {
-    deleteBtn.onclick = () => deleteInlineWord(deleteBtn);
-  }
-  
-  return element;
-}
-
-function makeInlineWordListDraggable(container) {
-  if (!container) return;
-  
-  container.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    const draggingElement = container.querySelector('.dragging');
-    if (!draggingElement) return;
+    if (!element) return;
     
-    const afterElement = getInlineDragAfterElement(container, e.clientY);
-    if (afterElement) {
-      container.insertBefore(draggingElement, afterElement);
-    } else {
-      container.appendChild(draggingElement);
+    // Clone the element to remove any existing listeners
+    const clone = element.cloneNode(true);
+    if (element.parentNode) {
+      element.parentNode.replaceChild(clone, element);
     }
-  });
-  
-  container.querySelectorAll('.inline-word-translation-item').forEach(item => {
-    initializeInlineDragAndDrop(item);
-  });
-}
+    
+    // The element is now the clone
+    element = clone;
+    
+    element.setAttribute("draggable", "true");
+    
+    element.addEventListener("dragstart", (event) => {
+      event.stopPropagation();
+      element.classList.add("dragging");
+      event.dataTransfer.setData("text/plain", "");
+    });
+    
+    element.addEventListener("dragend", (event) => {
+      event.stopPropagation();
+      element.classList.remove("dragging");
+    });
+    
+    // Setup delete button
+    const deleteBtn = element.querySelector(".delete-word-btn");
+    if (deleteBtn) {
+      deleteBtn.onclick = () => deleteInlineWord(deleteBtn);
+    }
+    
+    return element;
+  }
 
-function getInlineDragAfterElement(container, y) {
-  if (!container) return null;
+  function makeInlineWordListDraggable(container) {
+    if (!container) return;
+    
+    container.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      const draggingElement = container.querySelector(".dragging");
+      if (!draggingElement) return;
+      
+      const afterElement = getInlineDragAfterElement(container, event.clientY);
+      if (afterElement) {
+        container.insertBefore(draggingElement, afterElement);
+      } else {
+        container.appendChild(draggingElement);
+      }
+    });
+    
+    // Initialize all existing items
+    container.querySelectorAll(".inline-word-translation-item").forEach(item => {
+      initializeInlineDragAndDrop(item);
+    });
+  }
+
+  function getInlineDragAfterElement(container, y) {
+    if (!container) return null;
+    
+    const draggableElements = [...container.querySelectorAll(".inline-word-translation-item:not(.dragging)")];
+    
+    if (!draggableElements.length) return null;
+    
+    return draggableElements.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+// Core drag and drop functionality for word lists
+function setupDraggableWordList() {
+    const container = document.getElementById('word-translation-list');
+    if (!container) return;
+    
+    // Set up container event listeners
+    container.addEventListener('dragover', (e) => {
+      e.preventDefault(); // Critical for allowing drops
+      const draggingItem = document.querySelector('.dragging');
+      if (!draggingItem) return;
   
-  const draggableElements = [...container.querySelectorAll('.inline-word-translation-item:not(.dragging)')];
+      const afterElement = getDropPosition(container, e.clientY);
+      if (afterElement) {
+        container.insertBefore(draggingItem, afterElement);
+      } else {
+        container.appendChild(draggingItem);
+      }
+    });
   
-  return draggableElements.length ? draggableElements.reduce((closest, element) => {
-    const box = element.getBoundingClientRect();
-    const offset = y - box.top - box.height / 2;
-    if (offset < 0 && offset > closest.offset) {
-      return { offset: offset, element: element };
-    } else {
-      return closest;
+    container.addEventListener('drop', (e) => {
+      e.preventDefault();
+    });
+  
+    // Set up each draggable item
+    setupAllDraggableItems();
+  }
+  
+  // Make all word items draggable
+  function setupAllDraggableItems() {
+    const items = document.querySelectorAll('.word-translation-item');
+    items.forEach(item => makeItemDraggable(item));
+  }
+  
+  // Make a single item draggable
+  function makeItemDraggable(item) {
+    if (!item) return;
+    
+    // Create a fresh clone to remove any existing handlers
+    const clone = item.cloneNode(true);
+    if (item.parentNode) {
+      item.parentNode.replaceChild(clone, item);
     }
-  }, { offset: Number.NEGATIVE_INFINITY }).element : null;
-}
+    
+    // Work with the clone now
+    const newItem = clone;
+    
+    // Set attributes and listeners
+    newItem.setAttribute('draggable', 'true');
+    
+    newItem.addEventListener('dragstart', (e) => {
+      e.stopPropagation();
+      newItem.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', ''); // Needed for Firefox
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    
+    newItem.addEventListener('dragend', (e) => {
+      e.stopPropagation();
+      newItem.classList.remove('dragging');
+    });
+    
+    // Set up delete button
+    const deleteBtn = newItem.querySelector('.delete-word-btn');
+    if (deleteBtn) {
+      deleteBtn.onclick = function() {
+        if (newItem.parentNode) {
+          newItem.parentNode.removeChild(newItem);
+        }
+      };
+    }
+    
+    return newItem;
+  }
+  
+  // Calculate drop position
+  function getDropPosition(container, y) {
+    const draggableItems = [...container.querySelectorAll('.word-translation-item:not(.dragging)')];
+    
+    return draggableItems.reduce((closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      
+      if (offset < 0 && offset > closest.offset) {
+        return { offset: offset, element: child };
+      } else {
+        return closest;
+      }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+  }
+
+  function addDragAndDropStyles() {
+    const styleId = "drag-drop-styles";
+    if (!document.getElementById(styleId)) {
+      const styleElement = document.createElement("style");
+      styleElement.id = styleId;
+      styleElement.textContent = `
+        .word-translation-item {
+          cursor: move;
+          user-select: none;
+          transition: background-color 0.2s ease, transform 0.2s ease;
+          position: relative;
+        }
+        
+        .word-translation-item.dragging {
+          opacity: 0.7;
+          background-color: rgba(100, 150, 255, 0.3);
+          transform: scale(1.02);
+          box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+          z-index: 100;
+        }
+        
+        .word-translation-item .drag-handle {
+          cursor: grab;
+          padding: 0 8px;
+          color: #888;
+        }
+        
+        .word-translation-item .drag-handle:active {
+          cursor: grabbing;
+        }
+      `;
+      document.head.appendChild(styleElement);
+    }
+  }
 
 function addInlineWord(listId) {
   const listItem = document.querySelector(`.custom-list-item[data-list-id="${listId}"]`);
