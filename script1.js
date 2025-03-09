@@ -2494,6 +2494,14 @@ function checkUpgradeStatus() {
 }
 
 function showUpgradePrompt(callback) {
+    // Check if user is already premium - no need to show prompt
+    if (currentUser && currentUser.status === 'premium') {
+        console.log("User is premium, skipping upgrade prompt");
+        // Immediately execute callback if provided
+        if (callback) callback();
+        return true; // Indicate we're skipping the prompt
+    }
+    
     console.log("Showing upgrade prompt");
     
     // Store current game state for later
@@ -2514,7 +2522,43 @@ function showUpgradePrompt(callback) {
     }
     
     return false;
-  }
+}
+
+// Add this debug function to trace what's calling the upgrade functions
+function addUpgradeTracing() {
+    // Store original functions
+    const originalShowUpgradeScreen = window.showUpgradeScreen;
+    const originalShowUpgradePrompt = window.showUpgradePrompt;
+    
+    // Replace showUpgradeScreen with traced version
+    window.showUpgradeScreen = function() {
+        console.group("Upgrade Screen Trace");
+        console.log("showUpgradeScreen called with user status:", currentUser?.status || "unregistered");
+        console.trace("Call stack for showUpgradeScreen");
+        console.groupEnd();
+        
+        // Call original with arguments
+        return originalShowUpgradeScreen.apply(this, arguments);
+    };
+    
+    // Replace showUpgradePrompt with traced version
+    window.showUpgradePrompt = function() {
+        console.group("Upgrade Prompt Trace");
+        console.log("showUpgradePrompt called with user status:", currentUser?.status || "unregistered");
+        console.trace("Call stack for showUpgradePrompt");
+        console.groupEnd();
+        
+        // Call original with arguments
+        return originalShowUpgradePrompt.apply(this, arguments);
+    };
+    
+    console.log("Upgrade function tracing enabled");
+}
+
+// Call this on page load
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(addUpgradeTracing, 1000);
+});
 
 function handleUpgradeButtonClick(event) {
     console.log("Upgrade button clicked directly");
@@ -4917,64 +4961,143 @@ function isSetCompleted(stage, set) {
 }
 
 function handleCrownClick(e) {
-  e.stopPropagation();
-  
-  if (!currentUser) {
-    // Unregistered user - show signup form
-    showAuthModal();
-    // Switch to signup form
-    setTimeout(() => {
-      const loginForm = document.getElementById('loginForm');
-      const signupForm = document.getElementById('signupForm');
-      if (loginForm && signupForm) {
-        loginForm.classList.add('hidden');
-        signupForm.classList.remove('hidden');
-      }
-    }, 100);
-  } else {
-    // Logged in user - show upgrade form
-    localStorage.removeItem(`upgradeRequested_${currentUser.id}`);
-    showUpgradePrompt();
-  }
-}
-
-function forceShowUpgradeForm() {
-    // Remove the flag that prevents the form from showing again
-    if (currentUser) {
-        localStorage.removeItem(`upgradeRequested_${currentUser.id}`);
-    } else {
-        localStorage.removeItem('upgradeRequested_guest');
-    }
+    e.stopPropagation();
     
-    // Show the upgrade form
-    showScreen("upgrade-screen");
-}
+    if (!currentUser) {
+      // Unregistered user - show signup form
+      showAuthModal();
+      // Switch to signup form
+      setTimeout(() => {
+        const loginForm = document.getElementById('loginForm');
+        const signupForm = document.getElementById('signupForm');
+        if (loginForm && signupForm) {
+          loginForm.classList.add('hidden');
+          signupForm.classList.remove('hidden');
+        }
+      }, 100);
+    } else if (currentUser.status === 'premium') {
+      // Premium user - show friendly notification
+      showNotification("You're already enjoying premium access! Thank you for your support!", "success");
+    } else {
+      // Logged in non-premium user - show upgrade form
+      localStorage.removeItem(`upgradeRequested_${currentUser.id}`);
+      showUpgradePrompt();
+    }
+  }
 
-/* ADD this code to ensure crowns are clickable after DOM loads */
+  // Function to hide crown icons for premium users
+function hideCrownIconsForPremiumUsers() {
+    // Only proceed if user is premium
+    if (!currentUser || currentUser.status !== 'premium') return;
+    
+    console.log("Hiding crown icons for premium user");
+    
+    // Find all crown icons in the UI (any element with fa-crown class)
+    const crownIcons = document.querySelectorAll('.fa-crown');
+    
+    crownIcons.forEach(crown => {
+      // Find the nearest container element (could be a button, div, etc.)
+      let container = crown;
+      let depth = 0;
+      const maxDepth = 5; // Prevent infinite loop
+      
+      // Go up max 5 levels to find a suitable container
+      while (depth < maxDepth && container && container.tagName !== 'BODY') {
+        // Look for containers that indicate premium features
+        if (container.classList.contains('premium-item') || 
+            container.classList.contains('premium-feature') ||
+            container.id === 'premium-menu-item' ||
+            container.classList.contains('premium-crown') ||
+            container.getAttribute('onclick')?.includes('upgrade') ||
+            container.getAttribute('data-feature') === 'premium') {
+          
+          // Hide the container
+          container.style.display = 'none';
+          console.log("Hidden premium container:", container);
+          break;
+        }
+        
+        // Move up to parent
+        container = container.parentElement;
+        depth++;
+      }
+      
+      // If we couldn't find a proper container, at least disable the crown icon
+      if (depth >= maxDepth || !container || container.tagName === 'BODY') {
+        // Disable click events
+        crown.style.pointerEvents = 'none';
+        // Make it less prominent
+        crown.style.opacity = '0.5';
+        console.log("Disabled individual crown icon");
+      }
+    });
+  }
+  
+  // Call this function when page loads and when user status changes
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(hideCrownIconsForPremiumUsers, 1000);
+    
+    // Also call it periodically to catch new elements
+    setInterval(hideCrownIconsForPremiumUsers, 5000);
+  });
+  
+  // Add event listener for user status change
+  document.addEventListener('userStatusChanged', function(event) {
+    setTimeout(hideCrownIconsForPremiumUsers, 100);
+  });
+
+// Set up a mutation observer to handle crown icons that get added dynamically
 document.addEventListener('DOMContentLoaded', function() {
     // Add click handlers to all crown icons
     document.querySelectorAll('.fa-crown').forEach(crown => {
-        crown.addEventListener('click', handleCrownClick);
+      crown.addEventListener('click', handleCrownClick);
     });
     
     // Set up a mutation observer to handle dynamically added crowns
     const observer = new MutationObserver(mutations => {
-        mutations.forEach(mutation => {
-            if (mutation.addedNodes.length) {
-                mutation.addedNodes.forEach(node => {
-                    if (node.nodeType === 1) { // Element node
-                        const crowns = node.querySelectorAll('.fa-crown');
-                        crowns.forEach(crown => {
-                            crown.addEventListener('click', handleCrownClick);
-                        });
-                    }
-                });
+      mutations.forEach(mutation => {
+        if (mutation.addedNodes.length) {
+          mutation.addedNodes.forEach(node => {
+            if (node.nodeType === 1) { // Element node
+              const crowns = node.querySelectorAll('.fa-crown');
+              crowns.forEach(crown => {
+                crown.addEventListener('click', handleCrownClick);
+              });
             }
-        });
+          });
+        }
+      });
+      
+      // Run the hide function after DOM changes
+      if (currentUser && currentUser.status === 'premium') {
+        hideCrownIconsForPremiumUsers();
+      }
     });
     
     observer.observe(document.body, { childList: true, subtree: true });
-});
+  });
+
+  function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `game-notification ${type}`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Small delay to ensure DOM update before adding show class
+    setTimeout(() => notification.classList.add('show'), 10);
+    
+    // Hide notification after delay
+    setTimeout(() => {
+      notification.classList.remove('show');
+      // Remove from DOM after transition completes
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.remove();
+        }
+      }, 300);
+    }, 3000);
+  }
 
 
 
@@ -10839,7 +10962,7 @@ function updatePremiumButtonVisibility() {
   document.addEventListener('userStatusChanged', function(event) {
     updatePremiumButtonVisibility();
   });
-  
+
   // Modify the createOptionsMenu function to remove profile and logout
   const originalCreateOptionsMenu = createOptionsMenu;
   createOptionsMenu = function() {
@@ -10942,161 +11065,125 @@ function updatePremiumButtonVisibility() {
     return optionsMenu;
   };
 
-  // Replace the entire createOptionsMenu function
+// Replace the entire createOptionsMenu function
 window.createOptionsMenu = function() {
-    console.log("Creating options menu with user status:", currentUser?.status || "unregistered");
-    
-    // Remove existing menu if it exists
-    const existingMenu = document.getElementById('options-menu');
-    if (existingMenu) {
-      existingMenu.remove();
-    }
+  console.log("Creating options menu with user status:", currentUser?.status || "unregistered");
   
-    const optionsMenu = document.createElement('div');
-    optionsMenu.id = 'options-menu';
-    optionsMenu.className = 'floating-menu';
-    
-    // Add menu grid container
-    const menuGrid = document.createElement('div');
-    menuGrid.className = 'menu-grid';
-    optionsMenu.appendChild(menuGrid);
-    
-    // Check user status directly
-    const userStatus = currentUser ? currentUser.status : 'unregistered';
-    const isPremiumUser = userStatus === 'premium';
-    
-    console.log(`User is premium: ${isPremiumUser}`);
-    
-    // Define menu items - Note: We'll skip Premium button for premium users
-    const menuItems = [];
-    
-    // Always add these buttons
-    menuItems.push(
-      {
-        icon: 'fa-expand',
-        text: 'Fullscreen',
-        onClick: 'toggleFullScreen()'
-      },
-      {
-        icon: 'fa-undo',
-        text: 'Reset',
-        onClick: 'handleResetProgress()'
-      }
-    );
-    
-    // Add Premium button ONLY if user is NOT premium
-    if (!isPremiumUser) {
-      menuItems.push({
-        icon: 'fa-crown',
-        text: 'Premium',
-        onClick: 'showScreen(\'upgrade-screen\')'
-      });
+  // Remove existing menu if it exists
+  const existingMenu = document.getElementById('options-menu');
+  if (existingMenu) {
+    existingMenu.remove();
+  }
+
+  const optionsMenu = document.createElement('div');
+  optionsMenu.id = 'options-menu';
+  optionsMenu.className = 'floating-menu';
+  
+  // Add menu grid container
+  const menuGrid = document.createElement('div');
+  menuGrid.className = 'menu-grid';
+  optionsMenu.appendChild(menuGrid);
+  
+  // Check user status directly
+  const userStatus = currentUser ? currentUser.status : 'unregistered';
+  const isPremiumUser = userStatus === 'premium';
+  
+  console.log(`User is premium: ${isPremiumUser}`);
+  
+  // Define menu items - Note: We'll skip Premium button for premium users
+  const menuItems = [];
+  
+  // Always add these buttons
+  menuItems.push(
+    {
+      icon: 'fa-expand',
+      text: 'Fullscreen',
+      onClick: 'toggleFullScreen()'
+    },
+    {
+      icon: 'fa-undo',
+      text: 'Reset',
+      onClick: 'handleResetProgress()'
     }
-    
-    // Continue with other buttons
-    menuItems.push(
-      {
-        icon: 'fa-map-marked-alt',
-        text: 'Stages',
-        onClick: 'showStageCascadeScreen()'
-      },
-      {
-        icon: 'fa-trophy',
-        text: 'Rankings',
-        onClick: 'showLeaderboard()'
-      },
-      {
-        icon: 'fa-universal-access',
-        text: 'Access',
-        onClick: 'openAccessibilitySettings()'
-      },
-      {
-        icon: 'fa-envelope',
-        text: 'Email',
-        onClick: 'window.location.href=\'mailto:danav.bred@gmail.com?subject=About%20Simplos\''
-      },
-      {
-        icon: 'fa-whatsapp',
-        text: 'WhatsApp',
-        onClick: 'window.location.href=\'https://wa.me/972545996417\''
-      },
-      {
-        icon: 'fa-info-circle',
-        text: 'About',
-        onClick: 'window.open(\'https://simplos.netlify.app/about.html\', \'_blank\')'
-      },
-      {
-        icon: 'fa-times',
-        text: 'Close',
-        onClick: 'closeOptionsMenu()'
-      }
-    );
-    
-    // Create menu items
-    menuItems.forEach(item => {
-      const menuItem = document.createElement('div');
-      menuItem.className = 'menu-item';
-      
-      // For Premium button, add special ID
-      if (item.text === 'Premium') {
-        menuItem.id = 'premium-menu-item';
-      }
-      
-      // Set onClick handler
-      if (item.onClick) {
-        menuItem.setAttribute('onclick', item.onClick);
-      }
-      
-      // Add content
-      menuItem.innerHTML = `
-        <i class="fas ${item.icon}"></i>
-        <span>${item.text}</span>
-      `;
-      
-      menuGrid.appendChild(menuItem);
+  );
+  
+  // Add Premium button ONLY if user is NOT premium
+  if (!isPremiumUser) {
+    menuItems.push({
+      icon: 'fa-crown',
+      text: 'Premium',
+      onClick: 'showScreen(\'upgrade-screen\')'
     });
-    
-    document.body.appendChild(optionsMenu);
-    console.log("Options menu created, premium button included:", !isPremiumUser);
-    
-    return optionsMenu;
-  };
+  }
   
-  // Override the static HTML menu
-  document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM loaded - replacing static menu");
+  // Continue with other buttons
+  menuItems.push(
+    {
+      icon: 'fa-map-marked-alt',
+      text: 'Stages',
+      onClick: 'showStageCascadeScreen()'
+    },
+    {
+      icon: 'fa-trophy',
+      text: 'Rankings',
+      onClick: 'showLeaderboard()'
+    },
+    {
+      icon: 'fa-universal-access',
+      text: 'Access',
+      onClick: 'openAccessibilitySettings()'
+    },
+    {
+      icon: 'fa-envelope',
+      text: 'Email',
+      onClick: 'window.location.href=\'mailto:danav.bred@gmail.com?subject=About%20Simplos\''
+    },
+    {
+      icon: 'fa-whatsapp',
+      text: 'WhatsApp',
+      onClick: 'window.location.href=\'https://wa.me/972545996417\''
+    },
+    {
+      icon: 'fa-info-circle',
+      text: 'About',
+      onClick: 'window.open(\'https://simplos.netlify.app/about.html\', \'_blank\')'
+    },
+    {
+      icon: 'fa-times',
+      text: 'Close',
+      onClick: 'closeOptionsMenu()'
+    }
+  );
+  
+  // Create menu items
+  menuItems.forEach(item => {
+    const menuItem = document.createElement('div');
+    menuItem.className = 'menu-item';
     
-    // Replace the static menu with our dynamic one
-    const staticMenu = document.getElementById('options-menu');
-    if (staticMenu) {
-      staticMenu.parentNode.removeChild(staticMenu);
+    // For Premium button, add special ID
+    if (item.text === 'Premium') {
+      menuItem.id = 'premium-menu-item';
     }
     
-    // Force create the menu - this ensures a clean start
-    setTimeout(() => {
-      window.createOptionsMenu();
-      
-      // Also hook into the settings toggle to ensure menu is correctly created
-      const settingsToggle = document.getElementById('settings-toggle');
-      if (settingsToggle) {
-        const originalClick = settingsToggle.onclick;
-        settingsToggle.onclick = function(e) {
-          // First recreate the menu
-          window.createOptionsMenu();
-          
-          // Then let the original handler run
-          if (originalClick) {
-            originalClick.call(this, e);
-          } else {
-            const optionsMenu = document.getElementById('options-menu');
-            if (optionsMenu) {
-              optionsMenu.classList.toggle('show');
-            }
-          }
-        };
-      }
-    }, 500);
+    // Set onClick handler
+    if (item.onClick) {
+      menuItem.setAttribute('onclick', item.onClick);
+    }
+    
+    // Add content
+    menuItem.innerHTML = `
+      <i class="fas ${item.icon}"></i>
+      <span>${item.text}</span>
+    `;
+    
+    menuGrid.appendChild(menuItem);
   });
+  
+  document.body.appendChild(optionsMenu);
+  console.log("Options menu created, premium button included:", !isPremiumUser);
+  
+  return optionsMenu;
+};
 
   /**
  * Updates the visibility of premium menu items based on user status
@@ -11125,5 +11212,216 @@ function updatePremiumMenuItems() {
       });
     }
   }
+
+  // Debug function to monitor cogwheel menu open behavior
+function debugMenuOpen() {
+    console.group("Cogwheel Menu Debug");
+    
+    // Log user status
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    console.log("Current user status:", userStatus);
+    console.log("Is premium user:", userStatus === 'premium');
+    
+    // Check if premium button exists in menu
+    const premiumButton = document.querySelector('#options-menu #premium-menu-item');
+    console.log("Premium button in menu:", premiumButton ? "YES" : "NO");
+    
+    if (premiumButton) {
+      console.log("Premium button visibility:", window.getComputedStyle(premiumButton).display);
+      console.log("Premium button click handler:", premiumButton.getAttribute('onclick'));
+    }
+    
+    // Check all menu items and their visibility
+    const menuItems = document.querySelectorAll('#options-menu .menu-item');
+    console.log("Total menu items:", menuItems.length);
+    console.log("Menu items:", Array.from(menuItems).map(item => {
+      const text = item.querySelector('span')?.textContent;
+      const visible = window.getComputedStyle(item).display !== 'none';
+      return `${text}: ${visible ? 'visible' : 'hidden'}`;
+    }));
+    
+    console.groupEnd();
+  }
+  
+  // Debug function to monitor premium button click
+  function debugPremiumButtonClick() {
+    console.group("Premium Button Click Debug");
+    
+    // Log user status
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    console.log("Current user status:", userStatus);
+    console.log("Is premium user:", userStatus === 'premium');
+    
+    // Check if premium button exists
+    const premiumButton = document.querySelector('#premium-menu-item');
+    console.log("Premium button exists:", premiumButton ? "YES" : "NO");
+    
+    if (premiumButton) {
+      console.log("Premium button visibility:", window.getComputedStyle(premiumButton).display);
+      console.log("Premium button click handler:", premiumButton.getAttribute('onclick'));
+      
+      // Log which function will be called
+      console.log("Will call:", premiumButton.getAttribute('onclick') || "No onclick attribute");
+    } else {
+      console.log("Premium button NOT FOUND - this is expected for premium users");
+    }
+    
+    console.groupEnd();
+  }
+  
+  // Enhanced createOptionsMenu with debug
+  function createOptionsMenuWithDebug() {
+    console.log("Creating options menu with debug");
+    const menu = createOptionsMenu();
+    
+    // Run debug after menu is created
+    setTimeout(debugMenuOpen, 100);
+    
+    // Add click tracking to premium button
+    const premiumButton = document.querySelector('#premium-menu-item');
+    if (premiumButton) {
+      const originalClick = premiumButton.onclick;
+      premiumButton.onclick = function(e) {
+        console.log("Premium button clicked!");
+        debugPremiumButtonClick();
+        
+        // Call original handler
+        if (originalClick) {
+          originalClick.call(this, e);
+        } else {
+          // Fallback to the attribute
+          const onclickAttr = premiumButton.getAttribute('onclick');
+          if (onclickAttr) {
+            eval(onclickAttr);
+          }
+        }
+      };
+    }
+    
+    return menu;
+  }
+  
+  // Override settings toggle to use debug version
+  document.addEventListener('DOMContentLoaded', function() {
+    const settingsToggle = document.getElementById('settings-toggle');
+    if (settingsToggle) {
+      settingsToggle.addEventListener('click', function() {
+        console.log("Settings toggle clicked!");
+        createOptionsMenuWithDebug();
+        
+        // Show menu
+        const optionsMenu = document.getElementById('options-menu');
+        if (optionsMenu) {
+          optionsMenu.classList.add('show');
+        }
+      });
+    }
+  });
+  
+  // Add direct debug commands for console use
+  window.debugPremium = {
+    checkMenuItems: function() {
+      debugMenuOpen();
+    },
+    simulatePremiumButtonClick: function() {
+      debugPremiumButtonClick();
+      
+      // Try to find and click premium button
+      const premiumButton = document.querySelector('#premium-menu-item');
+      if (premiumButton) {
+        console.log("Simulating click on premium button");
+        premiumButton.click();
+      } else {
+        console.log("Premium button not found - cannot simulate click");
+      }
+    },
+    setUserStatus: function(status) {
+      console.log(`Setting simulated user status to: ${status}`);
+      
+      // This is just for simulation/debugging - doesn't affect the real user
+      const oldStatus = currentUser ? currentUser.status : 'unregistered';
+      if (currentUser) {
+        currentUser.status = status;
+      } else {
+        currentUser = { status: status };
+      }
+      
+      // Update UI
+      updatePremiumButtonVisibility();
+      console.log(`User status changed from ${oldStatus} to ${status}`);
+      
+      // Refresh menu if open
+      const menu = document.getElementById('options-menu');
+      if (menu && menu.classList.contains('show')) {
+        menu.classList.remove('show');
+        setTimeout(() => {
+          createOptionsMenuWithDebug();
+          document.getElementById('options-menu').classList.add('show');
+        }, 100);
+      }
+    }
+  };
+  
+  // Add direct debug for premium button click
+  document.addEventListener('DOMContentLoaded', function() {
+    // Add direct click handler for the premium menu item to ensure it works for unregistered users
+    function setupPremiumButton() {
+      const premiumItem = document.querySelector('#premium-item');
+      if (premiumItem) {
+        // Remove the default onclick attribute and add direct listener
+        const originalAction = premiumItem.getAttribute('onclick');
+        premiumItem.removeAttribute('onclick');
+        
+        premiumItem.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          console.log('Premium menu item clicked by', currentUser ? currentUser.status : 'unregistered user');
+          debugPremiumButtonClick();
+          
+          // Always show the upgrade screen directly
+          showScreen('upgrade-screen');
+          
+          // Close the options menu
+          const optionsMenu = document.getElementById('options-menu');
+          if (optionsMenu) {
+            optionsMenu.classList.remove('show');
+          }
+        });
+        
+        console.log('Direct premium button handler set up');
+      }
+    }
+    
+    // Call setup initially
+    setupPremiumButton();
+    
+    // Also set up after the menu is refreshed
+    document.addEventListener('menuRefreshed', setupPremiumButton);
+    
+    // Re-check when menu is shown
+    const settingsToggle = document.getElementById('settings-toggle');
+    if (settingsToggle) {
+      settingsToggle.addEventListener('click', function() {
+        setTimeout(setupPremiumButton, 100);
+      });
+    }
+  });
+
+
+  window.debugPremium.checkMenuItems();
+
+  window.debugPremium.simulatePremiumButtonClick();
+
+// Test as premium user
+window.debugPremium.setUserStatus('premium');
+
+// Test as free user
+window.debugPremium.setUserStatus('free');
+
+// Test as unregistered user
+window.debugPremium.setUserStatus('unregistered');
+
+
 
   
