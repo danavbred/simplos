@@ -9257,59 +9257,51 @@ async function handlePlayerCompletedGoal(username) {
 }
 
 function endArcade() {
-    // Disable game activity monitoring
-    moderatorInactivity.isGameActive = false;
-    
-    // Mark celebration as triggered to prevent duplicate celebrations
-    currentArcadeSession.celebrationTriggered = true;
-    
-    // Update session state
-    currentArcadeSession.state = "ended";
-    currentArcadeSession.endTime = Date.now();
-    
-    // For sessions with enough participants, show celebration
-    if (currentArcadeSession.participants.length >= 3) {
-        const podiumPlayers = [...currentArcadeSession.participants]
-            .sort((a, b) => b.wordsCompleted !== a.wordsCompleted ? 
-                 b.wordsCompleted - a.wordsCompleted : b.coins - a.coins)
-            .slice(0, 3)
-            .map((player, index) => ({...player, rank: index + 1, completionTime: Date.now() - 1000 * index}));
-            
-        window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'game_end',
-            payload: {
-                state: 'ended',
-                podiumPlayers: podiumPlayers,
-                teacherId: currentArcadeSession.teacherId,
-                forcedEnd: false,
-                duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
-            }
-        });
-        
-        startLeaderboardCelebration(podiumPlayers);
-    } else {
-        window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'game_end',
-            payload: {
-                state: 'ended',
-                forcedEnd: true,
-                teacherId: currentArcadeSession.teacherId
-            }
-        });
-        
-        showScreen('welcome-screen');
+    // Clean up arcade state
+    if (window.playerConfettiInterval) {
+        clearInterval(window.playerConfettiInterval);
     }
     
-    // Completely reset the arcade session
-    resetArcadeSession();
+    document.querySelectorAll(".player-confetti").forEach(el => el.remove());
     
-    // Unsubscribe from the arcade channel
+    // Remove any overlays
+    document.querySelectorAll(".personal-victory-overlay, .arcade-overlay").forEach(el => {
+        el.remove();
+    });
+    
+    // Reset game state
+    currentGame = null;
+    
+    // Reset arcade session
+    currentArcadeSession = {
+        eventId: null,
+        otp: null,
+        wordPool: [],
+        participants: [],
+        teacherId: null,
+        wordGoal: 50,
+        state: 'pre-start',
+        completedPlayers: [],
+        playerRank: null,
+        winnerScreenShown: false,
+        startTime: null,
+        endTime: null,
+        celebrationTriggered: false
+    };
+    
+    // Unsubscribe from any channels
     if (window.arcadeChannel) {
         window.arcadeChannel.unsubscribe();
         window.arcadeChannel = null;
     }
+    
+    // Hide all game screens
+    document.querySelectorAll('.game-screen, .arcade-screen').forEach(el => {
+        el.style.display = 'none';
+    });
+    
+    // IMPORTANT: Directly go to welcome screen without confirmation
+    showScreen('welcome-screen');
 }
 
 function resetArcadeSession() {
