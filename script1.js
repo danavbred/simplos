@@ -4680,59 +4680,215 @@ function getStageStatus(stageId, completedSets, totalSets) {
     return `${completedSets}/${totalSets} Sets Completed`;
 }
 
-function populateSetsGrid(e) {
-    const t = document.getElementById(`sets-grid-${e}`);
-    if (!t) return;
-    console.log(`Populating sets grid for stage ${e}`);
-    console.log("Unlocked sets:", gameState.unlockedSets);
-    const n = gameStructure.stages[e - 1],
-        r = gameState.unlockedSets[e] || new Set,
-        o = currentUser ? currentUser.status : "unregistered";
-    console.log(`Stage ${e} unlocked sets:`, Array.from(r));
-    t.innerHTML = "";
-    for (let s = 1; s <= n.numSets; s++) {
-        const n = document.createElement("div"),
-            a = r.has(s);
-        let i = !1;
-        e >= 2 && s > 1 && "premium" !== o && (i = !0);
-        n.className = "set-button";
-        a && !i ? n.classList.add("active") : n.classList.add("locked");
-        const c = isSetCompleted(e, s);
+function showBossDefeatEffect() {
+    console.log('Starting boss defeat effect sequence');
+    
+    if (currentGame.bossDefeatedEffectShown) {
+        console.log('Boss defeat effect already shown, skipping');
+        return;
+    }
+    
+    // Set animation flag to block other coin updates
+    window.bossVictoryAnimationInProgress = true;
+    
+    // IMPORTANT ADDITION: Mark boss level as completed in the game state
+    // Get the stage configuration to find the boss level number
+    const stage = gameStructure.stages[gameState.currentStage - 1];
+    if (stage && stage.bossLevel) {
+        const bossLevelId = stage.bossLevel;
+        const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${bossLevelId}`;
         
-        n.innerHTML = `
-      <span>Set ${s}</span>
-      ${c ? '\n      <div class="completed-indicator">\n        <i class="fas fa-check-circle"></i>\n      </div>' : ""}
-      ${!a || i ? `
-      <div class="lock-icon">
-        <i class="fas ${i ? "fa-crown crown-premium" : "fa-lock"}"></i>
-      </div>` : ""}
-    `;
+        console.log(`Marking boss level as completed: ${levelKey}`);
         
-        if (a && !i) {
-            n.onclick = () => {
-                gameState.currentStage = e;
-                gameState.currentSet = s;
-                showLevelScreen(s);
-            };
-        } else if (i) {
-            // Make the whole button show upgrade prompt
-            n.onclick = () => showUpgradePrompt();
+        // Add to completed levels set
+        gameState.completedLevels.add(levelKey);
+        
+        // Update stage completion stats
+        updateStageCompletionStats();
+        updateStageCompletionCounters();
+        
+        // Save progress immediately
+        saveProgress();
+    } else {
+        console.error("Could not find boss level configuration");
+    }
+    
+    // Set flag to prevent multiple executions
+    currentGame.bossDefeatedEffectShown = true;
+    
+    // Store current coin value for animation
+    const originalCoins = gameState.coins;
+    const targetCoins = originalCoins + 100;
+    
+    // Flag that we've acknowledged the boss reward
+    currentGame.bossRewardApplied = true;
+    
+    // Background transition
+    const questionScreen = document.querySelector('.question-screen');
+    if (questionScreen) {
+        console.log('Creating background transition overlay');
+        
+        const transitionOverlay = document.createElement('div');
+        transitionOverlay.className = 'background-transition-overlay';
+        transitionOverlay.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #800000, #3a0000); 
+            z-index: -1;
+            animation: fade-to-blue 5s ease-in-out forwards;
+            pointer-events: none;
+        `;
+        
+        questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
+    }
+    
+    // Boss orb disappearing animation
+    setTimeout(() => {
+        const bossOrb = document.querySelector('.boss-orb-inner');
+        
+        if (bossOrb) {
+            console.log('Disintegrating boss orb');
             
-            // Add specific handler for the crown icon
+            const incinerationEffect = document.createElement('div');
+            incinerationEffect.className = 'incineration-effect';
+            bossOrb.appendChild(incinerationEffect);
+            
+            bossOrb.style.animation = 'boss-shrink 2.5s forwards';
+            
+            // After boss orb starts disappearing, show coin animation
             setTimeout(() => {
-                const crownIcon = n.querySelector(".fa-crown");
-                if (crownIcon) {
-                    crownIcon.addEventListener("click", (event) => {
-                        event.stopPropagation();
-                        showUpgradePrompt();
+                console.log('Applying coin reward animation');
+                
+                const coinsContainer = document.querySelector('.coins-container');
+                
+                if (coinsContainer && window.originalCoinsHTML) {
+                    // Restore original coins HTML
+                    coinsContainer.innerHTML = window.originalCoinsHTML;
+                    
+                    // Protect ALL coin displays from other updates during animation
+                    document.querySelectorAll('.coin-count').forEach(el => {
+                        el.dataset.protectedValue = 'true';
+                        el.textContent = originalCoins;
                     });
+                    
+                    const coinIcon = coinsContainer.querySelector('.coin-icon');
+                    const coinCount = coinsContainer.querySelector('.coin-count');
+                    
+                    if (coinCount) {
+                        // Make it prominent
+                        coinsContainer.style.transform = 'scale(1.2)';
+                        coinsContainer.style.transition = 'transform 0.3s ease';
+                        
+                        // Visual animation for the 100 coins
+                        const steps = 60;
+                        const stepDelay = 2000 / steps;
+                        let currentStep = 0;
+                        
+                        const animateCoins = () => {
+                            if (currentStep <= steps) {
+                                const progress = currentStep / steps;
+                                const currentValue = Math.round(originalCoins + (targetCoins - originalCoins) * progress);
+                                
+                                // Update ALL coin displays
+                                document.querySelectorAll('.coin-count').forEach(el => {
+                                    el.textContent = currentValue;
+                                    el.style.color = 'var(--gold)';
+                                    el.style.textShadow = '0 0 10px var(--gold)';
+                                });
+                                
+                                currentStep++;
+                                setTimeout(animateCoins, stepDelay);
+                            } else {
+                                // Animation complete - update actual game state
+                                gameState.coins = targetCoins;
+                                saveProgress();
+                                
+                                // Ensure final value shown matches target on all displays
+                                document.querySelectorAll('.coin-count').forEach(el => {
+                                    el.textContent = targetCoins;
+                                    delete el.dataset.protectedValue;
+                                });
+                                
+                                // Maintain emphasis for a while
+                                setTimeout(() => {
+                                    document.querySelectorAll('.coin-count').forEach(el => {
+                                        el.style.color = '';
+                                        el.style.textShadow = '';
+                                    });
+                                    coinsContainer.style.transform = 'scale(1)';
+                                }, 1000);
+                            }
+                        };
+                        
+                        // Start animation
+                        animateCoins();
+                        
+                        // Pulse coin icon
+                        if (coinIcon) {
+                            coinIcon.classList.add('coin-pulse');
+                            coinIcon.style.animation = 'coinPulse 0.5s ease-in-out 6';
+                        }
+                    }
                 }
-            }, 0);
+            }, 500);
+            
+            // Show victory notification after animations
+            setTimeout(() => {
+                console.log('Showing victory notification');
+                
+                // Victory notification does NOT need to add coins again
+                showBossVictoryNotification(false);
+            }, 5000);
+        } else {
+            setTimeout(() => {
+                showBossVictoryNotification(false);
+            }, 3000);
         }
-        
-        t.appendChild(n);
+    }, 1000);
+
+    // Add animation styles if needed
+    if (!document.getElementById('boss-transition-style')) {
+        const styleEl = document.createElement('style');
+        styleEl.id = 'boss-transition-style';
+        styleEl.textContent = `
+            @keyframes fade-to-blue {
+                0% { background: linear-gradient(135deg, #800000, #3a0000); }
+                20% { background: linear-gradient(135deg, #800000, #3a0000); }
+                60% { background: linear-gradient(135deg, #4a1582, #0d47a1); }
+                100% { background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%); }
+            }
+            
+            @keyframes boss-shrink {
+                0% { transform: scale(1); opacity: 1; }
+                30% { transform: scale(0.8); opacity: 0.8; }
+                100% { transform: scale(0); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(styleEl);
     }
 }
+
+// ADD this global function to force refresh the sets display
+window.refreshSetsDisplay = function() {
+    console.log("Forcing refresh of sets display");
+    
+    // Re-add styles
+    addGoldShineStyles();
+    
+    // Force repopulation of all set grids
+    gameStructure.stages.forEach(stage => {
+        populateSetsGrid(stage.id);
+    });
+    
+    // Update stage completion stats
+    updateStageCompletionStats();
+    updateStageCompletionCounters();
+    
+    return "Sets display refreshed!";
+};
 
 function isSetCompleted(stage, set) {
   const stageData = gameStructure.stages;
@@ -8369,175 +8525,6 @@ function showModernBossVictoryScreen() {
     });
 }
 
-function showBossDefeatEffect() {
-    console.log('Starting boss defeat effect sequence');
-    
-    if (currentGame.bossDefeatedEffectShown) {
-        console.log('Boss defeat effect already shown, skipping');
-        return;
-    }
-    
-    // Set animation flag to block other coin updates
-    window.bossVictoryAnimationInProgress = true;
-    
-    // Set flag to prevent multiple executions
-    currentGame.bossDefeatedEffectShown = true;
-    
-    // Store current coin value for animation
-    const originalCoins = gameState.coins;
-    const targetCoins = originalCoins + 100;
-    
-    // Flag that we've acknowledged the boss reward
-    currentGame.bossRewardApplied = true;
-    
-    // Background transition
-    const questionScreen = document.querySelector('.question-screen');
-    if (questionScreen) {
-        console.log('Creating background transition overlay');
-        
-        const transitionOverlay = document.createElement('div');
-        transitionOverlay.className = 'background-transition-overlay';
-        transitionOverlay.style.cssText = `
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #800000, #3a0000); 
-            z-index: -1;
-            animation: fade-to-blue 5s ease-in-out forwards;
-            pointer-events: none;
-        `;
-        
-        questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
-    }
-    
-    // Boss orb disappearing animation
-    setTimeout(() => {
-        const bossOrb = document.querySelector('.boss-orb-inner');
-        
-        if (bossOrb) {
-            console.log('Disintegrating boss orb');
-            
-            const incinerationEffect = document.createElement('div');
-            incinerationEffect.className = 'incineration-effect';
-            bossOrb.appendChild(incinerationEffect);
-            
-            bossOrb.style.animation = 'boss-shrink 2.5s forwards';
-            
-            // After boss orb starts disappearing, show coin animation
-            setTimeout(() => {
-                console.log('Applying coin reward animation');
-                
-                const coinsContainer = document.querySelector('.coins-container');
-                
-                if (coinsContainer && window.originalCoinsHTML) {
-                    // Restore original coins HTML
-                    coinsContainer.innerHTML = window.originalCoinsHTML;
-                    
-                    // Protect ALL coin displays from other updates during animation
-                    document.querySelectorAll('.coin-count').forEach(el => {
-                        el.dataset.protectedValue = 'true';
-                        el.textContent = originalCoins;
-                    });
-                    
-                    const coinIcon = coinsContainer.querySelector('.coin-icon');
-                    const coinCount = coinsContainer.querySelector('.coin-count');
-                    
-                    if (coinCount) {
-                        // Make it prominent
-                        coinsContainer.style.transform = 'scale(1.2)';
-                        coinsContainer.style.transition = 'transform 0.3s ease';
-                        
-                        // Visual animation for the 100 coins
-                        const steps = 60;
-                        const stepDelay = 2000 / steps;
-                        let currentStep = 0;
-                        
-                        const animateCoins = () => {
-                            if (currentStep <= steps) {
-                                const progress = currentStep / steps;
-                                const currentValue = Math.round(originalCoins + (targetCoins - originalCoins) * progress);
-                                
-                                // Update ALL coin displays
-                                document.querySelectorAll('.coin-count').forEach(el => {
-                                    el.textContent = currentValue;
-                                    el.style.color = 'var(--gold)';
-                                    el.style.textShadow = '0 0 10px var(--gold)';
-                                });
-                                
-                                currentStep++;
-                                setTimeout(animateCoins, stepDelay);
-                            } else {
-                                // Animation complete - update actual game state
-                                gameState.coins = targetCoins;
-                                saveProgress();
-                                
-                                // Ensure final value shown matches target on all displays
-                                document.querySelectorAll('.coin-count').forEach(el => {
-                                    el.textContent = targetCoins;
-                                    delete el.dataset.protectedValue;
-                                });
-                                
-                                // Maintain emphasis for a while
-                                setTimeout(() => {
-                                    document.querySelectorAll('.coin-count').forEach(el => {
-                                        el.style.color = '';
-                                        el.style.textShadow = '';
-                                    });
-                                    coinsContainer.style.transform = 'scale(1)';
-                                }, 1000);
-                            }
-                        };
-                        
-                        // Start animation
-                        animateCoins();
-                        
-                        // Pulse coin icon
-                        if (coinIcon) {
-                            coinIcon.classList.add('coin-pulse');
-                            coinIcon.style.animation = 'coinPulse 0.5s ease-in-out 6';
-                        }
-                    }
-                }
-            }, 500);
-            
-            // Show victory notification after animations
-            setTimeout(() => {
-                console.log('Showing victory notification');
-                
-                // Victory notification does NOT need to add coins again
-                showBossVictoryNotification(false);
-            }, 5000);
-        } else {
-            setTimeout(() => {
-                showBossVictoryNotification(false);
-            }, 3000);
-        }
-    }, 1000);
-
-    // Add animation styles if needed
-    if (!document.getElementById('boss-transition-style')) {
-        const styleEl = document.createElement('style');
-        styleEl.id = 'boss-transition-style';
-        styleEl.textContent = `
-            @keyframes fade-to-blue {
-                0% { background: linear-gradient(135deg, #800000, #3a0000); }
-                20% { background: linear-gradient(135deg, #800000, #3a0000); }
-                60% { background: linear-gradient(135deg, #4a1582, #0d47a1); }
-                100% { background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%); }
-            }
-            
-            @keyframes boss-shrink {
-                0% { transform: scale(1); opacity: 1; }
-                30% { transform: scale(0.8); opacity: 0.8; }
-                100% { transform: scale(0); opacity: 0; }
-            }
-        `;
-        document.head.appendChild(styleEl);
-    }
-}
-
 // ADD a function to update coins after boss victory
 function updateCoinsAfterBossVictory() {
     const currentCoins = gameState.coins;
@@ -8563,7 +8550,59 @@ function updateCoinsAfterBossVictory() {
     saveProgress();
 }
 
-function showBossVictoryNotification(coinRewardNeeded = false) {
+function updateStageCompletionCounters() {
+    // Get all stage wrappers
+    const stageWrappers = document.querySelectorAll('.stage-wrapper');
+    
+    stageWrappers.forEach(stageWrapper => {
+      const stageId = stageWrapper.getAttribute('data-stage');
+      if (!stageId) return;
+      
+      // Get stage structure for information about sets and levels
+      const stageNum = parseInt(stageId);
+      const stage = gameStructure.stages[stageNum - 1];
+      if (!stage) return;
+      
+      // Initialize counters
+      let completedSets = 0;
+      const totalSets = stage.numSets;
+      
+      // Count completed sets by checking if all levels (including boss) are completed
+      for (let setId = 1; setId <= totalSets; setId++) {
+        let allLevelsComplete = true;
+        
+        // Check each level in the set
+        for (let levelId = 1; levelId <= stage.levelsPerSet; levelId++) {
+          const levelKey = `${stageNum}_${setId}_${levelId}`;
+          if (!gameState.completedLevels.has(levelKey) && !gameState.perfectLevels.has(levelKey)) {
+            allLevelsComplete = false;
+            break;
+          }
+        }
+        
+        if (allLevelsComplete) {
+          completedSets++;
+        }
+      }
+      
+      // Update the counter display
+      const counterElement = stageWrapper.querySelector('.stage-status');
+      if (counterElement) {
+        counterElement.textContent = `${completedSets}/${totalSets} Sets Completed`;
+      }
+    });
+  }
+
+  function showBossVictoryNotification(coinRewardNeeded = false) {
+    // CRITICAL ADDITION: Mark boss level as completed
+    const stage = gameStructure.stages[gameState.currentStage - 1];
+    if (stage && stage.bossLevel) {
+        const bossLevelKey = `${gameState.currentStage}_${gameState.currentSet}_${stage.bossLevel}`;
+        console.log(`Ensuring boss level ${bossLevelKey} is marked as completed before victory notification`);
+        gameState.completedLevels.add(bossLevelKey);
+        saveProgress();
+    }
+    
     // Apply coins only if needed (should not be needed anymore as it's done earlier)
     if (coinRewardNeeded) {
         console.log("Adding 100 coin bonus in showBossVictoryNotification");
@@ -8573,39 +8612,65 @@ function showBossVictoryNotification(coinRewardNeeded = false) {
     // Clear animation flag
     window.bossVictoryAnimationInProgress = false;
     
-    // DO NOT call updateAllCoinDisplays() here - it would trigger another animation
-    
     const modal = document.createElement('div');
     modal.className = 'arcade-completion-modal';
     modal.innerHTML = `
     <div class="completion-modal-content">
-      <h2 style="color: var(--gold)">Boss Defeated!</h2>
-      <p style="font-size: 1.2rem; margin: 1rem 0;">Congratulations! You've conquered this challenge!</p>
+      <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
+        Boss Defeated!
+      </h1>
+      <p style="font-size: 1.2rem; margin: 1rem 0; color: var(--success);">
+        Congratulations! You've conquered this challenge!
+      </p>
       
-      <div class="completion-stats">
-        <div class="stat-item">
+      <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
+        <div class="stat-item" style="text-align: center; flex: 1;">
           <i class="fas fa-skull" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
-          <span style="display: block; margin-bottom: 0.25rem;">Boss Defeated</span>
-          <strong style="font-size: 1.5rem;">✓</strong>
+          <div style="opacity: 0.7;">Boss Defeated</div>
+          <div style="font-size: 1.5rem; color: var(--success); margin-top: 0.5rem;">✓</div>
         </div>
-        <div class="stat-item">
+        <div class="stat-item" style="text-align: center; flex: 1;">
           <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
-          <span style="display: block; margin-bottom: 0.25rem;">Bonus Coins</span>
-          <strong style="font-size: 1.5rem;">100</strong>
+          <div style="opacity: 0.7;">Bonus Coins</div>
+          <div style="font-size: 1.5rem; color: var(--gold); margin-top: 0.5rem;">100</div>
         </div>
-        <div class="stat-item">
+        <div class="stat-item" style="text-align: center; flex: 1;">
           <i class="fas fa-unlock" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
-          <span style="display: block; margin-bottom: 0.25rem;">New Set</span>
-          <strong style="font-size: 1.5rem;">Unlocked</strong>
+          <div style="opacity: 0.7;">New Set</div>
+          <div style="font-size: 1.5rem; color: var(--accent); margin-top: 0.5rem;">Unlocked</div>
         </div>
       </div>
       
-      <div style="display: flex; justify-content: space-around; margin-top: 2rem; gap: 1rem;">
+      <div class="set-progress-container" style="width: 100%; margin: 2rem 0; padding: 0 1rem;">
+        <div style="text-align: left; margin-bottom: 0.5rem; opacity: 0.7; font-size: 0.9rem;">
+          Set Completed
+        </div>
+        <div class="set-progress-bar" style="
+          width: 100%;
+          height: 10px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 5px;
+          overflow: hidden;
+          position: relative;
+        ">
+          <div class="set-progress-fill" style="
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--gold));
+            border-radius: 5px;
+          "></div>
+        </div>
+      </div>
+      
+      <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
         <button onclick="handleBossVictoryContinue()" class="start-button" style="
           background: var(--accent);
           color: var(--text);
           border: none;
-          padding: 1rem 2rem;
+          padding: 1rem 2.5rem;
           border-radius: 50px;
           font-size: 1.1rem;
           font-weight: 600;
@@ -8619,7 +8684,7 @@ function showBossVictoryNotification(coinRewardNeeded = false) {
           background: transparent;
           color: var(--text);
           border: 2px solid var(--accent);
-          padding: 1rem 2rem;
+          padding: 1rem 2.5rem;
           border-radius: 50px;
           font-size: 1.1rem;
           font-weight: 600;
@@ -8637,105 +8702,115 @@ function showBossVictoryNotification(coinRewardNeeded = false) {
 }
 
 function handleBossVictoryContinue() {
-  console.log("Boss victory continue button clicked");
-  const modal = document.querySelector(".arcade-completion-modal");
-  
-  // Now that everything is complete, we can safely update all displays
-  updateAllCoinDisplays();
-  
-  if (modal) {
-    modal.classList.remove("show");
-    setTimeout(() => {
-      modal.remove();
-      
-      const bgTransition = document.querySelector(".background-transition-overlay");
-      
-      if (bgTransition) {
-        console.log("Using existing transition overlay for smooth transition");
-        bgTransition.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
-        resetBossStyles(true);
-      } else {
-        resetBossStyles();
-      }
-      
-      unlockNextSet();
-      
-      // Get current stage configuration
-      const currentStage = gameState.currentStage;
-      const currentSet = gameState.currentSet;
-      const stageStructure = gameStructure.stages[currentStage-1];
-      
-      if (!stageStructure) {
-        console.error(`Invalid stage: ${currentStage}`);
-        showScreen("welcome-screen");
-        return;
-      }
-      
-      const userStatus = currentUser ? currentUser.status : "unregistered";
-      
-      // Check if this is the last set in the stage
-      const isLastSetInStage = currentSet >= stageStructure.numSets;
-      
-      if (isLastSetInStage) {
-        // This is the last set in the stage, should move to next stage
-        if (currentStage < 5) {
-          // Move to first set of next stage
-          if (currentStage >= 2 && userStatus !== "premium") {
-            // Non-premium users can't access beyond first set of stages 2-5
-            console.log("Non-premium user attempted to access next stage, showing upgrade prompt");
-            showScreen("welcome-screen");
+    console.log("Boss victory continue button clicked");
+    
+    // CRITICAL ADDITION: One last attempt to mark boss level complete
+    const stage = gameStructure.stages[gameState.currentStage - 1];
+    if (stage && stage.bossLevel) {
+        const bossLevelKey = `${gameState.currentStage}_${gameState.currentSet}_${stage.bossLevel}`;
+        console.log(`Final boss level completion check: ${bossLevelKey}`);
+        gameState.completedLevels.add(bossLevelKey);
+        saveProgress();
+    }
+    
+    const modal = document.querySelector(".arcade-completion-modal");
+    
+    // Now that everything is complete, we can safely update all displays
+    updateAllCoinDisplays();
+    
+    if (modal) {
+        modal.classList.remove("show");
+        setTimeout(() => {
+            modal.remove();
+            
+            const bgTransition = document.querySelector(".background-transition-overlay");
+            
+            if (bgTransition) {
+                console.log("Using existing transition overlay for smooth transition");
+                bgTransition.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
+                resetBossStyles(true);
+            } else {
+                resetBossStyles();
+            }
+            
+            unlockNextSet();
+            
+            // Get current stage configuration
+            const currentStage = gameState.currentStage;
+            const currentSet = gameState.currentSet;
+            const stageStructure = gameStructure.stages[currentStage-1];
+            
+            if (!stageStructure) {
+                console.error(`Invalid stage: ${currentStage}`);
+                showScreen("welcome-screen");
+                return;
+            }
+            
+            const userStatus = currentUser ? currentUser.status : "unregistered";
+            
+            // Check if this is the last set in the stage
+            const isLastSetInStage = currentSet >= stageStructure.numSets;
+            
+            if (isLastSetInStage) {
+                // This is the last set in the stage, should move to next stage
+                if (currentStage < 5) {
+                    // Move to first set of next stage
+                    if (currentStage >= 2 && userStatus !== "premium") {
+                        // Non-premium users can't access beyond first set of stages 2-5
+                        console.log("Non-premium user attempted to access next stage, showing upgrade prompt");
+                        showScreen("welcome-screen");
+                        setTimeout(() => {
+                            showUpgradePrompt();
+                        }, 500);
+                        return;
+                    }
+                    
+                    // For premium users or stage 1 users, proceed to next stage
+                    gameState.currentStage += 1;
+                    gameState.currentSet = 1;
+                    gameState.currentLevel = 1;
+                    
+                    console.log(`Moving to Stage ${gameState.currentStage}, Set 1, Level 1`);
+                } else {
+                    // This is the final stage (5), show stage selection screen
+                    console.log("Final stage completed, showing stage selection");
+                    showScreen("stage-screen");
+                    return;
+                }
+            } else {
+                // Not the last set, move to next set in current stage
+                const nextSet = currentSet + 1;
+                
+                // Premium check for stages 2-5
+                if (currentStage >= 2 && nextSet > 1 && userStatus !== "premium") {
+                    console.log("Non-premium user attempted to access premium set, showing upgrade prompt");
+                    showScreen("welcome-screen");
+                    setTimeout(() => {
+                        showUpgradePrompt();
+                    }, 500);
+                    return;
+                }
+                
+                gameState.currentSet = nextSet;
+                gameState.currentLevel = 1;
+                console.log(`Moving to Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level 1`);
+            }
+            
+            // Save progress
+            saveProgress();
+            
             setTimeout(() => {
-              showUpgradePrompt();
+                console.log("Starting next level");
+                if (bgTransition && bgTransition.parentNode) {
+                    bgTransition.parentNode.removeChild(bgTransition);
+                }
+                startLevel(1);
             }, 500);
-            return;
-          }
-          
-          // For premium users or stage 1 users, proceed to next stage
-          gameState.currentStage += 1;
-          gameState.currentSet = 1;
-          gameState.currentLevel = 1;
-          
-          console.log(`Moving to Stage ${gameState.currentStage}, Set 1, Level 1`);
-        } else {
-          // This is the final stage (5), show stage selection screen
-          console.log("Final stage completed, showing stage selection");
-          showScreen("stage-screen");
-          return;
-        }
-      } else {
-        // Not the last set, move to next set in current stage
-        const nextSet = currentSet + 1;
-        
-        // Premium check for stages 2-5
-        if (currentStage >= 2 && nextSet > 1 && userStatus !== "premium") {
-          console.log("Non-premium user attempted to access premium set, showing upgrade prompt");
-          showScreen("welcome-screen");
-          setTimeout(() => {
-            showUpgradePrompt();
-          }, 500);
-          return;
-        }
-        
-        gameState.currentSet = nextSet;
-        gameState.currentLevel = 1;
-        console.log(`Moving to Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level 1`);
-      }
-      
-      // Save progress
-      saveProgress();
-      
-      setTimeout(() => {
-        console.log("Starting next level");
-        if (bgTransition && bgTransition.parentNode) {
-          bgTransition.parentNode.removeChild(bgTransition);
-        }
-        startLevel(1);
-      }, 500);
-    }, 300);
-  }
-  
-  // Ensure animation flag is cleared
-  window.bossVictoryAnimationInProgress = false;
+        }, 300);
+    }
+    
+    // Ensure animation flag is cleared
+    window.bossVictoryAnimationInProgress = false;
 }
 
 function resetBossStyles(e = false) {
@@ -8780,62 +8855,51 @@ function resetBossStyles(e = false) {
 }
 
 function handleBossVictoryHome() {
-  console.log("Boss victory home button clicked");
-  const modal = document.querySelector(".arcade-completion-modal");
-  updateAllCoinDisplays();
-  
-  if (modal) {
-    modal.classList.remove("show");
-    setTimeout(() => {
-      modal.remove();
-      resetBossStyles();
-      
-      unlockNextSet();
-      
-      // Get current stage configuration
-      const currentStage = gameState.currentStage;
-      const currentSet = gameState.currentSet;
-      const stageStructure = gameStructure.stages[currentStage-1];
-      
-      if (!stageStructure) {
-        console.error(`Invalid stage: ${currentStage}`);
-        showScreen("welcome-screen");
-        return;
-      }
-      
-      // Check if this is the last set in the stage
-      const isLastSetInStage = currentSet >= stageStructure.numSets;
-      const userStatus = currentUser ? currentUser.status : "unregistered";
-      
-      if (isLastSetInStage) {
-        // This is the last set in the stage, should move to next stage
-        if (currentStage < 5) {
-          // Move to first set of next stage
-          gameState.currentStage += 1;
-          gameState.currentSet = 1;
-          gameState.currentLevel = 1;
+    console.log("Boss victory home button clicked");
+    const modal = document.querySelector(".arcade-completion-modal");
+    updateAllCoinDisplays();
+    
+    if (modal) {
+      modal.classList.remove("show");
+      setTimeout(() => {
+        modal.remove();
+        resetBossStyles();
+        
+        // Unlock next set to record achievement
+        unlockNextSet();
+        
+        // Mark boss level as completed for current stage/set
+        const currentStage = gameState.currentStage;
+        const currentSet = gameState.currentSet;
+        const stageStructure = gameStructure.stages[currentStage-1];
+        
+        if (stageStructure && stageStructure.bossLevel) {
+          const bossLevelKey = `${currentStage}_${currentSet}_${stageStructure.bossLevel}`;
+          gameState.completedLevels.add(bossLevelKey);
         }
-        // For the last stage, we just keep the same values
-      } else {
-        // Still have more sets in this stage
-        gameState.currentSet += 1;
-        gameState.currentLevel = 1;
-      }
-      
-      // Show upgrade if needed for non-premium users
-      if (gameState.currentStage >= 2 && gameState.currentSet > 1 && userStatus !== "premium") {
-        setTimeout(() => {
-          showUpgradePrompt();
-        }, 500);
-      }
-      
-      saveProgress();
-      showScreen("welcome-screen");
-    }, 300);
+        
+        // CRITICAL: Clear the stored game context to prevent auto-resuming the boss level
+        localStorage.removeItem("gameContext");
+        
+        // Also reset current game state to prevent auto-resumption
+        if (currentGame) {
+          currentGame.active = false;
+          currentGame.bossDefeatedEffectShown = false;
+          currentGame.bossMadeComplete = false;
+          currentGame.bossRewardApplied = false;
+        }
+        
+        // Save progress
+        saveProgress();
+        
+        // Force a true return to welcome screen
+        window.location.hash = ''; // Clear any hash that might trigger resume
+        showScreen("welcome-screen", true); // Pass true to force refresh
+      }, 300);
+    }
   }
-}
-
-createBossStyleSheet();
+  
+  createBossStyleSheet();
 
 function showStageCascadeScreen() {
     console.log("Showing stage cascade screen");
@@ -9178,4 +9242,1956 @@ function getSetDescription(stageId, setId) {
     // Generic descriptions that combine stage and set
     return `${stageNames[stageId] || 'Advanced'} vocabulary - Group ${setId}`;
 }
+
+function isSetCompleted(stageId, setId) {
+    // Get stage structure to know how many levels and if there's a boss
+    const stage = gameStructure.stages[stageId - 1];
+    if (!stage) return false;
+    
+    // Console log for debugging
+    console.log(`Checking if set ${stageId}-${setId} is completed...`);
+    
+    // Check each level in the set
+    for (let levelId = 1; levelId <= stage.levelsPerSet; levelId++) {
+        const levelKey = `${stageId}_${setId}_${levelId}`;
+        const isBossLevel = (levelId === stage.bossLevel);
+        
+        // Debug log to see which levels are completed
+        console.log(`Level ${levelKey}: Completed=${gameState.completedLevels.has(levelKey)}, Perfect=${gameState.perfectLevels.has(levelKey)}`);
+        
+        // If any level (including boss) isn't completed, the set isn't complete
+        if (!gameState.completedLevels.has(levelKey) && !gameState.perfectLevels.has(levelKey)) {
+            console.log(`Set ${stageId}-${setId} is NOT completed because level ${levelId} is not completed`);
+            return false;
+        }
+    }
+    
+    // If we got here, all levels are completed
+    console.log(`Set ${stageId}-${setId} is COMPLETED!`);
+    return true;
+}
+
+  function updateLevelAndSetCompletionStatus() {
+    // Update level indicators
+    document.querySelectorAll('.level-item').forEach(levelItem => {
+      // Parse level details from custom attributes or data
+      const levelId = parseInt(levelItem.textContent);
+      const setId = gameState.currentSet;
+      const stageId = gameState.currentStage;
+      
+      if (!levelId || !setId || !stageId) return;
+      
+      const levelKey = `${stageId}_${setId}_${levelId}`;
+      const isBossLevel = levelItem.classList.contains('boss');
+      
+      // Update visuals based on completion status
+      if (gameState.perfectLevels.has(levelKey)) {
+        levelItem.classList.add('perfect');
+        levelItem.classList.add('completed');
+      } else if (gameState.completedLevels.has(levelKey)) {
+        levelItem.classList.add('completed');
+      }
+    });
+    
+    // Update set completion status
+    const currentSetId = gameState.currentSet;
+    const currentStageId = gameState.currentStage;
+    
+    if (currentSetId && currentStageId) {
+      // Find the corresponding set button
+      const setButton = document.querySelector(`.set-button[data-set-id="${currentSetId}"][data-stage-id="${currentStageId}"]`);
+      
+      if (setButton && isSetCompleted(currentStageId, currentSetId)) {
+        setButton.classList.add('completed');
+        
+        // Check if ALL levels are perfect to add gold effect
+        const stage = gameStructure.stages[currentStageId - 1];
+        if (!stage) return;
+        
+        let allPerfect = true;
+        for (let levelId = 1; levelId <= stage.levelsPerSet; levelId++) {
+          const levelKey = `${currentStageId}_${currentSetId}_${levelId}`;
+          if (!gameState.perfectLevels.has(levelKey)) {
+            allPerfect = false;
+            break;
+          }
+        }
+        
+        if (allPerfect) {
+          setButton.classList.add('fully-completed');
+        }
+      }
+    }
+    
+    // Update stage completion counters
+    updateStageCompletionStats();
+  }
+  
+  /**
+   * Mark a level as completed, including boss levels
+   * @param {number} levelId - The level ID to mark completed
+   * @param {boolean} isPerfect - Whether the level was completed perfectly
+   */
+  function markLevelCompleted(levelId, isPerfect = false) {
+    const stageId = gameState.currentStage;
+    const setId = gameState.currentSet;
+    
+    if (!stageId || !setId) return;
+    
+    const levelKey = `${stageId}_${setId}_${levelId}`;
+    
+    // Add to completed levels
+    gameState.completedLevels.add(levelKey);
+    
+    // If perfect, add to perfect levels too
+    if (isPerfect) {
+      gameState.perfectLevels.add(levelKey);
+    }
+    
+    // Unlock next level if there is one
+    const stage = gameStructure.stages[stageId - 1];
+    if (!stage) return;
+    
+    // Set up set key
+    const setKey = `${stageId}_${setId}`;
+    
+    // Initialize if needed
+    if (!gameState.unlockedLevels[setKey]) {
+      gameState.unlockedLevels[setKey] = new Set([1]);
+    }
+    
+    // Unlock next level if not at max
+    if (levelId < stage.levelsPerSet) {
+      gameState.unlockedLevels[setKey].add(levelId + 1);
+    }
+    
+    // Check if set is complete
+    if (isSetCompleted(stageId, setId)) {
+      // Unlock next set if there is one
+      const nextSetId = setId + 1;
+      if (nextSetId <= stage.numSets) {
+        if (!gameState.unlockedSets[stageId]) {
+          gameState.unlockedSets[stageId] = new Set([1]); // At minimum, set 1 is unlocked
+        }
+        gameState.unlockedSets[stageId].add(nextSetId);
+      }
+    }
+    
+    // Update UI
+    updateLevelAndSetCompletionStatus();
+    
+    // Trigger event for listeners
+    const event = new CustomEvent('levelCompleted', { 
+      detail: { levelId, stageId, setId, isPerfect } 
+    });
+    document.dispatchEvent(event);
+    
+    // Save game state
+    saveGameState();
+  }
+
+// ADD this standalone function
+function markBossLevelCompleted(isPerfect = false) {
+    // Don't mark if already marked
+    if (currentGame && currentGame.bossMadeComplete) {
+      console.log("Boss already marked as complete, skipping");
+      return;
+    }
+    
+    // Get stage config to find boss level number
+    const stage = gameStructure.stages[gameState.currentStage - 1];
+    if (!stage || !stage.bossLevel) {
+      console.error("Cannot find boss level for current stage");
+      return;
+    }
+    
+    // Create the level key using the same format used elsewhere
+    const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${stage.bossLevel}`;
+    
+    console.log(`Marking boss level as completed: ${levelKey}`);
+    
+    // Add to completed levels
+    gameState.completedLevels.add(levelKey);
+    
+    // If perfect, add to perfect levels too
+    if (isPerfect) {
+      gameState.perfectLevels.add(levelKey);
+    }
+    
+    // Flag to prevent adding multiple times
+    if (currentGame) {
+      currentGame.bossMadeComplete = true;
+    }
+    
+    // Save game progress - crucial for persistence
+    if (typeof saveProgress === 'function') {
+      saveProgress();
+      console.log("Progress saved after boss completion");
+    } else {
+      console.warn("saveProgress function not found!");
+    }
+    
+    // Log for verification
+    console.log(`After marking - Boss completed: ${gameState.completedLevels.has(levelKey)}`);
+    console.log(`All completed levels:`, Array.from(gameState.completedLevels));
+    
+    // Force refresh UI
+    if (typeof showLevelScreen === 'function') {
+      console.log("Refreshing level screen");
+      setTimeout(() => showLevelScreen(gameState.currentSet), 100);
+    }
+  }
+
+  function updateBossHealthBar() {
+    // Only update if we're in boss level
+    if (!currentGame.isBossLevel) return;
+    
+    console.log("Updating boss health bar");
+  
+    const progressCircle = document.querySelector('.progress-circle');
+    if (!progressCircle) {
+      console.error("Progress circle not found");
+      return;
+    }
+    
+    const progress = progressCircle.querySelector('.progress');
+    if (!progress) {
+      console.error("Progress element not found");
+      return;
+    }
+    
+    // Calculate health values
+    const totalWords = currentGame.words.length;
+    const currentIndex = currentGame.currentIndex || 0;
+    const remainingWords = Math.max(0, totalWords - currentIndex);
+    const remainingPercentage = remainingWords / totalWords;
+    
+    console.log(`Boss health: ${remainingPercentage.toFixed(2) * 100}% (${remainingWords}/${totalWords})`);
+    
+    // Calculate the circumference
+    const circumference = 2 * Math.PI * 54;
+    
+    // Update the stroke dash offset (reverse of normal progress)
+    progress.style.strokeDashoffset = circumference * (1 - remainingPercentage);
+    
+    // Add boss-health class if not already present
+    if (!progress.classList.contains('boss-health')) {
+      progress.classList.add('boss-health');
+    }
+    
+    // Change color based on health
+    if (remainingPercentage > 0.66) {
+      // Full health - green
+      progress.style.stroke = '#4CAF50';
+      progress.classList.remove('warning');
+    } else if (remainingPercentage > 0.33) {
+      // Medium health - yellow/orange
+      progress.style.stroke = '#FFA500';
+      progress.classList.remove('warning');
+      
+      // Boss health restoration at 2/3 health (once)
+      if (remainingPercentage <= 0.66 && !currentGame.bossFirstHealthRestored) {
+        currentGame.bossFirstHealthRestored = true;
+        console.log("First boss health restoration");
+        
+        // Partially restore health (reduce current index)
+        const newIndex = Math.floor(totalWords * 0.25); // 75% health
+        currentGame.currentIndex = newIndex;
+        
+        // Show visual effect
+        const bossOrb = document.querySelector('.boss-orb-inner');
+        if (bossOrb) {
+          bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #FFEB3B, #FFA500)';
+          setTimeout(() => {
+            bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #ff3333, #990000)';
+          }, 1000);
+        }
+        
+        // Update health bar after restoring
+        setTimeout(() => updateBossHealthBar(), 100);
+      }
+    } else {
+      // Low health - red
+      progress.style.stroke = '#FF3333';
+      progress.classList.add('warning');
+      
+      // Boss health restoration at 1/3 health (once)
+      if (remainingPercentage <= 0.33 && !currentGame.bossSecondHealthRestored) {
+        currentGame.bossSecondHealthRestored = true;
+        console.log("Second boss health restoration");
+        
+        // Partially restore health (reduce current index)
+        const newIndex = Math.floor(totalWords * 0.5); // 50% health
+        currentGame.currentIndex = newIndex;
+        
+        // Show visual effect
+        const bossOrb = document.querySelector('.boss-orb-inner');
+        if (bossOrb) {
+          bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #4CAF50, #388E3C)';
+          setTimeout(() => {
+            bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #ff3333, #990000)';
+          }, 1000);
+        }
+        
+        // Update health bar after restoring
+        setTimeout(() => updateBossHealthBar(), 100);
+      }
+    }
+  }
+  
+  function healBoss(newHealthPercentage, flashColor) {
+    const progressCircle = document.querySelector('.progress-circle');
+    const progress = progressCircle ? progressCircle.querySelector('.progress') : null;
+    const bossOrb = document.querySelector('.boss-orb-inner');
+    
+    if (!progress || !bossOrb) return;
+    
+    // Flash the boss orb with the specified color
+    const originalColor = bossOrb.style.background;
+    bossOrb.style.background = flashColor;
+    bossOrb.classList.add('boss-restore-health');
+    
+    // Flash the screen
+    const questionScreen = document.querySelector('.question-screen');
+    if (questionScreen) {
+      questionScreen.style.animation = 'none';
+      questionScreen.offsetHeight; // Trigger reflow
+      questionScreen.style.animation = 'bossRestoreHealth 1s';
+    }
+    
+    // Calculate new offset
+    const circumference = 2 * Math.PI * 54;
+    const newOffset = circumference * (1 - newHealthPercentage);
+    
+    // Animate health bar filling
+    setTimeout(() => {
+      progress.style.transition = 'stroke-dashoffset 1s ease-out';
+      progress.style.strokeDashoffset = newOffset;
+      
+      // Reset boss orb
+      setTimeout(() => {
+        bossOrb.style.background = originalColor;
+        bossOrb.classList.remove('boss-restore-health');
+      }, 1000);
+    }, 300);
+  }
+  
+  function showBossHitEffect(randomColor = false) {
+    const bossOrb = document.querySelector('.boss-orb-inner');
+    if (!bossOrb) return;
+    
+    // Store original background
+    const originalBg = bossOrb.style.background;
+    
+    // Apply random color if requested
+    if (randomColor) {
+      const colors = ['yellow', 'purple', 'turquoise', 'darkgreen', 'brown'];
+      const randomColorChoice = colors[Math.floor(Math.random() * colors.length)];
+      bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColorChoice}, #990000)`;
+    }
+    
+    // Add hit effect
+    bossOrb.classList.add('boss-orb-hit');
+    
+    // Reset after animation
+    setTimeout(() => {
+      bossOrb.classList.remove('boss-orb-hit');
+      // Reset background only if we changed it
+      if (randomColor) {
+        bossOrb.style.background = originalBg;
+      }
+    }, 300);
+  }
+  
+  
+  function applyBossLevelStyles() {
+    console.log("Forcefully applying boss level styles");
+    
+    const questionScreen = document.getElementById("question-screen");
+    if (questionScreen) {
+      questionScreen.style.setProperty("background", "linear-gradient(135deg, #800000, #3a0000)", "important");
+      questionScreen.style.setProperty("animation", "pulseBg 4s infinite", "important");
+    }
+    
+    // Add boss animations stylesheet if not already present
+    if (!document.getElementById("boss-animations")) {
+      const styleElem = document.createElement("style");
+      styleElem.id = "boss-animations";
+      styleElem.textContent = `
+        @keyframes pulseBg {
+          0%, 100% { filter: brightness(1); }
+          50% { filter: brightness(1.2); }
+        }
+        
+        @keyframes pulseOrb {
+          0%, 100% { transform: scale(1); filter: brightness(1); }
+          50% { transform: scale(1.3); filter: brightness(1.4); }
+        }
+        
+        @keyframes pulseWord {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+      `;
+      document.head.appendChild(styleElem);
+    }
+    
+    // Style the question word
+    const questionWord = document.getElementById("question-word");
+    if (questionWord) {
+      questionWord.style.setProperty("color", "#ff3333", "important");
+      questionWord.style.setProperty("text-shadow", "0 0 10px rgba(255, 0, 0, 0.5)", "important");
+      questionWord.style.setProperty("animation", "pulseWord 2s infinite", "important");
+    }
+    
+    // Replace coins container with boss orb
+    const coinsContainer = document.querySelector(".coins-container");
+    if (coinsContainer) {
+      if (!window.originalCoinsHTML) {
+        window.originalCoinsHTML = coinsContainer.innerHTML;
+      }
+      
+      coinsContainer.innerHTML = `
+      <div class="boss-orb" style="
+        width: 85px;
+        height: 85px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-75%, -75%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+      ">
+        <div class="boss-orb-inner" style="
+          width: 50px;
+          height: 50px;
+          background: radial-gradient(circle at 30% 30%, #ff3333, #990000);
+          border-radius: 50%;
+          box-shadow: 0 0 20px #ff3333, inset 0 0 10px rgba(255,255,255,0.3);
+          animation: pulseOrb 1s infinite;
+        "></div>
+      </div>
+    `;
+    }
+  }
+  
+  function handleBossAnswer(correct) {
+    if (correct) {
+      // Make progress bar flicker
+      const progressCircle = document.querySelector(".progress-circle");
+      const progressBar = progressCircle?.querySelector(".progress");
+      
+      if (progressBar) {
+        // Save original stroke color
+        const originalColor = progressBar.style.stroke;
+        
+        // Create and apply flicker animation
+        const flickerColors = ["#ffffff", "#ffff00", "#800080", "#990000"];
+        const randomColor = flickerColors[Math.floor(Math.random() * flickerColors.length)];
+        
+        progressBar.style.transition = "stroke 0.2s ease";
+        progressBar.style.stroke = randomColor;
+        
+        // Reset back to green after flicker
+        setTimeout(() => {
+          progressBar.style.stroke = originalColor;
+        }, 200);
+      }
+    }
+  }
+  
+  // Boss Level Visual and Interaction Enhancements
+  
+  function createBossTimer() {
+      const timerContainer = document.createElement('div');
+      timerContainer.id = 'boss-timer';
+      timerContainer.style.cssText = `
+          position: absolute;
+          top: 10px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          justify-content: center;
+          z-index: 10;
+      `;
+      
+      const timerDisplay = document.createElement('div');
+      timerDisplay.style.cssText = `
+          background-color: rgba(255, 215, 0, 0.8);
+          color: #000;
+          font-family: 'Digital', monospace;
+          font-size: 2rem;
+          padding: 5px 10px;
+          border-radius: 5px;
+          letter-spacing: 3px;
+      `;
+      
+      timerContainer.appendChild(timerDisplay);
+      return { container: timerContainer, display: timerDisplay };
+  }
+  
+  function updateBossTimer(timerDisplay, timeRemaining) {
+      if (timerDisplay) {
+          const minutes = Math.floor(timeRemaining / 60);
+          const seconds = timeRemaining % 60;
+          timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+  }
+  
+  function createLightningEffect() {
+      const lightningContainer = document.createElement('div');
+      lightningContainer.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(255, 255, 255, 0.8);
+          z-index: 1000;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.1s ease;
+      `;
+      document.body.appendChild(lightningContainer);
+  
+      const flickerCount = Math.floor(Math.random() * 3) + 1;
+      let delay = 0;
+  
+      for (let i = 0; i < flickerCount; i++) {
+          setTimeout(() => {
+              lightningContainer.style.opacity = '1';
+              setTimeout(() => {
+                  lightningContainer.style.opacity = '0';
+              }, 50);
+          }, delay);
+          delay += 200;
+      }
+  
+      setTimeout(() => {
+          document.body.removeChild(lightningContainer);
+      }, delay + 500);
+  }
+  
+  function createBossRainingLetters() {
+      const questionScreen = document.getElementById('question-screen');
+      if (!questionScreen) return;
+  
+      // Clear any existing intervals
+      if (window.rainingLettersInterval) {
+          clearInterval(window.rainingLettersInterval);
+      }
+  
+      const letters = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', ...'אבגדהוזחטיכלמנסעפצקרשת'];
+      const screenWidth = questionScreen.clientWidth;
+  
+      window.rainingLettersInterval = setInterval(() => {
+          const particleCount = Math.floor(Math.random() * 3) + 1;
+          
+          for (let i = 0; i < particleCount; i++) {
+              const letter = document.createElement('div');
+              letter.className = 'boss-raining-letter';
+              letter.textContent = letters[Math.floor(Math.random() * letters.length)];
+              
+              letter.style.cssText = `
+                  position: absolute;
+                  top: -20px;
+                  left: ${Math.random() * screenWidth}px;
+                  color: rgba(255, 0, 0, 0.4);
+                  font-size: 16px;
+                  animation: boss-letter-rain 5s linear forwards;
+                  z-index: 1;
+                  text-shadow: 0 0 5px rgba(255, 0, 0, 0.3);
+              `;
+  
+              questionScreen.appendChild(letter);
+  
+              // Remove letter after animation
+              setTimeout(() => {
+                  if (letter.parentNode === questionScreen) {
+                      questionScreen.removeChild(letter);
+                  }
+              }, 5000);
+          }
+      }, 300);
+  }
+  
+  function stopBossRainingLetters() {
+      if (window.rainingLettersInterval) {
+          clearInterval(window.rainingLettersInterval);
+          window.rainingLettersInterval = null;
+      }
+  }
+  
+  function createBossStyleSheet() {
+    const styleElem = document.createElement("style");
+    styleElem.id = "boss-level-styles";
+    styleElem.textContent = `
+      @keyframes boss-letter-rain {
+        0% { 
+          transform: translateY(-20px);
+          opacity: 0.6;
+        }
+        100% { 
+          transform: translateY(100vh);
+          opacity: 0;
+        }
+      }
+  
+      @keyframes boss-shrink {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(0.8); opacity: 0.8; }
+        100% { transform: scale(0); opacity: 0; }
+      }
+  
+      @keyframes fade-to-blue {
+        0% { background: linear-gradient(135deg, #800000, #3a0000); }
+        20% { background: linear-gradient(135deg, #800000, #3a0000); }
+        60% { background: linear-gradient(135deg, #4a1582, #0d47a1); }
+        100% { background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%); }
+      }
+      
+      @keyframes incinerateEffect {
+        0% { transform: scale(0); opacity: 0; }
+        10% { transform: scale(0.5); opacity: 0.8; }
+        50% { transform: scale(1.5); opacity: 1; }
+        100% { transform: scale(3); opacity: 0; }
+      }
+      
+      .incineration-effect {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: radial-gradient(circle, #ff9900, #ff3300);
+        opacity: 0;
+        transform: scale(0);
+        animation: incinerateEffect 1.5s forwards;
+      }
+    `;
+    document.head.appendChild(styleElem);
+  }
+  
+  function showModernBossVictoryScreen() {
+      const victoryOverlay = document.createElement('div');
+      victoryOverlay.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 2000;
+          opacity: 0;
+          transition: opacity 0.5s ease;
+      `;
+  
+      const victoryContent = document.createElement('div');
+      victoryContent.style.cssText = `
+          background: linear-gradient(135deg, #00c6ff, #0072ff);
+          padding: 2rem;
+          border-radius: 20px;
+          text-align: center;
+          max-width: 500px;
+          width: 90%;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      `;
+  
+      victoryContent.innerHTML = `
+          <h2 style="color: white; font-size: 2.5rem; margin-bottom: 1rem;">🏆 Boss Defeated!</h2>
+          <div class="victory-stats" style="display: flex; justify-content: space-around; margin: 1.5rem 0; color: white;">
+              <div>
+                  <div style="font-size: 1.2rem; opacity: 0.7;">Words Learned</div>
+                  <div style="font-size: 2rem; font-weight: bold;">${currentGame.words.length}</div>
+              </div>
+              <div>
+                  <div style="font-size: 1.2rem; opacity: 0.7;">Coins Earned</div>
+                  <div style="font-size: 2rem; font-weight: bold;">100</div>
+              </div>
+          </div>
+          <div style="display: flex; justify-content: center; gap: 1rem;">
+              <button class="continue-btn" style="
+                  background: #4CAF50; 
+                  color: white; 
+                  border: none; 
+                  padding: 1rem 2rem; 
+                  border-radius: 50px; 
+                  font-size: 1rem; 
+                  cursor: pointer;
+                  transition: transform 0.3s ease;
+              ">Continue to Next Set</button>
+              <button class="home-btn" style="
+                  background: rgba(255,255,255,0.2); 
+                  color: white; 
+                  border: 2px solid white; 
+                  padding: 1rem 2rem; 
+                  border-radius: 50px; 
+                  font-size: 1rem; 
+                  cursor: pointer;
+                  transition: transform 0.3s ease;
+              ">Return Home</button>
+          </div>
+      `;
+  
+      const continueBtn = victoryContent.querySelector('.continue-btn');
+      const homeBtn = victoryContent.querySelector('.home-btn');
+  
+      [continueBtn, homeBtn].forEach(btn => {
+          btn.addEventListener('mouseenter', () => {
+              btn.style.transform = 'scale(1.05)';
+          });
+          btn.addEventListener('mouseleave', () => {
+              btn.style.transform = 'scale(1)';
+          });
+      });
+  
+      continueBtn.addEventListener('click', () => {
+          victoryOverlay.style.opacity = '0';
+          setTimeout(() => {
+              victoryOverlay.remove();
+              unlockNextSet();
+              const nextSet = gameState.currentSet + 1;
+              gameState.currentSet = nextSet;
+              gameState.currentLevel = 1;
+              startLevel(1);
+          }, 500);
+      });
+  
+      homeBtn.addEventListener('click', () => {
+          victoryOverlay.style.opacity = '0';
+          setTimeout(() => {
+              victoryOverlay.remove();
+              unlockNextSet();
+              showScreen('welcome-screen');
+          }, 500);
+      });
+  
+      victoryOverlay.appendChild(victoryContent);
+      document.body.appendChild(victoryOverlay);
+  
+      // Trigger fade-in
+      requestAnimationFrame(() => {
+          victoryOverlay.style.opacity = '1';
+      });
+  }
+  
+  function showBossDefeatEffect() {
+      console.log('Starting boss defeat effect sequence');
+      
+      if (currentGame.bossDefeatedEffectShown) {
+          console.log('Boss defeat effect already shown, skipping');
+          return;
+      }
+      
+      // Set animation flag to block other coin updates
+      window.bossVictoryAnimationInProgress = true;
+      
+      // Set flag to prevent multiple executions
+      currentGame.bossDefeatedEffectShown = true;
+      
+      // Store current coin value for animation
+      const originalCoins = gameState.coins;
+      const targetCoins = originalCoins + 100;
+      
+      // Flag that we've acknowledged the boss reward
+      currentGame.bossRewardApplied = true;
+      
+      // Background transition
+      const questionScreen = document.querySelector('.question-screen');
+      if (questionScreen) {
+          console.log('Creating background transition overlay');
+          
+          const transitionOverlay = document.createElement('div');
+          transitionOverlay.className = 'background-transition-overlay';
+          transitionOverlay.style.cssText = `
+              position: absolute;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              background: linear-gradient(135deg, #800000, #3a0000); 
+              z-index: -1;
+              animation: fade-to-blue 5s ease-in-out forwards;
+              pointer-events: none;
+          `;
+          
+          questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
+          markBossLevelCompleted(false); // Pass true if boss was defeated perfectly
+        }
+      
+      // Boss orb disappearing animation
+      setTimeout(() => {
+          const bossOrb = document.querySelector('.boss-orb-inner');
+          
+          if (bossOrb) {
+              console.log('Disintegrating boss orb');
+              
+              const incinerationEffect = document.createElement('div');
+              incinerationEffect.className = 'incineration-effect';
+              bossOrb.appendChild(incinerationEffect);
+              
+              bossOrb.style.animation = 'boss-shrink 2.5s forwards';
+              
+              // After boss orb starts disappearing, show coin animation
+              setTimeout(() => {
+                  console.log('Applying coin reward animation');
+                  
+                  const coinsContainer = document.querySelector('.coins-container');
+                  
+                  if (coinsContainer && window.originalCoinsHTML) {
+                      // Restore original coins HTML
+                      coinsContainer.innerHTML = window.originalCoinsHTML;
+                      
+                      // Protect ALL coin displays from other updates during animation
+                      document.querySelectorAll('.coin-count').forEach(el => {
+                          el.dataset.protectedValue = 'true';
+                          el.textContent = originalCoins;
+                      });
+                      
+                      const coinIcon = coinsContainer.querySelector('.coin-icon');
+                      const coinCount = coinsContainer.querySelector('.coin-count');
+                      
+                      if (coinCount) {
+                          // Make it prominent
+                          coinsContainer.style.transform = 'scale(1.2)';
+                          coinsContainer.style.transition = 'transform 0.3s ease';
+                          
+                          // Visual animation for the 100 coins
+                          const steps = 60;
+                          const stepDelay = 2000 / steps;
+                          let currentStep = 0;
+                          
+                          const animateCoins = () => {
+                              if (currentStep <= steps) {
+                                  const progress = currentStep / steps;
+                                  const currentValue = Math.round(originalCoins + (targetCoins - originalCoins) * progress);
+                                  
+                                  // Update ALL coin displays
+                                  document.querySelectorAll('.coin-count').forEach(el => {
+                                      el.textContent = currentValue;
+                                      el.style.color = 'var(--gold)';
+                                      el.style.textShadow = '0 0 10px var(--gold)';
+                                  });
+                                  
+                                  currentStep++;
+                                  setTimeout(animateCoins, stepDelay);
+                              } else {
+                                  // Animation complete - update actual game state
+                                  gameState.coins = targetCoins;
+                                  saveProgress();
+                                  
+                                  // Ensure final value shown matches target on all displays
+                                  document.querySelectorAll('.coin-count').forEach(el => {
+                                      el.textContent = targetCoins;
+                                      delete el.dataset.protectedValue;
+                                  });
+                                  
+                                  // Maintain emphasis for a while
+                                  setTimeout(() => {
+                                      document.querySelectorAll('.coin-count').forEach(el => {
+                                          el.style.color = '';
+                                          el.style.textShadow = '';
+                                      });
+                                      coinsContainer.style.transform = 'scale(1)';
+                                  }, 1000);
+                              }
+                          };
+                          
+                          // Start animation
+                          animateCoins();
+                          
+                          // Pulse coin icon
+                          if (coinIcon) {
+                              coinIcon.classList.add('coin-pulse');
+                              coinIcon.style.animation = 'coinPulse 0.5s ease-in-out 6';
+                          }
+                      }
+                  }
+              }, 500);
+              
+              // Show victory notification after animations
+              setTimeout(() => {
+                  console.log('Showing victory notification');
+                  
+                  // Victory notification does NOT need to add coins again
+                  showBossVictoryNotification(false);
+              }, 5000);
+          } else {
+              setTimeout(() => {
+                  showBossVictoryNotification(false);
+              }, 3000);
+          }
+      }, 1000);
+  
+      // Add animation styles if needed
+      if (!document.getElementById('boss-transition-style')) {
+          const styleEl = document.createElement('style');
+          styleEl.id = 'boss-transition-style';
+          styleEl.textContent = `
+              @keyframes fade-to-blue {
+                  0% { background: linear-gradient(135deg, #800000, #3a0000); }
+                  20% { background: linear-gradient(135deg, #800000, #3a0000); }
+                  60% { background: linear-gradient(135deg, #4a1582, #0d47a1); }
+                  100% { background: radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%); }
+              }
+              
+              @keyframes boss-shrink {
+                  0% { transform: scale(1); opacity: 1; }
+                  30% { transform: scale(0.8); opacity: 0.8; }
+                  100% { transform: scale(0); opacity: 0; }
+              }
+          `;
+          document.head.appendChild(styleEl);
+      }
+  }
+  
+  // ADD a function to update coins after boss victory
+  function updateCoinsAfterBossVictory() {
+      const currentCoins = gameState.coins;
+      const newCoins = currentCoins;
+      
+      // Update gameState.coins but don't use CoinsManager to avoid duplicate animations
+      gameState.coins = newCoins;
+      
+      // Update all coin displays with animation
+      document.querySelectorAll('.coin-count').forEach(el => {
+          animateCoinsChange(el, currentCoins, newCoins);
+      });
+      
+      // Pulse the coin icons
+      document.querySelectorAll('.coin-icon').forEach(icon => {
+          icon.classList.add('coin-pulse');
+          setTimeout(() => {
+              icon.classList.remove('coin-pulse');
+          }, 1500);
+      });
+      
+      // Save progress
+      saveProgress();
+  }
+  
+  function showBossVictoryNotification(coinRewardNeeded = false) {
+      // Apply coins only if needed (should not be needed anymore as it's done earlier)
+      if (coinRewardNeeded) {
+          console.log("Adding 100 coin bonus in showBossVictoryNotification");
+          saveProgress();
+      }
+      
+      // Clear animation flag
+      window.bossVictoryAnimationInProgress = false;
+      
+      const modal = document.createElement('div');
+      modal.className = 'arcade-completion-modal';
+      modal.innerHTML = `
+      <div class="completion-modal-content">
+        <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
+          Boss Defeated!
+        </h1>
+        <p style="font-size: 1.2rem; margin: 1rem 0; color: var(--success);">
+          Congratulations! You've conquered this challenge!
+        </p>
+        
+        <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
+          <div class="stat-item" style="text-align: center; flex: 1;">
+            <i class="fas fa-skull" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
+            <div style="opacity: 0.7;">Boss Defeated</div>
+            <div style="font-size: 1.5rem; color: var(--success); margin-top: 0.5rem;">✓</div>
+          </div>
+          <div class="stat-item" style="text-align: center; flex: 1;">
+            <i class="fas fa-coins" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
+            <div style="opacity: 0.7;">Bonus Coins</div>
+            <div style="font-size: 1.5rem; color: var(--gold); margin-top: 0.5rem;">100</div>
+          </div>
+          <div class="stat-item" style="text-align: center; flex: 1;">
+            <i class="fas fa-unlock" style="font-size: 2rem; color: var(--gold); margin-bottom: 0.5rem;"></i>
+            <div style="opacity: 0.7;">New Set</div>
+            <div style="font-size: 1.5rem; color: var(--accent); margin-top: 0.5rem;">Unlocked</div>
+          </div>
+        </div>
+        
+        <div class="set-progress-container" style="width: 100%; margin: 2rem 0; padding: 0 1rem;">
+          <div style="text-align: left; margin-bottom: 0.5rem; opacity: 0.7; font-size: 0.9rem;">
+            Set Completed
+          </div>
+          <div class="set-progress-bar" style="
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            position: relative;
+          ">
+            <div class="set-progress-fill" style="
+              position: absolute;
+              top: 0;
+              left: 0;
+              height: 100%;
+              width: 100%;
+              background: linear-gradient(90deg, var(--accent), var(--gold));
+              border-radius: 5px;
+            "></div>
+          </div>
+        </div>
+        
+        <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
+          <button onclick="handleBossVictoryContinue()" class="start-button" style="
+            background: var(--accent);
+            color: var(--text);
+            border: none;
+            padding: 1rem 2.5rem;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
+          ">
+            Next Set
+          </button>
+          <button onclick="handleBossVictoryHome()" class="start-button" style="
+            background: transparent;
+            color: var(--text);
+            border: 2px solid var(--accent);
+            padding: 1rem 2.5rem;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+          ">
+            Return Home
+          </button>
+        </div>
+      </div>
+    `;
+      
+      document.body.appendChild(modal);
+      requestAnimationFrame(() => modal.classList.add('show'));
+  }
+  
+  function handleBossVictoryContinue() {
+    console.log("Boss victory continue button clicked");
+    const modal = document.querySelector(".arcade-completion-modal");
+    
+    // Now that everything is complete, we can safely update all displays
+    updateAllCoinDisplays();
+    
+    if (modal) {
+      modal.classList.remove("show");
+      setTimeout(() => {
+        modal.remove();
+        
+        const bgTransition = document.querySelector(".background-transition-overlay");
+        
+        if (bgTransition) {
+          console.log("Using existing transition overlay for smooth transition");
+          bgTransition.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
+          resetBossStyles(true);
+        } else {
+          resetBossStyles();
+        }
+        
+        unlockNextSet();
+        
+        // Get current stage configuration
+        const currentStage = gameState.currentStage;
+        const currentSet = gameState.currentSet;
+        const stageStructure = gameStructure.stages[currentStage-1];
+        
+        if (!stageStructure) {
+          console.error(`Invalid stage: ${currentStage}`);
+          showScreen("welcome-screen");
+          return;
+        }
+        
+        const userStatus = currentUser ? currentUser.status : "unregistered";
+        
+        // Check if this is the last set in the stage
+        const isLastSetInStage = currentSet >= stageStructure.numSets;
+        
+        if (isLastSetInStage) {
+          // This is the last set in the stage, should move to next stage
+          if (currentStage < 5) {
+            // Move to first set of next stage
+            if (currentStage >= 2 && userStatus !== "premium") {
+              // Non-premium users can't access beyond first set of stages 2-5
+              console.log("Non-premium user attempted to access next stage, showing upgrade prompt");
+              showScreen("welcome-screen");
+              setTimeout(() => {
+                showUpgradePrompt();
+              }, 500);
+              return;
+            }
+            
+            // For premium users or stage 1 users, proceed to next stage
+            gameState.currentStage += 1;
+            gameState.currentSet = 1;
+            gameState.currentLevel = 1;
+            
+            console.log(`Moving to Stage ${gameState.currentStage}, Set 1, Level 1`);
+          } else {
+            // This is the final stage (5), show stage selection screen
+            console.log("Final stage completed, showing stage selection");
+            showScreen("stage-screen");
+            return;
+          }
+        } else {
+          // Not the last set, move to next set in current stage
+          const nextSet = currentSet + 1;
+          
+          // Premium check for stages 2-5
+          if (currentStage >= 2 && nextSet > 1 && userStatus !== "premium") {
+            console.log("Non-premium user attempted to access premium set, showing upgrade prompt");
+            showScreen("welcome-screen");
+            setTimeout(() => {
+              showUpgradePrompt();
+            }, 500);
+            return;
+          }
+          
+          gameState.currentSet = nextSet;
+          gameState.currentLevel = 1;
+          console.log(`Moving to Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level 1`);
+        }
+        
+        // Save progress
+        saveProgress();
+        
+        setTimeout(() => {
+          console.log("Starting next level");
+          if (bgTransition && bgTransition.parentNode) {
+            bgTransition.parentNode.removeChild(bgTransition);
+          }
+          startLevel(1);
+        }, 500);
+      }, 300);
+    }
+    
+    // Ensure animation flag is cleared
+    window.bossVictoryAnimationInProgress = false;
+  }
+  
+  function resetBossStyles(e = false) {
+    console.log("Resetting boss styles", e ? "(preserving overlay)" : "");
+  
+    // Reset boss health bar styling
+    const progressCircle = document.querySelector('.progress-circle');
+    if (progressCircle) {
+      const progress = progressCircle.querySelector('.progress');
+      if (progress) {
+        progress.classList.remove('warning', 'boss-health');
+        progress.style.stroke = '';  // Reset to default color
+        progress.style.animation = 'none';
+        
+        // Force reflow to make sure animation removal takes effect
+        void progress.offsetWidth;
+        progress.style.animation = '';
+      }
+    }
+    
+    const t = document.getElementById("question-screen");
+    if (t) {
+      const n = t.querySelector(".background-transition-overlay");
+      e && n && n.remove();
+      t.removeAttribute("style");
+      e && n && t.insertBefore(n, t.firstChild);
+      e || (t.querySelectorAll(".background-transition-overlay").forEach(e => e.remove()),
+      setTimeout(() => {
+        t.style.background = "radial-gradient(circle at center, var(--secondary) 0%, var(--primary-dark) 100%)";
+      }, 10));
+    }
+    
+    const n = document.getElementById("question-word");
+    n && n.removeAttribute("style");
+    
+    "function" == typeof stopBossRainingLetters && stopBossRainingLetters();
+    
+    const r = e ? ".incineration-effect, .boss-orb" : ".incineration-effect, .boss-orb, .background-transition-overlay";
+    document.querySelectorAll(r).forEach(e => {
+      e.parentNode && e.parentNode.removeChild(e);
+    });
+  }
+  
+
+  
+  const gameStructure = {
+    stages: [
+        { id: 1, numSets: 9, levelsPerSet: 21, bossLevel: 21 },
+        { id: 2, numSets: 10, levelsPerSet: 21, bossLevel: 21 },
+        { id: 3, numSets: 12, levelsPerSet: 21, bossLevel: 21 },
+        { id: 4, numSets: 30, levelsPerSet: 21, bossLevel: 21 },
+        { id: 5, numSets: 14, levelsPerSet: 21, bossLevel: 21 }
+    ],
+    levelTypes: {
+        normal: 'normal',
+        boss: 'boss'
+    }
+};
+
+// ADD this debugging function to help diagnose issues
+function debugBossCompletion() {
+    const stage = gameStructure.stages[gameState.currentStage - 1];
+    if (!stage || !stage.bossLevel) {
+      console.error("Cannot find boss level for current stage");
+      return;
+    }
+    
+    const bossLevelKey = `${gameState.currentStage}_${gameState.currentSet}_${stage.bossLevel}`;
+    console.log(`Boss level key: ${bossLevelKey}`);
+    console.log(`Boss completed: ${gameState.completedLevels.has(bossLevelKey)}`);
+    console.log(`Boss perfect: ${gameState.perfectLevels.has(bossLevelKey)}`);
+    
+    // Check if level is in gameState
+    console.log("All completed levels:", Array.from(gameState.completedLevels));
+  }
+  
+  // Call this function in the showBossDefeatEffect
+  // After marking the boss level as completed
+  debugBossCompletion();
+
+  // ADD this debugging function at the root level of your script
+function troubleshootCompletion() {
+    console.group("Game State Troubleshooting");
+    console.log("Current Stage:", gameState.currentStage);
+    console.log("Current Set:", gameState.currentSet);
+    console.log("Current Level:", gameState.currentLevel);
+    
+    // Check levels
+    const stage = gameStructure.stages[gameState.currentStage - 1];
+    if (stage) {
+      console.log("Total levels in set:", stage.levelsPerSet);
+      console.log("Boss level:", stage.bossLevel);
+      
+      // Check specific levels
+      for (let i = 1; i <= stage.levelsPerSet; i++) {
+        const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${i}`;
+        const completed = gameState.completedLevels.has(levelKey);
+        const perfect = gameState.perfectLevels.has(levelKey);
+        console.log(`Level ${i}: ${completed ? "Completed" : "Not completed"} ${perfect ? "(Perfect)" : ""}`);
+      }
+    }
+    
+    // Check if set is completed
+    const isComplete = isSetCompleted(gameState.currentStage, gameState.currentSet);
+    console.log(`Is current set completed? ${isComplete}`);
+    
+    // Log all completed levels
+    console.log("All completed levels:", Array.from(gameState.completedLevels));
+    console.groupEnd();
+  }
+  
+  // Call this from the browser console after defeating a boss
+  // Or add to showBossDefeatEffect
+  setTimeout(troubleshootCompletion, 5000);
+
+  function showLevelScreen(setId) {
+    gameState.currentSet = setId;
+    console.log(`Opening set ${setId} in stage ${gameState.currentStage}`);
+    
+    // Clear existing screen
+    const container = document.getElementById('level-container');
+    if (!container) {
+        console.error("Level container not found");
+        return;
+    }
+    container.innerHTML = '';
+    
+    // Add return arrow to go back to stage-cascade screen
+    const returnArrow = document.createElement('div');
+    returnArrow.className = 'return-arrow';
+    returnArrow.innerHTML = '<i class="fas fa-arrow-left"></i>';
+    returnArrow.style.cssText = `
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        font-size: 24px;
+        color: var(--text);
+        cursor: pointer;
+        z-index: 10;
+    `;
+    returnArrow.onclick = function() {
+        showScreen('stage-cascade-screen');
+        updateStageCompletionStats(); // Update stats when returning
+    };
+    container.appendChild(returnArrow);
+    
+    const stage = gameStructure.stages[gameState.currentStage - 1];
+    if (!stage) {
+        console.error(`Invalid stage: ${gameState.currentStage}`);
+        return;
+    }
+    
+    // Create level header
+    const levelHeader = document.createElement('div');
+    levelHeader.className = 'level-header';
+    
+    // Calculate level completion stats with improved logging
+    const totalLevels = stage.levelsPerSet;
+    let completedCount = 0;
+    let perfectCount = 0;
+    
+    console.group(`Level completion for Stage ${gameState.currentStage} Set ${setId}`);
+    for (let i = 1; i <= totalLevels; i++) {
+        const levelKey = `${gameState.currentStage}_${setId}_${i}`;
+        const isBossLevel = (i === stage.bossLevel);
+        
+        console.log(`Checking level ${levelKey}: ${isBossLevel ? "BOSS LEVEL" : ""}`);
+        console.log(`  Completed: ${gameState.completedLevels.has(levelKey)}`);
+        console.log(`  Perfect: ${gameState.perfectLevels.has(levelKey)}`);
+        
+        if (gameState.perfectLevels.has(levelKey)) {
+            perfectCount++;
+            completedCount++;
+            console.log(`  Status: PERFECT`);
+        } else if (gameState.completedLevels.has(levelKey)) {
+            completedCount++;
+            console.log(`  Status: COMPLETED`);
+        } else {
+            console.log(`  Status: NOT COMPLETED`);
+        }
+    }
+    console.log(`Summary: ${completedCount}/${totalLevels} completed, ${perfectCount} perfect`);
+    console.groupEnd();
+    
+    const progressPercentage = Math.round((completedCount / totalLevels) * 100);
+    const setIcon = getSetIcon(gameState.currentStage, setId);
+    const setDescription = getSetDescription(gameState.currentStage, setId);
+    
+    // Populate header with level completion counter
+    levelHeader.innerHTML = `
+        <div class="level-title-area">
+            <div class="set-icon">
+                <i class="${setIcon}"></i>
+            </div>
+            <div class="set-details">
+                <div class="set-name">Stage ${gameState.currentStage} - Set ${setId}</div>
+                <div class="set-desc">${setDescription}</div>
+            </div>
+        </div>
+        <div class="set-progress" data-set-id="${setId}" data-stage-id="${gameState.currentStage}">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${progressPercentage}%"></div>
+            </div>
+            <div class="progress-text">${completedCount}/${totalLevels} levels</div>
+        </div>
+    `;
+    
+    container.appendChild(levelHeader);
+    
+    // Create level grid
+    const levelGrid = document.createElement('div');
+    levelGrid.className = 'level-grid';
+    levelGrid.dataset.setId = setId;
+    levelGrid.dataset.stageId = gameState.currentStage;
+    
+    const testLevels = [3, 6, 9, 10, 13, 16, 19, 20];
+    const setKey = `${gameState.currentStage}_${setId}`;
+    
+    // Ensure unlockedLevels exists for this set
+    if (!gameState.unlockedLevels[setKey]) {
+        gameState.unlockedLevels[setKey] = new Set([1]); // At minimum, level 1 should be unlocked
+    }
+    
+    console.log(`Rendering levels for ${setKey}. Unlocked levels:`, 
+                Array.from(gameState.unlockedLevels[setKey] || []));
+    
+    for (let i = 1; i <= stage.levelsPerSet; i++) {
+        const levelItem = document.createElement('div');
+        const levelKey = `${gameState.currentStage}_${setId}_${i}`;
+        
+        // Add data attributes for easier selection
+        levelItem.dataset.levelId = i;
+        levelItem.dataset.levelKey = levelKey;
+        
+        // Check if level is unlocked - use more direct access with fallback
+        const isUnlocked = gameState.unlockedLevels[setKey]?.has(i);
+        console.log(`Level ${i} unlocked:`, isUnlocked);
+        
+        const isPerfect = gameState.perfectLevels.has(levelKey);
+        const isCompleted = gameState.completedLevels.has(levelKey);
+        const isBossLevel = i === stage.bossLevel;
+        const isTestLevel = testLevels.includes(i);
+        
+        // Set appropriate classes
+        levelItem.className = 'level-item';
+        if (isUnlocked) levelItem.classList.add('unlocked');
+        if (isPerfect) levelItem.classList.add('perfect');
+        else if (isCompleted) levelItem.classList.add('completed');
+        if (isBossLevel) levelItem.classList.add('boss');
+        if (isTestLevel) levelItem.classList.add('test');
+        if (!isUnlocked) levelItem.classList.add('locked');
+        
+        levelItem.textContent = i;
+        
+        if (isUnlocked) {
+            levelItem.onclick = () => {
+                console.log(`Starting level ${i} in set ${setId}`);
+                startLevel(i);
+            };
+        }
+        
+        levelGrid.appendChild(levelItem);
+    }
+    
+    container.appendChild(levelGrid);
+    
+    // Add legend
+    const legend = document.createElement('div');
+    legend.className = 'level-type-legend';
+    legend.innerHTML = `
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--accent), rgba(30, 144, 255, 0.7));"></div>
+            <span>Normal</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--success), #45b649);"></div>
+            <span>Completed</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--gold), #FFA500);"></div>
+            <span>Perfect</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: linear-gradient(135deg, var(--gold), var(--accent));"></div>
+            <span>Boss</span>
+        </div>
+    `;
+    
+    container.appendChild(legend);
+    
+    // Check if set is fully completed for debugging
+    console.log(`Is set ${gameState.currentStage}-${setId} completed:`, 
+                isSetCompleted(gameState.currentStage, setId));
+    
+    // Show the screen
+    showScreen('level-screen');
+    
+    // Check if all levels are complete (including boss) and update completion status
+    const isComplete = isSetCompleted(gameState.currentStage, setId);
+    if (isComplete) {
+        console.log(`Set ${gameState.currentStage}-${setId} is complete!`);
+        
+        // Check if all are perfect
+        let allPerfect = true;
+        for (let i = 1; i <= stage.levelsPerSet; i++) {
+            const levelKey = `${gameState.currentStage}_${setId}_${i}`;
+            if (!gameState.perfectLevels.has(levelKey)) {
+                allPerfect = false;
+                break;
+            }
+        }
+        
+        if (allPerfect) {
+            console.log(`Set ${gameState.currentStage}-${setId} is ALL PERFECT!`);
+        }
+    }
+}
+
+function unlockNextSet() {
+    const currentStage = gameState.currentStage;
+    const currentSet = gameState.currentSet;
+    const nextSet = currentSet + 1;
+    
+    console.log(`Unlocking next set ${currentStage}-${nextSet}`);
+    
+    // CRITICAL ADDITION: Mark the current boss level as completed
+    const stage = gameStructure.stages[currentStage - 1];
+    if (stage && stage.bossLevel) {
+      const bossLevelKey = `${currentStage}_${currentSet}_${stage.bossLevel}`;
+      
+      console.log(`Ensuring boss level ${bossLevelKey} is marked as completed`);
+      gameState.completedLevels.add(bossLevelKey);
+      
+      // Force counter updates
+      updateStageCompletionStats();
+      updateStageCompletionCounters();
+    }
+    
+    // Get stage structure to check max sets
+    const stageStructure = gameStructure.stages[currentStage-1];
+    if (!stageStructure) {
+      console.error(`Invalid stage: ${currentStage}`);
+      return;
+    }
+    
+    // Check if we're not already at the last set
+    if (currentSet < stageStructure.numSets) {
+      const nextSet = currentSet + 1;
+      
+      // Ensure the stage is in unlockedSets
+      if (!gameState.unlockedSets[currentStage]) {
+        gameState.unlockedSets[currentStage] = new Set();
+      }
+      
+      // Add the next set
+      gameState.unlockedSets[currentStage].add(nextSet);
+      
+      // Also unlock the first level of the next set
+      const nextSetKey = `${currentStage}_${nextSet}`;
+      if (!gameState.unlockedLevels[nextSetKey]) {
+        gameState.unlockedLevels[nextSetKey] = new Set();
+      }
+      gameState.unlockedLevels[nextSetKey].add(1);
+      
+      console.log(`Unlocked set ${currentStage}-${nextSet} and its first level`);
+      
+      // Save the updated progress
+      saveProgress();
+    } else if (currentStage < 5) {
+      // Unlock the first set of the next stage
+      unlockNextStage();
+    }
+}
+  
+  function unlockNextStage() {
+    const currentStage = gameState.currentStage;
+    
+    // Make sure we're not at the last stage
+    if (currentStage < 5) {
+      const nextStage = currentStage + 1;
+      
+      // Ensure the next stage exists in unlockedSets
+      if (!gameState.unlockedSets[nextStage]) {
+        gameState.unlockedSets[nextStage] = new Set();
+      }
+      
+      // Unlock the first set of the next stage
+      gameState.unlockedSets[nextStage].add(1);
+      
+      // Also unlock the first level of the first set
+      const nextSetKey = `${nextStage}_1`;
+      if (!gameState.unlockedLevels[nextSetKey]) {
+        gameState.unlockedLevels[nextSetKey] = new Set();
+      }
+      gameState.unlockedLevels[nextSetKey].add(1);
+      
+      console.log(`Unlocked stage ${nextStage}, set 1, level 1`);
+      
+      // Save the updated progress
+      saveProgress();
+    }
+  }
+
+  // ADD this global function for emergency repair
+window.fixBossCompletion = function(stageId = null, setId = null) {
+    // If no stage/set provided, use current one
+    const stage = stageId || gameState.currentStage;
+    const set = setId || gameState.currentSet;
+    
+    const stageConfig = gameStructure.stages[stage - 1];
+    if (!stageConfig || !stageConfig.bossLevel) {
+        console.error(`Invalid stage ${stage} or no boss level defined`);
+        return false;
+    }
+    
+    // Mark boss level as completed
+    const bossLevelKey = `${stage}_${set}_${stageConfig.bossLevel}`;
+    console.log(`Marking boss level ${bossLevelKey} as completed via manual repair`);
+    gameState.completedLevels.add(bossLevelKey);
+    
+    // Save changes
+    saveProgress();
+    
+    // Force UI updates
+    updateStageCompletionStats();
+    updateStageCompletionCounters();
+    
+    return true;
+};
+
+// ADD this function to ensure gameState consistency during initialization
+function ensureGameStateStructure() {
+    // Ensure completedLevels is a Set
+    if (!gameState.completedLevels || !(gameState.completedLevels instanceof Set)) {
+        console.warn("completedLevels is not a Set, fixing...");
+        gameState.completedLevels = new Set(Array.isArray(gameState.completedLevels) ? 
+            gameState.completedLevels : []);
+    }
+    
+    // Ensure perfectLevels is a Set
+    if (!gameState.perfectLevels || !(gameState.perfectLevels instanceof Set)) {
+        console.warn("perfectLevels is not a Set, fixing...");
+        gameState.perfectLevels = new Set(Array.isArray(gameState.perfectLevels) ? 
+            gameState.perfectLevels : []);
+    }
+    
+    // Ensure unlockedSets structure
+    if (!gameState.unlockedSets || typeof gameState.unlockedSets !== 'object') {
+        console.warn("unlockedSets is not properly structured, fixing...");
+        gameState.unlockedSets = { 1: new Set([1]) };
+    } else {
+        // Convert any array values to Sets
+        Object.keys(gameState.unlockedSets).forEach(key => {
+            if (!(gameState.unlockedSets[key] instanceof Set)) {
+                gameState.unlockedSets[key] = new Set(Array.isArray(gameState.unlockedSets[key]) ? 
+                    gameState.unlockedSets[key] : []);
+            }
+        });
+    }
+    
+    // Ensure unlockedLevels structure
+    if (!gameState.unlockedLevels || typeof gameState.unlockedLevels !== 'object') {
+        console.warn("unlockedLevels is not properly structured, fixing...");
+        gameState.unlockedLevels = { "1_1": new Set([1]) };
+    } else {
+        // Convert any array values to Sets
+        Object.keys(gameState.unlockedLevels).forEach(key => {
+            if (!(gameState.unlockedLevels[key] instanceof Set)) {
+                gameState.unlockedLevels[key] = new Set(Array.isArray(gameState.unlockedLevels[key]) ? 
+                    gameState.unlockedLevels[key] : []);
+            }
+        });
+    }
+    
+    console.log("GameState structure verified and fixed if needed");
+}
+
+// ADD this to your initialization code
+document.addEventListener('DOMContentLoaded', function() {
+    // After loading user data but before using game state
+    checkExistingSession().then(() => {
+        // Load progress and then ensure structure
+        loadUserGameProgress(currentUser?.id).then(() => {
+            ensureGameStateStructure();
+            initializeGame();
+        });
+    });
+});
+
+// MODIFY loadProgress function to fix Set conversion
+function loadProgress() {
+    const saved = localStorage.getItem('simploxProgress');
+    if (saved) {
+        try {
+            const data = JSON.parse(saved);
+            
+            // Create Sets from arrays for key game state properties
+            gameState.unlockedSets = Object.fromEntries(
+                Object.entries(data.unlockedSets || {}).map(([k, v]) => [k, new Set(v)])
+            );
+            
+            gameState.unlockedLevels = Object.fromEntries(
+                Object.entries(data.unlockedLevels || {}).map(([k, v]) => [k, new Set(v)])
+            );
+            
+            // Important: Convert arrays to Sets
+            gameState.perfectLevels = new Set(data.perfectLevels || []);
+            gameState.completedLevels = new Set(data.completedLevels || []);
+            
+            gameState.coins = data.coins || 0;
+            gameState.perks = data.perks || {timeFreeze: 0, skip: 0, clue: 0, reveal: 0};
+            
+            console.log("Progress loaded with proper Set conversion");
+        } catch (e) {
+            console.error("Error loading game progress:", e);
+            // Initialize with defaults
+            setupDefaultUnlocks();
+        }
+    }
+    
+    const savedCustomCoins = localStorage.getItem('simploxCustomCoins');
+    if (savedCustomCoins) {
+        gameState.coins = parseInt(savedCustomCoins);
+    }
+}
+
+function addGoldShineStyles() {
+    // Remove any existing styles first
+    const existingStyle = document.getElementById('gold-set-styles');
+    if (existingStyle) {
+        existingStyle.remove();
+    }
+    
+    const styleEl = document.createElement('style');
+    styleEl.id = 'gold-set-styles';
+    styleEl.textContent = `
+        /* STRONGER Gold Styling for Completed Sets - Overrides all other styles */
+        .set-button.fully-completed {
+            background: linear-gradient(135deg, var(--gold), #ffa500) !important;
+            border: 2px solid var(--gold) !important;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.6) !important;
+            position: relative !important;
+            overflow: hidden !important;
+            animation: pulseGoldSet 2s infinite alternate !important;
+            transform: scale(1.05) !important;
+            z-index: 5 !important; /* Higher z-index to ensure it's on top */
+            color: black !important; /* Ensures text is visible on gold background */
+        }
+        
+        /* Ensure the completed indicator remains visible against gold */
+        .set-button.fully-completed .completed-indicator {
+            color: #000 !important;
+            background-color: rgba(255, 255, 255, 0.3) !important;
+            border-radius: 50% !important;
+            padding: 3px !important;
+        }
+        
+        /* Ensure the span text is black for contrast */
+        .set-button.fully-completed span {
+            color: #000 !important;
+            font-weight: bold !important;
+            text-shadow: 0 0 3px rgba(255, 255, 255, 0.5) !important;
+            position: relative !important;
+            z-index: 10 !important;
+        }
+        
+        /* Create a moving shine effect across the button */
+        .set-button.fully-completed::before {
+            content: '' !important;
+            position: absolute !important;
+            top: -50% !important;
+            left: -50% !important;
+            width: 200% !important;
+            height: 200% !important;
+            background: linear-gradient(45deg, 
+                rgba(255, 255, 255, 0) 0%, 
+                rgba(255, 255, 255, 0.7) 50%, 
+                rgba(255, 255, 255, 0) 100%) !important;
+            transform: rotate(25deg) !important;
+            animation: shineEffect 3s infinite linear !important;
+            z-index: 1 !important;
+        }
+        
+        @keyframes pulseGoldSet {
+            0% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.6); }
+            100% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.9); }
+        }
+        
+        @keyframes shineEffect {
+            0% { transform: translate(-100%, -100%) rotate(25deg); }
+            100% { transform: translate(100%, 100%) rotate(25deg); }
+        }
+    `;
+    
+    document.head.appendChild(styleEl);
+    console.log("Enhanced gold styles added with stronger specificity");
+}
+
+// ADD this function to manually fix buttons after page loads
+function forceRefreshGoldButtons() {
+    console.log("Force-refreshing gold styling on set buttons");
+    
+    // First ensure our styles are loaded
+    addGoldShineStyles();
+    
+    // Find all completed set buttons and check if they should be gold
+    document.querySelectorAll('.set-button.completed').forEach(button => {
+        const stageId = parseInt(button.dataset.stageId);
+        const setId = parseInt(button.dataset.setId);
+        
+        if (!stageId || !setId) return;
+        
+        const stage = gameStructure.stages[stageId - 1];
+        if (!stage || !stage.levelsPerSet) return;
+        
+        // Check if all levels are perfect
+        let allPerfect = true;
+        for (let levelId = 1; levelId <= stage.levelsPerSet; levelId++) {
+            const levelKey = `${stageId}_${setId}_${levelId}`;
+            if (!gameState.perfectLevels.has(levelKey)) {
+                allPerfect = false;
+                break;
+            }
+        }
+        
+        // Apply gold styling if perfect
+        if (allPerfect) {
+            console.log(`Force-applying gold styling to set ${stageId}-${setId}`);
+            button.classList.add('fully-completed');
+            
+            // Force style refresh by temporarily removing and adding class
+            setTimeout(() => {
+                button.classList.remove('fully-completed');
+                setTimeout(() => button.classList.add('fully-completed'), 50);
+            }, 100);
+        }
+    });
+}
+
+// Call this function after page loads and when stages are shown
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(forceRefreshGoldButtons, 500);
+});
+
+// Also call it whenever the stage cascade screen is shown
+document.addEventListener('screenChange', event => {
+    if (event.detail && event.detail.screen === 'stage-cascade-screen') {
+        setTimeout(forceRefreshGoldButtons, 200);
+    }
+});
+
+// Call this on page load
+document.addEventListener('DOMContentLoaded', addGoldShineStyles);
+
+function populateSetsGrid(e) {
+    const t = document.getElementById(`sets-grid-${e}`);
+    if (!t) return;
+    console.log(`Populating sets grid for stage ${e}`);
+    console.log("Unlocked sets:", gameState.unlockedSets);
+    const n = gameStructure.stages[e - 1],
+        r = gameState.unlockedSets[e] || new Set,
+        o = currentUser ? currentUser.status : "unregistered";
+    console.log(`Stage ${e} unlocked sets:`, Array.from(r));
+    
+    // Clear existing content
+    t.innerHTML = "";
+    
+    // Create set buttons for each set in the stage
+    for (let s = 1; s <= n.numSets; s++) {
+        const setButton = document.createElement("div"),
+            a = r.has(s);
+        let i = !1;
+        e >= 2 && s > 1 && "premium" !== o && (i = !0);
+        
+        // Add data attributes for easier selection
+        setButton.dataset.setId = s;
+        setButton.dataset.stageId = e;
+        
+        setButton.className = "set-button";
+        a && !i ? setButton.classList.add("active") : setButton.classList.add("locked");
+        
+        // Check if set is completed
+        const isCompleted = isSetCompleted(e, s);
+        
+        // NEW: Check if all levels in the set are perfect
+        let allLevelsPerfect = false;
+        
+        if (isCompleted && n.levelsPerSet) {
+            allLevelsPerfect = true;
+            
+            // Check each level in the set
+            for (let levelId = 1; levelId <= n.levelsPerSet; levelId++) {
+                const levelKey = `${e}_${s}_${levelId}`;
+                
+                // If any level is not perfect, set allLevelsPerfect to false
+                if (!gameState.perfectLevels.has(levelKey)) {
+                    allLevelsPerfect = false;
+                    break;
+                }
+            }
+            
+            console.log(`Set ${e}-${s} all perfect levels check:`, allLevelsPerfect);
+        }
+        
+        // Apply completed class for tracking
+        if (isCompleted) {
+            setButton.classList.add("completed");
+            
+            // Apply fully-completed class for gold shine if all levels are perfect
+            if (allLevelsPerfect) {
+                setButton.classList.add("fully-completed");
+                console.log(`Set ${e}-${s} marked as FULLY COMPLETED with gold styling`);
+            }
+        }
+        
+        setButton.innerHTML = `
+      <span>Set ${s}</span>
+      ${isCompleted ? '\n      <div class="completed-indicator">\n        <i class="fas fa-check-circle"></i>\n      </div>' : ""}
+      ${!a || i ? `
+      <div class="lock-icon">
+        <i class="fas ${i ? "fa-crown crown-premium" : "fa-lock"}"></i>
+      </div>` : ""}
+    `;
+        
+        if (a && !i) {
+            setButton.onclick = () => {
+                gameState.currentStage = e;
+                gameState.currentSet = s;
+                showLevelScreen(s);
+            };
+        } else if (i) {
+            // Make the whole button show upgrade prompt
+            setButton.onclick = () => showUpgradePrompt();
+            
+            // Add specific handler for the crown icon
+            setTimeout(() => {
+                const crownIcon = setButton.querySelector(".fa-crown");
+                if (crownIcon) {
+                    crownIcon.addEventListener("click", (event) => {
+                        event.stopPropagation();
+                        showUpgradePrompt();
+                    });
+                }
+            }, 0);
+        }
+        
+        t.appendChild(setButton);
+    }
+    
+    // Force apply the gold shine styles
+    ensureGoldShineStyles();
+}
+
+// ADD this function to ensure gold shine styles are applied
+function ensureGoldShineStyles() {
+    // Check if style already exists
+    if (!document.getElementById('gold-set-styles')) {
+        // Create style element
+        const styleEl = document.createElement('style');
+        styleEl.id = 'gold-set-styles';
+        styleEl.textContent = `
+            /* Enhanced Gold Shine for Completed Sets */
+            .set-button.fully-completed {
+                background: linear-gradient(135deg, var(--gold), #ffa500) !important;
+                border: 2px solid var(--gold) !important;
+                box-shadow: 0 0 20px rgba(255, 215, 0, 0.6) !important;
+                position: relative;
+                overflow: hidden;
+                animation: pulseGoldSet 2s infinite alternate;
+                color: #000 !important; /* Dark text for better contrast */
+                transform: scale(1.05) !important;
+                z-index: 1;
+            }
+            
+            .set-button.fully-completed::before {
+                content: '';
+                position: absolute;
+                top: -50%;
+                left: -50%;
+                width: 200%;
+                height: 200%;
+                background: linear-gradient(45deg, 
+                    rgba(255, 255, 255, 0) 0%, 
+                    rgba(255, 255, 255, 0.8) 50%, 
+                    rgba(255, 255, 255, 0) 100%);
+                transform: rotate(25deg);
+                animation: shineEffect 3s infinite linear;
+                z-index: 0;
+            }
+            
+            .set-button.fully-completed .completed-indicator {
+                background-color: #FFD700 !important;
+                box-shadow: 0 0 10px #FFD700 !important;
+            }
+            
+            .set-button.fully-completed span {
+                position: relative;
+                z-index: 2;
+                font-weight: bold;
+            }
+            
+            @keyframes pulseGoldSet {
+                0% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.6); }
+                100% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.9); }
+            }
+            
+            @keyframes shineEffect {
+                0% { transform: translate(-100%, -100%) rotate(25deg); }
+                100% { transform: translate(100%, 100%) rotate(25deg); }
+            }
+        `;
+        
+        // Add to document head
+        document.head.appendChild(styleEl);
+        console.log("Enhanced gold shine styles added to page");
+    }
+}
+
+// Make sure styles are applied on page load
+document.addEventListener('DOMContentLoaded', ensureGoldShineStyles);
+
+
 
