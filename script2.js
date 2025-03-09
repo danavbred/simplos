@@ -10840,212 +10840,289 @@ function closePersonalVictory() {
     saveProgress();
   }
 
-function showCustomCompletionScreen() {
-  // Clear the timer
-  clearTimer();
-  
-  // Calculate statistics
-  const coinsEarned = gameState.coins - customGameState.startCoins;
-  const totalQuestions = customGameState.wordsCompleted || 0;
-  const correctAnswers = currentGame.correctAnswers || 0;
-  const incorrectAnswers = Math.max(0, totalQuestions - correctAnswers);
-  const scorePercentage = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
-  const averageTime = currentGame.answerTimes && currentGame.answerTimes.length > 0 
-    ? (currentGame.answerTimes.reduce((sum, time) => sum + time, 0) / currentGame.answerTimes.length).toFixed(1)
-    : "N/A";
-  
-  // Create overlay
-  const overlay = document.createElement("div");
-  overlay.className = "level-completion-overlay";
-  overlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(5px);
-    z-index: 1000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    opacity: 0;
-    transition: opacity 0.5s ease;
-  `;
-  
-  // Create completion modal content
-  const completionContent = document.createElement('div');
-  completionContent.className = 'level-completion-modal';
-  completionContent.style.cssText = `
-    background: var(--glass);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    padding: 3rem;
-    width: 500px;
-    max-width: 90%;
-    text-align: center;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transform: scale(0.9);
-    opacity: 0;
-    transition: transform 0.5s ease, opacity 0.5s ease;
-    margin: 0;
-  `;
-  
-  completionContent.innerHTML = `
-    <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
-      Practice Complete!
-    </h1>
-    <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${scorePercentage >= 70 ? 'var(--success)' : 'var(--error)'}">
-      ${scorePercentage >= 70 ? 'Great job!' : 'Try again to improve your score'}
-    </h2>
+  function showCustomCompletionScreen() {
+    // Clear the timer
+    clearTimer();
     
-    <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
-      <div class="stat-item" style="text-align: center; flex: 1;">
-        <div style="font-size: 2rem; color: var(--accent);">${correctAnswers}/${totalQuestions}</div>
-        <div style="opacity: 0.7;">Correct</div>
-      </div>
-      <div class="stat-item" style="text-align: center; flex: 1;">
-        <div style="font-size: 2rem; color: #ff4136;">${incorrectAnswers}</div>
-        <div style="opacity: 0.7;">Mistakes</div>
-      </div>
-      <div class="stat-item coin-counter-container" style="text-align: center; flex: 1; position: relative;">
-        <!-- Using the in-game coin counter style -->
-        <div class="coins-display" style="display: inline-flex; align-items: center; justify-content: center;">
-          <span class="coin-value" style="font-size: 2rem; color: var(--gold); font-weight: bold;">${gameState.coins}</span>
-          <span class="coin-icon" style="margin-left: 5px; display: inline-block;">
-            <svg width="24" height="24" viewBox="0 0 24 24" style="transform: translateY(2px);">
-              <circle cx="12" cy="12" r="10" fill="var(--gold)" />
-              <text x="12" y="16" text-anchor="middle" fill="black" style="font-size: 14px; font-weight: bold;">¢</text>
-            </svg>
-          </span>
+    // Calculate statistics
+    const coinsEarned = gameState.coins - customGameState.startCoins;
+    const totalQuestions = customGameState.wordsCompleted || 0;
+    const correctAnswers = currentGame.correctAnswers || 0;
+    const incorrectAnswers = Math.max(0, totalQuestions - correctAnswers);
+    const scorePercentage = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+    const averageTime = currentGame.answerTimes && currentGame.answerTimes.length > 0 
+      ? (currentGame.answerTimes.reduce((sum, time) => sum + time, 0) / currentGame.answerTimes.length).toFixed(1)
+      : "N/A";
+    
+    // Calculate star rating criteria
+    const noMistakes = incorrectAnswers === 0;
+    const fastCompletion = averageTime !== "N/A" && parseFloat(averageTime) < 3.0; // Under 3 seconds per word is fast
+    const starsEarned = 1 + (noMistakes ? 1 : 0) + (fastCompletion ? 1 : 0); // 1-3 stars
+    
+    // Create overlay
+    const overlay = document.createElement("div");
+    overlay.className = "level-completion-overlay";
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(5px);
+      z-index: 1000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    `;
+    
+    // Create completion modal content
+    const completionContent = document.createElement('div');
+    completionContent.className = 'level-completion-modal';
+    completionContent.style.cssText = `
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 3rem;
+      width: 500px;
+      max-width: 90%;
+      text-align: center;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transform: scale(0.9);
+      opacity: 0;
+      transition: transform 0.5s ease, opacity 0.5s ease;
+      margin: 0;
+    `;
+    
+    completionContent.innerHTML = `
+      <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
+        Practice Complete!
+      </h1>
+      <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${scorePercentage >= 70 ? 'var(--success)' : 'var(--error)'}">
+        ${scorePercentage >= 70 ? 'Great job!' : 'Try again to improve your score'}
+      </h2>
+      
+      <!-- Star Rating -->
+      <div class="star-rating-container" style="margin-bottom: 2rem;">
+        <div class="star-slots" style="display: flex; justify-content: center; gap: 1rem;">
+          <!-- Three star slots, each with empty and filled versions -->
+          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
+            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
+            <div class="star-filled star-1" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+          </div>
+          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
+            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
+            <div class="star-filled star-2" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+          </div>
+          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
+            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
+            <div class="star-filled star-3" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+          </div>
         </div>
-        <div style="opacity: 0.7;">Coins</div>
-        ${coinsEarned > 0 ? `<div class="time-bonus-badge" style="position: absolute; top: -10px; right: -10px; background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">+${coinsEarned}</div>` : ''}
+        <div class="star-criteria" style="margin-top: 0.5rem; font-size: 0.8rem; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between; width: 100%; max-width: 280px; margin-left: auto; margin-right: auto;">
+          <div>Complete</div>
+          <div>No Mistakes</div>
+          <div>Quick Time</div>
+        </div>
       </div>
-    </div>
-    
-    <!-- Average response time section -->
-    <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
-      <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">Average Response Time</div>
-      <div style="font-size: 2.5rem; color: var(--accent); font-weight: bold;">
-        ${averageTime}s
-      </div>
-    </div>
-    
-    <!-- List name display -->
-    <div class="custom-list-name" style="margin: 1.5rem 0; text-align: center;">
-      <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">List Name</div>
-      <div style="font-size: 1.5rem; color: var(--text); font-weight: bold;">
-        ${customGameState.currentList?.name || "Custom List"}
-      </div>
-    </div>
-    
-    <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
-      ${scorePercentage >= 70 ? 
-        `<button class="continue-button start-button" style="background: var(--accent);">Continue</button>` : 
-        `<button class="retry-button start-button" style="background: var(--accent);">Try Again</button>`
-      }
-      <button class="exit-button start-button" style="background: rgba(255,255,255,0.1); border: 1px solid var(--accent);">Return Home</button>
-    </div>
-  `;
-  
-  // Append to the body
-  document.body.appendChild(overlay);
-  overlay.appendChild(completionContent);
-  
-  // Add event listeners to buttons
-  const continueOrRetryButton = completionContent.querySelector('.continue-button, .retry-button');
-  if (continueOrRetryButton) {
-    continueOrRetryButton.addEventListener('click', () => {
-      // Fade out
-      overlay.style.opacity = '0';
-      completionContent.style.transform = 'scale(0.9)';
-      completionContent.style.opacity = '0';
       
-      // Remove after animation
-      setTimeout(() => {
-        overlay.remove();
+      <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
+        <div class="stat-item" style="text-align: center; flex: 1;">
+          <div style="font-size: 2rem; color: var(--accent);">${correctAnswers}/${totalQuestions}</div>
+          <div style="opacity: 0.7;">Correct</div>
+        </div>
+        <div class="stat-item" style="text-align: center; flex: 1;">
+          <div style="font-size: 2rem; color: #ff4136;">${incorrectAnswers}</div>
+          <div style="opacity: 0.7;">Mistakes</div>
+        </div>
+        <div class="stat-item coin-counter-container" style="text-align: center; flex: 1; position: relative;">
+          <!-- Using the in-game coin counter style -->
+          <div class="coins-display" style="display: inline-flex; align-items: center; justify-content: center;">
+            <span class="coin-value" style="font-size: 2rem; color: var(--gold); font-weight: bold;">${gameState.coins}</span>
+            <span class="coin-icon" style="margin-left: 5px; display: inline-block;">
+              <svg width="24" height="24" viewBox="0 0 24 24" style="transform: translateY(2px);">
+                <circle cx="12" cy="12" r="10" fill="var(--gold)" />
+                <text x="12" y="16" text-anchor="middle" fill="black" style="font-size: 14px; font-weight: bold;">¢</text>
+              </svg>
+            </span>
+          </div>
+          <div style="opacity: 0.7;">Coins</div>
+          ${coinsEarned > 0 ? `<div class="time-bonus-badge" style="position: absolute; top: -10px; right: -10px; background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">+${coinsEarned}</div>` : ''}
+        </div>
+      </div>
+      
+      <!-- Average response time section -->
+      <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
+        <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">Average Response Time</div>
+        <div style="font-size: 2.5rem; color: var(--accent); font-weight: bold;">
+          ${averageTime}s
+        </div>
+      </div>
+      
+      <!-- List name display with icon -->
+      <div class="custom-list-name" style="margin: 1.5rem 0; text-align: center; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 10px;">
+        <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <i class="fas fa-list" style="color: var(--accent);"></i>
+          <span>List Name</span>
+        </div>
+        <div style="font-size: 1.5rem; color: var(--gold); font-weight: bold;">
+          ${customGameState.currentList?.name || "Custom List"}
+        </div>
+      </div>
+      
+      <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
+        ${scorePercentage >= 70 ? 
+          `<button class="continue-button start-button" style="background: var(--accent); min-width: 150px; padding: 0.8rem 1.5rem;">Continue</button>` : 
+          `<button class="retry-button start-button" style="background: var(--accent); min-width: 150px; padding: 0.8rem 1.5rem;">Try Again</button>`
+        }
+        <button class="exit-button start-button" style="background: rgba(255,255,255,0.1); border: 1px solid var(--accent); min-width: 150px; padding: 0.8rem 1.5rem;">Return Home</button>
+      </div>
+    `;
+    
+    // Append to the body
+    document.body.appendChild(overlay);
+    overlay.appendChild(completionContent);
+    
+    // Add event listeners to buttons
+    const continueOrRetryButton = completionContent.querySelector('.continue-button, .retry-button');
+    if (continueOrRetryButton) {
+      continueOrRetryButton.addEventListener('click', () => {
+        // Fade out
+        overlay.style.opacity = '0';
+        completionContent.style.transform = 'scale(0.9)';
+        completionContent.style.opacity = '0';
         
-        // If passed, continue to next level (if available), otherwise retry current level
-        if (scorePercentage >= 70) {
-          const nextLevel = customGameState.currentLevel + 1;
-          const nextLevelData = customGameState.getWordsForLevel(nextLevel);
+        // Remove after animation
+        setTimeout(() => {
+          overlay.remove();
           
-          if (nextLevelData && nextLevelData.words && nextLevelData.words.length > 0) {
-            startCustomLevel(nextLevel);
-          } else {
-            // No more levels, return to custom practice screen
-            exitCustomPractice();
-          }
-        } else {
-          // Retry current level
-          startCustomLevel(customGameState.currentLevel);
-        }
-      }, 500);
-    });
-  }
-  
-  const exitButton = completionContent.querySelector('.exit-button');
-  if (exitButton) {
-    exitButton.addEventListener('click', () => {
-      // Fade out
-      overlay.style.opacity = '0';
-      completionContent.style.transform = 'scale(0.9)';
-      completionContent.style.opacity = '0';
-      
-      // Remove after animation
-      setTimeout(() => {
-        overlay.remove();
-        exitCustomPractice();
-      }, 500);
-    });
-  }
-  
-  // Trigger animation
-  setTimeout(() => {
-    overlay.style.opacity = '1';
-    completionContent.style.transform = 'scale(1)';
-    completionContent.style.opacity = '1';
-    
-    // Animate coin counter if there are earned coins
-    if (coinsEarned > 0) {
-      const coinValue = completionContent.querySelector('.coin-value');
-      if (coinValue) {
-        // Animate coin count increasing
-        let startValue = gameState.coins - coinsEarned;
-        const endValue = gameState.coins;
-        const duration = 1500; // 1.5 seconds
-        const stepTime = 50; // Update every 50ms
-        const totalSteps = duration / stepTime;
-        const stepValue = (endValue - startValue) / totalSteps;
-        
-        // Add a glowing effect to the coin icon
-        const coinIcon = completionContent.querySelector('.coin-icon');
-        if (coinIcon) {
-          coinIcon.style.filter = 'drop-shadow(0 0 5px var(--gold))';
-          coinIcon.style.transition = 'filter 0.5s ease';
-        }
-        
-        const counterInterval = setInterval(() => {
-          startValue += stepValue;
-          if (startValue >= endValue) {
-            startValue = endValue;
-            clearInterval(counterInterval);
+          // If passed, continue to next level (if available), otherwise retry current level
+          if (scorePercentage >= 70) {
+            const nextLevel = customGameState.currentLevel + 1;
+            const nextLevelData = customGameState.getWordsForLevel(nextLevel);
             
-            // Remove glow effect after animation completes
-            setTimeout(() => {
-              if (coinIcon) {
-                coinIcon.style.filter = 'none';
-              }
-            }, 500);
+            if (nextLevelData && nextLevelData.words && nextLevelData.words.length > 0) {
+              startCustomLevel(nextLevel);
+            } else {
+              // No more levels, return to custom practice screen
+              exitCustomPractice();
+            }
+          } else {
+            // Retry current level
+            startCustomLevel(customGameState.currentLevel);
           }
-          coinValue.textContent = Math.round(startValue);
-        }, stepTime);
-      }
+        }, 500);
+      });
     }
-  }, 100);
-}
+    
+    const exitButton = completionContent.querySelector('.exit-button');
+    if (exitButton) {
+      exitButton.addEventListener('click', () => {
+        // Fade out
+        overlay.style.opacity = '0';
+        completionContent.style.transform = 'scale(0.9)';
+        completionContent.style.opacity = '0';
+        
+        // Remove after animation
+        setTimeout(() => {
+          overlay.remove();
+          exitCustomPractice();
+        }, 500);
+      });
+    }
+    
+    // Trigger animation
+    setTimeout(() => {
+      overlay.style.opacity = '1';
+      completionContent.style.transform = 'scale(1)';
+      completionContent.style.opacity = '1';
+      
+      // Animate stars filling one by one
+      setTimeout(() => {
+        // First star always shows (completion)
+        const star1 = completionContent.querySelector('.star-1');
+        if (star1) {
+          star1.style.opacity = '1';
+          star1.style.transform = 'scale(1)';
+        }
+        
+        // Second star for no mistakes
+        if (noMistakes) {
+          setTimeout(() => {
+            const star2 = completionContent.querySelector('.star-2');
+            if (star2) {
+              star2.style.opacity = '1';
+              star2.style.transform = 'scale(1)';
+            }
+          }, 300);
+        }
+        
+        // Third star for fast completion
+        if (fastCompletion) {
+          setTimeout(() => {
+            const star3 = completionContent.querySelector('.star-3');
+            if (star3) {
+              star3.style.opacity = '1';
+              star3.style.transform = 'scale(1)';
+            }
+          }, 600);
+        }
+      }, 500);
+      
+      // Animate coin counter if there are earned coins
+      if (coinsEarned > 0) {
+        const coinValue = completionContent.querySelector('.coin-value');
+        if (coinValue) {
+          // Animate coin count increasing
+          let startValue = gameState.coins - coinsEarned;
+          const endValue = gameState.coins;
+          const duration = 1500; // 1.5 seconds
+          const stepTime = 50; // Update every 50ms
+          const totalSteps = duration / stepTime;
+          const stepValue = (endValue - startValue) / totalSteps;
+          
+          // Add a glowing effect to the coin icon
+          const coinIcon = completionContent.querySelector('.coin-icon');
+          if (coinIcon) {
+            coinIcon.style.filter = 'drop-shadow(0 0 5px var(--gold))';
+            coinIcon.style.transition = 'filter 0.5s ease';
+          }
+          
+          const counterInterval = setInterval(() => {
+            startValue += stepValue;
+            if (startValue >= endValue) {
+              startValue = endValue;
+              clearInterval(counterInterval);
+              
+              // Remove glow effect after animation completes
+              setTimeout(() => {
+                if (coinIcon) {
+                  coinIcon.style.filter = 'none';
+                }
+              }, 500);
+            }
+            coinValue.textContent = Math.round(startValue);
+          }, stepTime);
+        }
+      }
+    }, 100);
+    
+    // Add a particle effect for visual flair
+    setTimeout(() => {
+      try {
+        // Use the existing particle system if available
+        const rect = overlay.getBoundingClientRect();
+        if (typeof createParticles === 'function') {
+          createParticles(rect.width / 2, rect.height / 3);
+        }
+      } catch (e) {
+        console.log("Couldn't create particles effect", e);
+      }
+    }, 1000);
+  }
 
 
 
@@ -12497,38 +12574,6 @@ function handleCustomLevelCompletion() {
   saveProgress();
 }
 
-/**
- * Show the completion screen for custom practice
- */
-function showCustomCompletionScreen() {
-  const overlay = document.createElement("div");
-  overlay.className = "completion-overlay";
-  
-  const coinsEarned = gameState.coins - customGameState.startCoins;
-  
-  overlay.innerHTML = `
-    <div class="completion-content">
-      <h2>Practice Complete!</h2>
-      <div class="completion-stats">
-        <div class="stat-item">
-          <i class="fas fa-book"></i>
-          <span>Words Practiced: ${customGameState.wordsCompleted}</span>
-        </div>
-        <div class="stat-item">
-          <i class="fas fa-coins"></i>
-          <span>Coins Earned: ${coinsEarned}</span>
-        </div>
-      </div>
-      <button onclick="exitCustomPractice()" class="start-button">Continue</button>
-    </div>
-  `;
-  
-  document.body.appendChild(overlay);
-}
-
-/**
- * Exit custom practice mode and return to lists screen
- */
 function exitCustomPractice() {
   customGameState.reset();
   
