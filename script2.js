@@ -9256,62 +9256,6 @@ async function handlePlayerCompletedGoal(username) {
     }
 }
 
-function endArcade() {
-    // Disable game activity monitoring
-    moderatorInactivity.isGameActive = false;
-    
-    // Mark celebration as triggered to prevent duplicate celebrations
-    currentArcadeSession.celebrationTriggered = true;
-    
-    // Update session state
-    currentArcadeSession.state = "ended";
-    currentArcadeSession.endTime = Date.now();
-    
-    // For sessions with enough participants, show celebration
-    if (currentArcadeSession.participants.length >= 3) {
-        const podiumPlayers = [...currentArcadeSession.participants]
-            .sort((a, b) => b.wordsCompleted !== a.wordsCompleted ? 
-                 b.wordsCompleted - a.wordsCompleted : b.coins - a.coins)
-            .slice(0, 3)
-            .map((player, index) => ({...player, rank: index + 1, completionTime: Date.now() - 1000 * index}));
-            
-        window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'game_end',
-            payload: {
-                state: 'ended',
-                podiumPlayers: podiumPlayers,
-                teacherId: currentArcadeSession.teacherId,
-                forcedEnd: false,
-                duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
-            }
-        });
-        
-        startLeaderboardCelebration(podiumPlayers);
-    } else {
-        window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'game_end',
-            payload: {
-                state: 'ended',
-                forcedEnd: true,
-                teacherId: currentArcadeSession.teacherId
-            }
-        });
-        
-        showScreen('welcome-screen');
-    }
-    
-    // Completely reset the arcade session
-    resetArcadeSession();
-    
-    // Unsubscribe from the arcade channel
-    if (window.arcadeChannel) {
-        window.arcadeChannel.unsubscribe();
-        window.arcadeChannel = null;
-    }
-}
-
 function resetArcadeSession() {
     const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
     
