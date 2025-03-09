@@ -3926,17 +3926,27 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// REPLACE: Avatar button click handler
 function handleAvatarButtonClick() {
     console.log("Avatar button clicked");
     
-    // If user is logged in, show profile modal (not stats screen)
+    // If user is logged in, show profile modal
     // Otherwise, show auth modal
     if (currentUser) {
-        openProfileModal(); // Use the profile modal function instead
+      openProfileModal();
     } else {
-        showAuthModal();
+      showAuthModal();
     }
-}
+  }
+  
+  // Update the avatar button click handler when the DOM is loaded
+  document.addEventListener('DOMContentLoaded', function() {
+    const avatarButton = document.getElementById('login-avatar-btn');
+    if (avatarButton) {
+      avatarButton.onclick = handleAvatarButtonClick;
+      console.log("Avatar button click handler updated");
+    }
+  });
 
 function hideUpgradePrompt() {
     const prompt = document.querySelector('.upgrade-prompt');
@@ -5046,58 +5056,31 @@ function hideCrownIconsForPremiumUsers() {
     setTimeout(hideCrownIconsForPremiumUsers, 100);
   });
 
-// Set up a mutation observer to handle crown icons that get added dynamically
+/* ADD this code to ensure crowns are clickable after DOM loads */
 document.addEventListener('DOMContentLoaded', function() {
     // Add click handlers to all crown icons
     document.querySelectorAll('.fa-crown').forEach(crown => {
-      crown.addEventListener('click', handleCrownClick);
+        crown.addEventListener('click', handleCrownClick);
     });
     
     // Set up a mutation observer to handle dynamically added crowns
     const observer = new MutationObserver(mutations => {
-      mutations.forEach(mutation => {
-        if (mutation.addedNodes.length) {
-          mutation.addedNodes.forEach(node => {
-            if (node.nodeType === 1) { // Element node
-              const crowns = node.querySelectorAll('.fa-crown');
-              crowns.forEach(crown => {
-                crown.addEventListener('click', handleCrownClick);
-              });
+        mutations.forEach(mutation => {
+            if (mutation.addedNodes.length) {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType === 1) { // Element node
+                        const crowns = node.querySelectorAll('.fa-crown');
+                        crowns.forEach(crown => {
+                            crown.addEventListener('click', handleCrownClick);
+                        });
+                    }
+                });
             }
-          });
-        }
-      });
-      
-      // Run the hide function after DOM changes
-      if (currentUser && currentUser.status === 'premium') {
-        hideCrownIconsForPremiumUsers();
-      }
+        });
     });
     
     observer.observe(document.body, { childList: true, subtree: true });
-  });
-
-  function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `game-notification ${type}`;
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    // Small delay to ensure DOM update before adding show class
-    setTimeout(() => notification.classList.add('show'), 10);
-    
-    // Hide notification after delay
-    setTimeout(() => {
-      notification.classList.remove('show');
-      // Remove from DOM after transition completes
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.remove();
-        }
-      }, 300);
-    }, 3000);
-  }
+});
 
 
 
@@ -11423,5 +11406,70 @@ window.debugPremium.setUserStatus('free');
 window.debugPremium.setUserStatus('unregistered');
 
 
-
+// ADD: Function to ensure crown button in floating menu opens upgrade screen
+function fixCrownButtonBehavior() {
+    // Find the premium menu item in the floating menu
+    const premiumMenuItem = document.querySelector('#options-menu .menu-item[id="premium-menu-item"], #options-menu .menu-item i.fa-crown').closest('.menu-item');
+    
+    if (premiumMenuItem) {
+      console.log("Found premium menu item, fixing click behavior");
+      
+      // Remove any existing onclick attribute
+      premiumMenuItem.removeAttribute('onclick');
+      
+      // Add direct event listener with highest priority
+      premiumMenuItem.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log("Premium menu item clicked - showing upgrade screen");
+        
+        // Close the options menu first
+        const optionsMenu = document.getElementById('options-menu');
+        if (optionsMenu) {
+          optionsMenu.classList.remove('show');
+        }
+        
+        // Show upgrade screen directly
+        showScreen('upgrade-screen');
+      }, true); // Use capturing phase for highest priority
+      
+      // Also fix any crown icon inside the button
+      const crownIcon = premiumMenuItem.querySelector('i.fa-crown');
+      if (crownIcon) {
+        crownIcon.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log("Crown icon clicked - showing upgrade screen");
+          
+          // Close the options menu
+          const optionsMenu = document.getElementById('options-menu');
+          if (optionsMenu) {
+            optionsMenu.classList.remove('show');
+          }
+          
+          // Show upgrade screen directly
+          showScreen('upgrade-screen');
+        }, true); // Use capturing phase for highest priority
+      }
+    } else {
+      console.warn("Premium menu item not found in the floating menu");
+    }
+  }
+  
+  // Call this function after the menu is created and whenever it might be refreshed
+  document.addEventListener('DOMContentLoaded', function() {
+    // Fix initially after page load
+    setTimeout(fixCrownButtonBehavior, 500);
+    
+    // Also fix after menu is refreshed
+    document.addEventListener('menuRefreshed', fixCrownButtonBehavior);
+    
+    // Fix when the settings/options menu is opened
+    const settingsToggle = document.getElementById('settings-toggle');
+    if (settingsToggle) {
+      settingsToggle.addEventListener('click', function() {
+        setTimeout(fixCrownButtonBehavior, 100);
+      });
+    }
+  });
   
