@@ -6282,440 +6282,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 
-function initializeCarousel() {
-    // Create floating menu for options
-    function createOptionsMenu() {
-        // Remove existing menu if it exists
-        const existingMenu = document.getElementById('options-menu');
-        if (existingMenu) {
-            existingMenu.remove();
-        }
 
-        const optionsMenu = document.createElement('div');
-        optionsMenu.id = 'options-menu';
-        optionsMenu.className = 'floating-menu';
-        
-        // Define all possible menu items
-        const menuItems = [
-            {
-                id: 'profile-item',
-                icon: 'fa-user',
-                text: 'Profile',
-                onClick: 'openProfileModal()',
-                visibleTo: ['all'] // visible to all users
-            },
-            {
-                id: 'custom-practice-item',
-                icon: 'fa-pen',
-                text: 'Custom Practice',
-                onClick: 'showScreen(\'custom-practice-screen\')',
-                visibleTo: ['all'] // visible to all users
-            },
-            {
-                id: 'leaderboard-item',
-                icon: 'fa-trophy',
-                text: 'Leaderboard',
-                onClick: 'showLeaderboard()',
-                visibleTo: ['all'] // visible to all users
-            },
-            {
-                id: 'premium-item',
-                icon: 'fa-crown premium-crown',
-                text: 'Premium',
-                onClick: 'showUpgradeScreen()',
-                visibleTo: ['free', 'pending', 'unregistered'] // visible only to non-premium users
-            },
-            {
-                id: 'about-item',
-                icon: 'fa-info-circle',
-                text: 'About',
-                onClick: 'showAboutScreen()',
-                visibleTo: ['all'] // visible to all users
-            },
-            {
-                id: 'shop-item',
-                icon: 'fa-store',
-                text: 'Shop',
-                onClick: 'showScreen(\'shop-screen\')',
-                visibleTo: ['all'] // visible to all users
-            },
-            {
-                id: 'accessibility-item',
-                icon: 'fa-universal-access',
-                text: 'Accessibility',
-                onClick: 'openAccessibilitySettings()',
-                visibleTo: ['all'] // visible to all users
-            }
-        ];
-        
-        // Add menu grid container
-        const menuGrid = document.createElement('div');
-        menuGrid.className = 'menu-grid';
-        optionsMenu.appendChild(menuGrid);
-        
-        // Filter menu items based on user status
-        const userStatus = currentUser ? (currentUser.status || 'free') : 'unregistered';
-        
-        // Add filtered items to the menu
-        menuItems.forEach(item => {
-            // Check if this item should be visible to the current user
-            if (item.visibleTo.includes('all') || item.visibleTo.includes(userStatus)) {
-                const menuItem = document.createElement('div');
-                menuItem.className = 'menu-item';
-                menuItem.id = item.id;
-                menuItem.setAttribute('onclick', item.onClick);
-                
-                menuItem.innerHTML = `
-                    <i class="fas ${item.icon}"></i>
-                    <span>${item.text}</span>
-                `;
-                
-                menuGrid.appendChild(menuItem);
-            }
-        });
-        
-        document.body.appendChild(optionsMenu);
-        return optionsMenu;
-    }
-
-    // Rest of the carousel initialization code remains the same
-    const carousel = document.querySelector('.icon-carousel');
-    if (!carousel) return;
-    
-    // Initialize particles for welcome screen
-    const welcomeScreen = document.getElementById('welcome-screen');
-    if (welcomeScreen) {
-        initializeParticles(welcomeScreen);
-    }
-    
-    const items = Array.from(carousel.querySelectorAll('.carousel-item'));
-    const description = document.getElementById('carousel-description');
-    const indicators = document.querySelectorAll('.carousel-indicators .indicator');
-    const totalItems = items.length;
-    
-    let startX, moveX, currentIndex = 1; // Default active item (Play)
-    let isDragging = false;
-    let canClick = true;
-    let isAnimating = false;
-    let clickedItemIndex = -1;
-    
-    // Detect if we're on a mobile device
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
-    // Set initial state
-    updateCarouselState();
-    
-    // Touch/mouse event listeners for the carousel container
-    carousel.addEventListener('touchstart', handleContainerDragStart, { passive: true });
-    carousel.addEventListener('mousedown', handleContainerDragStart);
-    carousel.addEventListener('touchmove', handleContainerDragMove, { passive: true });
-    carousel.addEventListener('mousemove', handleContainerDragMove);
-    carousel.addEventListener('touchend', handleContainerDragEnd);
-    carousel.addEventListener('mouseup', handleContainerDragEnd);
-    carousel.addEventListener('mouseleave', handleContainerDragEnd);
-    
-    // Item click listeners only - separate from drag
-    items.forEach((item, index) => {
-        item.addEventListener('click', function(e) {
-            e.stopPropagation(); // Prevent event from bubbling to container
-            
-            // Only proceed if not dragging and not already animating
-            if (isDragging || isAnimating) return;
-            
-            // Record which item was clicked
-            clickedItemIndex = index;
-            
-            if (!item.classList.contains('active')) {
-                // If clicking side item, make it active
-                moveToIndex(index);
-            } else {
-                // If clicking active item, execute its action
-                executeItemAction(item);
-            }
-        });
-    });
-    
-    // Create the options menu for the settings button
-    const optionsMenu = createOptionsMenu();
-    
-    // Settings toggle functionality
-    const settingsToggle = document.getElementById('settings-toggle');
-    if (settingsToggle && optionsMenu) {
-        settingsToggle.addEventListener('click', function(e) {
-            e.stopPropagation();
-            optionsMenu.classList.toggle('show');
-            
-            if (optionsMenu.classList.contains('show')) {
-                positionOptionsMenu();
-            }
-        });
-        
-        // Close menu when clicking elsewhere
-        document.addEventListener('click', function(e) {
-            if (optionsMenu.classList.contains('show') && 
-                !optionsMenu.contains(e.target) && 
-                e.target !== settingsToggle) {
-                optionsMenu.classList.remove('show');
-            }
-        });
-    }
-    
-    // Rest of the carousel implementation...
-    // (Container drag functions, moveToIndex, updateCarouselState, etc.)
-    
-    function handleContainerDragStart(e) {
-        // Don't start a new drag if already animating
-        if (isAnimating) return;
-        
-        isDragging = true;
-        canClick = true;
-        clickedItemIndex = -1; // Reset clicked item
-        
-        // Get start position
-        startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
-        
-        // Prevent default only for mouse to avoid text selection
-        if (e.type === 'mousedown') {
-            e.preventDefault();
-        }
-    }
-    
-    function handleContainerDragMove(e) {
-        if (!isDragging) return;
-        
-        moveX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
-        const diffX = moveX - startX;
-        
-        // If drag distance is significant, prevent click action
-        if (Math.abs(diffX) > 20) {
-            canClick = false;
-        }
-    }
-    
-    function handleContainerDragEnd(e) {
-        if (!isDragging) return;
-        
-        isDragging = false;
-        
-        // If clicked item was recorded, handle as a click not a drag
-        if (clickedItemIndex >= 0) {
-            return;
-        }
-        
-        // If it was just a click or tiny movement, do nothing
-        if (canClick) return;
-        
-        // Check if moveX is defined
-        if (typeof moveX === 'undefined') return;
-        
-        const diffX = moveX - startX;
-        
-        // Determine swipe direction if movement is significant
-        if (Math.abs(diffX) > 50) {
-            if (diffX > 0) {
-                // Swipe right (show previous)
-                moveToIndex(currentIndex - 1);
-            } else {
-                // Swipe left (show next)
-                moveToIndex(currentIndex + 1);
-            }
-        }
-        
-        // Reset moveX
-        moveX = undefined;
-    }
-    
-    function moveToIndex(index) {
-        // Don't do anything if already animating
-        if (isAnimating) return;
-        
-        // Set animating flag
-        isAnimating = true;
-        
-        // Handle circular navigation
-        if (index < 0) {
-            index = totalItems - 1;
-        } else if (index >= totalItems) {
-            index = 0;
-        }
-        
-        // Determine animation direction
-        const direction = index > currentIndex ? 'left' : 'right';
-        const oppositeDirection = direction === 'left' ? 'right' : 'left';
-        
-        // Update current active item with animation
-        items[currentIndex].classList.remove('active');
-        items[currentIndex].classList.add(`transition-${direction}`);
-        
-        // Update indicators
-        if (indicators[currentIndex]) {
-            indicators[currentIndex].classList.remove('active');
-        }
-        
-        // Set new active item with animation - use less complex animation for mobile
-        setTimeout(() => {
-            items[currentIndex].classList.remove(`transition-${direction}`);
-            
-            // Update index
-            currentIndex = index;
-            
-            // Add opposite animation to new active - simpler for mobile
-            if (!isMobile) {
-                items[currentIndex].classList.add(`transition-${oppositeDirection}`);
-                
-                // Force reflow to restart animation
-                void items[currentIndex].offsetWidth;
-            }
-            
-            // Set as active and remove animation class
-            items[currentIndex].classList.remove(`transition-${oppositeDirection}`);
-            items[currentIndex].classList.add('active');
-            
-            // Update indicators
-            if (indicators[currentIndex]) {
-                indicators[currentIndex].classList.add('active');
-            }
-            
-            // Update description text
-            updateDescription();
-            
-            // Reposition items
-            updateCarouselState();
-            
-            // Reset animating flag after animation completes - longer on mobile
-            setTimeout(() => {
-                isAnimating = false;
-            }, isMobile ? 400 : 500); // Shorter timeout for mobile
-        }, isMobile ? 30 : 50); // Shorter delay for mobile
-    }
-    
-    function updateCarouselState() {
-        // Calculate positions for all items based on circular logic
-        items.forEach((item, index) => {
-            item.classList.remove('active');
-            
-            // Position items in a circular manner relative to current
-            const relativePosition = getCircularPosition(currentIndex, index, totalItems);
-            
-            // Use requestAnimationFrame for smoother animations
-            requestAnimationFrame(() => {
-                if (relativePosition === 0) {
-                    // Current item (center)
-                    item.classList.add('active');
-                    item.style.zIndex = 2;
-                    item.style.opacity = '1';
-                    
-                    if (isMobile) {
-                        // Simplified transform for mobile
-                        item.style.transform = 'translateX(0) translateY(0) scale(1.5)';
-                    } else {
-                        item.style.transform = 'translateX(0) translateY(0) scale(1.8)';
-                    }
-                } else if (relativePosition === -1) {
-                    // Item to the left
-                    item.style.zIndex = 1;
-                    item.style.opacity = '0.6';
-                    
-                    if (isMobile) {
-                        item.style.transform = 'translateX(-120px) translateY(-15px) scale(0.7)';
-                    } else {
-                        item.style.transform = 'translateX(-150px) translateY(-25px) scale(0.7)';
-                    }
-                } else if (relativePosition === 1) {
-                    // Item to the right
-                    item.style.zIndex = 1;
-                    item.style.opacity = '0.6';
-                    
-                    if (isMobile) {
-                        item.style.transform = 'translateX(120px) translateY(-15px) scale(0.7)';
-                    } else {
-                        item.style.transform = 'translateX(150px) translateY(-25px) scale(0.7)';
-                    }
-                } else if (relativePosition < -1) {
-                    // Items further left (hidden)
-                    item.style.zIndex = 0;
-                    item.style.opacity = '0';
-                    
-                    if (isMobile) {
-                        item.style.transform = 'translateX(-200px) translateY(-15px) scale(0.4)';
-                    } else {
-                        item.style.transform = 'translateX(-300px) translateY(-25px) scale(0.4)';
-                    }
-                } else if (relativePosition > 1) {
-                    // Items further right (hidden)
-                    item.style.zIndex = 0;
-                    item.style.opacity = '0';
-                    
-                    if (isMobile) {
-                        item.style.transform = 'translateX(200px) translateY(-15px) scale(0.4)';
-                    } else {
-                        item.style.transform = 'translateX(300px) translateY(-25px) scale(0.4)';
-                    }
-                }
-            });
-        });
-        
-        // Update indicators
-        if (indicators.length > 0) {
-            indicators.forEach((indicator, index) => {
-                indicator.classList.toggle('active', index === currentIndex);
-            });
-        }
-        
-        // Update description
-        updateDescription();
-    }
-    
-    // Helper function to calculate the relative position in a circular array
-    function getCircularPosition(center, position, total) {
-        let diff = position - center;
-        
-        // Handle wrapping
-        if (diff > Math.floor(total / 2)) {
-            diff = diff - total;
-        } else if (diff < -Math.floor(total / 2)) {
-            diff = diff + total;
-        }
-        
-        return diff;
-    }
-    
-    function updateDescription() {
-        if (description && items[currentIndex]) {
-            const desc = items[currentIndex].getAttribute('data-description');
-            
-            // Animate description change
-            description.style.opacity = '0';
-            setTimeout(() => {
-                description.textContent = desc;
-                description.style.opacity = '1';
-            }, 300);
-        }
-    }
-    
-    function executeItemAction(item) {
-        const action = item.getAttribute('data-action');
-        if (action) {
-            // Use Function to safely execute the action string
-            try {
-                (new Function(action))();
-            } catch (e) {
-                console.error('Error executing action:', e);
-            }
-        }
-    }
-    
-    // Add click handler for indicators
-    if (indicators.length > 0) {
-        indicators.forEach((indicator, index) => {
-            indicator.addEventListener('click', () => {
-                if (!isAnimating) {
-                    moveToIndex(index);
-                }
-            });
-        });
-    }
-}
 
 
   document.addEventListener('DOMContentLoaded', function() {
@@ -11247,3 +10814,316 @@ function updateStageBackground() {
 
   
 
+// Function to update premium button visibility
+function updatePremiumButtonVisibility() {
+    // Get the premium button from the static HTML menu
+    const premiumMenuItemStatic = document.getElementById('premium-menu-item');
+    
+    // Check if user is premium
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    const shouldShowPremium = userStatus !== 'premium'; // Show for unregistered, free, and pending
+    
+    // Update visibility of static premium button
+    if (premiumMenuItemStatic) {
+      premiumMenuItemStatic.style.display = shouldShowPremium ? 'flex' : 'none';
+      console.log(`Premium button visibility: ${shouldShowPremium ? 'visible' : 'hidden'} for user status: ${userStatus}`);
+    }
+  }
+  
+  // Call this function when DOM is loaded
+  document.addEventListener('DOMContentLoaded', function() {
+    updatePremiumButtonVisibility();
+  });
+  
+  // Also call this when user status changes
+  document.addEventListener('userStatusChanged', function(event) {
+    updatePremiumButtonVisibility();
+  });
+  
+  // Modify the createOptionsMenu function to remove profile and logout
+  const originalCreateOptionsMenu = createOptionsMenu;
+  createOptionsMenu = function() {
+    // Remove existing menu if it exists
+    const existingMenu = document.getElementById('options-menu');
+    if (existingMenu) {
+      existingMenu.remove();
+    }
+  
+    const optionsMenu = document.createElement('div');
+    optionsMenu.id = 'options-menu';
+    optionsMenu.className = 'floating-menu';
+    
+    // Define all possible menu items - remove profile and logout
+    const menuItems = [
+      {
+        id: 'custom-practice-item',
+        icon: 'fa-pen',
+        text: 'Custom Practice',
+        onClick: 'showScreen(\'custom-practice-screen\')',
+        visibleTo: ['all']
+      },
+      {
+        id: 'leaderboard-item',
+        icon: 'fa-trophy',
+        text: 'Leaderboard',
+        onClick: 'showLeaderboard()',
+        visibleTo: ['all']
+      },
+      {
+        id: 'premium-item',
+        icon: 'fa-crown premium-crown',
+        text: 'Premium',
+        onClick: 'showUpgradeScreen()',
+        visibleTo: ['free', 'pending', 'unregistered'] // Only visible to non-premium users
+      },
+      {
+        id: 'about-item',
+        icon: 'fa-info-circle',
+        text: 'About',
+        onClick: 'showAboutScreen()',
+        visibleTo: ['all']
+      },
+      {
+        id: 'shop-item',
+        icon: 'fa-store',
+        text: 'Shop',
+        onClick: 'showScreen(\'shop-screen\')',
+        visibleTo: ['all']
+      },
+      {
+        id: 'accessibility-item',
+        icon: 'fa-universal-access',
+        text: 'Accessibility',
+        onClick: 'openAccessibilitySettings()',
+        visibleTo: ['all']
+      }
+    ];
+    
+    // Add menu grid container
+    const menuGrid = document.createElement('div');
+    menuGrid.className = 'menu-grid';
+    optionsMenu.appendChild(menuGrid);
+    
+    // Filter menu items based on user status
+    const userStatus = currentUser ? (currentUser.status || 'free') : 'unregistered';
+    console.log("Creating menu with user status:", userStatus);
+    
+    // Add filtered items to the menu
+    menuItems.forEach(item => {
+      // Check if this item should be visible to the current user
+      const isVisible = item.visibleTo.includes('all') || 
+                       (item.id === 'premium-item' && userStatus !== 'premium') ||
+                       item.visibleTo.includes(userStatus);
+      
+      if (isVisible) {
+        const menuItem = document.createElement('div');
+        menuItem.className = 'menu-item';
+        menuItem.id = item.id;
+        menuItem.setAttribute('onclick', item.onClick);
+        
+        menuItem.innerHTML = `
+          <i class="fas ${item.icon}"></i>
+          <span>${item.text}</span>
+        `;
+        
+        if (item.id === 'premium-item') {
+          console.log("Adding premium menu item, user status:", userStatus);
+        }
+        
+        menuGrid.appendChild(menuItem);
+      }
+    });
+    
+    document.body.appendChild(optionsMenu);
+    
+    // Dispatch an event indicating the menu was refreshed
+    document.dispatchEvent(new CustomEvent('menuRefreshed'));
+    
+    return optionsMenu;
+  };
+
+  // Replace the entire createOptionsMenu function
+window.createOptionsMenu = function() {
+    console.log("Creating options menu with user status:", currentUser?.status || "unregistered");
+    
+    // Remove existing menu if it exists
+    const existingMenu = document.getElementById('options-menu');
+    if (existingMenu) {
+      existingMenu.remove();
+    }
+  
+    const optionsMenu = document.createElement('div');
+    optionsMenu.id = 'options-menu';
+    optionsMenu.className = 'floating-menu';
+    
+    // Add menu grid container
+    const menuGrid = document.createElement('div');
+    menuGrid.className = 'menu-grid';
+    optionsMenu.appendChild(menuGrid);
+    
+    // Check user status directly
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    const isPremiumUser = userStatus === 'premium';
+    
+    console.log(`User is premium: ${isPremiumUser}`);
+    
+    // Define menu items - Note: We'll skip Premium button for premium users
+    const menuItems = [];
+    
+    // Always add these buttons
+    menuItems.push(
+      {
+        icon: 'fa-expand',
+        text: 'Fullscreen',
+        onClick: 'toggleFullScreen()'
+      },
+      {
+        icon: 'fa-undo',
+        text: 'Reset',
+        onClick: 'handleResetProgress()'
+      }
+    );
+    
+    // Add Premium button ONLY if user is NOT premium
+    if (!isPremiumUser) {
+      menuItems.push({
+        icon: 'fa-crown',
+        text: 'Premium',
+        onClick: 'showScreen(\'upgrade-screen\')'
+      });
+    }
+    
+    // Continue with other buttons
+    menuItems.push(
+      {
+        icon: 'fa-map-marked-alt',
+        text: 'Stages',
+        onClick: 'showStageCascadeScreen()'
+      },
+      {
+        icon: 'fa-trophy',
+        text: 'Rankings',
+        onClick: 'showLeaderboard()'
+      },
+      {
+        icon: 'fa-universal-access',
+        text: 'Access',
+        onClick: 'openAccessibilitySettings()'
+      },
+      {
+        icon: 'fa-envelope',
+        text: 'Email',
+        onClick: 'window.location.href=\'mailto:danav.bred@gmail.com?subject=About%20Simplos\''
+      },
+      {
+        icon: 'fa-whatsapp',
+        text: 'WhatsApp',
+        onClick: 'window.location.href=\'https://wa.me/972545996417\''
+      },
+      {
+        icon: 'fa-info-circle',
+        text: 'About',
+        onClick: 'window.open(\'https://simplos.netlify.app/about.html\', \'_blank\')'
+      },
+      {
+        icon: 'fa-times',
+        text: 'Close',
+        onClick: 'closeOptionsMenu()'
+      }
+    );
+    
+    // Create menu items
+    menuItems.forEach(item => {
+      const menuItem = document.createElement('div');
+      menuItem.className = 'menu-item';
+      
+      // For Premium button, add special ID
+      if (item.text === 'Premium') {
+        menuItem.id = 'premium-menu-item';
+      }
+      
+      // Set onClick handler
+      if (item.onClick) {
+        menuItem.setAttribute('onclick', item.onClick);
+      }
+      
+      // Add content
+      menuItem.innerHTML = `
+        <i class="fas ${item.icon}"></i>
+        <span>${item.text}</span>
+      `;
+      
+      menuGrid.appendChild(menuItem);
+    });
+    
+    document.body.appendChild(optionsMenu);
+    console.log("Options menu created, premium button included:", !isPremiumUser);
+    
+    return optionsMenu;
+  };
+  
+  // Override the static HTML menu
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM loaded - replacing static menu");
+    
+    // Replace the static menu with our dynamic one
+    const staticMenu = document.getElementById('options-menu');
+    if (staticMenu) {
+      staticMenu.parentNode.removeChild(staticMenu);
+    }
+    
+    // Force create the menu - this ensures a clean start
+    setTimeout(() => {
+      window.createOptionsMenu();
+      
+      // Also hook into the settings toggle to ensure menu is correctly created
+      const settingsToggle = document.getElementById('settings-toggle');
+      if (settingsToggle) {
+        const originalClick = settingsToggle.onclick;
+        settingsToggle.onclick = function(e) {
+          // First recreate the menu
+          window.createOptionsMenu();
+          
+          // Then let the original handler run
+          if (originalClick) {
+            originalClick.call(this, e);
+          } else {
+            const optionsMenu = document.getElementById('options-menu');
+            if (optionsMenu) {
+              optionsMenu.classList.toggle('show');
+            }
+          }
+        };
+      }
+    }, 500);
+  });
+
+  /**
+ * Updates the visibility of premium menu items based on user status
+ * This function handles both static and dynamic menu elements
+ */
+function updatePremiumMenuItems() {
+    // Get user status - default to 'unregistered' if no user
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    const isPremium = userStatus === 'premium';
+    
+    console.log(`Updating premium button visibility - User status: ${userStatus}, Premium: ${isPremium}`);
+    
+    // 1. Update static premium button in HTML
+    const staticPremiumButton = document.getElementById('premium-menu-item');
+    if (staticPremiumButton) {
+      staticPremiumButton.style.display = isPremium ? 'none' : 'flex';
+    }
+    
+    // 2. Update dynamic premium items in the floating menu
+    const optionsMenu = document.getElementById('options-menu');
+    if (optionsMenu) {
+      const premiumItems = optionsMenu.querySelectorAll('.menu-item[id="premium-item"], .menu-item i.fa-crown, .menu-item:has(i.fa-crown)');
+      
+      premiumItems.forEach(item => {
+        item.style.display = isPremium ? 'none' : 'flex';
+      });
+    }
+  }
+
+  
