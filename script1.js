@@ -5239,12 +5239,48 @@ function skipUpgrade() {
       localStorage.setItem('upgradeRequested_guest', 'true');
     }
     
+    // Clear any stored game context to prevent level resumption
+    localStorage.removeItem("gameContext");
+    
     // Hide the upgrade screen
     document.getElementById('upgrade-screen').classList.remove('visible');
     
-    // Just navigate back to welcome screen instead of starting a level
+    // Reset upgrade form
+    const upgradeForm = document.getElementById("upgradeForm");
+    if (upgradeForm) {
+      upgradeForm.reset();
+    }
+    
+    // Navigate back to welcome screen
     showScreen('welcome-screen');
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Find all skip buttons on the upgrade screen and ensure they call skipUpgrade()
+    const skipButtons = document.querySelectorAll('#upgrade-screen .skip-button, #upgrade-screen button[onclick*="skip"], #upgrade-screen button:contains("Skip")');
+    
+    skipButtons.forEach(button => {
+        // Remove any existing onclick handlers
+        button.removeAttribute('onclick');
+        
+        // Add our direct event listener
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log("Skip button clicked via direct handler");
+            skipUpgrade();
+        });
+    });
+    
+    // Also check for the specific button shown in your screenshot
+    const directSkipButton = document.querySelector('#upgrade-screen button.skip-signup-button, #upgrade-screen button:contains("Skip")');
+    if (directSkipButton) {
+        directSkipButton.onclick = function(e) {
+            e.preventDefault();
+            console.log("Skip button clicked via direct button selector");
+            skipUpgrade();
+        };
+    }
+});
 
 function handleUpgradeSubmit(event) {
     console.log("Upgrade form submitted");
