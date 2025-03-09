@@ -3928,25 +3928,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // REPLACE: Avatar button click handler
 function handleAvatarButtonClick() {
-    console.log("Avatar button clicked");
-    
-    // If user is logged in, show profile modal
-    // Otherwise, show auth modal
-    if (currentUser) {
-      openProfileModal();
-    } else {
-      showAuthModal();
-    }
-  }
+  console.log("Avatar button clicked");
   
-  // Update the avatar button click handler when the DOM is loaded
-  document.addEventListener('DOMContentLoaded', function() {
-    const avatarButton = document.getElementById('login-avatar-btn');
-    if (avatarButton) {
-      avatarButton.onclick = handleAvatarButtonClick;
-      console.log("Avatar button click handler updated");
-    }
-  });
+  // If user is logged in, show profile modal
+  // Otherwise, show auth modal
+  if (currentUser) {
+    openProfileModal();
+  } else {
+    showAuthModal();
+  }
+}
+
+// Update the avatar button click handler when the DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  const avatarButton = document.getElementById('login-avatar-btn');
+  if (avatarButton) {
+    avatarButton.onclick = handleAvatarButtonClick;
+    console.log("Avatar button click handler updated");
+  }
+});
 
 function hideUpgradePrompt() {
     const prompt = document.querySelector('.upgrade-prompt');

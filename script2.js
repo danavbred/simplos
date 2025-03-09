@@ -493,12 +493,6 @@ function cleanupArcadeTimers() {
         window.arcadeBroadcastInterval = null;
     }
     
-    // Clear session status interval
-    if (window.sessionStatusInterval) {
-        clearInterval(window.sessionStatusInterval);
-        window.sessionStatusInterval = null;
-    }
-    
     console.log("All arcade timers and intervals cleared");
 }
 
@@ -6462,52 +6456,7 @@ async function startArcadeGame() {
         }
       }
     }));
-    window.arcadeChannel.on('broadcast', {event: 'force_end_game'}, (({payload: data}) => {
-        console.log('Teacher ended the session for all players', data);
-        
-        // Force exit regardless of who sent the event
-        const victoryOverlay = document.querySelector('.personal-victory-overlay');
-        if (victoryOverlay) {
-            victoryOverlay.style.opacity = '0';
-            setTimeout(() => victoryOverlay.remove(), 300);
-        }
-        
-        // Clear any confetti animations
-        if (window.playerConfettiInterval) {
-            clearInterval(window.playerConfettiInterval);
-        }
-        document.querySelectorAll(".player-confetti").forEach(el => el.remove());
-        
-        // Reset game state
-        currentGame = null;
-        
-        // Reset arcade session
-        currentArcadeSession = {
-            eventId: null,
-            otp: null,
-            wordPool: [],
-            participants: [],
-            teacherId: null,
-            wordGoal: 50,
-            state: 'pre-start',
-            completedPlayers: [],
-            playerRank: null,
-            winnerScreenShown: false,
-            startTime: null,
-            endTime: null
-        };
-        
-        // Force return to welcome screen with slight delay
-        setTimeout(() => {
-            // Make sure all game screens are hidden
-            document.querySelectorAll('.screen').forEach(screen => {
-                screen.classList.remove('visible');
-            });
-            
-            document.getElementById('welcome-screen').classList.add('visible');
-            console.log('Forced redirect to welcome screen');
-        }, 500);
-    }));
+    
     window.arcadeChannel.on('broadcast', {event: 'game_playing'}, (({payload: event}) => {
       if (event.state === 'active') {
         // Update session state
@@ -7228,47 +7177,53 @@ function exitArcade() {
     if (currentUser && currentUser.status === 'premium') {
         updatePlayerStatsAfterArcade().then(() => {
             // Continue with normal cleanup
-            completeArcadeExit();
+            // Reset arcade session
+            currentArcadeSession = {
+                eventId: null,
+                otp: null,
+                wordPool: [],
+                participants: [],
+                teacherId: null,
+                wordGoal: 50,
+                state: 'pre-start',  // 'pre-start', 'started', 'active', 'ended'
+                completedPlayers: [],  // To track players who already completed
+                playerRank: null,      // Current player's rank if completed
+                winnerScreenShown: false, // Flag to prevent multiple winner screens
+                startTime: null,       // When the session started
+                endTime: null          // When the session ended
+            };
+            
+            // Return to welcome screen
+            showScreen('welcome-screen');
         }).catch(err => {
             console.error("Error updating premium stats after arcade:", err);
-            completeArcadeExit();
+            showScreen('welcome-screen');
         });
     } else {
-        completeArcadeExit();
+        // For unregistered users, clear localStorage
+        if (!currentUser || currentUser.status !== 'premium') {
+            localStorage.removeItem('simploxCustomCoins');
+        }
+        
+        // Reset arcade session
+        currentArcadeSession = {
+            eventId: null,
+            otp: null,
+            wordPool: [],
+            participants: [],
+            teacherId: null,
+            wordGoal: 50,
+            state: 'pre-start',  // 'pre-start', 'started', 'active', 'ended'
+            completedPlayers: [],  // To track players who already completed
+            playerRank: null,      // Current player's rank if completed
+            winnerScreenShown: false, // Flag to prevent multiple winner screens
+            startTime: null,       // When the session started
+            endTime: null          // When the session ended
+        };
+        
+        // Return to welcome screen
+        showScreen('welcome-screen');
     }
-}
-
-// ADD: New helper function to complete arcade exit
-function completeArcadeExit() {
-    // For unregistered users, clear localStorage
-    if (!currentUser || currentUser.status !== 'premium') {
-        localStorage.removeItem('simploxCustomCoins');
-    }
-    
-    // Clear victory screens if they exist
-    const victoryOverlay = document.querySelector('.personal-victory-overlay');
-    if (victoryOverlay) {
-        victoryOverlay.remove();
-    }
-    
-    // Reset arcade session
-    currentArcadeSession = {
-        eventId: null,
-        otp: null,
-        wordPool: [],
-        participants: [],
-        teacherId: null,
-        wordGoal: 50,
-        state: 'pre-start',
-        completedPlayers: [],
-        playerRank: null,
-        winnerScreenShown: false,
-        startTime: null,
-        endTime: null
-    };
-    
-    // Return to welcome screen
-    showScreen('welcome-screen');
 }
 
 function handleAnswer(isCorrect, skipMode = false) {
@@ -7813,14 +7768,33 @@ function showPersonalVictoryScreen(rank) {
             </div>
         </div>
         
-        <p style="margin-top: 2rem; text-align: center; color: rgba(255,255,255,0.7); font-size: 1rem;">
-            Waiting for the teacher to end the session...
-        </p>
+        <button class="victory-button" style="
+            background: var(--accent);
+            color: var(--text);
+            border: none;
+            padding: clamp(0.8rem, 3vh, 1rem) clamp(1.5rem, 5vw, 2.5rem);
+            border-radius: 50px;
+            font-size: clamp(1rem, 4vw, 1.2rem);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(30, 144, 255, 0.3);
+            margin-top: clamp(1rem, 4vh, 2rem);
+            min-width: clamp(150px, 40vw, 200px);
+        ">
+            Continue
+        </button>
     `;
     
     container.innerHTML = victoryContent;
     overlay.appendChild(container);
     document.body.appendChild(overlay);
+    
+    // Ensure button has click handler
+    const continueBtn = overlay.querySelector('.victory-button');
+    if (continueBtn) {
+        continueBtn.addEventListener('click', closePersonalVictory);
+    }
     
     // Fade in
     setTimeout(() => {
@@ -9283,51 +9257,59 @@ async function handlePlayerCompletedGoal(username) {
 }
 
 function endArcade() {
-    // Clean up arcade state
-    if (window.playerConfettiInterval) {
-        clearInterval(window.playerConfettiInterval);
+    // Disable game activity monitoring
+    moderatorInactivity.isGameActive = false;
+    
+    // Mark celebration as triggered to prevent duplicate celebrations
+    currentArcadeSession.celebrationTriggered = true;
+    
+    // Update session state
+    currentArcadeSession.state = "ended";
+    currentArcadeSession.endTime = Date.now();
+    
+    // For sessions with enough participants, show celebration
+    if (currentArcadeSession.participants.length >= 3) {
+        const podiumPlayers = [...currentArcadeSession.participants]
+            .sort((a, b) => b.wordsCompleted !== a.wordsCompleted ? 
+                 b.wordsCompleted - a.wordsCompleted : b.coins - a.coins)
+            .slice(0, 3)
+            .map((player, index) => ({...player, rank: index + 1, completionTime: Date.now() - 1000 * index}));
+            
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'game_end',
+            payload: {
+                state: 'ended',
+                podiumPlayers: podiumPlayers,
+                teacherId: currentArcadeSession.teacherId,
+                forcedEnd: false,
+                duration: currentArcadeSession.endTime - (currentArcadeSession.startTime || currentArcadeSession.endTime)
+            }
+        });
+        
+        startLeaderboardCelebration(podiumPlayers);
+    } else {
+        window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'game_end',
+            payload: {
+                state: 'ended',
+                forcedEnd: true,
+                teacherId: currentArcadeSession.teacherId
+            }
+        });
+        
+        showScreen('welcome-screen');
     }
     
-    document.querySelectorAll(".player-confetti").forEach(el => el.remove());
+    // Completely reset the arcade session
+    resetArcadeSession();
     
-    // Remove any overlays
-    document.querySelectorAll(".personal-victory-overlay, .arcade-overlay").forEach(el => {
-        el.remove();
-    });
-    
-    // Reset game state
-    currentGame = null;
-    
-    // Reset arcade session
-    currentArcadeSession = {
-        eventId: null,
-        otp: null,
-        wordPool: [],
-        participants: [],
-        teacherId: null,
-        wordGoal: 50,
-        state: 'pre-start',
-        completedPlayers: [],
-        playerRank: null,
-        winnerScreenShown: false,
-        startTime: null,
-        endTime: null,
-        celebrationTriggered: false
-    };
-    
-    // Unsubscribe from any channels
+    // Unsubscribe from the arcade channel
     if (window.arcadeChannel) {
         window.arcadeChannel.unsubscribe();
         window.arcadeChannel = null;
     }
-    
-    // Hide all game screens
-    document.querySelectorAll('.game-screen, .arcade-screen').forEach(el => {
-        el.style.display = 'none';
-    });
-    
-    // IMPORTANT: Directly go to welcome screen without confirmation
-    showScreen('welcome-screen');
 }
 
 function resetArcadeSession() {
@@ -9472,85 +9454,39 @@ function finishCelebrationAndGoHome() {
         element => element.remove()
     );
     
-    // First broadcast the force end event to all players
-    if (window.arcadeChannel) {
-        window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'force_end_game',
-            payload: {
-                teacherId: currentUser?.id,
-                forcedEnd: true,
-                timestamp: Date.now()
-            }
-        });
-        
-        // Add slight delay to ensure broadcast is sent before cleanup
-        setTimeout(() => {
-            // Unsubscribe from channel after sending
-            window.arcadeChannel.unsubscribe();
-            window.arcadeChannel = null;
-            
-            // Clean up monitoring and reset session
-            cleanupModeratorInactivityMonitoring();
-            resetArcadeSession();
-            
-            // Return to welcome screen
-            showScreen("welcome-screen");
-        }, 100);
-    } else {
-        // If no channel, just return to welcome screen
+    // Update stats before returning home
+    updatePlayerStatsAfterArcade().then(() => {
+        // Clean up monitoring and reset session
         cleanupModeratorInactivityMonitoring();
         resetArcadeSession();
+        
+        // Return to welcome screen
         showScreen("welcome-screen");
-    }
+    });
 }
 
 function handleGameEnd(payload) {
     console.log('Game End Payload:', payload);
 
     // If no payload, exit
+    if (!payload) return;
+    
+    // If forcibly ended by moderator, just go back to welcome
     if (payload.forcedEnd) {
-        // Handle victory screen cleanup
-        const victoryOverlay = document.querySelector('.personal-victory-overlay');
-        if (victoryOverlay) {
-            victoryOverlay.style.opacity = '0';
-            setTimeout(() => victoryOverlay.remove(), 300);
-        }
-        
-        // Clear any confetti animations
-        if (window.playerConfettiInterval) {
-            clearInterval(window.playerConfettiInterval);
-        }
-        document.querySelectorAll(".player-confetti").forEach(el => el.remove());
-        
-        // Return to welcome screen
-        showScreen("welcome-screen");
+        showScreen('welcome-screen');
+        return;
+    }
+
+    // If this is the moderator, show victory screen with podium players
+    if (currentUser?.id === payload.teacherId) {
+        const podiumPlayers = payload.podiumPlayers || [];
+        showModeratorVictoryScreen(podiumPlayers);
         return;
     }
 
     // For players: show appropriate completion screen based on their status
     showFinalResultsForPlayer(payload.podiumPlayers || []);
 }
-
-// Add near the end of startArcadeGame
-// Set up a status check to verify if game has been ended by teacher
-const sessionStatusInterval = setInterval(() => {
-    if (window.arcadeChannel && currentArcadeSession.state !== 'ended') {
-        window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'check_session_status',
-            payload: {
-                username: currentArcadeSession.playerName,
-                timestamp: Date.now()
-            }
-        });
-    } else {
-        clearInterval(sessionStatusInterval);
-    }
-}, 5000); // Check every 5 seconds
-
-// Store the interval for cleanup
-window.sessionStatusInterval = sessionStatusInterval;
 
 function hidePersonalVictoryScreen() {
     const modal = document.querySelector('.arcade-completion-modal');
@@ -10843,9 +10779,6 @@ function startPlayerConfetti() {
 }
 
 function closePersonalVictory() {
-    // This function is now disabled to prevent players from leaving the victory screen
-    // It will only be called by the force_end_game handler
-    
     if (window.playerConfettiInterval) {
         clearInterval(window.playerConfettiInterval);
     }
@@ -10858,8 +10791,11 @@ function closePersonalVictory() {
         setTimeout(() => {
             overlay.remove();
             
-            // Reset the game state and go to welcome screen
+            // DIRECT CLEANUP - no function call
+            // Reset current game
             currentGame = null;
+            
+            // Reset arcade session
             currentArcadeSession = {
                 eventId: null,
                 otp: null,
@@ -10894,6 +10830,7 @@ function closePersonalVictory() {
             
             // Ensure we go to welcome screen
             showScreen('welcome-screen');
+            
         }, 500);
     }
 }
