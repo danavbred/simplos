@@ -6276,6 +6276,7 @@ async function startArcadeGame() {
       coins: initialCoins,
       lastBroadcast: Date.now(),
       initialCoinsLoaded: true,
+      lastBroadcast: Date.now(),
       playerUsername: playerName,
       isLateJoiner: isNewPlayerJoining
     };
@@ -6291,7 +6292,24 @@ async function startArcadeGame() {
     
     // Initialize powerups
     initializePowerups();
-    
+    initializeArcadeUI();
+
+    setTimeout(() => {
+        const circle = document.querySelector('.progress-circle .progress');
+        if (circle) {
+            const radius = 54;
+            const circumference = 2 * Math.PI * radius;
+            
+            // Force to empty (full offset)
+            circle.setAttribute('stroke-dasharray', `${circumference} ${circumference}`);
+            circle.setAttribute('stroke-dashoffset', `${circumference}`);
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            circle.style.strokeDashoffset = `${circumference}`;
+            
+            console.log('Forced progress circle reset to empty!');
+        }
+    }, 50);  // Small delay to ensure DOM is ready
+
     // Set up leaderboard channel and broadcast handlers
     const leaderboardChannel = supabaseClient.channel('arcade_leaderboard')
       .on('postgres_changes', {
@@ -6321,7 +6339,7 @@ async function startArcadeGame() {
       } else {
         currentArcadeSession.participants[index] = participantData;
       }
-      
+      resetArcadeProgressCircle();
       updateAllPlayersProgress();
       updateArcadeProgress();
     }));
@@ -7068,16 +7086,44 @@ function cleanupArcadeSession() {
 
 function updateArcadeProgress() {
     const circle = document.querySelector('.progress-circle .progress');
+    if (!circle) {
+        console.error('Progress circle not found!');
+        return;
+    }
+    
     const radius = 54;
     const circumference = 2 * Math.PI * radius;
     
-    // Default to 0 for initial state
-    const progress = currentGame.wordsCompleted 
-        ? currentGame.wordsCompleted / currentArcadeSession.wordGoal 
-        : 0;
+    // Make sure wordsCompleted is exactly 0 at game start
+    const wordsCompleted = currentGame.wordsCompleted || 0;
+    const wordGoal = currentArcadeSession.wordGoal || 50; // Default to 50 if not set
     
+    // Calculate progress (0 to 1)
+    const progress = wordsCompleted / wordGoal;
+    
+    // Force a proper reset of the SVG properties
+    circle.setAttribute('stroke-dasharray', `${circumference} ${circumference}`);
+    circle.setAttribute('stroke-dashoffset', `${circumference * (1 - progress)}`);
+    
+    // Also set style properties as backup
     circle.style.strokeDasharray = `${circumference} ${circumference}`;
-    circle.style.strokeDashoffset = circumference * (1 - progress);
+    circle.style.strokeDashoffset = `${circumference * (1 - progress)}`;
+    
+    console.log(`Updated arcade progress: ${progress} (${wordsCompleted}/${wordGoal})`);
+}
+
+function resetArcadeProgressCircle() {
+    const circle = document.querySelector('.progress-circle .progress');
+    if (circle) {
+        const radius = 54;
+        const circumference = 2 * Math.PI * radius;
+        const wordsCompleted = currentGame.wordsCompleted || 0;
+        const wordGoal = currentArcadeSession.wordGoal || 50;
+        const progress = wordsCompleted / wordGoal;
+        
+        circle.setAttribute('stroke-dasharray', `${circumference} ${circumference}`);
+        circle.setAttribute('stroke-dashoffset', `${circumference * (1 - progress)}`);
+    }
 }
 
 function showArcadeCompletionScreen(playerData) {
@@ -10734,23 +10780,58 @@ function startPlayerConfetti() {
 
 function closePersonalVictory() {
     if (window.playerConfettiInterval) {
-      clearInterval(window.playerConfettiInterval);
+        clearInterval(window.playerConfettiInterval);
     }
     
     document.querySelectorAll(".player-confetti").forEach(el => el.remove());
     
     const overlay = document.querySelector(".personal-victory-overlay");
     if (overlay) {
-      overlay.style.opacity = "0";
-      setTimeout(() => {
-        overlay.remove();
-        
-        // Update stats before exiting
-        updatePlayerStatsAfterArcade().then(() => {
-          // Call exitArcade to properly clean up
-          exitArcade();
-        });
-      }, 500);
+        overlay.style.opacity = "0";
+        setTimeout(() => {
+            overlay.remove();
+            
+            // DIRECT CLEANUP - no function call
+            // Reset current game
+            currentGame = null;
+            
+            // Reset arcade session
+            currentArcadeSession = {
+                eventId: null,
+                otp: null,
+                wordPool: [],
+                participants: [],
+                teacherId: null,
+                wordGoal: 50,
+                state: 'pre-start',
+                completedPlayers: [],
+                playerRank: null,
+                winnerScreenShown: false,
+                startTime: null,
+                endTime: null,
+                celebrationTriggered: false
+            };
+            
+            // Clear any arcade timers
+            if (window.arcadeChannel) {
+                window.arcadeChannel.unsubscribe();
+                window.arcadeChannel = null;
+            }
+            
+            // Update player stats if needed, but don't wait for it
+            if (currentUser && currentUser.status === 'premium') {
+                updatePlayerStatsAfterArcade();
+            }
+            
+            // Force any game-specific elements to be hidden
+            document.querySelectorAll('.game-screen, .arcade-screen').forEach(el => {
+                el.style.display = 'none';
+            });
+            
+            // Ensure we go to welcome screen
+            showScreen('welcome-screen');
+            
+        }, 500);
     }
 }
 
@@ -14208,3 +14289,21 @@ function showLevelCompletionModal(levelStats, callback) {
   }
 }
 
+function initializeArcadeUI() {
+
+    setTimeout(() => {
+        const circle = document.querySelector('.progress-circle .progress');
+        if (circle) {
+            const radius = 54;
+            const circumference = 2 * Math.PI * radius;
+            
+            // Force circle to be empty (full offset)
+            circle.setAttribute('stroke-dasharray', `${circumference} ${circumference}`);
+            circle.setAttribute('stroke-dashoffset', `${circumference}`);
+            
+            // Also force style directly
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            circle.style.strokeDashoffset = `${circumference}`;
+        }
+    }, 0);
+}
