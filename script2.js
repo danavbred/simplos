@@ -1857,6 +1857,9 @@ function startLevel(level) {
     console.log("Setting game context at level start:", gameContext);
     localStorage.setItem("gameContext", JSON.stringify(gameContext));
     
+    // Update the stage background based on current stage
+    updateStageBackground();
+    
     // Reset game state
     currentGame.wrongStreak = 0;
     currentGame.correctAnswers = 0;
@@ -1868,8 +1871,7 @@ function startLevel(level) {
     currentGame.mistakeRegisteredWords = new Set();
     updatePerkButtons();
     
-    console.log("Current unlocked levels:", gameState.unlockedLevels);
-    
+    console.log("Current unlocked levels:", gameState.unlockedLevels);    
     const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
     console.log(`Current set key: ${setKey}, unlocked levels in set:`, 
       gameState.unlockedLevels[setKey] ? Array.from(gameState.unlockedLevels[setKey]) : "none");
@@ -2641,120 +2643,7 @@ function buyPerk(perkType) {
     saveProgress();
 }
 
-function handleLevelCompletion() {
-    clearTimer();
-    
-    if (currentGame.isBossLevel) {
-      if (currentGame.bossRewardApplied) {
-        console.log("Boss already defeated and rewarded, just showing effects");
-        restoreFromBossLevel();
-        showBossDefeatEffect();
-      } else {
-        console.log("First boss defeat, applying reward");
-        restoreFromBossLevel();
-        currentGame.bossRewardApplied = true;
-        showBossDefeatEffect();
-      }
-      return;
-    }
-  
-    // Non-boss level completion code follows...
-    const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${gameState.currentLevel}`;
-    console.log(`Completing level: ${levelKey}`);
-    
-    const wasAlreadyCompleted = gameState.perfectLevels.has(levelKey) || gameState.completedLevels.has(levelKey);
-    console.log(`Level was previously completed: ${wasAlreadyCompleted}`);
-    
-    // A perfect level has no mistakes AND was completed in less than 2/3 of the total time
-    const totalLevelTime = currentGame.totalTime || (currentGame.words.length * 5); // seconds
-    const actualTime = (Date.now() - currentGame.levelStartTime) / 1000; // convert to seconds
-    
-    const noMistakes = currentGame.mistakeRegisteredWords ? 
-                        currentGame.mistakeRegisteredWords.size === 0 : 
-                        currentGame.streakBonus;
-                        
-    const fastCompletion = actualTime < (totalLevelTime * 2/3);
-    const isPerfect = noMistakes && fastCompletion;
-    
-    console.log(`Level completion stats: No mistakes: ${noMistakes}, Fast completion: ${fastCompletion}, Perfect: ${isPerfect}`);
-    console.log(`Time stats: Total time: ${totalLevelTime}s, Actual time: ${actualTime}s, 2/3 threshold: ${totalLevelTime * 2/3}s`);
-    
-    // Calculate stats for completion modal
-    const completionStats = {
-      isPerfect: isPerfect,
-      mistakes: currentGame.mistakeRegisteredWords ? currentGame.mistakeRegisteredWords.size : (currentGame.progressLost || 0),
-      timeElapsed: Date.now() - currentGame.levelStartTime, // Time taken to complete level
-      coinsEarned: 0, // Will be updated below
-      correctAnswers: currentGame.correctAnswers || 0,
-      incorrectAnswers: currentGame.words.length - currentGame.correctAnswers || 0,
-      totalQuestions: currentGame.words.length || 0,
-      timeBonus: 0 // No more time bonus, just perfect level bonus
-    };
-    
-    // Debug the stats before showing the modal
-    debugLevelStats(completionStats, 'handleLevelCompletion');
-    
-    if (!wasAlreadyCompleted && isPerfect) {
-      // Perfect completion of a new level - award 5 coin bonus
-      const coinReward = 5;
-      completionStats.coinsEarned = coinReward;
-      
-      CoinsManager.updateCoins(coinReward).then(() => {
-        updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, true);
-        const questionScreen = document.getElementById('question-screen').getBoundingClientRect();
-        createParticles(questionScreen.left + questionScreen.width/2, questionScreen.top + questionScreen.height/2);
-      });
-    } else if (!wasAlreadyCompleted) {
-      // Non-perfect completion of a new level
-      updateLevelProgress(gameState.currentStage, gameState.currentSet, gameState.currentLevel, true, false);
-    }
-    
-    pulseCoins(5);
-    updatePerkButtons();
-  
-    // Determine what happens next
-    const stageData = gameStructure.stages[gameState.currentStage - 1];
-    const isLastLevelInSet = gameState.currentLevel === stageData.levelsPerSet;
-    const isLastSetInStage = gameState.currentSet === stageData.numSets;
-    const userStatus = currentUser ? currentUser.status : "unregistered";
-    
-    // Show level completion modal with appropriate next action
-    if (isLastLevelInSet) {
-      // Update game progression by checking set completion
-      checkSetCompletion(gameState.currentStage, gameState.currentSet);
-      
-      if (isLastSetInStage) {
-        // Completed the last set in the stage
-        if (userStatus === "premium" && gameState.currentStage < 5) {
-          // Premium user, not on last stage, go to next stage
-          showLevelCompletionModal(completionStats, () => {
-            gameState.currentStage++;
-            gameState.currentSet = 1;
-            gameState.currentLevel = 1;
-            startLevel(1);
-          });
-        } else {
-          // Either not premium, or last stage reached
-          showLevelCompletionModal(completionStats, () => {
-            showScreen("stage-cascade-screen");
-          });
-        }
-      } else {
-        // Last level in set but not last set in stage
-        showLevelCompletionModal(completionStats, () => {
-          gameState.currentSet++;
-          gameState.currentLevel = 1;
-          startLevel(1);
-        });
-      }
-    } else {
-      // Not the last level in set, simply go to next level
-      showLevelCompletionModal(completionStats, () => {
-        gameState.currentLevel++;
-        startLevel(gameState.currentLevel);
-      });
-    }
-}
+
 
 function checkSetCompletion(stage, set) {
   // Get total number of levels in the set
@@ -3601,7 +3490,8 @@ function showLevelIntro(level, callback, forceFull = false) {
     }
   }
 
-function handleLevelCompletion() {
+
+  function handleLevelCompletion() {
     clearTimer();
     
     if (currentGame.isBossLevel) {
@@ -3680,6 +3570,9 @@ function handleLevelCompletion() {
     }
     
     updatePerkButtons();
+    
+    // Update the stage background based on the next stage/set/level
+    updateStageBackground();
   
     // Determine what happens next
     const stageData = gameStructure.stages[gameState.currentStage - 1];
@@ -3724,8 +3617,6 @@ function handleLevelCompletion() {
       });
     }
 }
-
-
 
 // Add this temporarily to debug the level stats
 function debugLevelStats(stats, caller) {

@@ -11229,5 +11229,19 @@ function ensureGoldShineStyles() {
 // Make sure styles are applied on page load
 document.addEventListener('DOMContentLoaded', ensureGoldShineStyles);
 
-
+function updateStageBackground() {
+    const currentStage = gameState.currentStage;
+    
+    // Get the question screen element
+    const questionScreen = document.getElementById('question-screen');
+    if (!questionScreen) return;
+    
+    // Remove any existing stage background classes
+    questionScreen.classList.remove('stage-3-bg', 'stage-4-bg', 'stage-5-bg');
+    
+    // Apply the appropriate background class based on stage
+    if (currentStage >= 3 && currentStage <= 5) {
+      questionScreen.classList.add(`stage-${currentStage}-bg`);
+    }
+  }
 
