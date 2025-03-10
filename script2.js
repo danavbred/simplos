@@ -6601,31 +6601,53 @@ function showPodiumPlayerResults(players) {
 }
 
 function showConsolationScreen() {
-    // Create a simple consolation modal
-    const overlay = document.createElement('div');
-    overlay.className = 'arcade-completion-modal';
-    
-    // Random encouraging emoji
-    const emojis = ['🌟', '🎮', '🚀', '💪', '🏆', '🔥', '👏', '✨'];
-    const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-    
-    overlay.innerHTML = `
-        <div class="completion-modal-content">
-            <h2 style="font-size: 3rem; margin-bottom: 1rem;">${randomEmoji}</h2>
-            <h2>Game Complete!</h2>
-            <p style="font-size: 1.2rem; margin: 1.5rem 0; line-height: 1.5;">
-                Great effort! You did your best and gained valuable practice.
-                <br><br>
-                Keep playing to improve your skills and speed!
-            </p>
-            <button onclick="exitArcadeCompletion()" class="start-button" style="margin-top: 1.5rem;">
-                Return to Welcome
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    requestAnimationFrame(() => overlay.classList.add('show'));
+  // Create a simple consolation modal
+  const overlay = document.createElement('div');
+  overlay.className = 'arcade-completion-modal';
+  
+  // Random encouraging emoji
+  const emojis = ['🌟', '🎮', '🚀', '💪', '🏆', '🔥', '👏', '✨'];
+  const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+  
+  overlay.innerHTML = `
+      <div class="completion-modal-content">
+          <h2 style="font-size: 3rem; margin-bottom: 1rem;">${randomEmoji}</h2>
+          <h2>Game Complete!</h2>
+          <p style="font-size: 1.2rem; margin: 1.5rem 0; line-height: 1.5;">
+              Great effort! You did your best and gained valuable practice.
+              <br><br>
+              Keep playing to improve your skills and speed!
+          </p>
+          <button onclick="exitArcadeCompletion()" class="start-button" style="margin-top: 1.5rem;">
+              Return to Home
+          </button>
+      </div>
+  `;
+  
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add('show'));
+}
+
+async function getCurrentCoinsForArcade() {
+  if (!currentUser) {
+      // For guest users, use localStorage or default
+      return parseInt(localStorage.getItem('simploxCustomCoins') || '0');
+  }
+
+  // For logged-in users, especially premium
+  try {
+      const { data, error } = await supabaseClient
+          .from('game_progress')
+          .select('coins')
+          .eq('user_id', currentUser.id)
+          .single();
+
+      if (error) console.error('Coin retrieval error:', error);
+      return data?.coins || 0;
+  } catch (error) {
+      console.error('Unexpected coin retrieval error:', error);
+      return 0;
+  }
 }
 
 
@@ -6969,156 +6991,161 @@ function removePlayer(username) {
 
 
 async function joinArcadeWithUsername() {
-    const usernameInput = document.getElementById('arcadeUsername');
-    const otpInput = document.getElementById('otpInput');
-    
-    // Get username either from input or from current user
-    let username;
-    if (currentUser) {
-        username = currentUser.user_metadata?.username || 
-                  currentUser.email.split('@')[0];
-    } else {
-        username = usernameInput.value.trim();
-        
-        // Username validation for guest users
-        if (!username || username.length < 2 || username.length > 15) {
-            showErrorToast('Username must be between 2 and 15 characters');
-            usernameInput.focus();
-            return;
-        }
+  const usernameInput = document.getElementById('arcadeUsername');
+  const otpInput = document.getElementById('otpInput');
+  
+  // Get username either from input or from current user
+  let username;
+  if (currentUser) {
+      username = currentUser.user_metadata?.username || 
+                currentUser.email.split('@')[0];
+  } else {
+      username = usernameInput.value.trim();
+      
+      // Username validation for guest users
+      if (!username || username.length < 2 || username.length > 15) {
+          showErrorToast('Username must be between 2 and 15 characters');
+          usernameInput.focus();
+          return;
+      }
 
-        // Validate username characters
-        const validUsernameRegex = /^[a-zA-Z0-9\u0590-\u05FF\s._-]+$/;
-        if (!validUsernameRegex.test(username)) {
-            showErrorToast('Username can contain letters, numbers, spaces, periods, underscores, and hyphens');
-            usernameInput.focus();
-            return;
-        }
-    }
-    
-    const otp = otpInput.value.trim();
-    
-    // OTP validation
-    if (!otp || otp.length !== 4 || !/^\d+$/.test(otp)) {
-        showErrorToast('Please enter a valid 4-digit game code');
-        otpInput.focus();
-        return;
-    }
+      // Validate username characters
+      const validUsernameRegex = /^[a-zA-Z0-9\u0590-\u05FF\s._-]+$/;
+      if (!validUsernameRegex.test(username)) {
+          showErrorToast('Username can contain letters, numbers, spaces, periods, underscores, and hyphens');
+          usernameInput.focus();
+          return;
+      }
+  }
+  
+  const otp = otpInput.value.trim();
+  
+  // OTP validation
+  if (!otp || otp.length !== 4 || !/^\d+$/.test(otp)) {
+      showErrorToast('Please enter a valid 4-digit game code');
+      otpInput.focus();
+      return;
+  }
 
-    try {
-        // Always initialize with zero coins for arcade mode
-        // No localStorage use for coins in arcade
-        const initialCoins = 0;
-        
-        // Create Supabase channel for the specific arcade session
-        window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`);
-        
-        // Set player name and initial state
-        currentArcadeSession.playerName = username;
-        currentArcadeSession.initialCoins = initialCoins;
-        currentArcadeSession.otp = otp;
-        
-        // First, subscribe to channel
-        await window.arcadeChannel.subscribe();
-        
-        // Set up celebration handler after channel initialization
-        setupCelebrationHandler();
-        
-        // Set up standard event listeners
-        window.arcadeChannel
-            .on('broadcast', { event: 'game_end' }, ({ payload }) => {
-                handleGameEnd(payload);
-                currentArcadeSession.state = 'ended';
-            })
-            .on('broadcast', { event: 'game_playing' }, ({ payload }) => {
-                if (payload.state === 'active') {
-                    currentArcadeSession.state = 'active';
-                    currentArcadeSession.wordPool = payload.wordPool;
-                    currentArcadeSession.wordGoal = payload.wordGoal;
-                    startArcadeGame();
-                }
-            })
-            .on('broadcast', { event: 'player_join' }, ({ payload }) => {
-                console.log('Player join event received:', payload);
-                if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
-                    currentArcadeSession.participants.push({
-                        username: payload.username,
-                        wordsCompleted: 0,
-                        coins: 0
-                    });
+  try {
+      // Initialize coins - IMPORTANT: For premium users, fetch their actual coins
+      let initialCoins = 0;
+      
+      // If premium user, get their actual coin count
+      if (currentUser && currentUser.status === 'premium') {
+          initialCoins = await getCurrentCoinsForArcade();
+          console.log(`Premium user joining with ${initialCoins} coins from database`);
+      }
+      
+      // Create Supabase channel for the specific arcade session
+      window.arcadeChannel = supabaseClient.channel(`arcade:${otp}`);
+      
+      // Set player name and initial state
+      currentArcadeSession.playerName = username;
+      currentArcadeSession.initialCoins = initialCoins;
+      currentArcadeSession.otp = otp;
+      
+      // First, subscribe to channel
+      await window.arcadeChannel.subscribe();
+      
+      // Set up celebration handler after channel initialization
+      setupCelebrationHandler();
+      
+      // Set up standard event listeners
+      window.arcadeChannel
+          .on('broadcast', { event: 'game_end' }, ({ payload }) => {
+              handleGameEnd(payload);
+              currentArcadeSession.state = 'ended';
+          })
+          .on('broadcast', { event: 'game_playing' }, ({ payload }) => {
+              if (payload.state === 'active') {
+                  currentArcadeSession.state = 'active';
+                  currentArcadeSession.wordPool = payload.wordPool;
+                  currentArcadeSession.wordGoal = payload.wordGoal;
+                  startArcadeGame();
+              }
+          })
+          .on('broadcast', { event: 'player_join' }, ({ payload }) => {
+              console.log('Player join event received:', payload);
+              if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
+                  currentArcadeSession.participants.push({
+                      username: payload.username,
+                      wordsCompleted: 0,
+                      coins: payload.coins || 0
+                  });
 
-                    // Update player count 
-                    const playerCountElement = document.getElementById('player-count');
-                    if (playerCountElement) {
-                        playerCountElement.textContent = currentArcadeSession.participants.length;
-                    }
+                  // Update player count 
+                  const playerCountElement = document.getElementById('player-count');
+                  if (playerCountElement) {
+                      playerCountElement.textContent = currentArcadeSession.participants.length;
+                  }
 
-                    // Update leaderboard if visible
-                    const leaderboard = document.getElementById('arcade-leaderboard');
-                    if (leaderboard && leaderboard.offsetParent !== null) {
-                        updateAllPlayersProgress();
-                    }
-                }
-            });
-        
-        // Set up game state check listener
-        window.arcadeChannel.on('broadcast', { event: 'game_state_response' }, ({ payload }) => {
-            console.log('Received game state response:', payload);
-            if (payload && payload.state === 'active') {
-                // Game is active, store state 
-                currentArcadeSession.state = 'active';
-                currentArcadeSession.wordPool = payload.wordPool;
-                currentArcadeSession.wordGoal = payload.wordGoal;
-                
-                // If we've already sent the join event, go straight to game
-                if (currentArcadeSession.joinEventSent) {
-                    // Hide arcade modal first
-                    document.getElementById('arcade-modal').style.display = 'none';
-                    startArcadeGame();
-                }
-            }
-        });
+                  // Update leaderboard if visible
+                  const leaderboard = document.getElementById('arcade-leaderboard');
+                  if (leaderboard && leaderboard.offsetParent !== null) {
+                      updateAllPlayersProgress();
+                  }
+              }
+          });
+      
+      // Set up game state check listener
+      window.arcadeChannel.on('broadcast', { event: 'game_state_response' }, ({ payload }) => {
+          console.log('Received game state response:', payload);
+          if (payload && payload.state === 'active') {
+              // Game is active, store state 
+              currentArcadeSession.state = 'active';
+              currentArcadeSession.wordPool = payload.wordPool;
+              currentArcadeSession.wordGoal = payload.wordGoal;
+              
+              // If we've already sent the join event, go straight to game
+              if (currentArcadeSession.joinEventSent) {
+                  // Hide arcade modal first
+                  document.getElementById('arcade-modal').style.display = 'none';
+                  startArcadeGame();
+              }
+          }
+      });
 
-        // Broadcast initial join
-        await window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'player_join',
-            payload: {
-                username: username,
-                type: 'initialJoin',
-                coins: initialCoins,
-                joinedAt: new Date().toISOString()
-            }
-        });
-        currentArcadeSession.joinEventSent = true;
-        
-        // Now check if game is active
-        await window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'check_game_status',
-            payload: {
-                username: username,
-                requestType: 'lateJoin',
-                timestamp: Date.now()
-            }
-        });
-        
-        // Hide arcade modal
-        document.getElementById('arcade-modal').style.display = 'none';
-        
-        // Wait a moment to see if we get a response indicating the game is active
-        setTimeout(() => {
-            // If state has been updated to active by a response, startArcadeGame will have been called
-            // Otherwise, show waiting screen
-            if (currentArcadeSession.state !== 'active') {
-                showWaitingScreen();
-            }
-        }, 500);
+      // Broadcast initial join with proper coin count for premium users
+      await window.arcadeChannel.send({
+          type: 'broadcast',
+          event: 'player_join',
+          payload: {
+              username: username,
+              type: 'initialJoin',
+              coins: initialCoins, // Use the proper initial coins value
+              joinedAt: new Date().toISOString()
+          }
+      });
+      currentArcadeSession.joinEventSent = true;
+      
+      // Now check if game is active
+      await window.arcadeChannel.send({
+          type: 'broadcast',
+          event: 'check_game_status',
+          payload: {
+              username: username,
+              requestType: 'lateJoin',
+              timestamp: Date.now()
+          }
+      });
+      
+      // Hide arcade modal
+      document.getElementById('arcade-modal').style.display = 'none';
+      
+      // Wait a moment to see if we get a response indicating the game is active
+      setTimeout(() => {
+          // If state has been updated to active by a response, startArcadeGame will have been called
+          // Otherwise, show waiting screen
+          if (currentArcadeSession.state !== 'active') {
+              showWaitingScreen();
+          }
+      }, 500);
 
-    } catch (error) {
-        console.error('Join arcade error:', error);
-        showErrorToast('Failed to join arcade. Please try again.');
-    }
+  } catch (error) {
+      console.error('Join arcade error:', error);
+      showErrorToast('Failed to join arcade. Please try again.');
+  }
 }
 
 const powerupPool = {
