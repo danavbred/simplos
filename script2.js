@@ -14332,17 +14332,10 @@ const PerkManager = {
             return;
         }
         
-        console.log(`Perk ${perkId} unlocked - storing for completion screen`);
+        console.log(`Announcing unlock for perk: ${perkId}`);
         
-        // Instead of showing immediately, store for level completion
-        if (!gameState.perksUnlockedThisLevel) {
-            gameState.perksUnlockedThisLevel = [];
-        }
-        
-        // Only add if not already in the list
-        if (!gameState.perksUnlockedThisLevel.includes(perkId)) {
-            gameState.perksUnlockedThisLevel.push(perkId);
-        }
+        // Create an animated unlock notification
+        this.showPerkUnlockNotification(perkId, perkConfig);
     },
     
     // Show an animated perk unlock notification
