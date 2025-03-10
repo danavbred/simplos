@@ -12486,3 +12486,4 @@ function changeCurrentStage(stageId) {
       document.head.appendChild(style);
     }
   });
+  
