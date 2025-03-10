@@ -873,33 +873,24 @@ function clearCustomPracticeUI() {
     customPracticeLists.lists = [];
 }
 
-
-
-
-
-
-
-
-
-
-
-
-// Game Constants & State Management
-
-
 const gameState = {
-    currentStage: null,
-    currentSet: null,
-    sessionStartTime: null,
-    currentLevel: null,
+    currentStage: 1,
+    currentSet: 1,
+    currentLevel: 1,
+    coins: 0,
+    perks: {
+      timeFreeze: 0,
+      skip: 0,
+      clue: 0,
+      reveal: 0
+    },
     unlockedSets: {},
     unlockedLevels: {},
-    levelScores: {},
-    completedLevels: new Set(),
     perfectLevels: new Set(),
-    coins: 0,
-    
-};
+    completedLevels: new Set(),
+    // ADD THIS LINE BELOW
+    sessionStartTime: null,
+  };
 
 const PERK_CONFIG = {
     timeFreeze: {
@@ -951,7 +942,7 @@ const PERK_CONFIG = {
         cost: 1,
         icon: "fa-egg",
         requiresPremium: true,
-        requiresWordCount: 4
+        requiresWordCount: 45
     },
     randomPerk: {
         name: "Mystery Box",
@@ -1722,6 +1713,11 @@ function startLevel(level) {
     console.log("Setting game context at level start:", gameContext);
     localStorage.setItem("gameContext", JSON.stringify(gameContext));
     
+    // Initialize session start time if not set
+    if (!gameState.sessionStartTime) {
+      gameState.sessionStartTime = Date.now();
+    }
+    
     // Update the stage background based on current stage
     updateStageBackground();
     
@@ -1732,7 +1728,6 @@ function startLevel(level) {
     currentGame.firstAttempt = true;
     currentGame.streakBonus = true;
     currentGame.wordsLearned = 0;
-
 
     // Initialize tracking for coin earning and mistakes
     currentGame.coinAwardedWords = new Set();
@@ -1793,10 +1788,15 @@ function startLevel(level) {
     }
     
     // Determine if we need to show the full intro
-    // Force full intro for boss levels or first level of a set
+    // Show intro if:
+    // 1. It's the first level of a session (sessionStartTime was just set)
+    // 2. It's a boss level
+    // 3. It's the first level of a set
     const forceFullIntro = level === 21 || level === 1;
+    const isNewSession = Date.now() - gameState.sessionStartTime < 5000; // Within 5 seconds of session start
+    const shouldShowIntro = isNewSession || forceFullIntro;
     
-    proceedWithLevel(level, forceFullIntro);
+    proceedWithLevel(level, shouldShowIntro);
   }
 
 function findFurthestProgression() {
@@ -1992,25 +1992,46 @@ function setupGameState(levelConfig, vocabulary) {
 }
 
 function handleLevelProgression() {
-  currentGame.isBossLevel && !currentGame.bossRewardApplied && (currentGame.bossRewardApplied = !0);
-  
-  const e = gameStructure.stages[gameState.currentStage - 1],
-        t = gameState.currentLevel === e.levelsPerSet,
-        n = gameState.currentSet === e.numSets,
-        r = currentUser ? currentUser.status : "unregistered";
-  
-  if (t) {
-    if (gameState.currentStage >= 2 && 1 === gameState.currentSet && "premium" !== r) {
-      // Save completed stage info for future upgrade
-      localStorage.setItem("completedTrialStage", gameState.currentStage);
-      return showScreen("welcome-screen"), void setTimeout((()=>{
-        showUpgradePrompt()
-      }), 500);
-    }
+    currentGame.isBossLevel && !currentGame.bossRewardApplied && (currentGame.bossRewardApplied = !0);
     
-    n ? gameState.currentStage < 5 ? (gameState.currentStage++, gameState.currentSet = 1, startLevel(1)) : showScreen("stage-screen") : (gameState.currentSet++, startLevel(1))
-  } else startLevel(gameState.currentLevel + 1)
-}
+    const e = gameStructure.stages[gameState.currentStage - 1],
+          t = gameState.currentLevel === e.levelsPerSet,
+          n = gameState.currentSet === e.numSets,
+          r = currentUser ? currentUser.status : "unregistered";
+    
+    if (t) {
+      if (gameState.currentStage >= 2 && 1 === gameState.currentSet && "premium" !== r) {
+        // Save completed stage info for future upgrade
+        localStorage.setItem("completedTrialStage", gameState.currentStage);
+        // Reset session start time when returning to welcome screen
+        gameState.sessionStartTime = null;
+        return showScreen("welcome-screen"), void setTimeout((()=>{
+          showUpgradePrompt()
+        }), 500);
+      }
+      
+      if (n) {
+        if (gameState.currentStage < 5) {
+          gameState.currentStage++;
+          gameState.currentSet = 1;
+          // Reset session start time for new stage
+          gameState.sessionStartTime = null;
+          startLevel(1);
+        } else {
+          // Reset session start time when going to stage screen
+          gameState.sessionStartTime = null;
+          showScreen("stage-screen");
+        }
+      } else {
+        gameState.currentSet++;
+        // Reset session start time for new set
+        gameState.sessionStartTime = null;
+        startLevel(1);
+      }
+    } else {
+      startLevel(gameState.currentLevel + 1);
+    }
+  }
 
 // REPLACE the updateProgressCircle function
 function updateProgressCircle() {
@@ -2633,6 +2654,7 @@ function handleResetProgress() {
     gameState.perks = {timeFreeze: 0, skip: 0, clue: 0, reveal: 0};
     gameState.perfectLevels = new Set();
     gameState.completedLevels = new Set();
+    gameState.sessionStartTime = null; // Reset session time
     
     // Set up the proper default unlocks
     // Stage 1: All sets (1-9) should be unlocked
@@ -2675,6 +2697,9 @@ function handleResetProgress() {
     };
     
     localStorage.setItem("simploxProgress", JSON.stringify(defaultProgress));
+    
+    // Also clear the game context to prevent auto-resuming
+    localStorage.removeItem("gameContext");
     
     // Force coin reset through CoinsManager
     if (typeof CoinsManager !== 'undefined') {
@@ -2767,13 +2792,45 @@ function handleResetProgress() {
         updatePerkButtons();
     }
     
-    // Go to welcome screen
+    // Force clear any related flags that might trigger grade selector
+    if (localStorage.getItem("preferredStage")) {
+        localStorage.removeItem("preferredStage");
+    }
+    
+    // Go to welcome screen directly - NOT showing grade level selector
     showScreen('welcome-screen');
     
     // Show notification
     showNotification("All progress has been reset", "info");
 }
 
+
+// Make sure the reset button is properly wired up when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    const resetButton = document.getElementById('resetProgressButton') || 
+                        document.querySelector('.reset-progress-button');
+    
+    if (resetButton) {
+        // Remove any existing click handlers first
+        const oldClickHandler = resetButton.onclick;
+        resetButton.onclick = null;
+        
+        // Add our handler
+        resetButton.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Confirm before resetting
+            if (confirm("Are you sure you want to reset all progress? This cannot be undone.")) {
+                handleResetProgress();
+            }
+        });
+        
+        console.log("Reset button properly initialized");
+    } else {
+        console.warn("Reset progress button not found in DOM");
+    }
+});
 
 function handleRestartLevel() {
     // If no restarts remaining, ignore the click entirely
@@ -3057,9 +3114,14 @@ function checkSetCompletion(stage, set) {
     }
 }
 
-
-
 function showLevelIntro(level, callback, forceFull = false) {
+    // If not forcing full intro, skip intro entirely and just call the callback
+    if (!forceFull) {
+        console.log(`Skipping level intro for level ${level} within active session`);
+        callback();
+        return;
+    }
+
     // Clear any existing level intros first
     document.querySelectorAll('.level-intro-overlay').forEach(el => el.remove());
     
@@ -9840,53 +9902,29 @@ function closePersonalVictory() {
       </h2>
       
       <!-- Star Rating -->
-      <div class="star-rating-container" style="margin-bottom: 2rem;">
-        <div class="star-slots" style="display: flex; justify-content: center; gap: 1rem;">
-          <!-- Three star slots, each with empty and filled versions -->
-          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
-            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
-            <div class="star-filled star-1" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
-          </div>
-          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
-            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
-            <div class="star-filled star-2" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
-          </div>
-          <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
-            <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
-            <div class="star-filled star-3" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
-          </div>
-        </div>
-        <div class="star-criteria" style="margin-top: 0.5rem; font-size: 0.8rem; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between; width: 100%; max-width: 280px; margin-left: auto; margin-right: auto;">
-          <div>Complete</div>
-          <div>No Mistakes</div>
-          <div>Quick Time</div>
-        </div>
-      </div>
-      
-      <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
-        <div class="stat-item" style="text-align: center; flex: 1;">
-          <div style="font-size: 2rem; color: var(--accent);">${correctAnswers}/${totalQuestions}</div>
-          <div style="opacity: 0.7;">Correct</div>
-        </div>
-        <div class="stat-item" style="text-align: center; flex: 1;">
-          <div style="font-size: 2rem; color: #ff4136;">${incorrectAnswers}</div>
-          <div style="opacity: 0.7;">Mistakes</div>
-        </div>
-        <div class="stat-item coin-counter-container" style="text-align: center; flex: 1; position: relative;">
-          <!-- Using the in-game coin counter style -->
-          <div class="coins-display" style="display: inline-flex; align-items: center; justify-content: center;">
-            <span class="coin-value" style="font-size: 2rem; color: var(--gold); font-weight: bold;">${gameState.coins}</span>
-            <span class="coin-icon" style="margin-left: 5px; display: inline-block;">
-              <svg width="24" height="24" viewBox="0 0 24 24" style="transform: translateY(2px);">
-                <circle cx="12" cy="12" r="10" fill="var(--gold)" />
-                <text x="12" y="16" text-anchor="middle" fill="black" style="font-size: 14px; font-weight: bold;">¢</text>
-              </svg>
-            </span>
-          </div>
-          <div style="opacity: 0.7;">Coins</div>
-          ${coinsEarned > 0 ? `<div class="time-bonus-badge" style="position: absolute; top: -10px; right: -10px; background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">+${coinsEarned}</div>` : ''}
-        </div>
-      </div>
+<div class="star-rating-container" style="margin-bottom: 2.5rem; position: relative;">
+  <div class="star-slots" style="display: flex; justify-content: center; gap: 1.5rem;">
+    <!-- Three star slots, each with empty and filled versions -->
+    <div class="star-slot" style="position: relative; width: 65px; height: 65px;">
+      <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3.5rem; line-height: 1; text-shadow: 0 0 5px rgba(0,0,0,0.3);">★</div>
+      <div class="star-filled star-1" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 3.5rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease; text-shadow: 0 0 10px rgba(255,215,0,0.7); filter: drop-shadow(0 0 5px gold);">★</div>
+    </div>
+    <div class="star-slot" style="position: relative; width: 65px; height: 65px;">
+      <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3.5rem; line-height: 1; text-shadow: 0 0 5px rgba(0,0,0,0.3);">★</div>
+      <div class="star-filled star-2" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 3.5rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease; text-shadow: 0 0 10px rgba(255,215,0,0.7); filter: drop-shadow(0 0 5px gold);">★</div>
+    </div>
+    <div class="star-slot" style="position: relative; width: 65px; height: 65px;">
+      <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3.5rem; line-height: 1; text-shadow: 0 0 5px rgba(0,0,0,0.3);">★</div>
+      <div class="star-filled star-3" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 3.5rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease; text-shadow: 0 0 10px rgba(255,215,0,0.7); filter: drop-shadow(0 0 5px gold);">★</div>
+    </div>
+  </div>
+  <div class="star-criteria" style="margin-top: 1rem; font-size: 0.8rem; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between; width: 100%; max-width: 330px; margin-left: auto; margin-right: auto;">
+    <div>Complete</div>
+    <div>No Mistakes</div>
+    <div>Quick Time</div>
+  </div>
+  <div class="star-glow" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 350px; height: 100px; background: radial-gradient(ellipse at center, rgba(255,215,0,0.1) 0%, rgba(255,215,0,0) 70%); z-index: -1; pointer-events: none;"></div>
+</div>
       
       <!-- Average response time section -->
       <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
@@ -10058,7 +10096,44 @@ function closePersonalVictory() {
     }, 1000);
   }
 
-
+  function addStarRatingStyles() {
+    if (!document.getElementById('star-rating-styles')) {
+      const styleElement = document.createElement('style');
+      styleElement.id = 'star-rating-styles';
+      styleElement.textContent = `
+        @keyframes starShine {
+          0% { filter: drop-shadow(0 0 5px gold); }
+          50% { filter: drop-shadow(0 0 12px gold); }
+          100% { filter: drop-shadow(0 0 5px gold); }
+        }
+        
+        @keyframes starPop {
+          0% { transform: scale(0); opacity: 0; }
+          50% { transform: scale(1.3); opacity: 1; }
+          75% { transform: scale(0.9); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .star-filled {
+          animation: starShine 2s infinite ease-in-out;
+        }
+        
+        .star-rating-container {
+          transform: perspective(800px) rotateX(10deg);
+        }
+        
+        .star-slot {
+          transform-style: preserve-3d;
+          transition: transform 0.3s ease;
+        }
+        
+        .star-slot:hover {
+          transform: translateY(-5px);
+        }
+      `;
+      document.head.appendChild(styleElement);
+    }
+  }
 
 function hasExistingProgress() {
     // Check if we have any completed levels or stage progress
@@ -13116,35 +13191,75 @@ function showLevelCompletionModal(levelStats, callback) {
       }
       
       // Animate star filling with sequential delays
-      setTimeout(() => {
-        const star1 = completionContent.querySelector('.star-1');
-        if (star1) {
-          star1.style.opacity = '1';
-          star1.style.transform = 'scale(1)';
-        }
-        
-        // Second star (no mistakes)
-        if (noMistakes) {
-          setTimeout(() => {
-            const star2 = completionContent.querySelector('.star-2');
-            if (star2) {
-              star2.style.opacity = '1'; 
-              star2.style.transform = 'scale(1)';
+      // Add star styles before animating
+addStarRatingStyles();
+
+// Animate star filling with enhanced sequential delays and effects
+setTimeout(() => {
+  // Play star achievement sound if available
+  if (typeof playSound === 'function') {
+    playSound('star1');
+  }
+  
+  const star1 = completionContent.querySelector('.star-1');
+  if (star1) {
+    star1.style.opacity = '1';
+    star1.style.transform = 'scale(1)';
+    star1.style.animation = 'starPop 0.5s forwards, starShine 2s 0.5s infinite';
+  }
+  
+  // Second star (no mistakes)
+  if (noMistakes) {
+    setTimeout(() => {
+      if (typeof playSound === 'function') {
+        playSound('star2');
+      }
+      
+      const star2 = completionContent.querySelector('.star-2');
+      if (star2) {
+        star2.style.opacity = '1'; 
+        star2.style.transform = 'scale(1)';
+        star2.style.animation = 'starPop 0.5s forwards, starShine 2s 0.5s infinite';
+      }
+    }, 600); // Slightly longer delay for better pacing
+  }
+  
+  // Third star (fast completion)
+  if (fastCompletion) {
+    setTimeout(() => {
+      if (typeof playSound === 'function') {
+        playSound('star3');
+      }
+      
+      const star3 = completionContent.querySelector('.star-3');
+      if (star3) {
+        star3.style.opacity = '1';
+        star3.style.transform = 'scale(1)';
+        star3.style.animation = 'starPop 0.5s forwards, starShine 2s 0.5s infinite';
+      }
+      
+      // Add special effect for all 3 stars
+      if (noMistakes) {
+        setTimeout(() => {
+          const starGlow = completionContent.querySelector('.star-glow');
+          if (starGlow) {
+            starGlow.style.animation = 'pulseGlow 2s ease-in-out infinite';
+            starGlow.style.background = 'radial-gradient(ellipse at center, rgba(255,215,0,0.2) 0%, rgba(255,215,0,0) 70%)';
+          }
+          
+          // Create a small particle burst if available
+          if (typeof createParticles === 'function') {
+            const starContainer = completionContent.querySelector('.star-slots');
+            if (starContainer) {
+              const rect = starContainer.getBoundingClientRect();
+              createParticles(rect.left + rect.width/2, rect.top + rect.height/2, 10, ['gold', 'orange', 'yellow']);
             }
-          }, 300);
-        }
-        
-        // Third star (fast completion)
-        if (fastCompletion) {
-          setTimeout(() => {
-            const star3 = completionContent.querySelector('.star-3');
-            if (star3) {
-              star3.style.opacity = '1';
-              star3.style.transform = 'scale(1)';
-            }
-          }, 600);
-        }
-      }, 400);
+          }
+        }, 300);
+      }
+    }, 1200); // Even longer delay for third star for dramatic effect
+  }
+}, 700); // Longer initial delay for better impact
       
       // Animate coin counter if there's a bonus
       if (totalBonusCoins > 0) {
@@ -13635,7 +13750,6 @@ const PerkManager = {
         }
     },
     
-    // Update a specific perk button
     updatePerkButton(perkId) {
         const perkButton = document.getElementById(`${perkId}Perk`);
         if (!perkButton) {
@@ -13690,7 +13804,7 @@ const PerkManager = {
             perkButton.classList.add("disabled");
             perkButton.style.opacity = "0.6";
             
-            // Set count to premium
+            // Set count to PRO instead of a number
             const perkCount = perkButton.querySelector(".perk-count");
             if (perkCount) {
                 perkCount.textContent = "PRO";
@@ -13702,51 +13816,52 @@ const PerkManager = {
         
         // Check if player meets word count requirement
         const meetsWordCount = !perkConfig.requiresWordCount || 
-                              (window.userStats && window.userStats.uniqueWords >= perkConfig.requiresWordCount);
+                      (window.userStats && window.userStats.uniqueWords >= perkConfig.requiresWordCount);
+
+// If this perk requires specific word count and player doesn't meet it, show locked state
+if (perkConfig.requiresWordCount && !meetsWordCount) {
+    // Add or ensure word count lock indicator
+    let lockIndicator = perkButton.querySelector('.word-lock');
+    if (!lockIndicator) {
+        lockIndicator = document.createElement('div');
+        lockIndicator.className = 'word-lock';
+        lockIndicator.innerHTML = perkConfig.requiresWordCount;
+        lockIndicator.style.cssText = `
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-size: 10px;
+            background: #4caf50;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 2;
+        `;
         
-        // If this perk requires specific word count and player doesn't meet it, show locked state
-        if (perkConfig.requiresWordCount && !meetsWordCount) {
-            // Add or ensure word count lock indicator
-            let lockIndicator = perkButton.querySelector('.word-lock');
-            if (!lockIndicator) {
-                lockIndicator = document.createElement('div');
-                lockIndicator.className = 'word-lock';
-                lockIndicator.innerHTML = perkConfig.requiresWordCount;
-                lockIndicator.style.cssText = `
-                    position: absolute;
-                    top: -5px;
-                    right: -5px;
-                    font-size: 10px;
-                    background: #4caf50;
-                    color: white;
-                    border-radius: 50%;
-                    width: 18px;
-                    height: 18px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-                    z-index: 2;
-                `;
-                
-                // Make sure button has position relative
-                perkButton.style.position = 'relative';
-                perkButton.appendChild(lockIndicator);
-            }
-            
-            // Disable the button
-            perkButton.disabled = true;
-            perkButton.classList.add("disabled");
-            perkButton.style.opacity = "0.6";
-            
-            // Update count display
-            const perkCount = perkButton.querySelector(".perk-count");
-            if (perkCount) {
-                perkCount.textContent = "🔒";
-            }
-            
-            return;
-        }
+        // Make sure button has position relative
+        perkButton.style.position = 'relative';
+        perkButton.appendChild(lockIndicator);
+    }
+    
+    // Disable the button
+    perkButton.disabled = true;
+    perkButton.classList.add("disabled");
+    perkButton.style.opacity = "0.6";
+    
+    // Set counter to lock icon instead of a number
+    const perkCount = perkButton.querySelector(".perk-count");
+    if (perkCount) {
+        perkCount.textContent = "🔒";
+        perkCount.style.fontSize = ""; // Reset font size
+    }
+    
+    return;
+}
         
         // Remove any lock indicators if the perk is now available
         const lockIndicator = perkButton.querySelector('.premium-lock, .word-lock');
