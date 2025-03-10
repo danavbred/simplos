@@ -1116,21 +1116,29 @@ function updatePlayerProgress(e) {
   const timestamp = Date.now();
   const lastUpdated = window.lastProgressUpdate || 0;
   
-  // Throttle updates
-  if (timestamp - lastUpdated < 20) {
+  // Throttle updates - REDUCED throttling time for critical updates
+  if (timestamp - lastUpdated < 10) {
       return false;
   }
   
   window.lastProgressUpdate = timestamp;
   
-  // IMPROVED: Only ignore self-updates from untrusted sources
-  // Special handling for premium user coins - don't filter these updates
+  // Special handling for premium user updates
   const isPremiumCoinsSync = e.source === 'premiumCoinsSync';
   const isPlayerJoin = e.source === 'playerJoin';
+  const isPremiumUser = e.isPremium === true;
   
-  // Critical fix: Don't filter premium user coin updates or player join events
-  if (e.username === currentArcadeSession.playerName && !isPremiumCoinsSync && !isPlayerJoin) {
-      // Check for trusted sources - now handles all our known update sources
+  // Debug logging for premium users with coins
+  if (isPremiumUser && e.coins > 0) {
+    console.log(`Processing update for premium user ${e.username} with ${e.coins} coins (source: ${e.source || 'unknown'})`);
+  }
+  
+  // Skip filtering for premium users with coins or trusted sources
+  let skipFiltering = isPremiumCoinsSync || isPlayerJoin || (isPremiumUser && e.coins > 0);
+  
+  // Standard filtering logic for non-premium, non-critical updates
+  if (e.username === currentArcadeSession.playerName && !skipFiltering) {
+      // Check for trusted sources
       const isTrustedSource = e.isTrusted === true || 
                               e.source === 'coinsManager' || 
                               e.source === 'coinController' ||
@@ -1145,7 +1153,7 @@ function updatePlayerProgress(e) {
       }
   }
   
-  // Process updates for other players normally
+  // Process updates for other players or premium updates
   const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === e.username);
   
   if (playerIndex !== -1) {
@@ -1154,6 +1162,11 @@ function updatePlayerProgress(e) {
       const currentCoins = player.coins || 0;
       const newWordsCompleted = e.wordsCompleted !== undefined ? e.wordsCompleted : currentWordsCompleted;
       const newCoins = e.coins !== undefined ? e.coins : currentCoins;
+      
+      // Special logging for premium coin updates
+      if (isPremiumUser && newCoins > 0 && newCoins !== currentCoins) {
+        console.log(`Updating coins for premium user ${e.username}: ${currentCoins} → ${newCoins}`);
+      }
       
       // Never allow progress to decrease
       if (newWordsCompleted < currentWordsCompleted) {
@@ -1166,16 +1179,30 @@ function updatePlayerProgress(e) {
           e.coins = currentCoins;
       }
       
+      // Always force coins update for premium users
+      const forceUpdate = isPremiumUser && e.coins > 0;
+      
       // Update participant data
       currentArcadeSession.participants[playerIndex] = {
           ...player,
           ...e,
           wordsCompleted: Math.max(currentWordsCompleted, newWordsCompleted),
-          coins: Math.max(currentCoins, newCoins),
+          coins: forceUpdate ? newCoins : Math.max(currentCoins, newCoins),
           isPremium: e.isPremium || player.isPremium
       };
+      
+      // Force immediate leaderboard update for premium users with coins
+      if (isPremiumUser && newCoins > 0) {
+        const leaderboard = document.getElementById('arcade-leaderboard');
+        if (leaderboard) {
+          console.log(`Forcing leaderboard update for premium user ${e.username}`);
+          window.lastLeaderboardUpdate = 0; // Reset last update to force refresh
+          updateAllPlayersProgress();
+        }
+      }
   } else {
       // New player - add to participants list
+      console.log(`Adding new participant: ${e.username} (coins: ${e.coins}, premium: ${e.isPremium})`);
       currentArcadeSession.participants.push({
           username: e.username,
           wordsCompleted: e.wordsCompleted || 0,
@@ -1183,6 +1210,16 @@ function updatePlayerProgress(e) {
           lateJoin: e.lateJoin || false,
           isPremium: e.isPremium || false
       });
+      
+      // Force immediate leaderboard update for new premium users with coins
+      if (isPremiumUser && e.coins > 0) {
+        const leaderboard = document.getElementById('arcade-leaderboard');
+        if (leaderboard) {
+          console.log(`Forcing leaderboard update for new premium user ${e.username}`);
+          window.lastLeaderboardUpdate = 0; // Reset last update to force refresh
+          updateAllPlayersProgress();
+        }
+      }
   }
   
   // For our own player, sync with gameState
@@ -1191,11 +1228,15 @@ function updatePlayerProgress(e) {
       if (currentGame) currentGame.coins = e.coins;
   }
   
-  // Update leaderboard UI
+  // Update leaderboard UI - modified to be more responsive
   const leaderboard = document.getElementById('arcade-leaderboard');
   if (leaderboard && leaderboard.offsetParent !== null) {
       const timeSinceLastLeaderboardUpdate = timestamp - (window.lastLeaderboardUpdate || 0);
-      if (timeSinceLastLeaderboardUpdate > 300) {
+      
+      // Force update for premium users or update less frequently for normal updates
+      const forceUpdate = isPremiumUser && e.coins > 0;
+      
+      if (forceUpdate || timeSinceLastLeaderboardUpdate > 300) {
           window.lastLeaderboardUpdate = timestamp;
           updateAllPlayersProgress();
       }
@@ -1205,6 +1246,84 @@ function updatePlayerProgress(e) {
   updatePlayerRankDisplay();
   
   return true;
+}
+
+async function syncPremiumUserCoinsImmediately() {
+  if (!currentUser || currentUser.status !== 'premium' || !currentArcadeSession.playerName) {
+    return false;
+  }
+  
+  try {
+    // Get current premium user coins directly from database
+    const { data, error } = await supabaseClient
+      .from('game_progress')
+      .select('coins')
+      .eq('user_id', currentUser.id)
+      .single();
+      
+    if (error) {
+      console.error("Error fetching premium user coins:", error);
+      return false;
+    }
+    
+    const coins = data.coins || 0;
+    console.log(`Premium user immediate coins sync: ${coins} coins for ${currentArcadeSession.playerName}`);
+    
+    // Update our local state
+    if (currentGame) currentGame.coins = coins;
+    gameState.coins = coins;
+    
+    // Update UI
+    document.querySelectorAll('.coin-count').forEach(el => {
+      el.textContent = coins.toString();
+    });
+    
+    // Send direct update with high priority flags
+    if (window.arcadeChannel) {
+      await window.arcadeChannel.send({
+        type: 'broadcast',
+        event: 'premium_user_coins',
+        payload: {
+          username: currentArcadeSession.playerName,
+          coins: coins,
+          wordsCompleted: currentGame?.wordsCompleted || 0,
+          isPremium: true,
+          timestamp: Date.now(),
+          isTrusted: true,
+          source: 'premiumCoinsSync',
+          priority: 'high',
+          initialSync: true
+        }
+      });
+    }
+    
+    // Also directly update our local participants array
+    const playerIndex = currentArcadeSession.participants.findIndex(
+      p => p.username === currentArcadeSession.playerName
+    );
+    
+    if (playerIndex !== -1) {
+      currentArcadeSession.participants[playerIndex].coins = coins;
+      currentArcadeSession.participants[playerIndex].isPremium = true;
+    } else {
+      // Add ourselves if not already in participants list
+      currentArcadeSession.participants.push({
+        username: currentArcadeSession.playerName,
+        wordsCompleted: 0,
+        coins: coins,
+        isPremium: true
+      });
+    }
+    
+    // Force immediate update to leaderboard
+    window.lastLeaderboardUpdate = 0; // Reset to force update
+    updateAllPlayersProgress();
+    
+    return true;
+  } catch (error) {
+    console.error('Error in syncPremiumUserCoinsImmediately:', error);
+    return false;
+  }
 }
 
 // ADD: Simple function to reset coins to zero
@@ -4327,89 +4446,112 @@ async function initializeArcade() {
 }
 
 function showModeratorScreen() {
-    // Hide all other screens
-    document.querySelectorAll('.screen').forEach(screen => {
-        screen.classList.remove('visible');
-    });
-    
-    // Show moderator screen
-    document.getElementById('moderator-screen').classList.add('visible');
-    
-    // Update OTP display
-    const otpDisplay = document.getElementById('moderatorOtp');
-    if (otpDisplay && currentArcadeSession.otp) {
-        otpDisplay.textContent = currentArcadeSession.otp;
-        
-        // Generate QR code
-        const qrUrl = `${window.location.origin + window.location.pathname}#join=${currentArcadeSession.otp}`;
-        console.log('QR URL generated:', qrUrl);
-        new QRious({
-            element: document.getElementById('qrCode'),
-            value: qrUrl,
-            size: 200,
-            backgroundAlpha: 1,
-            foreground: "#16213e",
-            background: "#ffffff",
-            level: "H"
-        });
-        
-        // Update session metadata
-        const now = new Date();
-        const sessionInfo = {
-            sessionDate: now.toLocaleDateString(),
-            sessionStartTime: now.toLocaleTimeString(),
-            sessionWordGoal: currentArcadeSession.wordGoal,
-            activeParticipantCount: currentArcadeSession.participants.length
-        };
-        
-        Object.entries(sessionInfo).forEach(([id, value]) => {
-            const element = document.getElementById(id);
-            if (element) {
-                element.textContent = value;
-            }
-        });
-    }
-    
-    // Initialize leaderboard
-    initializeLeaderboard();
-    
-    // Set up proper button visibility based on session state
-    const initializeButton = document.querySelector('.initialize-button');
-    const endArcadeButton = document.querySelector('.end-arcade-button');
-    
-    if (currentArcadeSession.isInitialized && currentArcadeSession.state === 'active') {
-        // If session is already initialized and active, show end button and hide initialize button
-        if (initializeButton) initializeButton.style.display = 'none';
-        if (endArcadeButton) endArcadeButton.classList.add('visible');
-    } else {
-        // For new or reset sessions, show initialize button and hide end button
-        if (initializeButton) initializeButton.style.display = 'block';
-        if (endArcadeButton) endArcadeButton.classList.remove('visible');
-    }
-    
-// Request premium user updates when moderator screen loads
-if (window.arcadeChannel) {
-  setTimeout(() => {
+  // Hide all other screens
+  document.querySelectorAll('.screen').forEach(screen => {
+      screen.classList.remove('visible');
+  });
+  
+  // Show moderator screen
+  document.getElementById('moderator-screen').classList.add('visible');
+  
+  // Update OTP display
+  const otpDisplay = document.getElementById('moderatorOtp');
+  if (otpDisplay && currentArcadeSession.otp) {
+      otpDisplay.textContent = currentArcadeSession.otp;
+      
+      // Generate QR code
+      const qrUrl = `${window.location.origin + window.location.pathname}#join=${currentArcadeSession.otp}`;
+      console.log('QR URL generated:', qrUrl);
+      new QRious({
+          element: document.getElementById('qrCode'),
+          value: qrUrl,
+          size: 200,
+          backgroundAlpha: 1,
+          foreground: "#16213e",
+          background: "#ffffff",
+          level: "H"
+      });
+      
+      // Update session metadata
+      const now = new Date();
+      const sessionInfo = {
+          sessionDate: now.toLocaleDateString(),
+          sessionStartTime: now.toLocaleTimeString(),
+          sessionWordGoal: currentArcadeSession.wordGoal,
+          activeParticipantCount: currentArcadeSession.participants.length
+      };
+      
+      Object.entries(sessionInfo).forEach(([id, value]) => {
+          const element = document.getElementById(id);
+          if (element) {
+              element.textContent = value;
+          }
+      });
+  }
+  
+  // Initialize leaderboard
+  initializeLeaderboard();
+  
+  // Set up proper button visibility based on session state
+  const initializeButton = document.querySelector('.initialize-button');
+  const endArcadeButton = document.querySelector('.end-arcade-button');
+  
+  if (currentArcadeSession.isInitialized && currentArcadeSession.state === 'active') {
+      // If session is already initialized and active, show end button and hide initialize button
+      if (initializeButton) initializeButton.style.display = 'none';
+      if (endArcadeButton) endArcadeButton.classList.add('visible');
+  } else {
+      // For new or reset sessions, show initialize button and hide end button
+      if (initializeButton) initializeButton.style.display = 'block';
+      if (endArcadeButton) endArcadeButton.classList.remove('visible');
+  }
+  
+  // Request premium user updates when moderator screen loads - ENHANCED
+  if (window.arcadeChannel) {
+      // Send multiple requests with increasing delays for reliability
+      console.log("Requesting premium user coin updates...");
+      
+      // First immediate request
       window.arcadeChannel.send({
           type: 'broadcast',
           event: 'request_premium_updates',
           payload: {
               requesterId: currentUser?.id || 'moderator',
-              timestamp: Date.now()
+              timestamp: Date.now(),
+              priority: 'high'
           }
       });
-  }, 1000);
-}
+      
+      // Second request after a delay
+      setTimeout(() => {
+          window.arcadeChannel.send({
+              type: 'broadcast',
+              event: 'request_premium_updates',
+              payload: {
+                  requesterId: currentUser?.id || 'moderator',
+                  timestamp: Date.now(),
+                  priority: 'high'
+              }
+          });
+      }, 1000);
+      
+      // Third request after longer delay
+      setTimeout(() => {
+          requestAllPlayerStats();
+      }, 2000);
+  }
 
-    // Set up inactivity timer
-    initializeModeratorInactivityTimer();
-    
-    // Update player progress if needed
-    setTimeout(() => {
-        if (currentArcadeSession.participants && currentArcadeSession.participants.length > 0) {
-            updateAllPlayersProgress();
-        }
-    }, 500);
+  // Set up inactivity timer
+  initializeModeratorInactivityTimer();
+  
+  // Update player progress if needed - FORCE UPDATE
+  setTimeout(() => {
+      if (currentArcadeSession.participants && currentArcadeSession.participants.length > 0) {
+          console.log("Forcing initial leaderboard update");
+          window.lastLeaderboardUpdate = 0; // Reset to force update
+          updateAllPlayersProgress();
+      }
+  }, 300);
 }
 
 function initializeLeaderboard() {
@@ -5182,472 +5324,201 @@ function cleanupModeratorScreen() {
 }
 
 async function startArcadeGame() {
-    const waitingScreen = document.getElementById('waiting-screen');
-    if (waitingScreen && waitingScreen.dataset.pollInterval) {
-      clearInterval(parseInt(waitingScreen.dataset.pollInterval));
-      delete waitingScreen.dataset.pollInterval;
+  const waitingScreen = document.getElementById('waiting-screen');
+  if (waitingScreen && waitingScreen.dataset.pollInterval) {
+    clearInterval(parseInt(waitingScreen.dataset.pollInterval));
+    delete waitingScreen.dataset.pollInterval;
+  }
+  document.getElementById('question-screen').classList.add('visible');
+  document.getElementById('waiting-screen').classList.remove('visible');
+
+  if (window.arcadeStatsInterval) {
+      clearInterval(window.arcadeStatsInterval);
+      window.arcadeStatsInterval = null;
     }
-    document.getElementById('question-screen').classList.add('visible');
-    document.getElementById('waiting-screen').classList.remove('visible');
+
+  const playerName = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
   
-    if (window.arcadeStatsInterval) {
-        clearInterval(window.arcadeStatsInterval);
-        window.arcadeStatsInterval = null;
+  updatePlayerRankDisplay();
+  addResponsiveStyles();
+
+  
+  document.querySelectorAll('.coin-count').forEach(el => {
+    el.textContent = "0";
+    el.style.display = "flex";
+  });
+  
+  document.querySelectorAll('.coins-container').forEach(el => {
+    el.style.display = "flex";
+  });
+  
+  const perksContainer = document.querySelector('.perks-container');
+  const powerupsContainer = document.querySelector('.powerups-container');
+  perksContainer.style.display = 'none';
+  powerupsContainer.style.display = 'flex';
+  
+  // Initialize coins based on user status - premium users get their actual coins
+  let initialCoins = 0;
+  
+  // Ensure premium user coins are properly synced before starting
+  if (currentUser && currentUser.status === 'premium') {
+    // First try to get from currentArcadeSession
+    if (currentArcadeSession.initialCoins > 0) {
+      initialCoins = currentArcadeSession.initialCoins;
+      console.log(`Using arcade session initial coins: ${initialCoins}`);
+    } else {
+      // Otherwise, fetch fresh from database
+      console.log("No initial coins in session, fetching from database");
+      initialCoins = await getCurrentCoinsForArcade();
+      currentArcadeSession.initialCoins = initialCoins;
+    }
+    
+    console.log(`Premium user starting game with ${initialCoins} coins`);
+    
+    // Perform immediate coins sync to ensure moderator has correct data
+    await syncPremiumUserCoinsImmediately();
+  }
+  
+  currentGame.coins = initialCoins;
+  
+  document.querySelectorAll('.coin-count').forEach(el => {
+    el.textContent = initialCoins.toString();
+  });
+
+  if (currentUser && currentUser.status === 'premium' && initialCoins > 0) {
+    // Send special premium coin broadcast
+    console.log(`Broadcasting premium user coins for game start: ${initialCoins}`);
+    window.arcadeChannel.send({
+      type: 'broadcast',
+      event: 'premium_user_coins',
+      payload: {
+        username: playerName,
+        coins: initialCoins,
+        timestamp: Date.now(),
+        wordsCompleted: 0,
+        isPremium: true,
+        isTrusted: true,
+        source: 'premiumCoinsSync',
+        priority: 'high',
+        gameStart: true
       }
-
-    const playerName = currentArcadeSession.playerName || currentUser?.user_metadata?.username || getRandomSimploName();
-    
-    updatePlayerRankDisplay();
-    addResponsiveStyles();
-
-    
-    document.querySelectorAll('.coin-count').forEach(el => {
-      el.textContent = "0";
-      el.style.display = "flex";
     });
     
-    document.querySelectorAll('.coins-container').forEach(el => {
-      el.style.display = "flex";
-    });
-    
-    const perksContainer = document.querySelector('.perks-container');
-    const powerupsContainer = document.querySelector('.powerups-container');
-    perksContainer.style.display = 'none';
-    powerupsContainer.style.display = 'flex';
-    
-    // Initialize coins based on user status - premium users get their actual coins
-    let initialCoins = 0;
-    
-    // For premium users, get their current coin count
-// Ensure premium user coins are properly synced before starting
-if (currentUser && currentUser.status === 'premium') {
-  await syncPremiumUserCoins();
-}
-    
-    currentGame.coins = initialCoins;
-    currentArcadeSession.initialCoins = initialCoins;
-    
-    document.querySelectorAll('.coin-count').forEach(el => {
-      el.textContent = initialCoins.toString();
-    });
+    // Force an update to our own participant data
+    const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === playerName);
+    if (playerIndex !== -1) {
+      currentArcadeSession.participants[playerIndex].coins = initialCoins;
+      currentArcadeSession.participants[playerIndex].isPremium = true;
+    } else {
+      currentArcadeSession.participants.push({
+        username: playerName,
+        wordsCompleted: 0,
+        coins: initialCoins,
+        isPremium: true
+      });
+    }
 
-    if (currentUser && currentUser.status === 'premium' && initialCoins > 0) {
-      // Send special premium coin broadcast
-      console.log(`Broadcasting premium user coins: ${initialCoins}`);
+    // Force immediate broadcast to update moderator view
+    broadcastCurrentParticipantData();
+  }
+  
+  // Check if this is a new player joining an active game
+  const isNewPlayerJoining = currentArcadeSession.participants.some(p => 
+    p.wordsCompleted > 0 && p.username !== playerName);
+  
+  console.log("Is late joiner:", isNewPlayerJoining);
+  console.log("Current participants:", currentArcadeSession.participants);
+  
+  // Only send a progress_update with wordsCompleted: 0 if this is truly a new session
+  // or we're the first player
+  if (!isNewPlayerJoining) {
+    try {
       window.arcadeChannel.send({
-        type: 'broadcast',
-        event: 'premium_user_coins',
+        type: "broadcast",
+        event: "progress_update",
         payload: {
           username: playerName,
+          wordsCompleted: 0,
           coins: initialCoins,
           timestamp: Date.now(),
+          isPremium: currentUser?.status === 'premium' || false,
           isTrusted: true
         }
       });
-      
-      // Force an update to our own participant data
-      const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === playerName);
-      if (playerIndex !== -1) {
-        currentArcadeSession.participants[playerIndex].coins = initialCoins;
-      }
-
-      setTimeout(() => {
-        broadcastCurrentParticipantData();
-      }, 500);
+    } catch (err) {
+      console.error("Failed to send initial progress update:", err);
     }
-    
-    // Check if this is a new player joining an active game
-    const isNewPlayerJoining = currentArcadeSession.participants.some(p => 
-      p.wordsCompleted > 0 && p.username !== playerName);
-    
-    console.log("Is late joiner:", isNewPlayerJoining);
-    console.log("Current participants:", currentArcadeSession.participants);
-    
-    // Only send a progress_update with wordsCompleted: 0 if this is truly a new session
-    // or we're the first player
-    if (!isNewPlayerJoining) {
-      try {
-        window.arcadeChannel.send({
-          type: "broadcast",
-          event: "progress_update",
-          payload: {
-            username: playerName,
-            wordsCompleted: 0,
-            coins: initialCoins,
-            timestamp: Date.now()
-          }
-        });
-      } catch (err) {
-        console.error("Failed to send initial progress update:", err);
-      }
-    }
-    
-    // Request state synchronization - for both regular and late joiners
-    // but with different requestType to indicate status
-    window.arcadeChannel.send({
-      type: 'broadcast',
-      event: 'sync_request',
-      payload: {
-        username: playerName,
-        requestType: isNewPlayerJoining ? "lateJoin" : "initialJoin",
-        timestamp: Date.now()
-      }
-    });
-    
-    updatePlayerRankDisplay();
-    
-    currentArcadeSession.startTime = Date.now();
-    
-    currentGame = {
-      currentIndex: 0,
-      correctStreak: 0,
-      wrongStreak: 0,
-      words: currentArcadeSession.wordPool || [],
-      wordsCompleted: 0,
-      coins: initialCoins,
-      lastBroadcast: Date.now(),
-      initialCoinsLoaded: true,
-      lastBroadcast: Date.now(),
-      playerUsername: playerName,
-      isLateJoiner: isNewPlayerJoining
-    };
-    
-    if (!currentGame.words || currentGame.words.length === 0) {
-      if (!(currentArcadeSession.wordPool && currentArcadeSession.wordPool.length > 0)) {
-        showErrorToast("Failed to join game: No words available");
-        showScreen('welcome-screen');
-        return;
-      }
-      currentGame.words = currentArcadeSession.wordPool;
-    }
-    
-    // Initialize powerups
-    initializePowerups();
-    initializeArcadeUI();
-
-    setTimeout(() => {
-        const circle = document.querySelector('.progress-circle .progress');
-        if (circle) {
-            const radius = 54;
-            const circumference = 2 * Math.PI * radius;
-            
-            // Force to empty (full offset)
-            circle.setAttribute('stroke-dasharray', `${circumference} ${circumference}`);
-            circle.setAttribute('stroke-dashoffset', `${circumference}`);
-            circle.style.strokeDasharray = `${circumference} ${circumference}`;
-            circle.style.strokeDashoffset = `${circumference}`;
-            
-            console.log('Forced progress circle reset to empty!');
-        }
-    }, 50);  // Small delay to ensure DOM is ready
-
-    // Set up leaderboard channel and broadcast handlers
-    const leaderboardChannel = supabaseClient.channel('arcade_leaderboard')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'arcade_participants'
-      }, (payload) => {
-        console.log('Direct DB Change:', payload);
-        updateAllPlayersProgress();
-      })
-      .subscribe();
-    
-    currentArcadeSession.leaderboardChannel = leaderboardChannel;
-    
-    window.arcadeChannel.on('broadcast', {event: 'player_initialized'}, (({payload: data}) => {
-      console.log('Player Initialization Received:', data);
-      const index = currentArcadeSession.participants.findIndex(p => p.username === data.username);
-      const participantData = {
-        username: data.username,
-        wordsCompleted: 0,
-        coins: data.initialCoins || 0,
-        lateJoin: data.lateJoin || false
-      };
-      
-      if (index === -1) {
-        currentArcadeSession.participants.push(participantData);
-      } else {
-        currentArcadeSession.participants[index] = participantData;
-      }
-      resetArcadeProgressCircle();
-      updateAllPlayersProgress();
-      updateArcadeProgress();
-    }));
-    
-    window.arcadeChannel.on('broadcast', {event: 'request_premium_updates'}, (({payload: data}) => {
-      // Only premium users should respond
-      if (currentUser && currentUser.status === 'premium') {
-          console.log("Received premium update request from moderator");
-          
-          // Small random delay to prevent all users responding at once
-          setTimeout(() => {
-              syncPremiumUserCoins();
-          }, Math.random() * 500);
-      }
-  }));
-
-    window.arcadeChannel.on("broadcast", {event: "progress_update"}, (({payload: e}) => {
-        // Log the incoming update
-        console.log("Progress update received:", e);
-        
-        // CRITICAL: Early exit when we receive our own updates
-        // This prevents our own broadcast from affecting our display
-        if (e.username === playerName) {
-          console.log(`Ignoring self-update from ${playerName} to prevent visual glitches`);
-          return; // Complete early exit - don't process anything for self-updates
-        }
-        
-        // Process updates only for other players
-        const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === e.username);
-        
-        if (playerIndex !== -1) {
-          // Existing player - protect against progress decreases
-          const existingPlayer = currentArcadeSession.participants[playerIndex];
-          const currentWords = existingPlayer.wordsCompleted || 0;
-          const currentCoins = existingPlayer.coins || 0;
-          const newWords = e.wordsCompleted !== undefined ? e.wordsCompleted : currentWords;
-          const newCoins = e.coins !== undefined ? e.coins : currentCoins;
-          
-          // Never allow progress to decrease
-          if (newWords < currentWords) {
-            console.warn(`Prevented progress reset for ${e.username}: ${currentWords} → ${newWords}`);
-            e.wordsCompleted = currentWords;
-          }
-          
-          // Same for coins - never decrease
-          if (newCoins < currentCoins) {
-            console.warn(`Prevented coin decrease for ${e.username}: ${currentCoins} → ${newCoins}`);
-            e.coins = currentCoins;
-          }
-          
-          // Update the participant data
-          currentArcadeSession.participants[playerIndex] = {
-            ...existingPlayer,
-            ...e,
-            // Explicit safety measures to ensure values never decrease
-            wordsCompleted: Math.max(currentWords, newWords),
-            coins: Math.max(currentCoins, newCoins)
-          };
-        } else {
-          // New player - add to participants list
-          currentArcadeSession.participants.push({
-            username: e.username,
-            wordsCompleted: e.wordsCompleted || 0,
-            coins: e.coins || 0,
-            lateJoin: e.lateJoin || false
-          });
-        }
-        
-        // Update UI for this player
-        updatePlayerProgress(e);
-        
-        // Update rank display based on the new data
-        updatePlayerRankDisplay();
-      }));
-    
-      window.arcadeChannel.on('broadcast', {event: 'sync_request'}, (({payload: data}) => {
-        // Also respond if we're a premium user with coins but no words yet
-        const isPremiumWithCoins = currentUser?.status === 'premium' && 
-                                  (currentGame?.coins > 0 || gameState?.coins > 0);
-        
-        // Respond if we have progress OR are a premium user with coins
-        if (currentGame && (currentGame.wordsCompleted > 0 || isPremiumWithCoins)) {
-          console.log("Responding to sync request from:", data.username, 
-                     "Request type:", data.requestType || "standard",
-                     "Premium coins:", isPremiumWithCoins ? (currentGame?.coins || 0) : 0);
-          
-          window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'sync_response',
-            payload: {
-              participants: currentArcadeSession.participants,
-              respondingPlayer: playerName,
-              requestingPlayer: data.username,
-              requestType: data.requestType || "standard",
-              timestamp: Date.now(),
-              playerData: {
-                username: playerName,
-                wordsCompleted: currentGame?.wordsCompleted || 0,
-                coins: currentGame?.coins || 0,
-                isPremium: currentUser?.status === 'premium' || false
-              }
-            }
-          });
-        }
-      }));
-    
-      window.arcadeChannel.on('broadcast', {event: 'sync_response'}, (({payload: data}) => {
-        // Also process direct player data if provided
-        if (data.playerData && data.playerData.username) {
-          const playerData = data.playerData;
-          updatePlayerProgress({
-            username: playerData.username,
-            wordsCompleted: playerData.wordsCompleted,
-            coins: playerData.coins,
-            isPremium: playerData.isPremium,
-            isTrusted: true
-          });
-                
-        // Merge participants data from response with our local data
-        if (Array.isArray(data.participants)) {
-          data.participants.forEach(participant => {
-            const existingIndex = currentArcadeSession.participants.findIndex(
-              p => p.username === participant.username
-            );
-            
-            if (existingIndex === -1) {
-              // Add participants we didn't know about
-              currentArcadeSession.participants.push(participant);
-            } else {
-              // Update participants we already know about
-              // Only accept higher values to prevent desyncs
-              const existing = currentArcadeSession.participants[existingIndex];
-              currentArcadeSession.participants[existingIndex] = {
-                ...existing,
-                wordsCompleted: Math.max(existing.wordsCompleted || 0, participant.wordsCompleted || 0),
-                coins: Math.max(existing.coins || 0, participant.coins || 0)
-              };
-            }
-          });
-          
-          // Update rank display with merged data
-          updatePlayerRankDisplay();
-        }
-      }
-    }));
-    
-    window.arcadeChannel.on('broadcast', {event: 'game_playing'}, (({payload: event}) => {
-      if (event.state === 'active') {
-        // Update session state
-        currentArcadeSession.state = 'active';
-        currentArcadeSession.wordPool = event.wordPool;
-        currentArcadeSession.wordGoal = event.wordGoal;
-        
-        // We're already in the game, so don't restart it
-        console.log("Received game_playing event, already in game with progress:", 
-                    currentGame.wordsCompleted || 0);
-      }
-    }));
-    
-// Add this handler inside the startArcadeGame function
-// Inside startArcadeGame function, REPLACE the request_latest_stats handler
-window.arcadeChannel.on('broadcast', {event: 'request_latest_stats'}, (({payload: data}) => {
-  // When moderator requests updated stats, respond with our current data
-  if (currentGame && currentArcadeSession.playerName) {
-      // Create a short random delay (1-500ms) to prevent network congestion if multiple users respond
-      const delay = Math.floor(Math.random() * 500) + 1;
-      setTimeout(() => {
-          window.arcadeChannel.send({
-              type: 'broadcast',
-              event: 'progress_update',
-              payload: {
-                  username: currentArcadeSession.playerName,
-                  wordsCompleted: currentGame.wordsCompleted || 0,
-                  coins: currentGame.coins || 0,
-                  isPremium: currentUser?.status === 'premium',
-                  isTrusted: true,
-                  timestamp: Date.now(),
-                  source: currentUser?.status === 'premium' ? 'premiumCoinsSync' : 'statsRequest'
-              }
-          });
-      }, delay);
   }
-}));
-
-    window.arcadeChannel.on('broadcast', {event: 'player_completed'}, (({payload: data}) => {
-      console.log('Player completed event:', data);
-      if (!currentArcadeSession.completedPlayers.includes(data.username)) {
-        currentArcadeSession.completedPlayers.push(data.username);
-      }
-      updatePlayerProgress(data);
-      if (currentArcadeSession.completedPlayers.length >= 3) {
-        endArcadeForAll();
-      }
-    }));
-    
-    window.arcadeChannel.on('broadcast', {event: 'powerup_effect'}, (({payload: data}) => {
-      if (data.targetUser === playerName) {
-        const powerup = data.powerup;
-        showNotification(`${data.fromUser} ${powerup.message} you!`, powerup.type);
-        
-        switch(powerup.name) {
-          case 'High Five':
-          case 'Fist Bump':
-            const oldCoins = currentGame.coins;
-            currentGame.coins += powerup.effect;
-            document.querySelectorAll('.coin-count').forEach(el => {
-              animateNumber(el, oldCoins, currentGame.coins);
-            });
-            break;
-          case 'Energy Boost':
-            currentGame.coinMultiplier = 2;
-            currentGame.boostedAnswersLeft = 3;
-            break;
-          case 'Freeze':
-            const buttons = document.querySelectorAll('.buttons button');
-            buttons.forEach(btn => btn.disabled = true);
-            setTimeout(() => {
-              buttons.forEach(btn => btn.disabled = false);
-            }, powerup.duration);
-            break;
-          case 'Coin Storm':
-            currentGame.coinBlockedAnswers = 3;
-            break;
-          case 'Screen Shake':
-            const questionScreen = document.getElementById('question-screen');
-            questionScreen.classList.add('screen-shake');
-            setTimeout(() => {
-              questionScreen.classList.remove('screen-shake');
-            }, powerup.duration);
-            break;
-        }
-        
-        updatePlayerProgress({
-          username: playerName,
-          coins: currentGame.coins,
-          wordsCompleted: currentGame.wordsCompleted
-        });
-      }
-    }));
-    
-    window.arcadeChannel.on('broadcast', {event: 'coin_effect'}, (({payload: data}) => {
-        // Critical: Verify this is a legitimate coin effect
-        // Ensure we don't accidentally process our own progress as a coin effect
-        const isLegitimateEffect = data.effectSource === 'powerup' || data.effectSource === 'targeted';
-        
-        if (data.targetUser === playerName && isLegitimateEffect) {
-          console.log(`Processing coin effect: ${data.amount} coins from ${data.fromUser || 'system'}`);
-          
-          // Get current coins directly from game state
-          const oldCoins = currentGame.coins || 0;
-          const newCoins = oldCoins + data.amount;
-          
-          // Use CoinController for consistent updates
-          CoinController.updateLocalCoins(newCoins);
-          
-          // Show appropriate notification
-          if (data.type === 'blessing') {
-            showNotification(`${data.fromUser} high-fived you!`, 'blessing');
-          } else if (data.type === 'curse') {
-            showNotification(`${data.fromUser} poisoned you!`, 'curse');
-          }
-        } else if (data.targetUser === playerName) {
-          console.log(`Ignoring possible duplicate coin effect: ${JSON.stringify(data)}`);
-        }
-      }));
-    
-    window.arcadeChannel.on('broadcast', {event: 'game_end'}, (({payload: data}) => {
-      handleGameEnd(data);
-    }));
-    
-    updateAllCoinDisplays();
-    loadNextArcadeQuestion();
-    
-    // Store timeouts and intervals for cleanup
-    window.arcadeTimeouts = [];
-    window.arcadeIntervals = [];
+  
+  // Request state synchronization - for both regular and late joiners
+  // but with different requestType to indicate status
+  window.arcadeChannel.send({
+    type: 'broadcast',
+    event: 'sync_request',
+    payload: {
+      username: playerName,
+      requestType: isNewPlayerJoining ? "lateJoin" : "initialJoin",
+      timestamp: Date.now()
+    }
+  });
+  
+  updatePlayerRankDisplay();
+  
+  currentArcadeSession.startTime = Date.now();
+  
+  currentGame = {
+    currentIndex: 0,
+    correctStreak: 0,
+    wrongStreak: 0,
+    words: currentArcadeSession.wordPool || [],
+    wordsCompleted: 0,
+    coins: initialCoins,
+    lastBroadcast: Date.now(),
+    initialCoinsLoaded: true,
+    lastBroadcast: Date.now(),
+    playerUsername: playerName,
+    isLateJoiner: isNewPlayerJoining
+  };
+  
+  if (!currentGame.words || currentGame.words.length === 0) {
+    if (!(currentArcadeSession.wordPool && currentArcadeSession.wordPool.length > 0)) {
+      showErrorToast("Failed to join game: No words available");
+      showScreen('welcome-screen');
+      return;
+    }
+    currentGame.words = currentArcadeSession.wordPool;
   }
+  
+  // Initialize powerups
+  initializePowerups();
+  initializeArcadeUI();
+
+  setTimeout(() => {
+      const circle = document.querySelector('.progress-circle .progress');
+      if (circle) {
+          const radius = 54;
+          const circumference = 2 * Math.PI * radius;
+          
+          // Force to empty (full offset)
+          circle.setAttribute('stroke-dasharray', `${circumference} ${circumference}`);
+          circle.setAttribute('stroke-dashoffset', `${circumference}`);
+          circle.style.strokeDasharray = `${circumference} ${circumference}`;
+          circle.style.strokeDashoffset = `${circumference}`;
+          
+          console.log('Forced progress circle reset to empty!');
+      }
+  }, 50);  // Small delay to ensure DOM is ready
+
+  // Set up leaderboard channel and broadcast handlers
+  setupArcadeEventHandlers();
+  setupArcadeProgressPolling();
+  
+  // Force immediate report of stats to moderator view
+  reportUserStatsToModeratorView();
+  
+  updateAllCoinDisplays();
+  loadNextArcadeQuestion();
+}
 
   function setupArcadeEventHandlers() {
     if (!window.arcadeChannel) {
@@ -7286,7 +7157,6 @@ async function joinArcadeWithUsername() {
                 startArcadeGame();
             }
         })
-        window.arcadeChannel
         .on('broadcast', { event: 'player_join' }, ({ payload: data }) => {
           console.log('Player join event received:', data);
           if (!currentArcadeSession.participants.find(p => p.username === data.username)) {
@@ -7305,12 +7175,22 @@ async function joinArcadeWithUsername() {
             }
           }
         })
-
         .on('broadcast', { event: 'premium_user_coins' }, ({ payload: data }) => {
             if (data && data.username && data.coins) {
                 console.log(`Received premium user coins update: ${data.username} has ${data.coins} coins`);
                 
-                // Update participant with premium coins - CRITICAL FIX: Use updatePlayerProgress
+                // Direct update to participants array for immediate effect
+                const playerIndex = currentArcadeSession.participants.findIndex(
+                  p => p.username === data.username
+                );
+                
+                if (playerIndex !== -1) {
+                  // Update directly in the array
+                  currentArcadeSession.participants[playerIndex].coins = data.coins;
+                  currentArcadeSession.participants[playerIndex].isPremium = true;
+                }
+                
+                // Also use updatePlayerProgress for consistency
                 updatePlayerProgress({
                     username: data.username,
                     coins: data.coins,
@@ -7319,6 +7199,12 @@ async function joinArcadeWithUsername() {
                     isTrusted: true,
                     source: 'premiumCoinsSync'
                 });
+                
+                // Force immediate update if this was a high priority sync
+                if (data.priority === 'high' || data.initialSync) {
+                  window.lastLeaderboardUpdate = 0;
+                  updateAllPlayersProgress();
+                }
             }
         })
         .subscribe;
@@ -7343,33 +7229,32 @@ async function joinArcadeWithUsername() {
       
       currentArcadeSession.joinEventSent = true;
       
-      // For premium users with coins, send a specialized premium coins update
-      // This ensures the coins are properly recognized by all clients
+      // For premium users with coins, send enhanced premium coins update AFTER join event
       if (isPremium && initialCoins > 0) {
-          console.log(`Broadcasting premium user coins: ${initialCoins}`);
-          await window.arcadeChannel.send({
-              type: 'broadcast',
-              event: 'premium_user_coins',
-              payload: {
-                  username: username,
-                  coins: initialCoins,
-                  wordsCompleted: 0,
-                  isPremium: true,
-                  timestamp: Date.now(),
-                  isTrusted: true,
-                  source: 'premiumCoinsSync'
-              }
-          });
-          
-          // CRITICAL FIX: Also update our own participant entry to ensure consistency
-          updatePlayerProgress({
-              username: username,
-              coins: initialCoins,
-              wordsCompleted: 0,
-              isPremium: true,
-              isTrusted: true,
-              source: 'premiumCoinsSync'
-          });
+          // Small delay to ensure join event is processed first
+          setTimeout(async () => {
+              console.log(`Broadcasting premium user coins after join: ${initialCoins}`);
+              
+              // Send high-priority premium coins update
+              await window.arcadeChannel.send({
+                  type: 'broadcast',
+                  event: 'premium_user_coins',
+                  payload: {
+                      username: username,
+                      coins: initialCoins,
+                      wordsCompleted: 0,
+                      isPremium: true,
+                      timestamp: Date.now(),
+                      isTrusted: true,
+                      source: 'premiumCoinsSync',
+                      priority: 'high',
+                      initialSync: true
+                  }
+              });
+              
+              // Use the direct update function for consistent state
+              syncPremiumUserCoinsImmediately();
+          }, 200);
       }
       
       // Now check if game is active
@@ -7408,6 +7293,7 @@ async function joinArcadeWithUsername() {
           }
           
           // Force leaderboard update
+          window.lastLeaderboardUpdate = 0;
           updateAllPlayersProgress();
       }
       
@@ -7425,6 +7311,7 @@ async function joinArcadeWithUsername() {
       showErrorToast('Failed to join arcade. Please try again.');
   }
 }
+
 
 const powerupPool = {
     highFive: {
