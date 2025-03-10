@@ -12290,3 +12290,184 @@ function createListItem(list) {
         </div>
     `;
 }
+
+
+// Function to change the current stage without starting the game
+function changeCurrentStage(stageId) {
+    stageId = parseInt(stageId);
+    
+    // Validate stage ID
+    if (stageId < 1 || stageId > 5) {
+      console.error("Invalid stage ID:", stageId);
+      return;
+    }
+    
+    // Update game state with the new stage
+    gameState.currentStage = stageId;
+    
+    // Update stage description in the profile modal
+    const stageDescription = document.getElementById('stage-description');
+    if (stageDescription) {
+      stageDescription.textContent = getStageDescription(stageId);
+    }
+    
+    // Save the updated game state
+    saveProgress();
+    
+    console.log(`Stage changed to ${stageId}: ${getStageHebrewName(stageId)}`);
+    showNotification(`Stage changed to ${getStageHebrewName(stageId)}`, "success");
+  }
+  
+  // Function to update the stage selector to show the current stage
+  function updateStageSelector() {
+    const stageSelector = document.getElementById('stage-selector');
+    const stageDescription = document.getElementById('stage-description');
+    
+    if (stageSelector) {
+      // Set the current value
+      stageSelector.value = gameState.currentStage || "1";
+      
+      // Update the description
+      if (stageDescription) {
+        stageDescription.textContent = getStageDescription(gameState.currentStage || 1);
+      }
+    }
+  }
+  
+  // Modify the openProfileModal function to update the stage selector
+  function openProfileModal() {
+    const modal = document.getElementById('profile-modal');
+    if (!modal) {
+      console.error("Profile modal element not found");
+      return;
+    }
+    
+    // Update username
+    const usernameEl = document.getElementById('modal-username');
+    if (usernameEl) {
+      usernameEl.textContent = currentUser?.user_metadata?.username || 
+                              currentUser?.email?.split('@')[0] || 
+                              'Guest';
+    }
+    
+    // Update status badge
+    const statusEl = document.getElementById('modal-status');
+    if (statusEl) {
+      const status = currentUser?.status || 'free';
+      
+      // Remove all status classes first
+      statusEl.className = 'status-badge';
+      
+      // Add appropriate status class
+      statusEl.classList.add(status);
+      
+      // Set appropriate text
+      if (status === 'premium') {
+        statusEl.textContent = 'PREMIUM';
+      } else if (status === 'pending') {
+        statusEl.textContent = 'PENDING';
+      } else if (status === 'free') {
+        statusEl.textContent = 'FREE';
+      } else {
+        statusEl.textContent = 'GUEST';
+      }
+    }
+    
+    // Update stats
+    const wordCountEl = document.getElementById('modal-word-count');
+    const coinCountEl = document.getElementById('modal-coin-count');
+    
+    if (wordCountEl) {
+      wordCountEl.textContent = document.getElementById('totalWords')?.textContent || '0';
+    }
+    
+    if (coinCountEl) {
+      coinCountEl.textContent = document.getElementById('totalCoins')?.textContent || '0';
+    }
+    
+    // Update stage selector to reflect current stage
+    updateStageSelector();
+    
+    // Show the modal
+    modal.classList.add('show');
+    
+    // Close options menu if open
+    closeOptionsMenu();
+    
+    console.log("Profile modal opened");
+  }
+  
+  // Add a start game function that respects the current stage
+  function startGameFromStage() {
+    // Find the furthest unlocked set in the current stage
+    const currentStage = gameState.currentStage || 1;
+    const unlockedSets = gameState.unlockedSets[currentStage] || new Set([1]);
+    const furthestSet = Math.max(...Array.from(unlockedSets));
+    
+    // Find the furthest unlocked level in the furthest set
+    const setKey = `${currentStage}_${furthestSet}`;
+    const unlockedLevels = gameState.unlockedLevels[setKey] || new Set([1]);
+    const furthestLevel = Math.max(...Array.from(unlockedLevels));
+    
+    console.log(`Starting game at Stage ${currentStage}, Set ${furthestSet}, Level ${furthestLevel}`);
+    
+    // Set the current set and level
+    gameState.currentSet = furthestSet;
+    gameState.currentLevel = furthestLevel;
+    
+    // Close the profile modal
+    closeProfileModal();
+    
+    // Start the level
+    showScreen('question-screen');
+    startLevel(furthestLevel);
+  }
+  
+  // Modify the profile modal to include a Play button
+  document.addEventListener('DOMContentLoaded', function() {
+    // Find the profile actions div
+    const profileActions = document.querySelector('#profile-modal .profile-actions');
+    
+    if (profileActions) {
+      // Add a Play button at the beginning of the actions
+      const playButton = document.createElement('button');
+      playButton.className = 'play-modal-btn';
+      playButton.innerHTML = '<i class="fas fa-play"></i> Play Game';
+      playButton.onclick = startGameFromStage;
+      
+      // Insert at the beginning
+      profileActions.insertBefore(playButton, profileActions.firstChild);
+      
+      // Add CSS for the button
+      const style = document.createElement('style');
+      style.textContent = `
+        .play-modal-btn {
+          background-color: var(--accent);
+          color: white;
+          border: none;
+          border-radius: 5px;
+          padding: 10px 20px;
+          font-size: 0.9rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          margin-right: 10px;
+          transition: background-color 0.3s;
+        }
+        
+        .play-modal-btn:hover {
+          background-color: var(--accent-hover);
+        }
+        
+        /* Adjust the layout of profile actions */
+        .profile-actions {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 20px;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  });

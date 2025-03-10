@@ -3016,44 +3016,29 @@ function findFurthestProgression() {
 }
 
 function startGame() {
-    console.log("Starting game");
+    // This function is called from the welcome screen play button
+    // It uses the current stage from gameState
+    const stage = gameState.currentStage || 1;
     
-    if (!hasExistingProgress()) {
-        console.log("No existing progress found, showing grade selector");
-        showGradeLevelSelector();
-        return;
-    }
+    // Find the furthest unlocked set in the current stage
+    const unlockedSets = gameState.unlockedSets[stage] || new Set([1]);
+    const furthestSet = Math.max(...Array.from(unlockedSets));
     
-    // Check for saved game context first
-    const savedContext = localStorage.getItem("gameContext");
-    if (savedContext) {
-        try {
-            const context = JSON.parse(savedContext);
-            if (context.stage && context.set && context.level) {
-                console.log("Found saved game context:", context);
-                
-                // Use context data for current level
-                gameState.currentStage = context.stage;
-                gameState.currentSet = context.set;
-                gameState.currentLevel = context.level;
-                
-                startLevel(gameState.currentLevel);
-                return;
-            }
-        } catch (e) {
-            console.error("Error parsing game context:", e);
-        }
-    }
+    // Find the furthest unlocked level in the furthest set
+    const setKey = `${stage}_${furthestSet}`;
+    const unlockedLevels = gameState.unlockedLevels[setKey] || new Set([1]);
+    const furthestLevel = Math.max(...Array.from(unlockedLevels));
     
-    // If no context, use current game state
-    console.log("Using current game state:", {
-        stage: gameState.currentStage,
-        set: gameState.currentSet,
-        level: gameState.currentLevel
-    });
+    console.log(`Starting game at Stage ${stage}, Set ${furthestSet}, Level ${furthestLevel}`);
     
-    startLevel(gameState.currentLevel);
-}
+    // Set the current set and level
+    gameState.currentSet = furthestSet;
+    gameState.currentLevel = furthestLevel;
+    
+    // Start the level
+    showScreen('question-screen');
+    startLevel(furthestLevel);
+  }
 
 function updateLevelProgress(stage, set, level, completed, perfect) {
     // Create a key to reference this specific level
@@ -8435,6 +8420,19 @@ function hidePersonalVictoryScreen() {
         setTimeout(() => {
             document.body.removeChild(modal);
         }, 300);
+    }
+}
+
+
+function endArcade() {
+    // If this is the teacher/moderator view, end for all players
+    if (currentUser?.id === currentArcadeSession.teacherId) {
+        console.log("Teacher ending arcade for all participants");
+        endArcadeForAll();
+    } else {
+        // Otherwise just exit for this player
+        console.log("Player exiting arcade");
+        exitArcade();
     }
 }
 
