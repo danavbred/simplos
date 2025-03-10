@@ -14420,127 +14420,219 @@ const PerkManager = {
             const styleElement = document.createElement('style');
             styleElement.id = 'perk-effect-styles';
             styleElement.textContent = `
-                /* Previous styles here - keep all existing styles */
+                /* Freeze Effect */
+                @keyframes freezePulse {
+                    0% { opacity: 0; }
+                    50% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
                 
-                /* New Toast Notification Styles */
+                @keyframes snowflakeGrow {
+                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+                    70% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+                    100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+                }
+                
+                .timer-value.frozen {
+                    color: #87CEFA !important;
+                    text-shadow: 0 0 5px #87CEFA !important;
+                }
+                
+                .timer-value.double-frozen {
+                    color: #00BFFF !important;
+                    text-shadow: 0 0 10px #00BFFF !important;
+                    animation: doubleFreezeGlow 2s infinite alternate !important;
+                }
+                
+                @keyframes doubleFreezeGlow {
+                    0% { color: #87CEFA; text-shadow: 0 0 5px #87CEFA; }
+                    100% { color: #00BFFF; text-shadow: 0 0 15px #00BFFF; }
+                }
+                
+                /* Skip Effect */
+                @keyframes skipSymbolGrow {
+                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+                    70% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+                    100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+                }
+                
+                /* Clue Effect */
+                @keyframes clueFlash {
+                    0% { opacity: 0.5; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes popIn {
+                    0% { transform: scale(0); opacity: 0; }
+                    50% { transform: scale(1.3); opacity: 1; }
+                    100% { transform: scale(1); opacity: 1; }
+                }
+                
+                /* Reveal Effect */
+                @keyframes revealFlicker {
+                    0% { box-shadow: 0 0 5px 2px rgba(255, 215, 0, 0.7), 0 0 10px 4px rgba(50, 205, 50, 0.5); }
+                    50% { box-shadow: 0 0 15px 5px rgba(255, 215, 0, 0.9), 0 0 20px 10px rgba(50, 205, 50, 0.7); }
+                    100% { box-shadow: 0 0 5px 2px rgba(255, 215, 0, 0.7), 0 0 10px 4px rgba(50, 205, 50, 0.5); }
+                }
+                
+                .reveal-highlight {
+                    animation: revealFlicker 1s infinite ease-in-out !important;
+                    border: 3px solid gold !important;
+                    position: relative !important;
+                    z-index: 5 !important;
+                    transform: scale(1.05) !important;
+                    transition: all 0.3s ease !important;
+                    background: linear-gradient(135deg, #4CAF50, #2E7D32) !important;
+                    color: white !important;
+                    font-weight: bold !important;
+                }
+                
+                /* Reveal Effect Animations */
+                @keyframes revealPulse {
+                    0% { opacity: 0; }
+                    30% { opacity: 1; }
+                    70% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes eyeGrow {
+                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+                    60% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                    80% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+                    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                }
+                
+                /* Golden Egg Effect */
+                @keyframes goldenEggPulse {
+                    0% { opacity: 0; }
+                    30% { opacity: 1; }
+                    70% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes eggGrow {
+                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+                    60% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                    70% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+                    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                }
+                
+                /* Mystery Effect */
+                @keyframes mysteryPulse {
+                    0% { opacity: 0; }
+                    30% { opacity: 1; }
+                    70% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes questionMarkGrow {
+                    0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
+                    40% { transform: translate(-50%, -50%) scale(1.2) rotate(20deg); opacity: 1; }
+                    60% { transform: translate(-50%, -50%) scale(1) rotate(-10deg); opacity: 1; }
+                    80% { transform: translate(-50%, -50%) scale(1.1) rotate(5deg); opacity: 1; }
+                    100% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
+                }
+                
+                /* Double Coins Effect */
+                @keyframes doubleCoinsGlow {
+                    0% { opacity: 0; }
+                    30% { opacity: 1; }
+                    70% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes coinsAppear {
+                    0% { opacity: 0; }
+                    30% { opacity: 1; }
+                    80% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes coinGrow {
+                    0% { transform: scale(0); }
+                    60% { transform: scale(1.2); }
+                    100% { transform: scale(1); }
+                }
+                
+                @keyframes pulseBadge {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.2); box-shadow: 0 0 10px gold; }
+                    100% { transform: scale(1); }
+                }
+                
+                /* Perk Unlock Effect */
                 @keyframes shineEffect {
                     0% { transform: translateX(-100%) rotate(45deg); }
                     100% { transform: translateX(100%) rotate(45deg); }
                 }
                 
-                @keyframes shrinkProgress {
-                    0% { transform: scaleX(1); }
-                    100% { transform: scaleX(0); }
+                @keyframes pulseGlow {
+                    0% { box-shadow: 0 0 10px rgba(255,215,0,0.5); }
+                    50% { box-shadow: 0 0 30px rgba(255,215,0,0.8); }
+                    100% { box-shadow: 0 0 10px rgba(255,215,0,0.5); }
                 }
                 
-                .perk-unlock-toast {
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                    z-index: 10000;
-                }
-                
-                /* Enhanced Star Rating Styles */
-                .star-slot {
+                .perk-unlocked-pulse {
+                    animation: perkUnlockPulse 2s ease-in-out 3;
                     position: relative;
-                    width: 60px !important;
-                    height: 60px !important;
-                    transform: translateY(0);
-                    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    z-index: 10;
                 }
                 
-                .star-slot:hover {
-                    transform: translateY(-5px);
+                @keyframes perkUnlockPulse {
+                    0% { transform: scale(1); box-shadow: 0 0 0 rgba(255,215,0,0); }
+                    50% { transform: scale(1.2); box-shadow: 0 0 20px rgba(255,215,0,0.8); }
+                    100% { transform: scale(1); box-shadow: 0 0 0 rgba(255,215,0,0); }
                 }
                 
-                .star-empty {
+                /* Perk Lock Indicators */
+                .premium-lock {
                     position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
+                    top: -5px;
+                    right: -5px;
+                    font-size: 12px;
+                    background: gold;
                     color: #333;
-                    font-size: 3.5rem !important;
-                    line-height: 1;
-                    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                    transition: all 0.3s ease;
-                }
-                
-                .star-filled {
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    opacity: 0;
-                    transform: scale(0);
-                    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-                }
-                
-                .star-1, .star-2, .star-3 {
-                    color: transparent !important;
-                    background: linear-gradient(135deg, #FFD700, #FFA500) !important;
-                    background-clip: text !important;
-                    -webkit-background-clip: text !important;
-                    font-size: 3.5rem !important;
-                    filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7)) !important;
-                }
-                
-                .star-criteria {
-                    margin-top: 1rem !important;
-                    font-size: 0.9rem !important;
-                    color: rgba(255,255,255,0.8) !important;
-                }
-                
-                @keyframes starPulse {
-                    0% { filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7)); }
-                    50% { filter: drop-shadow(0 0 10px rgba(255, 215, 0, 1)); }
-                    100% { filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7)); }
-                }
-                
-                .star-slot:after {
-                    content: '';
-                    position: absolute;
-                    top: -10px;
-                    left: -10px;
-                    right: -10px;
-                    bottom: -10px;
-                    background: radial-gradient(circle, rgba(255,215,0,0.2) 0%, rgba(255,215,0,0) 70%);
                     border-radius: 50%;
-                    opacity: 0;
-                    z-index: -1;
-                    transition: opacity 0.5s ease;
+                    width: 18px;
+                    height: 18px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    z-index: 2;
+                    animation: lockPulse 2s infinite alternate;
                 }
                 
-                .star-filled.visible {
-                    opacity: 1 !important;
-                    transform: scale(1) !important;
-                    animation: starPulse 2s infinite ease-in-out;
+                .word-lock {
+                    position: absolute;
+                    top: -5px;
+                    right: -5px;
+                    font-size: 10px;
+                    background: #4caf50;
+                    color: white;
+                    border-radius: 50%;
+                    width: 18px;
+                    height: 18px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    z-index: 2;
                 }
                 
-                .star-slot.earned:after {
-                    opacity: 1;
+                @keyframes lockPulse {
+                    0% { transform: scale(1); }
+                    100% { transform: scale(1.1); box-shadow: 0 0 8px gold; }
                 }
                 
-                /* Enhanced for mobile */
-                @media (max-width: 480px) {
-                    .perk-unlock-toast {
-                        width: calc(100% - 40px);
-                        max-width: 300px;
-                        right: 20px;
-                        bottom: 20px;
-                    }
-                    
-                    .star-slot {
-                        width: 50px !important;
-                        height: 50px !important;
-                    }
-                    
-                    .star-empty, .star-filled {
-                        font-size: 3rem !important;
-                    }
-                    
-                    .star-criteria {
-                        font-size: 0.8rem !important;
-                    }
+                /* Disabled perk styling */
+                .perk-button.disabled {
+                    cursor: not-allowed;
+                    filter: grayscale(50%);
                 }
             `;
             document.head.appendChild(styleElement);
