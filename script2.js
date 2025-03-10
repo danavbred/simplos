@@ -158,136 +158,169 @@ async function trackWordEncounter(word, gameMode = 'standard') {
 }
 
 function handleArcadeAnswer(isCorrect) {
-    const now = Date.now();
-    
-    // Throttle responses to prevent rapid consecutive answers
-    if (now - (currentGame.lastAnswerTime || 0) < 1000) {
-      console.warn("Answer too quickly. Please wait a moment.");
+  const now = Date.now();
+  
+  // Throttle responses to prevent rapid consecutive answers
+  if (now - (currentGame.lastAnswerTime || 0) < 1000) {
+    console.warn("Answer too quickly. Please wait a moment.");
+    return;
+  }
+  
+  // Safety check to prevent errors during processing
+  if (currentGame.isProcessingAnswer) {
+      console.warn("Already processing an answer, please wait");
       return;
-    }
-    
-    // Safety check to prevent errors during processing
-    if (currentGame.isProcessingAnswer) {
-        console.warn("Already processing an answer, please wait");
-        return;
-    }
-    
-    try {
-        // Set processing flag
-        currentGame.isProcessingAnswer = true;
-        currentGame.lastAnswerTime = now;
-        
-        const playerName = currentArcadeSession.playerName || 
-                          currentUser?.user_metadata?.username || 
-                          getRandomSimploName();
-        
-        if (isCorrect) {
-            // Increment word count and update streak
-            currentGame.wordsCompleted = (currentGame.wordsCompleted || 0) + 1;
-            currentGame.correctStreak = (currentGame.correctStreak || 0) + 1;
-            currentGame.wrongStreak = 0;
-            
-            // For premium users, track the word encounter
-            if (currentUser && currentUser.status === 'premium') {
-                // Get the current word from the question
-                const questionElement = document.getElementById('question-word');
-                if (questionElement && questionElement.textContent) {
-                    const word = questionElement.textContent.trim();
-                    
-                    // Track word without adding coins (handled below)
-                    trackWordEncounterWithoutCoins(word, 'arcade')
-                        .then(() => {
-                            // ADDED: Explicitly broadcast the updated word count for premium users
-                            broadcastCurrentParticipantData();
-                        })
-                        .catch(err => 
-                            console.error('Error tracking word in arcade:', err)
-                        );
-                }
-            }
-            
-            // Calculate coin reward
-            let coinReward = 5;
-            if (currentGame.correctStreak >= 3) {
-                coinReward += 5;
-            }
-            
-            // Premium users get extra coins in arcade mode
-            if (currentUser && currentUser.status === 'premium') {
-                coinReward += 2; // Add premium bonus directly here
-            }
-            
-            // Use the enhanced CoinsManager for consistent updates
-            CoinsManager.updateCoins(coinReward).then(() => {
-                // Update arcade powerups
-                if (typeof updateArcadePowerups === 'function') {
-                    updateArcadePowerups();
-                }
-                
-                // Update our rank display
-                updatePlayerRankDisplay();
-                
-                // Update arcade progress display
-                updateArcadeProgress();
-                
-                // Immediately update player progress in the leaderboard
-                updatePlayerProgress({
-                    username: playerName,
-                    wordsCompleted: currentGame.wordsCompleted,
-                    coins: currentGame.coins
-                });
-                
-                // Then broadcast the update to all participants
-                broadcastCurrentParticipantData();
-                
-                // Check if player has completed the word goal
-                if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
-                    handlePlayerCompletedGoal(playerName);
-                    // Return early to prevent loading next question
-                    currentGame.isProcessingAnswer = false;
-                    return;
-                }
-                
-                // Load the next question with a slight delay to prevent visual glitches
-                setTimeout(() => {
-                    loadNextArcadeQuestion();
-                    currentGame.isProcessingAnswer = false;
-                }, 300);
-            }).catch(err => {
-                console.error("Error updating coins:", err);
-                currentGame.isProcessingAnswer = false;
-                
-                // Attempt to load next question anyway
-                setTimeout(loadNextArcadeQuestion, 500);
-            });
-        } else {
-            // Handle incorrect answer
-            currentGame.correctStreak = 0;
-            currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
-            
-            // Update player progress in the leaderboard
-            updatePlayerProgress({
-                username: playerName,
-                wordsCompleted: currentGame.wordsCompleted,
-                coins: currentGame.coins
-            });
-            
-            // Broadcast progress
-            broadcastCurrentParticipantData();
-            
-            // Load the next question with a slight delay
-            setTimeout(() => {
-                loadNextArcadeQuestion();
-                currentGame.isProcessingAnswer = false;
-            }, 300);
-        }
-    } catch (error) {
-        console.error("Error in handleArcadeAnswer:", error);
-        currentGame.isProcessingAnswer = false;
-        
-        // Safety fallback
-        setTimeout(loadNextArcadeQuestion, 1000);
-    }
+  }
+  
+  try {
+      // Set processing flag
+      currentGame.isProcessingAnswer = true;
+      currentGame.lastAnswerTime = now;
+      
+      const playerName = currentArcadeSession.playerName || 
+                        currentUser?.user_metadata?.username || 
+                        getRandomSimploName();
+      
+      if (isCorrect) {
+          // Increment word count and update streak
+          currentGame.wordsCompleted = (currentGame.wordsCompleted || 0) + 1;
+          currentGame.correctStreak = (currentGame.correctStreak || 0) + 1;
+          currentGame.wrongStreak = 0;
+          
+          // IMPORTANT: Only remove the word from the pool on correct answers
+          if (currentGame.currentWordIndex !== undefined && 
+              currentGame.currentWordIndex >= 0 &&
+              currentGame.words && 
+              currentGame.words.length > currentGame.currentWordIndex) {
+              
+              // FIXED: Remove word safely
+              currentGame.words.splice(currentGame.currentWordIndex, 1);
+              console.log(`Word removed from pool. Pool size: ${currentGame.words.length}`);
+          }
+          
+          // For premium users, track the word encounter
+          if (currentUser && currentUser.status === 'premium') {
+              // Get the current word from stored data
+              if (currentGame.currentWord) {
+                  const word = currentGame.isHebrewToEnglish ? 
+                      currentGame.currentWord.translation : 
+                      currentGame.currentWord.word;
+                  
+                  // Track word without adding coins (handled below)
+                  trackWordEncounterWithoutCoins(word, 'arcade')
+                      .then(() => {
+                          // ADDED: Explicitly broadcast the updated word count for premium users
+                          broadcastCurrentParticipantData();
+                      })
+                      .catch(err => 
+                          console.error('Error tracking word in arcade:', err)
+                      );
+              }
+          }
+          
+          // Calculate coin reward
+          let coinReward = 5;
+          if (currentGame.correctStreak >= 3) {
+              coinReward += 5;
+          }
+          
+          // Premium users get extra coins in arcade mode
+          if (currentUser && currentUser.status === 'premium') {
+              coinReward += 2; // Add premium bonus directly here
+          }
+          
+          // Use the enhanced CoinsManager for consistent updates
+          CoinsManager.updateCoins(coinReward).then(() => {
+              // Update arcade powerups
+              if (typeof updateArcadePowerups === 'function') {
+                  updateArcadePowerups();
+              }
+              
+              // Update our rank display
+              updatePlayerRankDisplay();
+              
+              // Update arcade progress display
+              updateArcadeProgress();
+              
+              // Immediately update player progress in the leaderboard
+              updatePlayerProgress({
+                  username: playerName,
+                  wordsCompleted: currentGame.wordsCompleted,
+                  coins: currentGame.coins
+              });
+              
+              // Then broadcast the update to all participants
+              broadcastCurrentParticipantData();
+              
+              // Check if player has completed the word goal
+              if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
+                  handlePlayerCompletedGoal(playerName);
+                  // Return early to prevent loading next question
+                  currentGame.isProcessingAnswer = false;
+                  return;
+              }
+              
+              // Load the next question with a slight delay to prevent visual glitches
+              setTimeout(() => {
+                  loadNextArcadeQuestion();
+                  currentGame.isProcessingAnswer = false;
+              }, 300);
+          }).catch(err => {
+              console.error("Error updating coins:", err);
+              currentGame.isProcessingAnswer = false;
+              
+              // Attempt to load next question anyway
+              setTimeout(loadNextArcadeQuestion, 500);
+          });
+      } else {
+          // Handle incorrect answer
+          currentGame.correctStreak = 0;
+          currentGame.wrongStreak = (currentGame.wrongStreak || 0) + 1;
+          
+          // Update player progress in the leaderboard
+          updatePlayerProgress({
+              username: playerName,
+              wordsCompleted: currentGame.wordsCompleted,
+              coins: currentGame.coins
+          });
+          
+          // Broadcast progress
+          broadcastCurrentParticipantData();
+          
+          // IMPORTANT: For wrong answers, no need to remove words, but still load next question
+          setTimeout(() => {
+              loadNextArcadeQuestion();
+              currentGame.isProcessingAnswer = false;
+          }, 300);
+      }
+  } catch (error) {
+      console.error("Error in handleArcadeAnswer:", error);
+      currentGame.isProcessingAnswer = false;
+      
+      // Safety fallback - always try to load next question
+      setTimeout(() => {
+          loadNextArcadeQuestion();
+      }, 1000);
+  }
+}
+
+function initialArcadeSession() {
+  console.log("Initializing arcade session");
+  // Initialize the game state with proper backup of word pool
+  if (currentArcadeSession && currentArcadeSession.wordPool && Array.isArray(currentArcadeSession.wordPool)) {
+      // Make multiple backups of the original word pool
+      currentGame.initialWordPool = JSON.parse(JSON.stringify(currentArcadeSession.wordPool));
+      currentGame.words = JSON.parse(JSON.stringify(currentArcadeSession.wordPool));
+      
+      console.log(`Initial arcade word pool created with ${currentGame.initialWordPool.length} words`);
+      
+      // If there's no words in the pools, show warning
+      if (currentGame.initialWordPool.length === 0) {
+          console.warn("Empty word pool detected during initialization");
+      }
+  } else {
+      console.error("Error initializing arcade word pool - invalid source data");
+  }
 }
 
 // ADD this new utility function to synchronize coin display updates
@@ -3956,15 +3989,24 @@ async function joinArcade() {
       .subscribe();
     
     // Send join event
-    await window.arcadeChannel.send({
-      type: "broadcast",
-      event: "player_join",
-      payload: {
-        username: username,
-        joinedAt: (new Date()).toISOString(),
-        coins: 0 // Always start with 0 coins in a new session
-      }
-    });
+// Get initial coins for premium users
+let initialCoins = 0;
+if (currentUser && currentUser.status === 'premium') {
+  initialCoins = await getCurrentCoinsForArcade();
+  console.log(`Premium user joining with ${initialCoins} coins`);
+}
+
+// Send join event
+await window.arcadeChannel.send({
+  type: "broadcast",
+  event: "player_join",
+  payload: {
+    username: username,
+    joinedAt: (new Date()).toISOString(),
+    coins: initialCoins, // Use actual premium coins
+    isPremium: currentUser?.status === 'premium'
+  }
+});
     
     currentArcadeSession.joinEventSent = true;
     currentArcadeSession.otp = otp; // Store OTP for reference
@@ -5168,6 +5210,31 @@ async function startArcadeGame() {
     document.querySelectorAll('.coin-count').forEach(el => {
       el.textContent = initialCoins.toString();
     });
+
+    if (currentUser && currentUser.status === 'premium' && initialCoins > 0) {
+      // Send special premium coin broadcast
+      console.log(`Broadcasting premium user coins: ${initialCoins}`);
+      window.arcadeChannel.send({
+        type: 'broadcast',
+        event: 'premium_user_coins',
+        payload: {
+          username: playerName,
+          coins: initialCoins,
+          timestamp: Date.now(),
+          isTrusted: true
+        }
+      });
+      
+      // Force an update to our own participant data
+      const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === playerName);
+      if (playerIndex !== -1) {
+        currentArcadeSession.participants[playerIndex].coins = initialCoins;
+      }
+
+      setTimeout(() => {
+        broadcastCurrentParticipantData();
+      }, 500);
+    }
     
     // Check if this is a new player joining an active game
     const isNewPlayerJoining = currentArcadeSession.participants.some(p => 
@@ -5347,32 +5414,49 @@ async function startArcadeGame() {
         updatePlayerRankDisplay();
       }));
     
-    window.arcadeChannel.on('broadcast', {event: 'sync_request'}, (({payload: data}) => {
-      // Only respond to sync requests if we already have some progress
-      // This prevents new joiners from sending empty sync responses
-      if (currentGame && currentGame.wordsCompleted > 0) {
-        console.log("Responding to sync request from:", data.username, 
-                   "Request type:", data.requestType || "standard");
+      window.arcadeChannel.on('broadcast', {event: 'sync_request'}, (({payload: data}) => {
+        // Also respond if we're a premium user with coins but no words yet
+        const isPremiumWithCoins = currentUser?.status === 'premium' && 
+                                  (currentGame?.coins > 0 || gameState?.coins > 0);
         
-        window.arcadeChannel.send({
-          type: 'broadcast',
-          event: 'sync_response',
-          payload: {
-            participants: currentArcadeSession.participants,
-            respondingPlayer: playerName,
-            requestingPlayer: data.username,
-            requestType: data.requestType || "standard",
-            timestamp: Date.now()
-          }
-        });
-      }
-    }));
+        // Respond if we have progress OR are a premium user with coins
+        if (currentGame && (currentGame.wordsCompleted > 0 || isPremiumWithCoins)) {
+          console.log("Responding to sync request from:", data.username, 
+                     "Request type:", data.requestType || "standard",
+                     "Premium coins:", isPremiumWithCoins ? (currentGame?.coins || 0) : 0);
+          
+          window.arcadeChannel.send({
+            type: 'broadcast',
+            event: 'sync_response',
+            payload: {
+              participants: currentArcadeSession.participants,
+              respondingPlayer: playerName,
+              requestingPlayer: data.username,
+              requestType: data.requestType || "standard",
+              timestamp: Date.now(),
+              playerData: {
+                username: playerName,
+                wordsCompleted: currentGame?.wordsCompleted || 0,
+                coins: currentGame?.coins || 0,
+                isPremium: currentUser?.status === 'premium' || false
+              }
+            }
+          });
+        }
+      }));
     
-    window.arcadeChannel.on('broadcast', {event: 'sync_response'}, (({payload: data}) => {
-      // Only update if this response is for our request
-      if (data.requestingPlayer === playerName) {
-        console.log("Received sync response for our request:", data);
-        
+      window.arcadeChannel.on('broadcast', {event: 'sync_response'}, (({payload: data}) => {
+        // Also process direct player data if provided
+        if (data.playerData && data.playerData.username) {
+          const playerData = data.playerData;
+          updatePlayerProgress({
+            username: playerData.username,
+            wordsCompleted: playerData.wordsCompleted,
+            coins: playerData.coins,
+            isPremium: playerData.isPremium,
+            isTrusted: true
+          });
+                
         // Merge participants data from response with our local data
         if (Array.isArray(data.participants)) {
           data.participants.forEach(participant => {
@@ -5600,29 +5684,6 @@ window.arcadeChannel.on('broadcast', {event: 'request_latest_stats'}, (({payload
     console.log("Arcade event handlers initialized");
 }
 
-
-  async function getCurrentCoinsForArcade() {
-    if (!currentUser) {
-        // For guest users, use localStorage or default
-        return parseInt(localStorage.getItem('simploxCustomCoins') || '0');
-    }
-
-    // For logged-in users, especially premium
-    try {
-        const { data, error } = await supabaseClient
-            .from('game_progress')
-            .select('coins')
-            .eq('user_id', currentUser.id)
-            .single();
-
-        if (error) console.error('Coin retrieval error:', error);
-        return data?.coins || 0;
-    } catch (error) {
-        console.error('Unexpected coin retrieval error:', error);
-        return 0;
-    }
-}
-
 async function updatePlayerStatsAfterArcade() {
     if (!currentUser || !currentUser.id) {
         // For unregistered users, clear localStorage coin data
@@ -5737,28 +5798,6 @@ async function updateArcadeCoins(amount) {
     return CoinController.updateLocalCoins(newCoins);
 }
 
-async function getCurrentCoinsForArcade() {
-    if (!currentUser) {
-        // For guest users, use localStorage or default
-        return parseInt(localStorage.getItem('simploxCustomCoins') || '0');
-    }
-
-    // For logged-in users, especially premium
-    try {
-        const { data, error } = await supabaseClient
-            .from('game_progress')
-            .select('coins')
-            .eq('user_id', currentUser.id)
-            .single();
-
-        if (error) console.error('Coin retrieval error:', error);
-        return data?.coins || 0;
-    } catch (error) {
-        console.error('Unexpected coin retrieval error:', error);
-        return 0;
-    }
-}
-
 function safeUpdatePlayerProgress(data) {
     // IMPORTANT: Never update our own coin count based on broadcast events
     // This prevents the feedback loop of broadcasts changing our value
@@ -5774,11 +5813,6 @@ function safeUpdatePlayerProgress(data) {
     // Check if the player has reached the word goal
     if (currentGame.wordsCompleted >= currentArcadeSession.wordGoal) {
         console.log("Word goal reached, stopping question loading");
-        return;
-    }
-    
-    if (!currentGame.words || !currentGame.words.length) {
-        console.error("Word pool is empty or undefined");
         return;
     }
     
@@ -5804,34 +5838,86 @@ function safeUpdatePlayerProgress(data) {
         // Clear existing buttons first
         buttonsDiv.innerHTML = '';
         
-        // Get random word from pool (safely)
-        const wordPoolSize = currentGame.words.length;
-        if (wordPoolSize === 0) {
-            console.error("Word pool is empty");
-            currentGame.isLoadingQuestion = false;
-            return;
+        // CRITICAL FIX: Initialize word pool only if it doesn't exist
+        if (!currentGame.initialWordPool || !Array.isArray(currentGame.initialWordPool)) {
+            console.log("Creating initial word pool backup");
+            // Create a deep copy of the original word pool at first load
+            if (currentArcadeSession.wordPool && Array.isArray(currentArcadeSession.wordPool)) {
+                currentGame.initialWordPool = JSON.parse(JSON.stringify(currentArcadeSession.wordPool));
+            } else {
+                console.error("No valid word pool found in session");
+                currentGame.initialWordPool = []; // Empty array as fallback
+            }
         }
         
-        const currentIndex = Math.floor(Math.random() * wordPoolSize);
-        if (currentIndex >= wordPoolSize) {
-            console.error("Invalid word index:", currentIndex, "pool size:", wordPoolSize);
-            currentGame.isLoadingQuestion = false;
-            return;
+        // CRITICAL FIX: Initialize or check the active word pool
+        if (!currentGame.words || !Array.isArray(currentGame.words) || currentGame.words.length === 0) {
+            console.log("Initializing active word pool");
+            // If words array is empty/invalid, create a new copy from the backup
+            if (currentGame.initialWordPool && currentGame.initialWordPool.length > 0) {
+                currentGame.words = JSON.parse(JSON.stringify(currentGame.initialWordPool));
+            } else {
+                // Ultimate fallback - try to get words directly from session again
+                if (currentArcadeSession.wordPool && Array.isArray(currentArcadeSession.wordPool) && 
+                    currentArcadeSession.wordPool.length > 0) {
+                    currentGame.words = JSON.parse(JSON.stringify(currentArcadeSession.wordPool));
+                    // Also update the backup
+                    currentGame.initialWordPool = JSON.parse(JSON.stringify(currentArcadeSession.wordPool));
+                } else {
+                    console.error("Failed to initialize word pool - no valid source found");
+                    // Don't show notification yet - try to use last word
+                    if (!currentGame.lastWord) {
+                        showNotification("Error loading questions. Please restart the game.", "error");
+                        currentGame.isLoadingQuestion = false;
+                        return;
+                    }
+                }
+            }
         }
         
-        const currentWord = currentGame.words[currentIndex];
-        if (!currentWord) {
-            console.error("Selected word is undefined at index:", currentIndex);
-            currentGame.isLoadingQuestion = false;
-            return;
+        // FAILSAFE: If we still have no words but have a last word, reuse it
+        let currentWord;
+        let currentIndex = -1;
+        
+        if ((!currentGame.words || currentGame.words.length === 0) && currentGame.lastWord) {
+            console.log("Using last word as fallback");
+            currentWord = currentGame.lastWord;
+        } else {
+            // Normal flow - get random word from pool
+            const wordPoolSize = currentGame.words.length;
+            if (wordPoolSize === 0) {
+                console.error("Word pool is empty");
+                currentGame.isLoadingQuestion = false;
+                return;
+            }
+            
+            currentIndex = Math.floor(Math.random() * wordPoolSize);
+            if (currentIndex >= wordPoolSize) {
+                console.error("Invalid word index:", currentIndex, "pool size:", wordPoolSize);
+                currentGame.isLoadingQuestion = false;
+                return;
+            }
+            
+            currentWord = currentGame.words[currentIndex];
+            if (!currentWord) {
+                console.error("Selected word is undefined at index:", currentIndex);
+                currentGame.isLoadingQuestion = false;
+                return;
+            }
         }
+        
+        // Store the current word data for reference
+        currentGame.currentWordIndex = currentIndex;
+        currentGame.currentWord = currentWord;
+        currentGame.lastWord = currentWord; // Always keep last word for fallback
         
         // Log word for debugging
-        console.log(`Loading word #${currentGame.wordsCompleted + 1} from pool: `, 
+        console.log(`Loading word #${currentGame.wordsCompleted + 1}: `, 
                     currentWord.word, currentWord.translation);
         
         // 50% chance for Hebrew to English
         const isHebrewToEnglish = Math.random() < 0.5;
+        currentGame.isHebrewToEnglish = isHebrewToEnglish; // Store this for answer checking
         
         // Set the question word
         const wordToDisplay = isHebrewToEnglish ? currentWord.translation : currentWord.word;
@@ -5840,16 +5926,16 @@ function safeUpdatePlayerProgress(data) {
         // Generate options
         let options = [isHebrewToEnglish ? currentWord.word : currentWord.translation];
         
-        // Create a global word pool for backup options
-        if (!window.globalWordPool) {
-            window.globalWordPool = [];
-            
-            // Populate from vocabulary sets if available
+        // Try to get options from initial word pool (more reliable)
+        let optionPool = currentGame.initialWordPool || currentGame.words;
+        if (!optionPool || optionPool.length < 3) {
+            // Fallback to global vocabulary if needed
+            optionPool = [];
             Object.values(vocabularySets).forEach(set => {
                 if (set.words && set.translations) {
                     for (let i = 0; i < set.words.length; i++) {
                         if (i < set.translations.length) {
-                            window.globalWordPool.push({
+                            optionPool.push({
                                 word: set.words[i],
                                 translation: set.translations[i]
                             });
@@ -5857,45 +5943,26 @@ function safeUpdatePlayerProgress(data) {
                     }
                 }
             });
-            
-            // Shuffle the global pool
-            window.globalWordPool = shuffleArray(window.globalWordPool);
-            console.log(`Created global word pool with ${window.globalWordPool.length} words`);
         }
         
-        // Try to get options from current game words
+        // Try to get options from word pool
         let attempts = 0;
-        while (options.length < 3 && attempts < 15 && currentGame.words.length > 1) {
+        while (options.length < 3 && attempts < 15 && optionPool.length > 1) {
             attempts++;
-            const randomWordIndex = Math.floor(Math.random() * currentGame.words.length);
-            if (randomWordIndex === currentIndex) continue; // Skip the current word
-            
-            const randomWord = currentGame.words[randomWordIndex];
-            if (!randomWord) continue;
-            
-            const option = isHebrewToEnglish ? randomWord.word : randomWord.translation;
-            if (!options.includes(option)) {
-                options.push(option);
-            }
-        }
-        
-        // If we still need more options, use the global pool
-        attempts = 0;
-        while (options.length < 3 && attempts < 30 && window.globalWordPool.length > 0) {
-            attempts++;
-            const randomIndex = Math.floor(Math.random() * window.globalWordPool.length);
-            const randomWord = window.globalWordPool[randomIndex];
+            const randomWordIndex = Math.floor(Math.random() * optionPool.length);
+            const randomWord = optionPool[randomWordIndex];
             
             if (!randomWord) continue;
             
             const option = isHebrewToEnglish ? randomWord.word : randomWord.translation;
-            if (!options.includes(option)) {
+            const correctOption = isHebrewToEnglish ? currentWord.word : currentWord.translation;
+            
+            if (option !== correctOption && !options.includes(option)) {
                 options.push(option);
             }
         }
         
         // If we still don't have enough options, add meaningful alternatives
-        // instead of generic "Option X"
         if (options.length < 3) {
             // Use real words as fallbacks
             const fallbackWords = isHebrewToEnglish ? 
@@ -5928,9 +5995,8 @@ function safeUpdatePlayerProgress(data) {
                 
                 // Process answer after a brief delay
                 setTimeout(() => {
-                    handleArcadeAnswer(
-                        option === (isHebrewToEnglish ? currentWord.word : currentWord.translation)
-                    );
+                    const correctAnswer = isHebrewToEnglish ? currentWord.word : currentWord.translation;
+                    handleArcadeAnswer(option === correctAnswer);
                 }, 50);
             };
             
@@ -5938,27 +6004,11 @@ function safeUpdatePlayerProgress(data) {
             buttonsDiv.appendChild(button);
         });
         
-        // Remove used word from pool
-        currentGame.words.splice(currentIndex, 1);
-        
-        // Clear the loading flag after a safety timeout
-        setTimeout(() => {
-            currentGame.isLoadingQuestion = false;
-        }, 300);
+        // Clear the loading flag
+        currentGame.isLoadingQuestion = false;
     } catch (error) {
         console.error("Error in loadNextArcadeQuestion:", error);
         currentGame.isLoadingQuestion = false;
-        
-        // Attempt recovery
-        setTimeout(() => {
-            try {
-                if (currentGame.words && currentGame.words.length > 0) {
-                    loadNextArcadeQuestion();
-                }
-            } catch (e) {
-                console.error("Failed to recover from error:", e);
-            }
-        }, 1000);
     }
 }
 
@@ -6099,14 +6149,14 @@ function showArcadeCompletionScreen(playerData) {
 }
 
 function exitArcadeCompletion() {
-    const modal = document.querySelector('.arcade-completion-modal');
-    if (modal) {
-        modal.classList.remove('show');
-        setTimeout(() => {
-            modal.remove();
-            showScreen('welcome-screen');
-        }, 300);
-    }
+  const modal = document.querySelector('.arcade-completion-modal');
+  if (modal) {
+      modal.classList.remove('show');
+      setTimeout(() => {
+          modal.remove();
+          showScreen('welcome-screen');
+      }, 300);
+  }
 }
 
 function exitArcade() {
@@ -6605,7 +6655,7 @@ function showConsolationScreen() {
   const overlay = document.createElement('div');
   overlay.className = 'arcade-completion-modal';
   
-  // Random encouraging emoji
+  // Encouraging emoji
   const emojis = ['🌟', '🎮', '🚀', '💪', '🏆', '🔥', '👏', '✨'];
   const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
   
@@ -6618,38 +6668,100 @@ function showConsolationScreen() {
               <br><br>
               Keep playing to improve your skills and speed!
           </p>
-          <button onclick="exitArcadeCompletion()" class="start-button" style="margin-top: 1.5rem;">
+          <button id="returnHomeButton" class="start-button" style="margin-top: 1.5rem;">
               Return to Home
           </button>
       </div>
   `;
   
   document.body.appendChild(overlay);
+  
+  // Add direct event listener instead of inline onclick
+  const homeButton = overlay.querySelector('#returnHomeButton');
+  if (homeButton) {
+      homeButton.addEventListener('click', function() {
+          // Remove the modal
+          overlay.classList.remove('show');
+          setTimeout(() => {
+              overlay.remove();
+              
+              // Navigate to welcome screen
+              showScreen('welcome-screen');
+              
+              // Clean up arcade session if needed
+              cleanupArcadeSession();
+          }, 300);
+      });
+  }
+  
   requestAnimationFrame(() => overlay.classList.add('show'));
 }
 
 async function getCurrentCoinsForArcade() {
-  if (!currentUser) {
-      // For guest users, use localStorage or default
-      return parseInt(localStorage.getItem('simploxCustomCoins') || '0');
-  }
-
-  // For logged-in users, especially premium
+  if (!currentUser) return 0;
+  
   try {
-      const { data, error } = await supabaseClient
-          .from('game_progress')
-          .select('coins')
-          .eq('user_id', currentUser.id)
-          .single();
-
-      if (error) console.error('Coin retrieval error:', error);
-      return data?.coins || 0;
-  } catch (error) {
-      console.error('Unexpected coin retrieval error:', error);
+      // For premium users, get coins from database
+      if (currentUser.status === 'premium') {
+          console.log("Getting coins for premium user:", currentUser.id);
+          
+          // First try the game_progress table
+          const { data, error } = await supabaseClient
+              .from('game_progress')
+              .select('coins')
+              .eq('user_id', currentUser.id)
+              .single();
+              
+          if (error) {
+              console.warn("Error fetching coins from game_progress:", error);
+              // Fall back to gameState if DB fetch fails
+              return gameState?.coins || 0;
+          }
+          
+          const coins = data?.coins || 0;
+          console.log("Retrieved coins for premium user:", coins);
+          return coins;
+      }
+      
       return 0;
+  } catch (error) {
+      console.error('Error fetching coins:', error);
+      // Fall back to gameState if any error occurs
+      return gameState?.coins || 0;
   }
 }
 
+// ADD this function to handle user stats reporting more reliably
+function reportUserStatsToModeratorView() {
+  if (!window.arcadeChannel || !currentUser || !currentArcadeSession.playerName) return;
+  
+  try {
+      // Get the current coins either from gameState or currentGame
+      const coins = currentGame?.coins || gameState?.coins || 0;
+      const wordsCompleted = currentGame?.wordsCompleted || 0;
+      
+      console.log(`Reporting stats to moderator: ${wordsCompleted} words, ${coins} coins`);
+      
+      // Send a broadcast with the current user stats
+      window.arcadeChannel.send({
+          type: 'broadcast',
+          event: 'progress_update',
+          payload: {
+              username: currentArcadeSession.playerName,
+              wordsCompleted: wordsCompleted,
+              coins: coins,
+              timestamp: Date.now(),
+              source: 'statsReport'
+          }
+      });
+  } catch (error) {
+      console.error("Error reporting stats to moderator:", error);
+  }
+}
+
+// ADD this call at the end of startArcadeGame function
+// Inside startArcadeGame(), add this line before the final closing brace:
+reportUserStatsToModeratorView();
 
 function showFinalResultsForPlayer(podiumPlayers) {
     const playerName = currentArcadeSession.playerName;
@@ -6989,7 +7101,6 @@ function removePlayer(username) {
     updateAllPlayersProgress();
 }
 
-
 async function joinArcadeWithUsername() {
   const usernameInput = document.getElementById('arcadeUsername');
   const otpInput = document.getElementById('otpInput');
@@ -7030,11 +7141,13 @@ async function joinArcadeWithUsername() {
   try {
       // Initialize coins - IMPORTANT: For premium users, fetch their actual coins
       let initialCoins = 0;
+      const isPremium = currentUser && currentUser.status === 'premium';
       
       // If premium user, get their actual coin count
-      if (currentUser && currentUser.status === 'premium') {
-          initialCoins = await getCurrentCoinsForArcade();
-          console.log(`Premium user joining with ${initialCoins} coins from database`);
+      if (isPremium) {
+        console.log('Premium user joining arcade, fetching coins...');
+        initialCoins = await getCurrentCoinsForArcade();
+        console.log('Premium user coins loaded:', initialCoins);
       }
       
       // Create Supabase channel for the specific arcade session
@@ -7052,41 +7165,54 @@ async function joinArcadeWithUsername() {
       setupCelebrationHandler();
       
       // Set up standard event listeners
-      window.arcadeChannel
-          .on('broadcast', { event: 'game_end' }, ({ payload }) => {
-              handleGameEnd(payload);
-              currentArcadeSession.state = 'ended';
-          })
-          .on('broadcast', { event: 'game_playing' }, ({ payload }) => {
-              if (payload.state === 'active') {
-                  currentArcadeSession.state = 'active';
-                  currentArcadeSession.wordPool = payload.wordPool;
-                  currentArcadeSession.wordGoal = payload.wordGoal;
-                  startArcadeGame();
-              }
-          })
-          .on('broadcast', { event: 'player_join' }, ({ payload }) => {
-              console.log('Player join event received:', payload);
-              if (!currentArcadeSession.participants.find(p => p.username === payload.username)) {
-                  currentArcadeSession.participants.push({
-                      username: payload.username,
-                      wordsCompleted: 0,
-                      coins: payload.coins || 0
-                  });
-
-                  // Update player count 
-                  const playerCountElement = document.getElementById('player-count');
-                  if (playerCountElement) {
-                      playerCountElement.textContent = currentArcadeSession.participants.length;
-                  }
-
-                  // Update leaderboard if visible
-                  const leaderboard = document.getElementById('arcade-leaderboard');
-                  if (leaderboard && leaderboard.offsetParent !== null) {
-                      updateAllPlayersProgress();
-                  }
-              }
-          });
+      // Set up standard event listeners
+window.arcadeChannel
+.on('broadcast', { event: 'game_end' }, ({ payload }) => {
+    handleGameEnd(payload);
+    currentArcadeSession.state = 'ended';
+})
+.on('broadcast', { event: 'game_playing' }, ({ payload }) => {
+    if (payload.state === 'active') {
+        currentArcadeSession.state = 'active';
+        currentArcadeSession.wordPool = payload.wordPool;
+        currentArcadeSession.wordGoal = payload.wordGoal;
+        startArcadeGame();
+    }
+})
+.on('broadcast', { event: 'player_join' }, ({ payload: data }) => {
+    // Existing player_join handler code
+})
+// ADD THE PREMIUM_USER_COINS HANDLER HERE:
+.on('broadcast', { event: 'premium_user_coins' }, ({ payload: data }) => {
+    if (data && data.username && data.coins) {
+        console.log(`Received premium user coins update: ${data.username} has ${data.coins} coins`);
+        
+        // Update participant with premium coins
+        const playerIndex = currentArcadeSession.participants.findIndex(p => p.username === data.username);
+        if (playerIndex !== -1) {
+            const oldCoins = currentArcadeSession.participants[playerIndex].coins || 0;
+            // Only update if the new value is higher
+            if (data.coins > oldCoins) {
+                currentArcadeSession.participants[playerIndex].coins = data.coins;
+                currentArcadeSession.participants[playerIndex].isPremium = true;
+            }
+        } else {
+            // Add if not found
+            currentArcadeSession.participants.push({
+                username: data.username,
+                wordsCompleted: 0,
+                coins: data.coins,
+                isPremium: true
+            });
+        }
+        
+        // Update the UI
+        const leaderboard = document.getElementById('arcade-leaderboard');
+        if (leaderboard && leaderboard.offsetParent !== null) {
+            updateAllPlayersProgress();
+        }
+    }
+});
       
       // Set up game state check listener
       window.arcadeChannel.on('broadcast', { event: 'game_state_response' }, ({ payload }) => {
@@ -7106,18 +7232,42 @@ async function joinArcadeWithUsername() {
           }
       });
 
-      // Broadcast initial join with proper coin count for premium users
+      // Create complete join payload with all necessary information
+      const joinPayload = {
+          username: username,
+          type: 'initialJoin',
+          coins: initialCoins,
+          isPremium: isPremium,
+          joinedAt: new Date().toISOString()
+      };
+      
+      console.log("Sending join event with payload:", joinPayload);
+      
+      // Broadcast initial join with proper coin count
       await window.arcadeChannel.send({
           type: 'broadcast',
           event: 'player_join',
-          payload: {
-              username: username,
-              type: 'initialJoin',
-              coins: initialCoins, // Use the proper initial coins value
-              joinedAt: new Date().toISOString()
-          }
+          payload: joinPayload
       });
+      
       currentArcadeSession.joinEventSent = true;
+      
+      // For premium users with coins, send a specialized premium coins update
+      // This ensures the coins are properly recognized by all clients
+      if (isPremium && initialCoins > 0) {
+          console.log(`Broadcasting premium user coins: ${initialCoins}`);
+          await window.arcadeChannel.send({
+              type: 'broadcast',
+              event: 'premium_user_coins',
+              payload: {
+                  username: username,
+                  coins: initialCoins,
+                  isPremium: true,
+                  timestamp: Date.now(),
+                  isTrusted: true
+              }
+          });
+      }
       
       // Now check if game is active
       await window.arcadeChannel.send({
@@ -7132,6 +7282,28 @@ async function joinArcadeWithUsername() {
       
       // Hide arcade modal
       document.getElementById('arcade-modal').style.display = 'none';
+      
+      // Update local UI to show coins if premium user
+      if (isPremium && initialCoins > 0) {
+          document.querySelectorAll('.coin-count').forEach(el => {
+              el.textContent = initialCoins.toString();
+          });
+          
+          // Update local participant data
+          const ourIndex = currentArcadeSession.participants.findIndex(p => p.username === username);
+          if (ourIndex !== -1) {
+              currentArcadeSession.participants[ourIndex].coins = initialCoins;
+              currentArcadeSession.participants[ourIndex].isPremium = true;
+          } else {
+              // Add ourselves if not already in participants list
+              currentArcadeSession.participants.push({
+                  username: username,
+                  wordsCompleted: 0,
+                  coins: initialCoins,
+                  isPremium: true
+              });
+          }
+      }
       
       // Wait a moment to see if we get a response indicating the game is active
       setTimeout(() => {
