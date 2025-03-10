@@ -20,6 +20,7 @@ const DOMCache = {
       // Add more critical elements here
     }
   };
+
   
   // Call this after DOM loads
   document.addEventListener('DOMContentLoaded', () => {
@@ -933,13 +934,14 @@ const PERK_CONFIG = {
         icon: "fa-snowflake",
         duration: 10000,
         requiresPremium: true,
-        requiresWordCount: 1
+        requiresWordCount: 2
     },
-    doubleSkip: {
-        name: "Double Skip",
-        description: "Skip two questions at once",
+    doubleCoins: {
+        name: "Double Coins",
+        description: "Next 5 correct answers earn double coins",
         cost: 1,
-        icon: "fa-fast-forward",
+        icon: "fa-coins",
+        effectDuration: 5,
         requiresPremium: true,
         requiresWordCount: 3
     },
@@ -949,7 +951,7 @@ const PERK_CONFIG = {
         cost: 1,
         icon: "fa-egg",
         requiresPremium: true,
-        requiresWordCount: 5
+        requiresWordCount: 4
     },
     randomPerk: {
         name: "Mystery Box",
@@ -957,7 +959,7 @@ const PERK_CONFIG = {
         cost: 1,
         icon: "fa-question",
         requiresPremium: true,
-        requiresWordCount: 7
+        requiresWordCount: 5
     }
 };
 
@@ -1729,6 +1731,9 @@ function startLevel(level) {
     currentGame.levelStartTime = Date.now();
     currentGame.firstAttempt = true;
     currentGame.streakBonus = true;
+    currentGame.wordsLearned = 0;
+
+
     // Initialize tracking for coin earning and mistakes
     currentGame.coinAwardedWords = new Set();
     currentGame.mistakeRegisteredWords = new Set();
@@ -2256,7 +2261,9 @@ function loadNextQuestion() {
     if (!currentGame.answerTimes) {
       currentGame.answerTimes = [];
     }
-  
+
+    
+
     // Record the time when the question is shown
     currentGame.questionStartTime = Date.now();
   
@@ -2298,6 +2305,8 @@ function loadNextQuestion() {
       button.onclick = () => handleAnswer(answer === correctAnswer);
       buttonsContainer.appendChild(button);
     });
+    
+
     
     // Apply simplified animation based on performance settings
     if (PerformanceSettings.isMobileOrSlow) {
@@ -7041,7 +7050,8 @@ function handleAnswer(isCorrect, skipMode = false) {
     try {
       if (isCorrect) {
         currentGame.currentIndex++;
-        
+        incrementWordsLearned();
+
         if (currentGame.isBossLevel) {
           const bossOrb = document.querySelector(".boss-orb-inner");
           if (bossOrb) {
@@ -7058,6 +7068,14 @@ function handleAnswer(isCorrect, skipMode = false) {
             }, 300);
           }
           
+          if (!gameState.wordsLearned) gameState.wordsLearned = 0;
+          gameState.wordsLearned++;
+          
+          // Refresh perks after learning a word
+          if (PerkManager && typeof PerkManager.refreshPerks === 'function') {
+              PerkManager.refreshPerks();
+          }
+
           // Check if this was the final boss hit
           if (currentGame.currentIndex >= currentGame.words.length) {
             console.log("Boss defeated - final hit!");
@@ -7097,6 +7115,34 @@ function handleAnswer(isCorrect, skipMode = false) {
           // Award exactly 10 coins for each correct answer
           const coinsEarned = 10;
           
+// Check for double coins perk activation
+if (currentGame.doubleCoinsRemaining > 0 && isCorrect && !skipMode) {
+    // Award additional coins equal to the base award (doubling the total)
+    const additionalCoins = 10; // Same as the base award
+    
+    CoinsManager.updateCoins(additionalCoins).then(() => {
+        // Visual feedback
+        pulseCoins(1);
+        
+        // Decrement remaining uses
+        currentGame.doubleCoinsRemaining--;
+        
+        // Show notification with remaining uses
+        if (currentGame.doubleCoinsRemaining > 0) {
+            showNotification(`Double coins! ${currentGame.doubleCoinsRemaining} left`, 'success');
+        } else {
+            // Remove the double coins marker when effect expires
+            document.querySelectorAll('.double-coins-marker').forEach(marker => {
+                if (marker.parentNode) {
+                    marker.parentNode.removeChild(marker);
+                }
+            });
+            
+            showNotification('Double coins effect ended', 'info');
+        }
+    });
+}
+
           CoinsManager.updateCoins(coinsEarned).then(() => {
             updatePerkButtons();
             pulseCoins(1); // Pulse for visual feedback
@@ -14085,40 +14131,513 @@ const PerkManager = {
     // Track active perks and their states
     activePerks: {},
     
+    // Track last notification to prevent duplicates
+    lastNotification: {
+        message: '',
+        timestamp: 0,
+        activeNotifications: new Set()
+    },
+    
     // Initialize the perk system
     init() {
+        console.log('Initializing PerkManager...');
+        
         // Add necessary styles for perk effects
         this.addPerkStyles();
-        this.updateAllPerkButtons();
+        
+        // Initialize unlocked perks set if needed
+        if (!gameState.unlockedPerks) {
+            gameState.unlockedPerks = new Set();
+        }
+        
+        // Load user stats and do a silent check of perks (no announcements at init)
+        this.loadUserWordStats().then(() => {
+            // Quietly check which perks are unlocked at init
+            Object.keys(PERK_CONFIG).forEach(perkId => {
+                if (this.checkPerkConditionsMet(perkId)) {
+                    gameState.unlockedPerks.add(perkId);
+                    console.log(`Perk ${perkId} is unlocked at initialization`);
+                }
+            });
+            
+            // Update all perk buttons
+            this.updateAllPerkButtons();
+        });
+        
+        // Attach to game events where word count might change
+        this.attachToGameEvents();
+    },
+    
+    // Attach to game events to refresh perks when progress changes
+    attachToGameEvents() {
+        // If you have custom events, use them
+        document.addEventListener('wordLearned', () => {
+            console.log('Word learned event detected');
+            this.refreshPerks();
+        });
+        
+        document.addEventListener('levelCompleted', () => {
+            console.log('Level completed event detected');
+            this.refreshPerks();
+        });
+        
+        // If no custom events, manually call refreshPerks() after:
+        // - Answering correctly
+        // - Completing levels
+        // - Any place where gameState.wordsLearned changes
+    },
+    
+    refreshPerks() {
+        console.log('Refreshing perks availability...');
+        
+        // Reload user stats if possible
+        this.loadUserWordStats().then(() => {
+            // Define the current unlocked state of all perks
+            const currentUnlocked = {};
+            
+            // Initialize unlockedPerks set if needed
+            if (!gameState.unlockedPerks) {
+                gameState.unlockedPerks = new Set();
+            }
+            
+            // Check each perk's current unlock state
+            Object.keys(PERK_CONFIG).forEach(perkId => {
+                currentUnlocked[perkId] = this.checkPerkConditionsMet(perkId);
+                
+                // If newly unlocked, announce it
+                if (currentUnlocked[perkId] && !gameState.unlockedPerks.has(perkId)) {
+                    console.log(`Perk ${perkId} newly unlocked during refresh!`);
+                    gameState.unlockedPerks.add(perkId);
+                    this.announcePerkUnlocked(perkId);
+                }
+            });
+            
+            // Force a refresh of all perk buttons
+            this.updateAllPerkButtons();
+            
+            // Log the current state for debugging
+            console.log('Current user stats:', window.userStats);
+            console.log('Game state:', gameState);
+        });
+    },
+    
+    // Load user word stats for conditional perks
+    async loadUserWordStats() {
+        // Initialize default stats
+        if (!window.userStats) {
+            window.userStats = { uniqueWords: 0 };
+        }
+        
+        // If no logged in user, use local game state
+        if (!currentUser || !currentUser.id) {
+            console.log('No user logged in, using local game state');
+            
+            // Try to get word count from game state
+            if (gameState && typeof gameState.wordsLearned === 'number') {
+                window.userStats.uniqueWords = gameState.wordsLearned;
+                console.log(`Using local game state word count: ${window.userStats.uniqueWords}`);
+            } else if (currentGame && typeof currentGame.wordsLearned === 'number') {
+                window.userStats.uniqueWords = currentGame.wordsLearned;
+                console.log(`Using current game word count: ${window.userStats.uniqueWords}`);
+            }
+            
+            return;
+        }
+        
+        // Try to get stats from database for logged in users
+        try {
+            const { data, error } = await supabaseClient
+                .from('player_stats')
+                .select('unique_words_practiced')
+                .eq('user_id', currentUser.id)
+                .single();
+                
+            if (error) throw error;
+            
+            // Update stats from database
+            if (data && typeof data.unique_words_practiced === 'number') {
+                window.userStats.uniqueWords = data.unique_words_practiced;
+            }
+            
+            console.log('Loaded user word stats from DB:', window.userStats);
+        } catch (error) {
+            console.error('Error loading user word stats:', error);
+            
+            // If DB fetch fails, still try local game state
+            if (gameState && typeof gameState.wordsLearned === 'number') {
+                window.userStats.uniqueWords = gameState.wordsLearned;
+                console.log(`Fallback to local game state: ${window.userStats.uniqueWords} words`);
+            }
+        }
+    },
+    
+    // Helper to check if perk conditions are met
+    checkPerkConditionsMet(perkId) {
+        const perkConfig = PERK_CONFIG[perkId];
+        if (!perkConfig) return false;
+        
+        console.log(`Checking conditions for ${perkId}:`, perkConfig);
+        
+        // For basic perks (no special requirements), always return true
+        if (!perkConfig.requiresPremium && !perkConfig.requiresWordCount) {
+            return true;
+        }
+        
+        let meetsRequirements = true;
+        
+        // Check premium status if required
+        if (perkConfig.requiresPremium) {
+            const isPremium = currentUser && currentUser.status === 'premium';
+            console.log(`Premium required: ${perkConfig.requiresPremium}, User is premium: ${isPremium}`);
+            if (!isPremium) {
+                meetsRequirements = false;
+            }
+        }
+        
+        // Check word count if required and if still meeting other requirements
+        if (meetsRequirements && perkConfig.requiresWordCount) {
+            // Get word count from various possible sources
+            let userWordCount = 0;
+            
+            // First check window.userStats (set from database)
+            if (window.userStats && typeof window.userStats.uniqueWords === 'number') {
+                userWordCount = window.userStats.uniqueWords;
+            } 
+            // Then check player progress
+            else if (currentUser && gameState && gameState.wordsLearned) {
+                userWordCount = gameState.wordsLearned;
+            }
+            // Lastly check currentGame progress
+            else if (currentGame && currentGame.wordsLearned) {
+                userWordCount = currentGame.wordsLearned;
+            }
+            
+            console.log(`Word count required: ${perkConfig.requiresWordCount}, User word count: ${userWordCount}`);
+            if (userWordCount < perkConfig.requiresWordCount) {
+                meetsRequirements = false;
+            }
+        }
+        
+        console.log(`Final result for ${perkId}: ${meetsRequirements}`);
+        return meetsRequirements;
+    },
+
+    announcePerkUnlocked(perkId) {
+        const perkConfig = PERK_CONFIG[perkId];
+        if (!perkConfig) return;
+        
+        // Double-check that perk is actually unlocked before announcing
+        if (!this.checkPerkConditionsMet(perkId)) {
+            console.warn(`Attempted to announce unlock for ${perkId} but conditions are not met`);
+            return;
+        }
+        
+        console.log(`Perk ${perkId} unlocked - storing for completion screen`);
+        
+        // Instead of showing immediately, store for level completion
+        if (!gameState.perksUnlockedThisLevel) {
+            gameState.perksUnlockedThisLevel = [];
+        }
+        
+        // Only add if not already in the list
+        if (!gameState.perksUnlockedThisLevel.includes(perkId)) {
+            gameState.perksUnlockedThisLevel.push(perkId);
+        }
+    },
+    
+    // Show an animated perk unlock notification
+    showPerkUnlockNotification(perkId, perkConfig) {
+        // Show a notification
+        this.showNotification(`New Perk Unlocked: ${perkConfig.name}!`, 'success', 5000);
+        
+        // Create a more visual unlock animation overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'perk-unlock-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 70%);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        `;
+        
+        // Create the unlock card
+        const unlockCard = document.createElement('div');
+        unlockCard.className = 'perk-unlock-card';
+        unlockCard.style.cssText = `
+            background: linear-gradient(135deg, #4a2b7a, #203a69);
+            border-radius: 15px;
+            padding: 20px;
+            max-width: 90%;
+            width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3), 0 0 20px rgba(80, 100, 255, 0.5);
+            text-align: center;
+            transform: scale(0.8);
+            opacity: 0;
+            transition: transform 0.5s ease, opacity 0.5s ease;
+            position: relative;
+            overflow: hidden;
+        `;
+        
+        // Create shining background effect
+        const shine = document.createElement('div');
+        shine.style.cssText = `
+            position: absolute;
+            top: -100%;
+            left: -100%;
+            width: 300%;
+            height: 300%;
+            background: linear-gradient(135deg, 
+                rgba(255,255,255,0) 0%, 
+                rgba(255,255,255,0.1) 40%, 
+                rgba(255,255,255,0.4) 50%, 
+                rgba(255,255,255,0.1) 60%, 
+                rgba(255,255,255,0) 100%);
+            transform: rotate(45deg);
+            animation: shineEffect 2s ease-in-out infinite;
+            z-index: 0;
+        `;
+        
+        // Create content
+        const content = document.createElement('div');
+        content.style.cssText = `position: relative; z-index: 1;`;
+        content.innerHTML = `
+            <h2 style="color: #FFD700; margin-bottom: 10px; font-size: 24px;">
+                New Perk Unlocked!
+            </h2>
+            
+            <div class="perk-icon-wrapper" style="
+                margin: 15px auto;
+                width: 80px;
+                height: 80px;
+                background: radial-gradient(circle, rgba(255,215,0,0.2) 0%, rgba(255,215,0,0) 70%);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                animation: pulseGlow 2s infinite ease-in-out;
+            ">
+                <i class="fas ${perkConfig.icon}" style="
+                    font-size: 40px;
+                    color: #FFD700;
+                    filter: drop-shadow(0 0 10px rgba(255,215,0,0.7));
+                "></i>
+            </div>
+            
+            <h3 style="color: white; margin: 10px 0; font-size: 20px;">
+                ${perkConfig.name}
+            </h3>
+            
+            <p style="color: rgba(255,255,255,0.8); margin-bottom: 15px;">
+                ${perkConfig.description}
+            </p>
+            
+            <div style="font-size: 14px; color: rgba(255,255,255,0.6);">
+                Buy this perk with ${perkConfig.cost} coins!
+            </div>
+        `;
+        
+        unlockCard.appendChild(shine);
+        unlockCard.appendChild(content);
+        overlay.appendChild(unlockCard);
+        document.body.appendChild(overlay);
+        
+        // Animate in
+        setTimeout(() => {
+            overlay.style.opacity = '1';
+            unlockCard.style.opacity = '1';
+            unlockCard.style.transform = 'scale(1)';
+            
+            // Add pulse effect to the matching perk button
+            const perkButton = document.getElementById(`${perkId}Perk`);
+            if (perkButton) {
+                perkButton.classList.add('perk-unlocked-pulse');
+                
+                // Remove perk button highlight after animation
+                setTimeout(() => {
+                    perkButton.classList.remove('perk-unlocked-pulse');
+                }, 6000);
+            }
+            
+            // Remove after animation
+            setTimeout(() => {
+                unlockCard.style.opacity = '0';
+                unlockCard.style.transform = 'scale(0.8)';
+                overlay.style.opacity = '0';
+                
+                setTimeout(() => {
+                    if (overlay.parentNode) {
+                        overlay.parentNode.removeChild(overlay);
+                    }
+                }, 500);
+            }, 5000);
+        }, 100);
     },
     
     // Update all perk buttons based on available coins
     updateAllPerkButtons() {
+        // First pass - update all buttons
         Object.keys(PERK_CONFIG).forEach(perkId => {
             this.updatePerkButton(perkId);
         });
+        
+        // Second pass - check for any premium locks that need to be updated
+        const isPremium = currentUser && currentUser.status === 'premium';
+        
+        // If premium, ensure all premium-lock indicators are removed
+        if (isPremium) {
+            document.querySelectorAll('.premium-lock').forEach(lock => {
+                if (lock.parentNode) {
+                    lock.remove();
+                }
+            });
+        }
     },
     
     // Update a specific perk button
     updatePerkButton(perkId) {
         const perkButton = document.getElementById(`${perkId}Perk`);
-        if (!perkButton) return;
+        if (!perkButton) {
+            console.log(`Button for perk ${perkId} not found in DOM`);
+            return;
+        }
         
         const perkConfig = PERK_CONFIG[perkId];
-        if (!perkConfig) return;
+        if (!perkConfig) {
+            console.log(`Config for perk ${perkId} not found`);
+            return;
+        }
         
+        // First, ensure all perk buttons are visible
+        perkButton.style.display = 'flex';
+        
+        // Check if player is premium
+        const isPremium = currentUser && currentUser.status === 'premium';
+        
+        // If this perk requires premium and player isn't premium, show locked state
+        if (perkConfig.requiresPremium && !isPremium) {
+            // Add or ensure premium lock indicator exists
+            let lockIndicator = perkButton.querySelector('.premium-lock');
+            if (!lockIndicator) {
+                lockIndicator = document.createElement('div');
+                lockIndicator.className = 'premium-lock';
+                lockIndicator.innerHTML = '👑';
+                lockIndicator.style.cssText = `
+                    position: absolute;
+                    top: -5px;
+                    right: -5px;
+                    font-size: 12px;
+                    background: gold;
+                    color: #333;
+                    border-radius: 50%;
+                    width: 18px;
+                    height: 18px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    z-index: 2;
+                `;
+                
+                // Make sure button has position relative
+                perkButton.style.position = 'relative';
+                perkButton.appendChild(lockIndicator);
+            }
+            
+            // Disable the button
+            perkButton.disabled = true;
+            perkButton.classList.add("disabled");
+            perkButton.style.opacity = "0.6";
+            
+            // Set count to premium
+            const perkCount = perkButton.querySelector(".perk-count");
+            if (perkCount) {
+                perkCount.textContent = "PRO";
+                perkCount.style.fontSize = "8px";
+            }
+            
+            return;
+        }
+        
+        // Check if player meets word count requirement
+        const meetsWordCount = !perkConfig.requiresWordCount || 
+                              (window.userStats && window.userStats.uniqueWords >= perkConfig.requiresWordCount);
+        
+        // If this perk requires specific word count and player doesn't meet it, show locked state
+        if (perkConfig.requiresWordCount && !meetsWordCount) {
+            // Add or ensure word count lock indicator
+            let lockIndicator = perkButton.querySelector('.word-lock');
+            if (!lockIndicator) {
+                lockIndicator = document.createElement('div');
+                lockIndicator.className = 'word-lock';
+                lockIndicator.innerHTML = perkConfig.requiresWordCount;
+                lockIndicator.style.cssText = `
+                    position: absolute;
+                    top: -5px;
+                    right: -5px;
+                    font-size: 10px;
+                    background: #4caf50;
+                    color: white;
+                    border-radius: 50%;
+                    width: 18px;
+                    height: 18px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    z-index: 2;
+                `;
+                
+                // Make sure button has position relative
+                perkButton.style.position = 'relative';
+                perkButton.appendChild(lockIndicator);
+            }
+            
+            // Disable the button
+            perkButton.disabled = true;
+            perkButton.classList.add("disabled");
+            perkButton.style.opacity = "0.6";
+            
+            // Update count display
+            const perkCount = perkButton.querySelector(".perk-count");
+            if (perkCount) {
+                perkCount.textContent = "🔒";
+            }
+            
+            return;
+        }
+        
+        // Remove any lock indicators if the perk is now available
+        const lockIndicator = perkButton.querySelector('.premium-lock, .word-lock');
+        if (lockIndicator) {
+            lockIndicator.remove();
+        }
+        
+        // Now check if player can afford it
         const coins = gameState.coins || 0;
         const purchaseCount = Math.floor(coins / perkConfig.cost);
         const canAfford = purchaseCount > 0;
         
-        // Update button state
+        // Update button state based on affordability
         perkButton.disabled = !canAfford;
         perkButton.classList.toggle("disabled", !canAfford);
+        
+        // Restore normal opacity
+        perkButton.style.opacity = canAfford ? "1" : "0.5";
         
         // Update counter display
         const perkCount = perkButton.querySelector(".perk-count");
         if (perkCount) {
             perkCount.textContent = canAfford ? purchaseCount.toString() : "0";
+            perkCount.style.fontSize = ""; // Reset font size
         }
     },
     
@@ -14132,7 +14651,7 @@ const PerkManager = {
         
         // Check if player can afford the perk
         if (gameState.coins < perkConfig.cost) {
-            showNotification(`Need ${perkConfig.cost} coins!`, 'error');
+            this.showNotification(`Need ${perkConfig.cost} coins!`, 'error');
             return;
         }
         
@@ -14162,19 +14681,20 @@ const PerkManager = {
                 this.handleTimeFreezeEffect(perkConfig);
                 break;
             case 'skip':
-                this.handleSkipEffect(perkConfig, 1);
+                this.handleSkipEffect(perkConfig);
                 break;
             case 'clue':
                 this.handleClueEffect(perkConfig);
                 break;
             case 'reveal':
                 this.handleRevealEffect(perkConfig);
+                this.showRevealEffect();
                 break;
             case 'doubleFreeze':
                 this.handleDoubleFreezeEffect(perkConfig);
                 break;
-            case 'doubleSkip':
-                this.handleSkipEffect(perkConfig, 2);
+            case 'doubleCoins':
+                this.handleDoubleCoinsEffect(perkConfig);
                 break;
             case 'goldenEgg':
                 this.handleGoldenEggEffect(perkConfig);
@@ -14186,8 +14706,39 @@ const PerkManager = {
                 console.warn(`No handler found for perk: ${perkId}`);
         }
         
-        // Show notification
-        showNotification(`Used ${perkConfig.name}!`, 'success');
+        // Show notification with debounce
+        this.showNotification(`Used ${perkConfig.name}!`, 'success');
+    },
+    
+    // Show notification with debounce to prevent duplicates
+    showNotification(message, type, duration = 3000) {
+        const now = Date.now();
+        
+        // Prevent duplicate notifications within 1 second
+        if (message === this.lastNotification.message && 
+            now - this.lastNotification.timestamp < 1000) {
+            console.log('Preventing duplicate notification:', message);
+            return;
+        }
+        
+        // Check if this notification is already active
+        if (this.lastNotification.activeNotifications.has(message)) {
+            console.log('Notification already active:', message);
+            return;
+        }
+        
+        // Update tracking data
+        this.lastNotification.message = message;
+        this.lastNotification.timestamp = now;
+        this.lastNotification.activeNotifications.add(message);
+        
+        // Call the original notification function
+        showNotification(message, type, duration);
+        
+        // Remove from active set after it expires
+        setTimeout(() => {
+            this.lastNotification.activeNotifications.delete(message);
+        }, duration + 100);
     },
     
     // Individual perk effect handlers
@@ -14225,41 +14776,43 @@ const PerkManager = {
         // Show stronger freezing effect
         this.showFreezeEffect(true);
         
-        // Unfreeze after double duration
+        // Unfreeze after duration
         setTimeout(() => {
             isFrozen = false;
             if (timerElement) {
                 timerElement.classList.remove('frozen');
                 timerElement.classList.remove('double-frozen');
             }
-        }, perkConfig.duration * 2);
+        }, perkConfig.duration);
     },
     
-    handleSkipEffect(perkConfig, skipCount = 1) {
-        // Add visual effect before skipping
-        this.showSkipEffect(skipCount > 1);
+    handleSkipEffect(perkConfig) {
+        // Add visual effect
+        this.showSkipEffect(false);
         
         // Wait a moment for the effect to be visible
         setTimeout(() => {
             // Process the skip based on game mode
-            for (let i = 0; i < skipCount; i++) {
-                if (currentGame.currentIndex < currentGame.words.length) {
-                    if (currentGame.isArcadeMode) {
-                        handleArcadeAnswer(true, true); // true=correct, true=perkMode
-                    } else if (currentGame.isCustomPractice) {
-                        handleCustomPracticeAnswer(true, true); // true=correct, true=skipAnimation
-                    } else {
-                        handleAnswer(true, true); // true=correct, true=skipMode
-                    }
-                    
-                    // Small delay between multiple skips if needed
-                    if (skipCount > 1 && i < skipCount - 1) {
-                        // Wait a moment before the next skip
-                        // This is handled by setTimeout enclosing this function
-                    }
+            if (currentGame.currentIndex < currentGame.words.length) {
+                if (currentGame.isArcadeMode) {
+                    handleArcadeAnswer(true, true); // true=correct, true=perkMode
+                } else if (currentGame.isCustomPractice) {
+                    handleCustomPracticeAnswer(true, true); // true=correct, true=skipAnimation
+                } else {
+                    handleAnswer(true, true); // true=correct, true=skipMode
                 }
             }
         }, 300);
+    },
+    
+    handleDoubleCoinsEffect(perkConfig) {
+        // Initialize counter for double coins
+        currentGame.doubleCoinsRemaining = perkConfig.effectDuration || 5;
+        
+        // Create double coins effect
+        this.showDoubleCoinsEffect();
+        
+        this.showNotification(`Double coins activated for next ${currentGame.doubleCoinsRemaining} correct answers!`, 'success');
     },
     
     handleClueEffect(perkConfig) {
@@ -14393,7 +14946,7 @@ const PerkManager = {
                 const randomPerkConfig = PERK_CONFIG[randomPerkId];
                 
                 // Show what was selected
-                showNotification(`Mystery Box: ${randomPerkConfig.name}!`, 'success');
+                this.showNotification(`Mystery Box: ${randomPerkConfig.name}!`, 'success');
                 
                 // Activate the random perk with a small delay
                 setTimeout(() => {
@@ -14404,7 +14957,7 @@ const PerkManager = {
                 const randomCoins = coinOptions[Math.floor(Math.random() * coinOptions.length)];
                 
                 CoinsManager.updateCoins(randomCoins).then(() => {
-                    showNotification(`Mystery Box: ${randomCoins} coins!`, 'success');
+                    this.showNotification(`Mystery Box: ${randomCoins} coins!`, 'success');
                     pulseCoins(randomCoins);
                 });
             }
@@ -14493,6 +15046,92 @@ const PerkManager = {
         }, 800);
     },
     
+    showDoubleCoinsEffect() {
+        // Create double coins effect overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'double-coins-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 215, 0, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
+            pointer-events: none;
+            z-index: 9999;
+            animation: doubleCoinsGlow 1.5s forwards;
+        `;
+        
+        // Add double coin symbols
+        const coins = document.createElement('div');
+        coins.className = 'double-coins-symbols';
+        coins.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 6rem;
+            animation: coinsAppear 1.5s forwards;
+        `;
+        
+        // Create overlapping coins
+        coins.innerHTML = `
+            <div style="position: absolute; top: 0; left: -30px; transform: scale(0); filter: drop-shadow(0 0 15px gold); animation: coinGrow 1s 0.2s forwards;">💰</div>
+            <div style="position: absolute; top: -20px; left: 0px; transform: scale(0); filter: drop-shadow(0 0 15px gold); animation: coinGrow 1s 0.4s forwards;">💰</div>
+            <div style="position: absolute; top: 0; left: 30px; transform: scale(0); filter: drop-shadow(0 0 15px gold); animation: coinGrow 1s 0.6s forwards;">💰</div>
+        `;
+        
+        overlay.appendChild(coins);
+        document.body.appendChild(overlay);
+        
+        // Add marker to coin counter
+        const coinCounters = document.querySelectorAll('.coin-count');
+        coinCounters.forEach(counter => {
+            // Create a marker to show double coins is active
+            const marker = document.createElement('div');
+            marker.className = 'double-coins-marker';
+            marker.style.cssText = `
+                position: absolute;
+                top: -8px;
+                right: -8px;
+                background: gold;
+                color: black;
+                border-radius: 50%;
+                width: 20px;
+                height: 20px;
+                font-size: 12px;
+                font-weight: bold;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                animation: pulseBadge 2s infinite;
+            `;
+            marker.textContent = '2x';
+            
+            // Make counter position relative if it's not already
+            if (getComputedStyle(counter).position === 'static') {
+                counter.style.position = 'relative';
+            }
+            
+            counter.appendChild(marker);
+            
+            // Remove marker when effect expires
+            setTimeout(() => {
+                if (marker.parentNode) {
+                    marker.remove();
+                }
+            }, 30000); // Remove after 30 seconds (safety backup)
+        });
+        
+        // Remove overlay after animation
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 2000);
+    },
+    
     showClueEffect() {
         // Add screen flash for clue
         const flash = document.createElement('div');
@@ -14517,6 +15156,47 @@ const PerkManager = {
                 flash.parentNode.removeChild(flash);
             }
         }, 500);
+    },
+    
+    showRevealEffect() {
+        // Create reveal effect overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'reveal-effect-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(50, 205, 50, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
+            pointer-events: none;
+            z-index: 9999;
+            animation: revealPulse 1.5s forwards;
+        `;
+        
+        // Add eye symbol to center of screen
+        const eye = document.createElement('div');
+        eye.className = 'reveal-eye';
+        eye.innerHTML = '👁️';
+        eye.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 6rem;
+            filter: drop-shadow(0 0 15px lime);
+            animation: eyeGrow 1.5s forwards;
+        `;
+        
+        overlay.appendChild(eye);
+        document.body.appendChild(overlay);
+        
+        // Remove after animation
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 1500);
     },
     
     showGoldenEggEffect() {
@@ -14676,6 +15356,22 @@ const PerkManager = {
                     font-weight: bold !important;
                 }
                 
+                /* Reveal Effect Animations */
+                @keyframes revealPulse {
+                    0% { opacity: 0; }
+                    30% { opacity: 1; }
+                    70% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes eyeGrow {
+                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+                    60% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                    80% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+                    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                }
+                
                 /* Golden Egg Effect */
                 @keyframes goldenEggPulse {
                     0% { opacity: 0; }
@@ -14707,8 +15403,265 @@ const PerkManager = {
                     80% { transform: translate(-50%, -50%) scale(1.1) rotate(5deg); opacity: 1; }
                     100% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
                 }
+                
+                /* Double Coins Effect */
+                @keyframes doubleCoinsGlow {
+                    0% { opacity: 0; }
+                    30% { opacity: 1; }
+                    70% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes coinsAppear {
+                    0% { opacity: 0; }
+                    30% { opacity: 1; }
+                    80% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes coinGrow {
+                    0% { transform: scale(0); }
+                    60% { transform: scale(1.2); }
+                    100% { transform: scale(1); }
+                }
+                
+                @keyframes pulseBadge {
+                    0% { transform: scale(1); }
+                    50% { transform: scale(1.2); box-shadow: 0 0 10px gold; }
+                    100% { transform: scale(1); }
+                }
+                
+                /* Perk Unlock Effect */
+                @keyframes shineEffect {
+                    0% { transform: translateX(-100%) rotate(45deg); }
+                    100% { transform: translateX(100%) rotate(45deg); }
+                }
+                
+                @keyframes pulseGlow {
+                    0% { box-shadow: 0 0 10px rgba(255,215,0,0.5); }
+                    50% { box-shadow: 0 0 30px rgba(255,215,0,0.8); }
+                    100% { box-shadow: 0 0 10px rgba(255,215,0,0.5); }
+                }
+                
+                .perk-unlocked-pulse {
+                    animation: perkUnlockPulse 2s ease-in-out 3;
+                    position: relative;
+                    z-index: 10;
+                }
+                
+                @keyframes perkUnlockPulse {
+                    0% { transform: scale(1); box-shadow: 0 0 0 rgba(255,215,0,0); }
+                    50% { transform: scale(1.2); box-shadow: 0 0 20px rgba(255,215,0,0.8); }
+                    100% { transform: scale(1); box-shadow: 0 0 0 rgba(255,215,0,0); }
+                }
+                
+                /* Perk Lock Indicators */
+                .premium-lock {
+                    position: absolute;
+                    top: -5px;
+                    right: -5px;
+                    font-size: 12px;
+                    background: gold;
+                    color: #333;
+                    border-radius: 50%;
+                    width: 18px;
+                    height: 18px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    z-index: 2;
+                    animation: lockPulse 2s infinite alternate;
+                }
+                
+                .word-lock {
+                    position: absolute;
+                    top: -5px;
+                    right: -5px;
+                    font-size: 10px;
+                    background: #4caf50;
+                    color: white;
+                    border-radius: 50%;
+                    width: 18px;
+                    height: 18px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    z-index: 2;
+                }
+                
+                @keyframes lockPulse {
+                    0% { transform: scale(1); }
+                    100% { transform: scale(1.1); box-shadow: 0 0 8px gold; }
+                }
+                
+                /* Disabled perk styling */
+                .perk-button.disabled {
+                    cursor: not-allowed;
+                    filter: grayscale(50%);
+                }
             `;
             document.head.appendChild(styleElement);
         }
     }
 };
+
+// Track last notification data to prevent duplicates
+const notificationTracker = {
+    lastMessage: '',
+    lastTime: 0,
+    activeNotifications: new Set()
+};
+
+// Enhanced notification function that prevents duplicates
+function showNotificationWithDebounce(message, type, duration = 3000) {
+    const now = Date.now();
+    
+    // Prevent duplicate notifications within 1 second
+    if (message === notificationTracker.lastMessage && 
+        now - notificationTracker.lastTime < 1000) {
+        console.log('Preventing duplicate notification:', message);
+        return;
+    }
+    
+    // Check if this exact notification is already active
+    if (notificationTracker.activeNotifications.has(message)) {
+        console.log('Notification already active:', message);
+        return;
+    }
+    
+    // Update tracking data
+    notificationTracker.lastMessage = message;
+    notificationTracker.lastTime = now;
+    notificationTracker.activeNotifications.add(message);
+    
+    // Call the original notification function
+    showNotification(message, type, duration);
+    
+    // Remove from active set after it expires
+    setTimeout(() => {
+        notificationTracker.activeNotifications.delete(message);
+    }, duration + 100);
+}
+
+function incrementWordsLearned() {
+    // Initialize if not already set
+    if (!gameState.wordsLearned) {
+        gameState.wordsLearned = 0;
+    }
+    
+    // Get the current unlocked state for all perks BEFORE incrementing
+    const previouslyUnlocked = {};
+    Object.keys(PERK_CONFIG).forEach(perkId => {
+        previouslyUnlocked[perkId] = PerkManager.checkPerkConditionsMet(perkId);
+    });
+    
+    // Increment the counter
+    gameState.wordsLearned++;
+    
+    console.log(`Words learned incremented to: ${gameState.wordsLearned}`);
+    
+    // Initialize unlocked perks set if needed
+    if (!gameState.unlockedPerks) {
+        gameState.unlockedPerks = new Set();
+    }
+    
+    // Check for newly unlocked perks
+    Object.keys(PERK_CONFIG).forEach(perkId => {
+        const nowUnlocked = PerkManager.checkPerkConditionsMet(perkId);
+        
+        // Only announce if it was locked before and is now unlocked
+        if (nowUnlocked && !previouslyUnlocked[perkId]) {
+            console.log(`Perk ${perkId} newly unlocked!`);
+            gameState.unlockedPerks.add(perkId);
+            PerkManager.announcePerkUnlocked(perkId);
+        }
+    });
+    
+    // Force a refresh of all perk buttons
+    if (PerkManager && typeof PerkManager.refreshPerks === 'function') {
+        PerkManager.refreshPerks();
+    }
+}
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // First, verify all perk buttons exist in the DOM
+    Object.keys(PERK_CONFIG).forEach(perkId => {
+      const buttonId = `${perkId}Perk`;
+      const button = document.getElementById(buttonId);
+      if (!button) {
+        console.error(`Missing perk button in DOM: ${buttonId}`);
+        
+        // Create the button if it doesn't exist
+        const perksContainer = document.querySelector('.perks-container');
+        if (perksContainer) {
+          const newButton = document.createElement('button');
+          newButton.id = buttonId;
+          newButton.className = 'perk-button';
+          newButton.onclick = () => buyPerk(perkId);
+          
+          const config = PERK_CONFIG[perkId];
+          newButton.innerHTML = `
+            <i class="fas ${config.icon} perk-icon"></i>
+            <span class="perk-count">0</span>
+          `;
+          
+          perksContainer.appendChild(newButton);
+          console.log(`Created missing perk button: ${buttonId}`);
+        }
+      }
+    });
+    
+    // Initialize the PerkManager
+    if (PerkManager && typeof PerkManager.init === 'function') {
+      PerkManager.init();
+      console.log('PerkManager initialized');
+    }
+  });
+
+  function incrementWordsLearned() {
+    // Initialize if not already set
+    if (!gameState.wordsLearned) {
+      gameState.wordsLearned = 0;
+    }
+    
+    // Remember which perks were unlocked before
+    const previouslyUnlockedPerks = new Set();
+    Object.keys(PERK_CONFIG).forEach(perkId => {
+      if (PerkManager.checkPerkConditionsMet(perkId)) {
+        previouslyUnlockedPerks.add(perkId);
+      }
+    });
+    
+    // Increment the counter
+    gameState.wordsLearned++;
+    
+    console.log(`Words learned incremented to: ${gameState.wordsLearned}`);
+    
+    // Check for newly unlocked perks
+    Object.keys(PERK_CONFIG).forEach(perkId => {
+      const isUnlockedNow = PerkManager.checkPerkConditionsMet(perkId);
+      
+      // If newly unlocked
+      if (isUnlockedNow && !previouslyUnlockedPerks.has(perkId)) {
+        console.log(`Perk ${perkId} newly unlocked!`);
+        
+        // Add to unlocked perks set
+        if (!gameState.unlockedPerks) {
+          gameState.unlockedPerks = new Set();
+        }
+        gameState.unlockedPerks.add(perkId);
+        
+        // Show unlock announcement
+        PerkManager.announcePerkUnlocked(perkId);
+      }
+    });
+    
+    // Important: Refresh perks immediately when word count changes
+    if (PerkManager && typeof PerkManager.refreshPerks === 'function') {
+      PerkManager.refreshPerks();
+    }
+  }
+
+  
