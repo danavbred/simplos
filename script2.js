@@ -1381,18 +1381,29 @@ document.addEventListener('DOMContentLoaded', function() {
           
           console.log("Coins reset as part of logout process");
           
-          // Reset any game state
-          currentGame = null;
-          
-          // Reset any session state that might trigger game starts
-          gameState.sessionStartTime = null;
+          // IMPORTANT: Clear localStorage game context FIRST
           if (localStorage.getItem("gameContext")) {
               localStorage.removeItem("gameContext");
           }
           
+          // Reset ALL game state variables that might trigger auto-resume
+          currentGame = null;
+          gameState.currentLevel = null;
+          gameState.currentSet = null;
+          gameState.currentStage = null;
+          gameState.sessionStartTime = null;
+          
+          // Set flag to prevent auto-resume
+          window.preventAutoResume = true;
+          
           // Force return to welcome screen after logout
           setTimeout(() => {
               showScreen("welcome-screen");
+              
+              // Clear the prevention flag after a delay
+              setTimeout(() => {
+                window.preventAutoResume = false;
+              }, 1000);
           }, 300);
           
           // Then call the original handler if it exists
@@ -8640,9 +8651,17 @@ function finishCelebrationAndGoHome() {
       element => element.remove()
   );
   
-  // Reset game state immediately to prevent any game resumption
+  // IMPORTANT: Clear localStorage game context BEFORE resetting game state
+  if (localStorage.getItem("gameContext")) {
+      localStorage.removeItem("gameContext");
+  }
+  
+  // Reset ALL game state variables that might trigger auto-resume
   currentGame = null;
   gameState.currentLevel = null;
+  gameState.currentSet = null;
+  gameState.currentStage = null;
+  gameState.sessionStartTime = null;
   
   // Clean up arcade session
   cleanupArcadeSession();
@@ -8650,7 +8669,14 @@ function finishCelebrationAndGoHome() {
   resetArcadeSession();
   
   // Force immediate transition to welcome screen
+  // Add a flag to prevent auto-resuming
+  window.preventAutoResume = true;
   showScreen("welcome-screen");
+  
+  // Clear the flag after a delay
+  setTimeout(() => {
+    window.preventAutoResume = false;
+  }, 1000);
   
   // Update stats after transition (don't wait for this to complete)
   updatePlayerStatsAfterArcade().catch(err => {

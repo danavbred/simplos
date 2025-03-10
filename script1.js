@@ -1208,144 +1208,159 @@ function showSuccessToast(message) {
 }
 
 function showScreen(screenId, forceRefresh = false) {
-    // Debug statement to help track screen navigation
-    console.log(`Attempting to show screen: ${screenId}`);
-    
-    // Special handling for stage-cascade-screen
-    if (screenId === "stage-cascade-screen") {
-      return renderStageCascadeScreen();
-    }
-    
-    // MODIFIED: Remove the unregistered user restriction for upgrade screen
-    // Now everyone can access the upgrade screen, registered or not
-    
-    console.log("showScreen called with:", {
-      screenId: screenId,
-      forceRefresh: forceRefresh,
-      currentUser: currentUser ? currentUser.id : "No user"
-    });
-    
-    // Check if screen exists before proceeding
-    const targetScreen = document.getElementById(screenId);
-    if (!targetScreen) {
-        console.error(`ERROR: Screen with id "${screenId}" not found in the DOM!`);
-        // List all available screens for debugging
-        const availableScreens = Array.from(document.querySelectorAll('.screen')).map(s => s.id);
-        console.log("Available screens:", availableScreens);
-        return;
-    }
-     
-    // Special handling for leaderboard screen cleanup
-    if (document.querySelector('.screen.visible')?.id === 'leaderboard-screen') {
-      cleanupLeaderboard();
-    }
-     
+  // Debug statement to help track screen navigation
+  console.log(`Attempting to show screen: ${screenId}`);
+  
+  // Special handling for stage-cascade-screen
+  if (screenId === "stage-cascade-screen") {
+    return renderStageCascadeScreen();
+  }
+  
+  console.log("showScreen called with:", {
+    screenId: screenId,
+    forceRefresh: forceRefresh,
+    currentUser: currentUser ? currentUser.id : "No user",
+    preventAutoResume: window.preventAutoResume || false
+  });
+  
+  // Check if screen exists before proceeding
+  const targetScreen = document.getElementById(screenId);
+  if (!targetScreen) {
+      console.error(`ERROR: Screen with id "${screenId}" not found in the DOM!`);
+      // List all available screens for debugging
+      const availableScreens = Array.from(document.querySelectorAll('.screen')).map(s => s.id);
+      console.log("Available screens:", availableScreens);
+      return;
+  }
+   
+  // Special handling for leaderboard screen cleanup
+  if (document.querySelector('.screen.visible')?.id === 'leaderboard-screen') {
+    cleanupLeaderboard();
+  }
+   
   const event = new CustomEvent('screenChange', { 
     detail: { screen: screenId } 
   });
   document.dispatchEvent(event);
 
-    // Get currently visible screen
-    const currentScreen = document.querySelector('.screen.visible');
-     
-    // Cleanup if leaving question screen
-    if (currentScreen && currentScreen.id === 'question-screen') {
-      if (typeof clearTimer === 'function') {
-        clearTimer();
-      }
-      window.isFrozen = false;
+  // Get currently visible screen
+  const currentScreen = document.querySelector('.screen.visible');
+   
+  // Cleanup if leaving question screen
+  if (currentScreen && currentScreen.id === 'question-screen') {
+    if (typeof clearTimer === 'function') {
+      clearTimer();
     }
-     
-    // Handle force refresh
-    if (forceRefresh && screenId === "welcome-screen") {
-      console.log("Initiating full page reload");
-      if (typeof saveProgress === 'function') {
-        saveProgress();
-      }
-      window.location.reload(true);
-      return;
+    window.isFrozen = false;
+  }
+   
+  // Handle force refresh
+  if (forceRefresh && screenId === "welcome-screen") {
+    console.log("Initiating full page reload");
+    if (typeof saveProgress === 'function') {
+      saveProgress();
     }
-  
-    if (["question-screen", "custom-practice-screen", "moderator-screen", "leaderboard-screen"].includes(screenId)) {
-      if (typeof updateNavigationContainer === 'function') {
-        updateNavigationContainer();
-      }
-    }
-     
-    // Hide all screens
-    document.querySelectorAll('.screen').forEach(screen => {
-      screen.classList.remove('visible');
-      
-      // Don't remove particles automatically, just let them be replaced
-      // This avoids errors when the element doesn't exist
-    });
-     
-    // Show requested screen
-    if (targetScreen) {
-      // Make screen visible
-      targetScreen.classList.add('visible');
-         
-      // Initialize particles for the screen if function exists
-      if (typeof initializeParticles === 'function') {
-        // Only create new particle container if none exists
-        let particleContainer = targetScreen.querySelector('.particle-container');
-        if (!particleContainer) {
-          particleContainer = document.createElement('div');
-          particleContainer.className = 'particle-container';
-          targetScreen.appendChild(particleContainer);
-        }
-        
-        try {
-          initializeParticles(targetScreen);
-        } catch (error) {
-          console.warn("Error initializing particles:", error);
-        }
-      }
-         
-      // Update UI elements if function exists
-      if (typeof updateAllCoinDisplays === 'function') {
-        updateAllCoinDisplays();
-      }
-         
-      // Special handling for different screens
-      switch (screenId) {
-        case "question-screen":
-          if (typeof updatePerkButtons === 'function') {
-            updatePerkButtons();
-          }
-                 
-          // Check for admin user and add test button
-          console.log("Question screen shown, checking for admin button");
-          setTimeout(() => {
-            if (typeof addAdminTestButton === 'function') {
-              addAdminTestButton();
-            }
-          }, 100);
-          break;
-               
-        case "welcome-screen":
-          if (typeof restoreGameContext === 'function' && restoreGameContext()) {
-            if (typeof startGame === 'function') {
-              startGame();
-            }
-          }
-          break;
-               
-        case "stage-cascade-screen":
-          // Handle the cascading stage screen specially
-          if (typeof renderStageCascadeScreen === 'function') {
-            return renderStageCascadeScreen();
-          }
-          break;
-          
-        case "about-screen":
-          console.log("About screen is now visible");
-          break;
-      }
-         
-      console.log(`Successfully switched to screen: ${screenId}`);
+    window.location.reload(true);
+    return;
+  }
+
+  if (["question-screen", "custom-practice-screen", "moderator-screen", "leaderboard-screen"].includes(screenId)) {
+    if (typeof updateNavigationContainer === 'function') {
+      updateNavigationContainer();
     }
   }
+   
+  // Hide all screens
+  document.querySelectorAll('.screen').forEach(screen => {
+    screen.classList.remove('visible');
+    
+    // Don't remove particles automatically, just let them be replaced
+    // This avoids errors when the element doesn't exist
+  });
+   
+  // Show requested screen
+  if (targetScreen) {
+    // Make screen visible
+    targetScreen.classList.add('visible');
+       
+    // Initialize particles for the screen if function exists
+    if (typeof initializeParticles === 'function') {
+      // Only create new particle container if none exists
+      let particleContainer = targetScreen.querySelector('.particle-container');
+      if (!particleContainer) {
+        particleContainer = document.createElement('div');
+        particleContainer.className = 'particle-container';
+        targetScreen.appendChild(particleContainer);
+      }
+      
+      try {
+        initializeParticles(targetScreen);
+      } catch (error) {
+        console.warn("Error initializing particles:", error);
+      }
+    }
+       
+    // Update UI elements if function exists
+    if (typeof updateAllCoinDisplays === 'function') {
+      updateAllCoinDisplays();
+    }
+       
+    // Special handling for different screens
+    switch (screenId) {
+      case "question-screen":
+        if (typeof updatePerkButtons === 'function') {
+          updatePerkButtons();
+        }
+               
+        // Check for admin user and add test button
+        console.log("Question screen shown, checking for admin button");
+        setTimeout(() => {
+          if (typeof addAdminTestButton === 'function') {
+            addAdminTestButton();
+          }
+        }, 100);
+        break;
+             
+      case "welcome-screen":
+        // MODIFIED: Check if auto-resume should be prevented
+        if (window.preventAutoResume) {
+          console.log("Auto-resume prevented by explicit flag");
+          // Clear any saved game context to prevent future auto-resume
+          if (localStorage.getItem("gameContext")) {
+            console.log("Removing saved game context during prevented auto-resume");
+            localStorage.removeItem("gameContext");
+          }
+        } else if (typeof restoreGameContext === 'function' && restoreGameContext()) {
+          if (typeof startGame === 'function') {
+            console.log("Restoring saved game after welcome screen shown");
+            startGame();
+          }
+        } else {
+          console.log("No saved game to restore or auto-resume prevented");
+        }
+        break;
+             
+      case "stage-cascade-screen":
+        // Handle the cascading stage screen specially
+        if (typeof renderStageCascadeScreen === 'function') {
+          return renderStageCascadeScreen();
+        }
+        break;
+        
+      case "about-screen":
+        console.log("About screen is now visible");
+        break;
+    }
+       
+    console.log(`Successfully switched to screen: ${screenId}`);
+  }
+}
+
+// Call this before showScreen
+function safeShowScreen(screenId, forceRefresh = false) {
+  ensureScreenExists(screenId);
+  showScreen(screenId, forceRefresh);
+}
 
 // Call this before showScreen
 function safeShowScreen(screenId, forceRefresh = false) {
