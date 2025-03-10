@@ -2388,14 +2388,6 @@ function awardTimeBonus() {
     return 0;
 }
 
-
-
-
-
-
-
-
-
 function eliminateWrongAnswer() {
    const buttons = document.querySelectorAll('.buttons button');
    const correctAnswer = currentGame.isHebrewToEnglish ? 
@@ -2629,66 +2621,6 @@ window.onload = async () => {
     await loadCustomLists();
 };
 
-function stopLevelAndGoBack() {
-  clearTimer();
-  isFrozen = false;
-  
-  // Show a simple outro animation
-  const outro = document.createElement('div');
-  outro.className = 'simple-level-transition';
-  outro.style.display = 'flex';
-  outro.style.justifyContent = 'center';
-  outro.style.alignItems = 'center';
-  
-  // Create light streaks for animation
-  for (let i = 0; i < 3; i++) {
-    const streak = document.createElement('div');
-    streak.className = 'light-streak';
-    streak.style.top = `${20 + (i * 25)}%`;
-    streak.style.animationDelay = `${i * 0.2}s`;
-    outro.appendChild(streak);
-  }
-  
-  const announcement = document.createElement('div');
-  announcement.className = 'level-announcement simple';
-  announcement.style.position = 'relative'; // Ensure proper positioning
-  
-  announcement.innerHTML = `
-    <div class="level-number">
-      <i class="fas fa-check-circle" style="color: var(--gold); font-size: 2rem;"></i>
-    </div>
-    <div class="level-text">Session Complete</div>
-  `;
-  
-  outro.appendChild(announcement);
-  document.body.appendChild(outro);
-  
-  // Clear session
-  gameState.sessionStartTime = null;
-  
-  currentGame = {
-    words: [],
-    translations: [],
-    currentIndex: 0,
-    correctAnswers: 0,
-    firstAttempt: true,
-    isHebrewToEnglish: false,
-    mixed: false,
-    speedChallenge: false,
-    timeBonus: 0,
-    initialTimeRemaining: null,
-    streakBonus: true,
-    restartsRemaining: null
-  };
-  
-  setTimeout(() => {
-    outro.classList.add('fade-out');
-    setTimeout(() => {
-      document.body.removeChild(outro);
-      showScreen("welcome-screen");
-    }, 300);
-  }, 1200);
-}
 
 function handleResetProgress() {
     console.log("Resetting all game progress...");
@@ -3424,829 +3356,6 @@ function debugLevelStats(stats, caller) {
     });
   }
 
-const customPracticeLists = {
-    lists: [],
-    currentList: null,
-    maxLists: 5
-};
-
-function updateListsDisplay() {
-    const container = document.getElementById("custom-lists-container");
-    if (!container) return void console.error("Custom lists container not found");
-
-    // Comprehensive logging
-    console.log("Current user:", currentUser);
-    console.log("User status:", currentUser?.status);
-    console.log("User metadata:", currentUser?.user_metadata);
-    console.log("App metadata:", currentUser?.app_metadata);
-    
-    // Log all properties of the user object for inspection
-    if (currentUser) {
-        console.log("All user properties:");
-        for (const key in currentUser) {
-            if (typeof currentUser[key] !== 'function') {
-                console.log(`- ${key}:`, currentUser[key]);
-            }
-        }
-        
-        // Check user_metadata properties
-        if (currentUser.user_metadata) {
-            console.log("All user_metadata properties:");
-            for (const key in currentUser.user_metadata) {
-                console.log(`- ${key}:`, currentUser.user_metadata[key]);
-            }
-        }
-        
-        // Check app_metadata properties
-        if (currentUser.app_metadata) {
-            console.log("All app_metadata properties:");
-            for (const key in currentUser.app_metadata) {
-                console.log(`- ${key}:`, currentUser.app_metadata[key]);
-            }
-        }
-    }
-    
-    const limits = CustomListsManager.getListLimits();
-    const userStatus = currentUser?.status || "unregistered";
-    
-    // Debug message about premium status
-    console.log("User premium status check:", userStatus === "premium");
-    
-    // Various checks for teacher status
-    let isTeacherFound = false;
-    let teacherPropertyFound = "";
-    
-    if (currentUser?.role === "teacher") {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.role";
-    } else if (currentUser?.user_metadata?.role === "teacher") {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.user_metadata.role";
-    } else if (currentUser?.app_metadata?.role === "teacher") {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.app_metadata.role";
-    } else if (currentUser?.user_type === "teacher") {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.user_type";
-    } else if (currentUser?.user_metadata?.user_type === "teacher") {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.user_metadata.user_type";
-    } else if (currentUser?.is_teacher === true) {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.is_teacher";
-    } else if (currentUser?.user_metadata?.is_teacher === true) {
-        isTeacherFound = true;
-        teacherPropertyFound = "currentUser.user_metadata.is_teacher";
-    }
-    
-    console.log(`Is teacher found: ${isTeacherFound}, Property: ${teacherPropertyFound}`);
-    
-    // TEMPORARY: Until we find the correct teacher attribute
-    const isPremiumUser = userStatus === "premium";
-    const isAdminEmail = currentUser && currentUser.email && 
-                        (currentUser.email.includes("admin") || 
-                         currentUser.email.includes("teacher"));
-    
-    const canShare = isPremiumUser;
-    console.log(`Can share: ${canShare}, Premium: ${isPremiumUser}, Admin email: ${isAdminEmail}`);
-    
-    container.innerHTML = "";
-    
-    if (CustomListsManager.lists && Array.isArray(CustomListsManager.lists) && CustomListsManager.lists.length !== 0) {
-        CustomListsManager.lists.forEach(list => {
-            if (!list || !list.id) return;
-            
-            const wordCount = list.words?.length || 0;
-            const hasSufficientWords = wordCount >= 6;
-            
-            const playsAvailableHtml = userStatus === "premium" ? 
-                "" : 
-                `<span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>`;
-            
-            const listItem = document.createElement("div");
-            listItem.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
-            listItem.dataset.listId = list.id;
-            
-            // MODIFIED: Changed the word count display format
-            listItem.innerHTML = `
-                <div class="list-actions">
-                    <button class="main-button practice-button" ${hasSufficientWords ? "" : "disabled"}>
-    ${hasSufficientWords ? "Practice" : `${6 - wordCount} more`}
-</button>
-                    <button class="main-button edit-button">Edit</button>
-                    <button class="main-button delete-button">Delete</button>
-                    ${userStatus === "premium" ? `
-                        <button class="main-button share-button">
-                            <i class="fas fa-share-alt"></i> Share
-                        </button>
-                    ` : ""}
-                </div>
-                <div class="list-header">
-                    <h3>${list.name || "Unnamed List"}</h3>
-                    <div class="list-summary">
-                        <span class="word-count ${hasSufficientWords ? "" : "insufficient"}">${wordCount}/${hasSufficientWords ? wordCount : 6}</span>
-                        ${playsAvailableHtml}
-                        <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0, 5).join(", ") : ""}${list.words && list.words.length > 5 ? "..." : ""}</p>
-                    </div>
-                </div>
-            `;
-            
-            container.appendChild(listItem);
-            
-            // Double-check if share button exists after rendering
-            const hasShareButton = !!listItem.querySelector('.share-button');
-            console.log(`List ${list.id} - Share button exists: ${hasShareButton}, Premium user: ${userStatus === "premium"}`);
-            
-            // Set up the button event handlers
-            const practiceButton = listItem.querySelector(".practice-button");
-            if (practiceButton) {
-                if (hasSufficientWords) {
-                    practiceButton.onclick = function() {
-                        startCustomListPractice(list.id);
-                    };
-                } else {
-                    practiceButton.style.opacity = "0.6";
-                    practiceButton.style.cursor = "not-allowed";
-                }
-            }
-            
-            const editButton = listItem.querySelector(".edit-button");
-            if (editButton) {
-                editButton.onclick = function() {
-                    editCustomList(list.id);
-                };
-            }
-            
-            const deleteButton = listItem.querySelector(".delete-button");
-            if (deleteButton) {
-                deleteButton.onclick = function() {
-                    deleteCustomList(list.id);
-                };
-            }
-            
-            // Make sure the share button has the proper click handler
-            const shareButton = listItem.querySelector(".share-button");
-            if (shareButton) {
-                shareButton.onclick = function() {
-                    console.log(`Share button clicked for list: ${list.id}`);
-                    showShareModal(list.id);
-                };
-            }
-            
-            const listHeader = listItem.querySelector(".list-header");
-            if (listHeader) {
-                listHeader.onclick = function() {
-                    toggleListCollapse(list.id);
-                };
-            }
-        });
-    } else {
-        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
-    }
-}
-
-// Function to add a new word list
-function addCustomWordList(name = null) {
-    // Check if we've reached the maximum number of lists
-    if (customPracticeLists.lists.length >= customPracticeLists.maxLists) {
-        alert(`You can only create up to ${customPracticeLists.maxLists} custom lists.`);
-        return null;
-    }
-
-    // Generate a default name if not provided
-    if (!name) {
-        name = `List ${customPracticeLists.lists.length + 1}`;
-    }
-
-    const newList = {
-        id: Date.now(),
-        name: name,
-        words: [],
-        translations: []
-    };
-
-    customPracticeLists.lists.push(newList);
-    saveCustomLists();
-    return newList;
-}
-
-
-// Function to translate a single word using MyMemory Translation API
-function translateWord(word) {
-    const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|he`;
-    
-    return fetch(apiUrl)
-        .then(response => response.json())
-        .then(data => {
-            // Extract translation, fallback to original word if translation fails
-            return data.responseData.translatedText || word;
-        })
-        .catch(() => word);
-}
-
-function trackListPlay(listId) {
-    const playCountKey = `listPlays_${listId}`;
-    let plays = parseInt(localStorage.getItem(playCountKey) || '0');
-    plays++;
-    
-    const limits = getUserListLimits();
-    localStorage.setItem(playCountKey, plays);
-
-    if (plays >= limits.maxPlays) {
-        // Remove list if max plays reached
-        deleteCustomList(listId);
-        return false;
-    }
-    
-    return limits.maxPlays - plays;
-}
-
-
-
-
-
-
-
-
-function updateLocalSharedLists(sharedList) {
-    // Add the shared list to the recipient's local lists
-    if (currentUser) {
-        customPracticeLists.lists.push({
-            id: sharedList.local_id,
-            supabaseId: sharedList.id,
-            name: sharedList.name,
-            words: sharedList.words,
-            translations: sharedList.translations,
-            is_shared: true,
-            shared_by: sharedList.shared_by
-        });
-        
-        // Save to local storage or sync
-        saveCustomLists();
-    }
-}
-
-// ADD this fallback function to try alternative sharing approaches
-async function debugShareList(listId, recipientId) {
-    try {
-        console.log("Debug share function called with:", { listId, recipientId });
-        
-        // Find the list
-        const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
-        if (!list) {
-            console.error("List not found for debug sharing");
-            return false;
-        }
-        
-        // Try direct table access with minimal fields
-        const { data, error } = await supabaseClient
-            .from('custom_lists')
-            .insert({
-                user_id: recipientId,
-                name: "Shared list", 
-                words: ["test"],
-                translations: ["test"],
-                is_shared: true
-            });
-            
-        if (error) {
-            console.error("Debug share error:", error);
-            
-            // Check what tables are available
-            const { data: tables, error: tablesError } = await supabaseClient
-                .from('information_schema.tables')
-                .select('table_name')
-                .eq('table_schema', 'public');
-                
-            if (tablesError) {
-                console.error("Error fetching tables:", tablesError);
-            } else {
-                console.log("Available tables:", tables);
-            }
-            
-            return false;
-        }
-        
-        console.log("Debug share success:", data);
-        return true;
-    } catch (error) {
-        console.error("Debug share exception:", error);
-        return false;
-    }
-}
-
-async function shareListWithUser(listId, recipientId) {
-    try {
-        console.log("Sharing list:", listId, "with user:", recipientId);
-        
-        if (!currentUser) {
-            console.error("No current user - cannot share list");
-            return false;
-        }
-        
-        // Find the list in CustomListsManager
-        const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
-        
-        if (!list) {
-            console.error("List not found for sharing:", listId);
-            return false;
-        }
-        
-        console.log("Found list to share:", list.name);
-        
-        // Direct insert into custom_lists table
-        const { data, error } = await supabaseClient
-            .from('custom_lists')
-            .insert({
-                user_id: recipientId,
-                name: `${list.name} (Shared by ${currentUser.user_metadata?.username || "User"})`,
-                words: list.words || [],
-                translations: list.translations || [],
-                is_shared: true,
-                shared_with: [recipientId],
-                shared_by: currentUser.id,
-                created_at: new Date().toISOString(),
-                status: 'active'
-            });
-        
-        if (error) {
-            console.error("Error sharing list:", error);
-            return false;
-        }
-        
-        console.log("List shared successfully");
-        showNotification("List shared successfully!", "success");
-        closeShareModal();
-        return true;
-    } catch (error) {
-        console.error("Error in shareListWithUser:", error);
-        showNotification("Error sharing list", "error");
-        return false;
-    }
-}
-
-
-
-async function loadSharedLists() {
-    if (!currentUser) return [];
-
-    const { data, error } = await supabaseClient
-        .from('custom_lists')
-        .select('*')
-        .or(`shared_with.cs.{${currentUser.id}},is_shared.eq.true`);
-
-    if (error) {
-        console.error('Error loading shared lists:', error);
-        return [];
-    }
-
-    return data.map(list => ({
-        ...list,
-        isShared: true
-    }));
-}
-
-function showShareModal(listId) {
-    console.log("Opening share modal for list:", listId);
-    
-    // Check if user can share
-    const isPremiumUser = currentUser?.status === "premium";
-    const isAdminEmail = currentUser && currentUser.email && 
-                        (currentUser.email.includes("admin") || 
-                         currentUser.email.includes("teacher"));
-    
-    const canShare = isPremiumUser && isAdminEmail;
-    
-    if (!canShare) {
-        showNotification("Only teachers can share lists", "error");
-        return;
-    }
-    
-    if (!listId) {
-        console.error("No list ID provided to share modal");
-        showNotification("Error: List ID is missing", "error");
-        return;
-    }
-    
-    // Remove any existing modals
-    document.querySelectorAll(".share-modal-wrapper").forEach(el => el.remove());
-    
-    // Create a completely new modal wrapper directly on the body
-    const modalWrapper = document.createElement("div");
-    modalWrapper.className = "share-modal-wrapper";
-    modalWrapper.setAttribute('data-list-id', listId); // Store the list ID in the modal    
-    // Apply fixed positioning to ensure it's centered
-    modalWrapper.style.cssText = `
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        z-index: 9999 !important;
-        pointer-events: all !important;
-    `;
-    
-    // Create the modal HTML with backdrop, search field, and content
-    modalWrapper.innerHTML = `
-        <div class="modal-backdrop" style="
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            background-color: rgba(0,0,0,0.7) !important;
-            z-index: 9999 !important;
-        "></div>
-        
-        <div class="share-modal-content" style="
-            position: relative !important;
-            width: 90% !important;
-            max-width: 500px !important;
-            max-height: 80vh !important;
-            background-color: rgba(30, 41, 59, 0.9) !important;
-            backdrop-filter: blur(10px) !important;
-            border-radius: 20px !important;
-            padding: 25px !important;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
-            z-index: 10000 !important;
-            overflow-y: auto !important;
-            transform: none !important;
-            margin: 0 !important;
-        ">
-            <h3 style="
-                text-align: center !important;
-                margin-bottom: 20px !important;
-                color: white !important;
-                font-size: 1.5rem !important;
-            ">Share List</h3>
-            
-            <div class="search-container" style="
-                margin-bottom: 15px !important;
-                position: relative !important;
-            ">
-                <input type="text" id="user-search" placeholder="Search users..." style="
-                    width: 100% !important;
-                    padding: 10px !important;
-                    padding-left: 35px !important;
-                    border-radius: 5px !important;
-                    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-                    background-color: rgba(255, 255, 255, 0.1) !important;
-                    color: white !important;
-                    font-size: 1rem !important;
-                    outline: none !important;
-                ">
-                <i class="fas fa-search" style="
-                    position: absolute !important;
-                    left: 12px !important;
-                    top: 50% !important;
-                    transform: translateY(-50%) !important;
-                    color: rgba(255, 255, 255, 0.5) !important;
-                "></i>
-                <div class="search-results-count" style="
-                    position: absolute !important;
-                    right: 10px !important;
-                    top: 50% !important;
-                    transform: translateY(-50%) !important;
-                    color: rgba(255, 255, 255, 0.5) !important;
-                    font-size: 0.85rem !important;
-                    display: none !important;
-                "></div>
-            </div>
-            
-            <div class="users-list" style="
-                margin-bottom: 20px !important;
-                max-height: 50vh !important;
-                overflow-y: auto !important;
-            ">
-                <div style="
-                    text-align: center !important;
-                    color: white !important;
-                    padding: 15px !important;
-                ">
-                    <i class="fas fa-spinner fa-spin" style="margin-right: 10px !important;"></i>
-                    Loading users...
-                </div>
-            </div>
-            
-            <button class="cancel-share-btn" style="
-                background-color: rgba(255, 255, 255, 0.2) !important;
-                color: white !important;
-                border: none !important;
-                border-radius: 5px !important;
-                padding: 10px 20px !important;
-                font-size: 1rem !important;
-                cursor: pointer !important;
-                width: 100% !important;
-                transition: background-color 0.3s !important;
-            ">Cancel</button>
-        </div>
-    `;
-    
-    // Append to body
-    document.body.appendChild(modalWrapper);
-    
-    // Add click handler for the cancel button
-    modalWrapper.querySelector(".cancel-share-btn").addEventListener("click", () => {
-        closeShareModal();
-    });
-    
-    // Store users data for search functionality
-    modalWrapper.userData = [];
-    
-    // Add search functionality
-    const searchInput = modalWrapper.querySelector("#user-search");
-    searchInput.addEventListener("input", () => {
-        const searchTerm = searchInput.value.toLowerCase().trim();
-        filterUsers(searchTerm, modalWrapper);
-    });
-    
-    // Fetch and display users
-    fetchUsersForSharing(listId, modalWrapper.querySelector(".users-list"), modalWrapper);
-    
-    // Add fade-in effect
-    setTimeout(() => {
-        modalWrapper.style.opacity = "0";
-        modalWrapper.style.transition = "opacity 0.3s ease";
-        
-        // Force reflow
-        modalWrapper.offsetHeight;
-        
-        // Fade in
-        modalWrapper.style.opacity = "1";
-    }, 10);
-}
-
-function closeShareModal() {
-    const modal = document.querySelector(".share-modal-wrapper");
-    if (modal) {
-        // Fade out effect
-        modal.style.opacity = "0";
-        
-        // Remove after animation
-        setTimeout(() => {
-            modal.remove();
-        }, 300);
-    }
-}
-
-function fetchUsersForSharing(listId, container, modalWrapper) {
-    if (!container) {
-        container = document.querySelector('.users-list');
-    }
-    
-    if (!container) return;
-    
-    if (!listId) {
-        console.error("No list ID provided to fetchUsersForSharing");
-        container.innerHTML = `
-            <div style="
-                padding: 15px !important;
-                background-color: rgba(255, 0, 0, 0.1) !important;
-                border-radius: 10px !important;
-                color: white !important;
-                text-align: center !important;
-            ">
-                <i class="fas fa-exclamation-triangle" style="margin-right: 8px !important;"></i>
-                Error: Missing list ID
-            </div>
-        `;
-        return;
-    }
-    
-    // Store listId in modalWrapper if it exists
-    if (modalWrapper && !modalWrapper.hasAttribute('data-list-id')) {
-        modalWrapper.setAttribute('data-list-id', listId);
-    }
-    
-    // Fetch users from supabase
-    supabaseClient.from("user_profiles")
-        .select("id, username")
-        .neq("id", currentUser.id)
-        .then(({ data, error }) => {
-            if (error) {
-                console.error("Error fetching users:", error);
-                container.innerHTML = `
-                    <div style="
-                        padding: 15px !important;
-                        background-color: rgba(255, 0, 0, 0.1) !important;
-                        border-radius: 10px !important;
-                        color: white !important;
-                        text-align: center !important;
-                    ">
-                        <i class="fas fa-exclamation-triangle" style="margin-right: 8px !important;"></i>
-                        Error loading users
-                    </div>
-                `;
-                return;
-            }
-            
-            if (!data || data.length === 0) {
-                container.innerHTML = `
-                    <div style="
-                        padding: 15px !important;
-                        background-color: rgba(255, 255, 255, 0.1) !important;
-                        border-radius: 10px !important;
-                        color: white !important;
-                        text-align: center !important;
-                    ">
-                        No other users available
-                    </div>
-                `;
-                return;
-            }
-            
-            // Store user data for search functionality
-            if (modalWrapper) {
-                modalWrapper.userData = data;
-            }
-            
-            // Update the counter
-            const resultsCount = modalWrapper ? modalWrapper.querySelector('.search-results-count') : null;
-            if (resultsCount) {
-                resultsCount.textContent = `${data.length} users`;
-                resultsCount.style.display = 'block !important';
-            }
-            
-            // Render all users - make sure to pass the list ID
-            renderUsersList(data, container, listId);
-        });
-}
-
-function renderUsersList(users, container, listId) {
-    // Create HTML for each user
-    let userItemsHtml = '';
-    
-    users.forEach(user => {
-        userItemsHtml += `
-            <div class="user-item" style="
-                display: flex !important;
-                justify-content: space-between !important;
-                align-items: center !important;
-                padding: 12px !important;
-                background-color: rgba(255, 255, 255, 0.1) !important;
-                border-radius: 10px !important;
-                margin-bottom: 10px !important;
-                color: white !important;
-            ">
-                <span style="overflow: hidden !important; text-overflow: ellipsis !important;">
-                    ${user.username || "Unnamed User"}
-                </span>
-                <button class="share-user-btn" data-user-id="${user.id}" data-list-id="${listId}" style="
-                    background-color: rgba(30, 144, 255, 0.7) !important;
-                    color: white !important;
-                    border: none !important;
-                    border-radius: 5px !important;
-                    padding: 8px 12px !important;
-                    cursor: pointer !important;
-                    transition: background-color 0.3s !important;
-                ">
-                    <i class="fas fa-share-alt" style="margin-right: 5px !important;"></i>
-                    Share
-                </button>
-            </div>
-        `;
-    });
-    
-    // If no users match the search
-    if (userItemsHtml === '') {
-        userItemsHtml = `
-            <div style="
-                padding: 15px !important;
-                background-color: rgba(255, 255, 255, 0.1) !important;
-                border-radius: 10px !important;
-                color: white !important;
-                text-align: center !important;
-            ">
-                No users match your search
-            </div>
-        `;
-    }
-    
-    container.innerHTML = userItemsHtml;
-    
-    // Add event listeners to share buttons
-    container.querySelectorAll('.share-user-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const userId = btn.getAttribute('data-user-id');
-            const listIdToShare = btn.getAttribute('data-list-id'); // Get the listId from the button
-            
-            if (!listIdToShare) {
-                console.error("Missing list ID for sharing");
-                showNotification("Error: List ID is missing", "error");
-                return;
-            }
-            
-            // Disable button and show loading state
-            btn.disabled = true;
-            const originalHtml = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
-            
-            // Call sharing function with the correct listId
-            console.log(`Attempting to share list ${listIdToShare} with user ${userId}`);
-            const success = await shareListWithUser(listIdToShare, userId);
-            
-            if (success) {
-                showNotification("List shared successfully!", "success");
-                closeShareModal();
-            } else {
-                // Reset button on failure
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
-                showNotification("Failed to share list", "error");
-            }
-        });
-    });
-}
-
-function filterUsers(searchTerm, modalWrapper) {
-    if (!modalWrapper || !modalWrapper.userData) return;
-    
-    const usersList = modalWrapper.querySelector('.users-list');
-    const resultsCount = modalWrapper.querySelector('.search-results-count');
-    const listId = modalWrapper.getAttribute('data-list-id'); // Get the list ID from the modal
-    
-    if (!usersList) return;
-    
-    // If search term is empty, show all users
-    if (!searchTerm) {
-        renderUsersList(modalWrapper.userData, usersList, listId);
-        
-        if (resultsCount) {
-            resultsCount.textContent = `${modalWrapper.userData.length} users`;
-            resultsCount.style.display = 'block';
-        }
-        return;
-    }
-    
-    // Filter users based on search term
-    const filteredUsers = modalWrapper.userData.filter(user => {
-        const username = (user.username || "").toLowerCase();
-        return username.includes(searchTerm);
-    });
-    
-    // Update results count
-    if (resultsCount) {
-        resultsCount.textContent = `${filteredUsers.length}/${modalWrapper.userData.length}`;
-        resultsCount.style.display = 'block';
-    }
-    
-    // Update the users list - pass the listId
-    renderUsersList(filteredUsers, usersList, listId);
-}
-
-function handleProgressionAfterCompletion(isLevelCompleted) {
-    if (!isLevelCompleted && currentGame.streakBonus) {
-        // Award completion bonus
-        gameState.coins += 5;
-        pulseCoins(5);
-        
-        // Handle level unlocks and progression
-        const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-        if (!gameState.unlockedLevels[setKey]) {
-            gameState.unlockedLevels[setKey] = new Set();
-        }
-        gameState.unlockedLevels[setKey].add(gameState.currentLevel);
-
-        const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
-        const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
-        const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
-
-        if (!isLastLevelInSet) {
-            startLevel(gameState.currentLevel + 1);
-        } else if (!isLastSetInStage) {
-            gameState.currentSet++;
-            startLevel(1);
-        } else {
-            showScreen('stage-screen');
-        }
-        
-        saveProgress();
-    } else {
-        startLevel(gameState.currentLevel);
-    }
-}
-
-
-
-
-
-
-
-
-function createListItem(list) {
-    return `
-        <div class="list-item">
-            <h3>${escapeHTML(list.name)}</h3>
-            <p>${escapeHTML(list.description)}</p>
-        </div>
-    `;
-}
-
-
-
 async function checkExistingSession() {
     console.log("Checking for existing user session");
     
@@ -4386,10 +3495,6 @@ function initializeStatusCheck() {
 }
 
 // ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE ARCADE
-
-
-
-
 
 
 
@@ -14340,43 +13445,22 @@ const PerkManager = {
     
     // Show an animated perk unlock notification
     showPerkUnlockNotification(perkId, perkConfig) {
-        // Show a notification
-        this.showNotification(`New Perk Unlocked: ${perkConfig.name}!`, 'success', 5000);
-        
-        // Create a more visual unlock animation overlay
-        const overlay = document.createElement('div');
-        overlay.className = 'perk-unlock-overlay';
-        overlay.style.cssText = `
+        // Create a toast notification instead of a full-screen overlay
+        const toast = document.createElement('div');
+        toast.className = 'perk-unlock-toast';
+        toast.style.cssText = `
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: radial-gradient(circle, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 70%);
-            opacity: 0;
-            transition: opacity 0.5s ease;
-        `;
-        
-        // Create the unlock card
-        const unlockCard = document.createElement('div');
-        unlockCard.className = 'perk-unlock-card';
-        unlockCard.style.cssText = `
+            bottom: 30px;
+            right: 30px;
+            width: 280px;
             background: linear-gradient(135deg, #4a2b7a, #203a69);
-            border-radius: 15px;
-            padding: 20px;
-            max-width: 90%;
-            width: 400px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3), 0 0 20px rgba(80, 100, 255, 0.5);
-            text-align: center;
-            transform: scale(0.8);
-            opacity: 0;
-            transition: transform 0.5s ease, opacity 0.5s ease;
-            position: relative;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3), 0 0 10px rgba(80, 100, 255, 0.3);
+            color: white;
+            z-index: 9999;
+            transform: translateX(120%);
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             overflow: hidden;
         `;
         
@@ -14391,63 +13475,117 @@ const PerkManager = {
             background: linear-gradient(135deg, 
                 rgba(255,255,255,0) 0%, 
                 rgba(255,255,255,0.1) 40%, 
-                rgba(255,255,255,0.4) 50%, 
+                rgba(255,255,255,0.2) 50%, 
                 rgba(255,255,255,0.1) 60%, 
                 rgba(255,255,255,0) 100%);
             transform: rotate(45deg);
-            animation: shineEffect 2s ease-in-out infinite;
+            animation: shineEffect 3s ease-in-out infinite;
             z-index: 0;
         `;
         
-        // Create content
+        // Close button
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'toast-close-btn';
+        closeBtn.innerHTML = '&times;';
+        closeBtn.style.cssText = `
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: transparent;
+            border: none;
+            color: rgba(255,255,255,0.7);
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 2;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        `;
+        closeBtn.addEventListener('mouseover', () => {
+            closeBtn.style.color = 'white';
+            closeBtn.style.background = 'rgba(255,255,255,0.1)';
+        });
+        closeBtn.addEventListener('mouseout', () => {
+            closeBtn.style.color = 'rgba(255,255,255,0.7)';
+            closeBtn.style.background = 'transparent';
+        });
+        closeBtn.addEventListener('click', () => {
+            toast.style.transform = 'translateX(120%)';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 500);
+        });
+        
+        // Content container
         const content = document.createElement('div');
         content.style.cssText = `position: relative; z-index: 1;`;
         content.innerHTML = `
-            <h2 style="color: #FFD700; margin-bottom: 10px; font-size: 24px;">
-                New Perk Unlocked!
-            </h2>
-            
-            <div class="perk-icon-wrapper" style="
-                margin: 15px auto;
-                width: 80px;
-                height: 80px;
-                background: radial-gradient(circle, rgba(255,215,0,0.2) 0%, rgba(255,215,0,0) 70%);
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                animation: pulseGlow 2s infinite ease-in-out;
-            ">
-                <i class="fas ${perkConfig.icon}" style="
-                    font-size: 40px;
-                    color: #FFD700;
-                    filter: drop-shadow(0 0 10px rgba(255,215,0,0.7));
-                "></i>
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                <div class="perk-icon-wrapper" style="
+                    width: 40px;
+                    height: 40px;
+                    background: radial-gradient(circle, rgba(255,215,0,0.2) 0%, rgba(255,215,0,0) 70%);
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin-right: 12px;
+                    animation: pulseGlow 2s infinite ease-in-out;
+                ">
+                    <i class="fas ${perkConfig.icon}" style="
+                        font-size: 20px;
+                        color: #FFD700;
+                        filter: drop-shadow(0 0 5px rgba(255,215,0,0.7));
+                    "></i>
+                </div>
+                <div>
+                    <h3 style="color: #FFD700; margin: 0; font-size: 16px; font-weight: bold;">
+                        New Perk Unlocked!
+                    </h3>
+                    <h4 style="color: white; margin: 4px 0 0 0; font-size: 14px;">
+                        ${perkConfig.name}
+                    </h4>
+                </div>
             </div>
-            
-            <h3 style="color: white; margin: 10px 0; font-size: 20px;">
-                ${perkConfig.name}
-            </h3>
-            
-            <p style="color: rgba(255,255,255,0.8); margin-bottom: 15px;">
+            <p style="color: rgba(255,255,255,0.8); margin: 0; font-size: 13px; line-height: 1.4;">
                 ${perkConfig.description}
             </p>
-            
-            <div style="font-size: 14px; color: rgba(255,255,255,0.6);">
-                Buy this perk with ${perkConfig.cost} coins!
+            <div style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 8px; text-align: right;">
+                Cost: ${perkConfig.cost} coins
+            </div>
+            <div class="progress-bar" style="
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                height: 2px;
+                width: 100%;
+                background: rgba(255,255,255,0.2);
+            ">
+                <div class="progress" style="
+                    height: 100%;
+                    width: 100%;
+                    background: #FFD700;
+                    transform-origin: left;
+                    animation: shrinkProgress 5s linear forwards;
+                "></div>
             </div>
         `;
         
-        unlockCard.appendChild(shine);
-        unlockCard.appendChild(content);
-        overlay.appendChild(unlockCard);
-        document.body.appendChild(overlay);
+        toast.appendChild(shine);
+        toast.appendChild(closeBtn);
+        toast.appendChild(content);
+        document.body.appendChild(toast);
         
         // Animate in
         setTimeout(() => {
-            overlay.style.opacity = '1';
-            unlockCard.style.opacity = '1';
-            unlockCard.style.transform = 'scale(1)';
+            toast.style.transform = 'translateX(0)';
             
             // Add pulse effect to the matching perk button
             const perkButton = document.getElementById(`${perkId}Perk`);
@@ -14460,19 +13598,21 @@ const PerkManager = {
                 }, 6000);
             }
             
-            // Remove after animation
+            // Auto-remove after 5 seconds if not closed manually
             setTimeout(() => {
-                unlockCard.style.opacity = '0';
-                unlockCard.style.transform = 'scale(0.8)';
-                overlay.style.opacity = '0';
-                
-                setTimeout(() => {
-                    if (overlay.parentNode) {
-                        overlay.parentNode.removeChild(overlay);
-                    }
-                }, 500);
+                if (toast.parentNode && toast.style.transform !== 'translateX(120%)') {
+                    toast.style.transform = 'translateX(120%)';
+                    setTimeout(() => {
+                        if (toast.parentNode) {
+                            toast.parentNode.removeChild(toast);
+                        }
+                    }, 500);
+                }
             }, 5000);
         }, 100);
+        
+        // Show a smaller notification as well
+        this.showNotification(`New Perk: ${perkConfig.name}!`, 'success', 3000);
     },
     
     // Update all perk buttons based on available coins
@@ -15280,219 +14420,127 @@ const PerkManager = {
             const styleElement = document.createElement('style');
             styleElement.id = 'perk-effect-styles';
             styleElement.textContent = `
-                /* Freeze Effect */
-                @keyframes freezePulse {
-                    0% { opacity: 0; }
-                    50% { opacity: 1; }
-                    100% { opacity: 0; }
-                }
+                /* Previous styles here - keep all existing styles */
                 
-                @keyframes snowflakeGrow {
-                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-                    70% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
-                    100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
-                }
-                
-                .timer-value.frozen {
-                    color: #87CEFA !important;
-                    text-shadow: 0 0 5px #87CEFA !important;
-                }
-                
-                .timer-value.double-frozen {
-                    color: #00BFFF !important;
-                    text-shadow: 0 0 10px #00BFFF !important;
-                    animation: doubleFreezeGlow 2s infinite alternate !important;
-                }
-                
-                @keyframes doubleFreezeGlow {
-                    0% { color: #87CEFA; text-shadow: 0 0 5px #87CEFA; }
-                    100% { color: #00BFFF; text-shadow: 0 0 15px #00BFFF; }
-                }
-                
-                /* Skip Effect */
-                @keyframes skipSymbolGrow {
-                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-                    70% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
-                    100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
-                }
-                
-                /* Clue Effect */
-                @keyframes clueFlash {
-                    0% { opacity: 0.5; }
-                    100% { opacity: 0; }
-                }
-                
-                @keyframes popIn {
-                    0% { transform: scale(0); opacity: 0; }
-                    50% { transform: scale(1.3); opacity: 1; }
-                    100% { transform: scale(1); opacity: 1; }
-                }
-                
-                /* Reveal Effect */
-                @keyframes revealFlicker {
-                    0% { box-shadow: 0 0 5px 2px rgba(255, 215, 0, 0.7), 0 0 10px 4px rgba(50, 205, 50, 0.5); }
-                    50% { box-shadow: 0 0 15px 5px rgba(255, 215, 0, 0.9), 0 0 20px 10px rgba(50, 205, 50, 0.7); }
-                    100% { box-shadow: 0 0 5px 2px rgba(255, 215, 0, 0.7), 0 0 10px 4px rgba(50, 205, 50, 0.5); }
-                }
-                
-                .reveal-highlight {
-                    animation: revealFlicker 1s infinite ease-in-out !important;
-                    border: 3px solid gold !important;
-                    position: relative !important;
-                    z-index: 5 !important;
-                    transform: scale(1.05) !important;
-                    transition: all 0.3s ease !important;
-                    background: linear-gradient(135deg, #4CAF50, #2E7D32) !important;
-                    color: white !important;
-                    font-weight: bold !important;
-                }
-                
-                /* Reveal Effect Animations */
-                @keyframes revealPulse {
-                    0% { opacity: 0; }
-                    30% { opacity: 1; }
-                    70% { opacity: 1; }
-                    100% { opacity: 0; }
-                }
-                
-                @keyframes eyeGrow {
-                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-                    60% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-                    80% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
-                    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-                }
-                
-                /* Golden Egg Effect */
-                @keyframes goldenEggPulse {
-                    0% { opacity: 0; }
-                    30% { opacity: 1; }
-                    70% { opacity: 1; }
-                    100% { opacity: 0; }
-                }
-                
-                @keyframes eggGrow {
-                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-                    60% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-                    70% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
-                    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-                }
-                
-                /* Mystery Effect */
-                @keyframes mysteryPulse {
-                    0% { opacity: 0; }
-                    30% { opacity: 1; }
-                    70% { opacity: 1; }
-                    100% { opacity: 0; }
-                }
-                
-                @keyframes questionMarkGrow {
-                    0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
-                    40% { transform: translate(-50%, -50%) scale(1.2) rotate(20deg); opacity: 1; }
-                    60% { transform: translate(-50%, -50%) scale(1) rotate(-10deg); opacity: 1; }
-                    80% { transform: translate(-50%, -50%) scale(1.1) rotate(5deg); opacity: 1; }
-                    100% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
-                }
-                
-                /* Double Coins Effect */
-                @keyframes doubleCoinsGlow {
-                    0% { opacity: 0; }
-                    30% { opacity: 1; }
-                    70% { opacity: 1; }
-                    100% { opacity: 0; }
-                }
-                
-                @keyframes coinsAppear {
-                    0% { opacity: 0; }
-                    30% { opacity: 1; }
-                    80% { opacity: 1; }
-                    100% { opacity: 0; }
-                }
-                
-                @keyframes coinGrow {
-                    0% { transform: scale(0); }
-                    60% { transform: scale(1.2); }
-                    100% { transform: scale(1); }
-                }
-                
-                @keyframes pulseBadge {
-                    0% { transform: scale(1); }
-                    50% { transform: scale(1.2); box-shadow: 0 0 10px gold; }
-                    100% { transform: scale(1); }
-                }
-                
-                /* Perk Unlock Effect */
+                /* New Toast Notification Styles */
                 @keyframes shineEffect {
                     0% { transform: translateX(-100%) rotate(45deg); }
                     100% { transform: translateX(100%) rotate(45deg); }
                 }
                 
-                @keyframes pulseGlow {
-                    0% { box-shadow: 0 0 10px rgba(255,215,0,0.5); }
-                    50% { box-shadow: 0 0 30px rgba(255,215,0,0.8); }
-                    100% { box-shadow: 0 0 10px rgba(255,215,0,0.5); }
+                @keyframes shrinkProgress {
+                    0% { transform: scaleX(1); }
+                    100% { transform: scaleX(0); }
                 }
                 
-                .perk-unlocked-pulse {
-                    animation: perkUnlockPulse 2s ease-in-out 3;
+                .perk-unlock-toast {
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    z-index: 10000;
+                }
+                
+                /* Enhanced Star Rating Styles */
+                .star-slot {
                     position: relative;
-                    z-index: 10;
+                    width: 60px !important;
+                    height: 60px !important;
+                    transform: translateY(0);
+                    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
                 }
                 
-                @keyframes perkUnlockPulse {
-                    0% { transform: scale(1); box-shadow: 0 0 0 rgba(255,215,0,0); }
-                    50% { transform: scale(1.2); box-shadow: 0 0 20px rgba(255,215,0,0.8); }
-                    100% { transform: scale(1); box-shadow: 0 0 0 rgba(255,215,0,0); }
+                .star-slot:hover {
+                    transform: translateY(-5px);
                 }
                 
-                /* Perk Lock Indicators */
-                .premium-lock {
+                .star-empty {
                     position: absolute;
-                    top: -5px;
-                    right: -5px;
-                    font-size: 12px;
-                    background: gold;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
                     color: #333;
-                    border-radius: 50%;
-                    width: 18px;
-                    height: 18px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-                    z-index: 2;
-                    animation: lockPulse 2s infinite alternate;
+                    font-size: 3.5rem !important;
+                    line-height: 1;
+                    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    transition: all 0.3s ease;
                 }
                 
-                .word-lock {
+                .star-filled {
                     position: absolute;
-                    top: -5px;
-                    right: -5px;
-                    font-size: 10px;
-                    background: #4caf50;
-                    color: white;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    opacity: 0;
+                    transform: scale(0);
+                    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+                }
+                
+                .star-1, .star-2, .star-3 {
+                    color: transparent !important;
+                    background: linear-gradient(135deg, #FFD700, #FFA500) !important;
+                    background-clip: text !important;
+                    -webkit-background-clip: text !important;
+                    font-size: 3.5rem !important;
+                    filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7)) !important;
+                }
+                
+                .star-criteria {
+                    margin-top: 1rem !important;
+                    font-size: 0.9rem !important;
+                    color: rgba(255,255,255,0.8) !important;
+                }
+                
+                @keyframes starPulse {
+                    0% { filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7)); }
+                    50% { filter: drop-shadow(0 0 10px rgba(255, 215, 0, 1)); }
+                    100% { filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7)); }
+                }
+                
+                .star-slot:after {
+                    content: '';
+                    position: absolute;
+                    top: -10px;
+                    left: -10px;
+                    right: -10px;
+                    bottom: -10px;
+                    background: radial-gradient(circle, rgba(255,215,0,0.2) 0%, rgba(255,215,0,0) 70%);
                     border-radius: 50%;
-                    width: 18px;
-                    height: 18px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-                    z-index: 2;
+                    opacity: 0;
+                    z-index: -1;
+                    transition: opacity 0.5s ease;
                 }
                 
-                @keyframes lockPulse {
-                    0% { transform: scale(1); }
-                    100% { transform: scale(1.1); box-shadow: 0 0 8px gold; }
+                .star-filled.visible {
+                    opacity: 1 !important;
+                    transform: scale(1) !important;
+                    animation: starPulse 2s infinite ease-in-out;
                 }
                 
-                /* Disabled perk styling */
-                .perk-button.disabled {
-                    cursor: not-allowed;
-                    filter: grayscale(50%);
+                .star-slot.earned:after {
+                    opacity: 1;
+                }
+                
+                /* Enhanced for mobile */
+                @media (max-width: 480px) {
+                    .perk-unlock-toast {
+                        width: calc(100% - 40px);
+                        max-width: 300px;
+                        right: 20px;
+                        bottom: 20px;
+                    }
+                    
+                    .star-slot {
+                        width: 50px !important;
+                        height: 50px !important;
+                    }
+                    
+                    .star-empty, .star-filled {
+                        font-size: 3rem !important;
+                    }
+                    
+                    .star-criteria {
+                        font-size: 0.8rem !important;
+                    }
                 }
             `;
             document.head.appendChild(styleElement);

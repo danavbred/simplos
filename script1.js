@@ -11477,3 +11477,816 @@ function fixCrownButtonBehavior() {
   });
   
   
+const customPracticeLists = {
+    lists: [],
+    currentList: null,
+    maxLists: 5
+};
+
+function updateListsDisplay() {
+    const container = document.getElementById("custom-lists-container");
+    if (!container) return void console.error("Custom lists container not found");
+
+    // Comprehensive logging
+    console.log("Current user:", currentUser);
+    console.log("User status:", currentUser?.status);
+    console.log("User metadata:", currentUser?.user_metadata);
+    console.log("App metadata:", currentUser?.app_metadata);
+    
+    // Log all properties of the user object for inspection
+    if (currentUser) {
+        console.log("All user properties:");
+        for (const key in currentUser) {
+            if (typeof currentUser[key] !== 'function') {
+                console.log(`- ${key}:`, currentUser[key]);
+            }
+        }
+        
+        // Check user_metadata properties
+        if (currentUser.user_metadata) {
+            console.log("All user_metadata properties:");
+            for (const key in currentUser.user_metadata) {
+                console.log(`- ${key}:`, currentUser.user_metadata[key]);
+            }
+        }
+        
+        // Check app_metadata properties
+        if (currentUser.app_metadata) {
+            console.log("All app_metadata properties:");
+            for (const key in currentUser.app_metadata) {
+                console.log(`- ${key}:`, currentUser.app_metadata[key]);
+            }
+        }
+    }
+    
+    const limits = CustomListsManager.getListLimits();
+    const userStatus = currentUser?.status || "unregistered";
+    
+    // Debug message about premium status
+    console.log("User premium status check:", userStatus === "premium");
+    
+    // Various checks for teacher status
+    let isTeacherFound = false;
+    let teacherPropertyFound = "";
+    
+    if (currentUser?.role === "teacher") {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.role";
+    } else if (currentUser?.user_metadata?.role === "teacher") {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.user_metadata.role";
+    } else if (currentUser?.app_metadata?.role === "teacher") {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.app_metadata.role";
+    } else if (currentUser?.user_type === "teacher") {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.user_type";
+    } else if (currentUser?.user_metadata?.user_type === "teacher") {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.user_metadata.user_type";
+    } else if (currentUser?.is_teacher === true) {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.is_teacher";
+    } else if (currentUser?.user_metadata?.is_teacher === true) {
+        isTeacherFound = true;
+        teacherPropertyFound = "currentUser.user_metadata.is_teacher";
+    }
+    
+    console.log(`Is teacher found: ${isTeacherFound}, Property: ${teacherPropertyFound}`);
+    
+    // TEMPORARY: Until we find the correct teacher attribute
+    const isPremiumUser = userStatus === "premium";
+    const isAdminEmail = currentUser && currentUser.email && 
+                        (currentUser.email.includes("admin") || 
+                         currentUser.email.includes("teacher"));
+    
+    const canShare = isPremiumUser;
+    console.log(`Can share: ${canShare}, Premium: ${isPremiumUser}, Admin email: ${isAdminEmail}`);
+    
+    container.innerHTML = "";
+    
+    if (CustomListsManager.lists && Array.isArray(CustomListsManager.lists) && CustomListsManager.lists.length !== 0) {
+        CustomListsManager.lists.forEach(list => {
+            if (!list || !list.id) return;
+            
+            const wordCount = list.words?.length || 0;
+            const hasSufficientWords = wordCount >= 6;
+            
+            const playsAvailableHtml = userStatus === "premium" ? 
+                "" : 
+                `<span style="margin-left: 1rem;">${limits.playDisplay} plays available</span>`;
+            
+            const listItem = document.createElement("div");
+            listItem.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
+            listItem.dataset.listId = list.id;
+            
+            // MODIFIED: Changed the word count display format
+            listItem.innerHTML = `
+                <div class="list-actions">
+                    <button class="main-button practice-button" ${hasSufficientWords ? "" : "disabled"}>
+    ${hasSufficientWords ? "Practice" : `${6 - wordCount} more`}
+</button>
+                    <button class="main-button edit-button">Edit</button>
+                    <button class="main-button delete-button">Delete</button>
+                    ${userStatus === "premium" ? `
+                        <button class="main-button share-button">
+                            <i class="fas fa-share-alt"></i> Share
+                        </button>
+                    ` : ""}
+                </div>
+                <div class="list-header">
+                    <h3>${list.name || "Unnamed List"}</h3>
+                    <div class="list-summary">
+                        <span class="word-count ${hasSufficientWords ? "" : "insufficient"}">${wordCount}/${hasSufficientWords ? wordCount : 6}</span>
+                        ${playsAvailableHtml}
+                        <p class="word-preview">${Array.isArray(list.words) ? list.words.slice(0, 5).join(", ") : ""}${list.words && list.words.length > 5 ? "..." : ""}</p>
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(listItem);
+            
+            // Double-check if share button exists after rendering
+            const hasShareButton = !!listItem.querySelector('.share-button');
+            console.log(`List ${list.id} - Share button exists: ${hasShareButton}, Premium user: ${userStatus === "premium"}`);
+            
+            // Set up the button event handlers
+            const practiceButton = listItem.querySelector(".practice-button");
+            if (practiceButton) {
+                if (hasSufficientWords) {
+                    practiceButton.onclick = function() {
+                        startCustomListPractice(list.id);
+                    };
+                } else {
+                    practiceButton.style.opacity = "0.6";
+                    practiceButton.style.cursor = "not-allowed";
+                }
+            }
+            
+            const editButton = listItem.querySelector(".edit-button");
+            if (editButton) {
+                editButton.onclick = function() {
+                    editCustomList(list.id);
+                };
+            }
+            
+            const deleteButton = listItem.querySelector(".delete-button");
+            if (deleteButton) {
+                deleteButton.onclick = function() {
+                    deleteCustomList(list.id);
+                };
+            }
+            
+            // Make sure the share button has the proper click handler
+            const shareButton = listItem.querySelector(".share-button");
+            if (shareButton) {
+                shareButton.onclick = function() {
+                    console.log(`Share button clicked for list: ${list.id}`);
+                    showShareModal(list.id);
+                };
+            }
+            
+            const listHeader = listItem.querySelector(".list-header");
+            if (listHeader) {
+                listHeader.onclick = function() {
+                    toggleListCollapse(list.id);
+                };
+            }
+        });
+    } else {
+        container.innerHTML = '<p style="color: white; text-align: center;">No custom lists created yet. Create your first list!</p>';
+    }
+}
+
+// Function to add a new word list
+function addCustomWordList(name = null) {
+    // Check if we've reached the maximum number of lists
+    if (customPracticeLists.lists.length >= customPracticeLists.maxLists) {
+        alert(`You can only create up to ${customPracticeLists.maxLists} custom lists.`);
+        return null;
+    }
+
+    // Generate a default name if not provided
+    if (!name) {
+        name = `List ${customPracticeLists.lists.length + 1}`;
+    }
+
+    const newList = {
+        id: Date.now(),
+        name: name,
+        words: [],
+        translations: []
+    };
+
+    customPracticeLists.lists.push(newList);
+    saveCustomLists();
+    return newList;
+}
+
+
+// Function to translate a single word using MyMemory Translation API
+function translateWord(word) {
+    const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|he`;
+    
+    return fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            // Extract translation, fallback to original word if translation fails
+            return data.responseData.translatedText || word;
+        })
+        .catch(() => word);
+}
+
+function trackListPlay(listId) {
+    const playCountKey = `listPlays_${listId}`;
+    let plays = parseInt(localStorage.getItem(playCountKey) || '0');
+    plays++;
+    
+    const limits = getUserListLimits();
+    localStorage.setItem(playCountKey, plays);
+
+    if (plays >= limits.maxPlays) {
+        // Remove list if max plays reached
+        deleteCustomList(listId);
+        return false;
+    }
+    
+    return limits.maxPlays - plays;
+}
+
+
+
+
+
+
+
+
+function updateLocalSharedLists(sharedList) {
+    // Add the shared list to the recipient's local lists
+    if (currentUser) {
+        customPracticeLists.lists.push({
+            id: sharedList.local_id,
+            supabaseId: sharedList.id,
+            name: sharedList.name,
+            words: sharedList.words,
+            translations: sharedList.translations,
+            is_shared: true,
+            shared_by: sharedList.shared_by
+        });
+        
+        // Save to local storage or sync
+        saveCustomLists();
+    }
+}
+
+// ADD this fallback function to try alternative sharing approaches
+async function debugShareList(listId, recipientId) {
+    try {
+        console.log("Debug share function called with:", { listId, recipientId });
+        
+        // Find the list
+        const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
+        if (!list) {
+            console.error("List not found for debug sharing");
+            return false;
+        }
+        
+        // Try direct table access with minimal fields
+        const { data, error } = await supabaseClient
+            .from('custom_lists')
+            .insert({
+                user_id: recipientId,
+                name: "Shared list", 
+                words: ["test"],
+                translations: ["test"],
+                is_shared: true
+            });
+            
+        if (error) {
+            console.error("Debug share error:", error);
+            
+            // Check what tables are available
+            const { data: tables, error: tablesError } = await supabaseClient
+                .from('information_schema.tables')
+                .select('table_name')
+                .eq('table_schema', 'public');
+                
+            if (tablesError) {
+                console.error("Error fetching tables:", tablesError);
+            } else {
+                console.log("Available tables:", tables);
+            }
+            
+            return false;
+        }
+        
+        console.log("Debug share success:", data);
+        return true;
+    } catch (error) {
+        console.error("Debug share exception:", error);
+        return false;
+    }
+}
+
+async function shareListWithUser(listId, recipientId) {
+    try {
+        console.log("Sharing list:", listId, "with user:", recipientId);
+        
+        if (!currentUser) {
+            console.error("No current user - cannot share list");
+            return false;
+        }
+        
+        // Find the list in CustomListsManager
+        const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
+        
+        if (!list) {
+            console.error("List not found for sharing:", listId);
+            return false;
+        }
+        
+        console.log("Found list to share:", list.name);
+        
+        // Direct insert into custom_lists table
+        const { data, error } = await supabaseClient
+            .from('custom_lists')
+            .insert({
+                user_id: recipientId,
+                name: `${list.name} (Shared by ${currentUser.user_metadata?.username || "User"})`,
+                words: list.words || [],
+                translations: list.translations || [],
+                is_shared: true,
+                shared_with: [recipientId],
+                shared_by: currentUser.id,
+                created_at: new Date().toISOString(),
+                status: 'active'
+            });
+        
+        if (error) {
+            console.error("Error sharing list:", error);
+            return false;
+        }
+        
+        console.log("List shared successfully");
+        showNotification("List shared successfully!", "success");
+        closeShareModal();
+        return true;
+    } catch (error) {
+        console.error("Error in shareListWithUser:", error);
+        showNotification("Error sharing list", "error");
+        return false;
+    }
+}
+
+
+
+async function loadSharedLists() {
+    if (!currentUser) return [];
+
+    const { data, error } = await supabaseClient
+        .from('custom_lists')
+        .select('*')
+        .or(`shared_with.cs.{${currentUser.id}},is_shared.eq.true`);
+
+    if (error) {
+        console.error('Error loading shared lists:', error);
+        return [];
+    }
+
+    return data.map(list => ({
+        ...list,
+        isShared: true
+    }));
+}
+
+function showShareModal(listId) {
+    console.log("Opening share modal for list:", listId);
+    
+    // Check if user can share
+    const isPremiumUser = currentUser?.status === "premium";
+    const isAdminEmail = currentUser && currentUser.email && 
+                        (currentUser.email.includes("admin") || 
+                         currentUser.email.includes("teacher"));
+    
+    const canShare = isPremiumUser && isAdminEmail;
+    
+    if (!canShare) {
+        showNotification("Only teachers can share lists", "error");
+        return;
+    }
+    
+    if (!listId) {
+        console.error("No list ID provided to share modal");
+        showNotification("Error: List ID is missing", "error");
+        return;
+    }
+    
+    // Remove any existing modals
+    document.querySelectorAll(".share-modal-wrapper").forEach(el => el.remove());
+    
+    // Create a completely new modal wrapper directly on the body
+    const modalWrapper = document.createElement("div");
+    modalWrapper.className = "share-modal-wrapper";
+    modalWrapper.setAttribute('data-list-id', listId); // Store the list ID in the modal    
+    // Apply fixed positioning to ensure it's centered
+    modalWrapper.style.cssText = `
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        z-index: 9999 !important;
+        pointer-events: all !important;
+    `;
+    
+    // Create the modal HTML with backdrop, search field, and content
+    modalWrapper.innerHTML = `
+        <div class="modal-backdrop" style="
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            background-color: rgba(0,0,0,0.7) !important;
+            z-index: 9999 !important;
+        "></div>
+        
+        <div class="share-modal-content" style="
+            position: relative !important;
+            width: 90% !important;
+            max-width: 500px !important;
+            max-height: 80vh !important;
+            background-color: rgba(30, 41, 59, 0.9) !important;
+            backdrop-filter: blur(10px) !important;
+            border-radius: 20px !important;
+            padding: 25px !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
+            z-index: 10000 !important;
+            overflow-y: auto !important;
+            transform: none !important;
+            margin: 0 !important;
+        ">
+            <h3 style="
+                text-align: center !important;
+                margin-bottom: 20px !important;
+                color: white !important;
+                font-size: 1.5rem !important;
+            ">Share List</h3>
+            
+            <div class="search-container" style="
+                margin-bottom: 15px !important;
+                position: relative !important;
+            ">
+                <input type="text" id="user-search" placeholder="Search users..." style="
+                    width: 100% !important;
+                    padding: 10px !important;
+                    padding-left: 35px !important;
+                    border-radius: 5px !important;
+                    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+                    background-color: rgba(255, 255, 255, 0.1) !important;
+                    color: white !important;
+                    font-size: 1rem !important;
+                    outline: none !important;
+                ">
+                <i class="fas fa-search" style="
+                    position: absolute !important;
+                    left: 12px !important;
+                    top: 50% !important;
+                    transform: translateY(-50%) !important;
+                    color: rgba(255, 255, 255, 0.5) !important;
+                "></i>
+                <div class="search-results-count" style="
+                    position: absolute !important;
+                    right: 10px !important;
+                    top: 50% !important;
+                    transform: translateY(-50%) !important;
+                    color: rgba(255, 255, 255, 0.5) !important;
+                    font-size: 0.85rem !important;
+                    display: none !important;
+                "></div>
+            </div>
+            
+            <div class="users-list" style="
+                margin-bottom: 20px !important;
+                max-height: 50vh !important;
+                overflow-y: auto !important;
+            ">
+                <div style="
+                    text-align: center !important;
+                    color: white !important;
+                    padding: 15px !important;
+                ">
+                    <i class="fas fa-spinner fa-spin" style="margin-right: 10px !important;"></i>
+                    Loading users...
+                </div>
+            </div>
+            
+            <button class="cancel-share-btn" style="
+                background-color: rgba(255, 255, 255, 0.2) !important;
+                color: white !important;
+                border: none !important;
+                border-radius: 5px !important;
+                padding: 10px 20px !important;
+                font-size: 1rem !important;
+                cursor: pointer !important;
+                width: 100% !important;
+                transition: background-color 0.3s !important;
+            ">Cancel</button>
+        </div>
+    `;
+    
+    // Append to body
+    document.body.appendChild(modalWrapper);
+    
+    // Add click handler for the cancel button
+    modalWrapper.querySelector(".cancel-share-btn").addEventListener("click", () => {
+        closeShareModal();
+    });
+    
+    // Store users data for search functionality
+    modalWrapper.userData = [];
+    
+    // Add search functionality
+    const searchInput = modalWrapper.querySelector("#user-search");
+    searchInput.addEventListener("input", () => {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        filterUsers(searchTerm, modalWrapper);
+    });
+    
+    // Fetch and display users
+    fetchUsersForSharing(listId, modalWrapper.querySelector(".users-list"), modalWrapper);
+    
+    // Add fade-in effect
+    setTimeout(() => {
+        modalWrapper.style.opacity = "0";
+        modalWrapper.style.transition = "opacity 0.3s ease";
+        
+        // Force reflow
+        modalWrapper.offsetHeight;
+        
+        // Fade in
+        modalWrapper.style.opacity = "1";
+    }, 10);
+}
+
+function closeShareModal() {
+    const modal = document.querySelector(".share-modal-wrapper");
+    if (modal) {
+        // Fade out effect
+        modal.style.opacity = "0";
+        
+        // Remove after animation
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+    }
+}
+
+function fetchUsersForSharing(listId, container, modalWrapper) {
+    if (!container) {
+        container = document.querySelector('.users-list');
+    }
+    
+    if (!container) return;
+    
+    if (!listId) {
+        console.error("No list ID provided to fetchUsersForSharing");
+        container.innerHTML = `
+            <div style="
+                padding: 15px !important;
+                background-color: rgba(255, 0, 0, 0.1) !important;
+                border-radius: 10px !important;
+                color: white !important;
+                text-align: center !important;
+            ">
+                <i class="fas fa-exclamation-triangle" style="margin-right: 8px !important;"></i>
+                Error: Missing list ID
+            </div>
+        `;
+        return;
+    }
+    
+    // Store listId in modalWrapper if it exists
+    if (modalWrapper && !modalWrapper.hasAttribute('data-list-id')) {
+        modalWrapper.setAttribute('data-list-id', listId);
+    }
+    
+    // Fetch users from supabase
+    supabaseClient.from("user_profiles")
+        .select("id, username")
+        .neq("id", currentUser.id)
+        .then(({ data, error }) => {
+            if (error) {
+                console.error("Error fetching users:", error);
+                container.innerHTML = `
+                    <div style="
+                        padding: 15px !important;
+                        background-color: rgba(255, 0, 0, 0.1) !important;
+                        border-radius: 10px !important;
+                        color: white !important;
+                        text-align: center !important;
+                    ">
+                        <i class="fas fa-exclamation-triangle" style="margin-right: 8px !important;"></i>
+                        Error loading users
+                    </div>
+                `;
+                return;
+            }
+            
+            if (!data || data.length === 0) {
+                container.innerHTML = `
+                    <div style="
+                        padding: 15px !important;
+                        background-color: rgba(255, 255, 255, 0.1) !important;
+                        border-radius: 10px !important;
+                        color: white !important;
+                        text-align: center !important;
+                    ">
+                        No other users available
+                    </div>
+                `;
+                return;
+            }
+            
+            // Store user data for search functionality
+            if (modalWrapper) {
+                modalWrapper.userData = data;
+            }
+            
+            // Update the counter
+            const resultsCount = modalWrapper ? modalWrapper.querySelector('.search-results-count') : null;
+            if (resultsCount) {
+                resultsCount.textContent = `${data.length} users`;
+                resultsCount.style.display = 'block !important';
+            }
+            
+            // Render all users - make sure to pass the list ID
+            renderUsersList(data, container, listId);
+        });
+}
+
+function renderUsersList(users, container, listId) {
+    // Create HTML for each user
+    let userItemsHtml = '';
+    
+    users.forEach(user => {
+        userItemsHtml += `
+            <div class="user-item" style="
+                display: flex !important;
+                justify-content: space-between !important;
+                align-items: center !important;
+                padding: 12px !important;
+                background-color: rgba(255, 255, 255, 0.1) !important;
+                border-radius: 10px !important;
+                margin-bottom: 10px !important;
+                color: white !important;
+            ">
+                <span style="overflow: hidden !important; text-overflow: ellipsis !important;">
+                    ${user.username || "Unnamed User"}
+                </span>
+                <button class="share-user-btn" data-user-id="${user.id}" data-list-id="${listId}" style="
+                    background-color: rgba(30, 144, 255, 0.7) !important;
+                    color: white !important;
+                    border: none !important;
+                    border-radius: 5px !important;
+                    padding: 8px 12px !important;
+                    cursor: pointer !important;
+                    transition: background-color 0.3s !important;
+                ">
+                    <i class="fas fa-share-alt" style="margin-right: 5px !important;"></i>
+                    Share
+                </button>
+            </div>
+        `;
+    });
+    
+    // If no users match the search
+    if (userItemsHtml === '') {
+        userItemsHtml = `
+            <div style="
+                padding: 15px !important;
+                background-color: rgba(255, 255, 255, 0.1) !important;
+                border-radius: 10px !important;
+                color: white !important;
+                text-align: center !important;
+            ">
+                No users match your search
+            </div>
+        `;
+    }
+    
+    container.innerHTML = userItemsHtml;
+    
+    // Add event listeners to share buttons
+    container.querySelectorAll('.share-user-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const userId = btn.getAttribute('data-user-id');
+            const listIdToShare = btn.getAttribute('data-list-id'); // Get the listId from the button
+            
+            if (!listIdToShare) {
+                console.error("Missing list ID for sharing");
+                showNotification("Error: List ID is missing", "error");
+                return;
+            }
+            
+            // Disable button and show loading state
+            btn.disabled = true;
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
+            
+            // Call sharing function with the correct listId
+            console.log(`Attempting to share list ${listIdToShare} with user ${userId}`);
+            const success = await shareListWithUser(listIdToShare, userId);
+            
+            if (success) {
+                showNotification("List shared successfully!", "success");
+                closeShareModal();
+            } else {
+                // Reset button on failure
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                showNotification("Failed to share list", "error");
+            }
+        });
+    });
+}
+
+function filterUsers(searchTerm, modalWrapper) {
+    if (!modalWrapper || !modalWrapper.userData) return;
+    
+    const usersList = modalWrapper.querySelector('.users-list');
+    const resultsCount = modalWrapper.querySelector('.search-results-count');
+    const listId = modalWrapper.getAttribute('data-list-id'); // Get the list ID from the modal
+    
+    if (!usersList) return;
+    
+    // If search term is empty, show all users
+    if (!searchTerm) {
+        renderUsersList(modalWrapper.userData, usersList, listId);
+        
+        if (resultsCount) {
+            resultsCount.textContent = `${modalWrapper.userData.length} users`;
+            resultsCount.style.display = 'block';
+        }
+        return;
+    }
+    
+    // Filter users based on search term
+    const filteredUsers = modalWrapper.userData.filter(user => {
+        const username = (user.username || "").toLowerCase();
+        return username.includes(searchTerm);
+    });
+    
+    // Update results count
+    if (resultsCount) {
+        resultsCount.textContent = `${filteredUsers.length}/${modalWrapper.userData.length}`;
+        resultsCount.style.display = 'block';
+    }
+    
+    // Update the users list - pass the listId
+    renderUsersList(filteredUsers, usersList, listId);
+}
+
+function handleProgressionAfterCompletion(isLevelCompleted) {
+    if (!isLevelCompleted && currentGame.streakBonus) {
+        // Award completion bonus
+        gameState.coins += 5;
+        pulseCoins(5);
+        
+        // Handle level unlocks and progression
+        const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+        if (!gameState.unlockedLevels[setKey]) {
+            gameState.unlockedLevels[setKey] = new Set();
+        }
+        gameState.unlockedLevels[setKey].add(gameState.currentLevel);
+
+        const currentStageConfig = gameStructure.stages[gameState.currentStage - 1];
+        const isLastLevelInSet = gameState.currentLevel === currentStageConfig.levelsPerSet;
+        const isLastSetInStage = gameState.currentSet === currentStageConfig.numSets;
+
+        if (!isLastLevelInSet) {
+            startLevel(gameState.currentLevel + 1);
+        } else if (!isLastSetInStage) {
+            gameState.currentSet++;
+            startLevel(1);
+        } else {
+            showScreen('stage-screen');
+        }
+        
+        saveProgress();
+    } else {
+        startLevel(gameState.currentLevel);
+    }
+}
+
+function createListItem(list) {
+    return `
+        <div class="list-item">
+            <h3>${escapeHTML(list.name)}</h3>
+            <p>${escapeHTML(list.description)}</p>
+        </div>
+    `;
+}
