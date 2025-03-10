@@ -1363,6 +1363,9 @@ function ensureScreenExists(screenId) {
     }
 }
 
+
+
+
 function createOptionsMenu() {
     // Remove existing menu if it exists
     const existingMenu = document.getElementById('options-menu');
@@ -11472,4 +11475,5 @@ function fixCrownButtonBehavior() {
       });
     }
   });
+  
   

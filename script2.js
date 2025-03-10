@@ -904,7 +904,7 @@ const PERK_CONFIG = {
     timeFreeze: {
         name: "Time Freeze",
         description: "Pause the timer for 5 seconds",
-        cost: 15,
+        cost: 1,
         icon: "fa-clock",
         duration: 5000
     },
@@ -916,105 +916,55 @@ const PERK_CONFIG = {
     },
     clue: {
         name: "Eliminate Wrong Answer",
-        description: "Remove one incorrect answer",
-        cost: 35,
+        description: "Mark one incorrect answer with an X",
+        cost: 1,
         icon: "fa-lightbulb"
     },
     reveal: {
         name: "Reveal Correct Answer",
         description: "Show the correct translation",
-        cost: 50,
+        cost: 1,
         icon: "fa-eye"
     },
-    rewind: {
+    doubleFreeze: {
         name: "Double Freeze",
         description: "Pause the timer for 10 seconds",
         cost: 1,
         icon: "fa-snowflake",
-        duration: 2000,
+        duration: 10000,
         requiresPremium: true,
-        requiresWordCount: 10
+        requiresWordCount: 1
+    },
+    doubleSkip: {
+        name: "Double Skip",
+        description: "Skip two questions at once",
+        cost: 1,
+        icon: "fa-fast-forward",
+        requiresPremium: true,
+        requiresWordCount: 3
+    },
+    goldenEgg: {
+        name: "Golden Egg",
+        description: "Skip the entire level",
+        cost: 1,
+        icon: "fa-egg",
+        requiresPremium: true,
+        requiresWordCount: 5
+    },
+    randomPerk: {
+        name: "Mystery Box",
+        description: "Random perk or bonus coins",
+        cost: 1,
+        icon: "fa-question",
+        requiresPremium: true,
+        requiresWordCount: 7
     }
 };
 
-function buyPerk(perkType) {
-    const perkConfig = PERK_CONFIG[perkType];
-    if (!perkConfig) return;
-
-    if (gameState.coins < perkConfig.cost) {
-        showNotification(`Need ${perkConfig.cost} coins!`, 'error');
-        return;
-    }
-
-    gameState.coins -= perkConfig.cost;
-    updateAllCoinDisplays();
-
-    switch(perkType) {
-        case 'timeFreeze':
-            isFrozen = true;
-            setTimeout(() => {
-                isFrozen = false;
-            }, perkConfig.duration);
-            break;
-
-        case 'skip':
-            // Skip question but mark it as answered correctly
-            handleAnswer(true, true);  // true=correct, true=skipMode
-            break;
-
-        case 'clue':
-            const buttons = document.querySelectorAll('.buttons button');
-            const correctAnswer = currentGame.isHebrewToEnglish ? 
-                currentGame.words[currentGame.currentIndex] : 
-                currentGame.translations[currentGame.currentIndex];
-            
-            const wrongButtons = Array.from(buttons).filter(btn => 
-                btn.textContent !== correctAnswer);
-            
-            if (wrongButtons.length > 0) {
-                const buttonToDisable = wrongButtons[Math.floor(Math.random() * wrongButtons.length)];
-                buttonToDisable.disabled = true;
-                buttonToDisable.style.opacity = '0.5';
-            }
-            break;
-
-        case 'reveal':
-            const correctAns = currentGame.isHebrewToEnglish ? 
-                currentGame.words[currentGame.currentIndex] : 
-                currentGame.translations[currentGame.currentIndex];
-            
-            document.querySelectorAll('.buttons button').forEach(btn => {
-                if (btn.textContent === correctAns) {
-                    btn.classList.add('correct');
-                    // Store original background
-                    const originalBackground = btn.style.background;
-                    btn.style.background = 'var(--success)';
-                    
-                    // Reset after 5 seconds
-                    setTimeout(() => {
-                        btn.classList.remove('correct');
-                        btn.style.background = originalBackground;
-                    }, 5000);
-                }
-            });
-            break;
-
-        case 'rewind':
-            // Add time to the timer
-            timeRemaining = Math.min(currentGame.totalTime, timeRemaining + 5);
-            
-            // Update visuals immediately
-            updateTimerDisplay();
-            updateTimerCircle(timeRemaining, currentGame.totalTime);
-            
-            showNotification("Time rewind! +5 seconds", "success");
-            break;
-    }
-
-    saveProgress();
+function buyPerk(perkId) {
+    // Forward to the PerkManager
+    PerkManager.buyPerk(perkId);
 }
-
-
 
 function addFadeInStyles() {
     if (!document.getElementById("perk-fade-styles")) {
@@ -1035,107 +985,20 @@ function addFadeInStyles() {
   }
   
   function updatePerkButtons() {
-    // Add the perk fade-in styles if not already present
-    addFadeInStyles();
-    
-    Object.entries(PERK_CONFIG).forEach(([perkId, perkConfig]) => {
-        const perkButton = document.getElementById(`${perkId}Perk`);
-        if (!perkButton) return;
-        
-        // Track the previous visibility state
-        const wasPreviouslyHidden = perkButton.style.display === "none";
-        
-        // Handle special perks with requirements
-        if (perkConfig.requiresWordCount) {
-            // Check word count condition
-            const wordCount = parseInt(document.getElementById("totalWords").textContent) || 0;
-            
-            // Show or hide the perk based on word count
-            if (wordCount < perkConfig.requiresWordCount) {
-                perkButton.style.display = "none";
-                return;
-            } else {
-                perkButton.style.display = "flex";
-                
-                // Apply fade-in animation if it was previously hidden
-                if (wasPreviouslyHidden) {
-                    perkButton.classList.add("fade-in-perk");
-                    // Remove the class after animation completes
-                    setTimeout(() => {
-                        perkButton.classList.remove("fade-in-perk");
-                    }, 600);
-                }
-            }
-            
-            // Handle premium requirement display
-            if (perkConfig.requiresPremium) {
-                const isPremium = currentUser && currentUser.status === "premium";
-                
-                // Update crown visibility
-                let crownIcon = perkButton.querySelector(".premium-crown");
-                
-                if (!isPremium) {
-                    // Add crown if not already present
-                    if (!crownIcon) {
-                        crownIcon = document.createElement("i");
-                        crownIcon.className = "fas fa-crown premium-crown";
-                        crownIcon.style.cssText = `
-                            position: absolute;
-                            top: -10px;
-                            right: -10px;
-                            color: var(--gold);
-                            font-size: 1.2rem;
-                            filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7));
-                            animation: crownGlow 2s infinite alternate;
-                            background: rgba(0, 0, 0, 0.5);
-                            padding: 5px;
-                            border-radius: 50%;
-                            z-index: 10;
-                            border: 1px solid rgba(255, 215, 0, 0.5);
-                        `;
-                        perkButton.style.position = "relative";
-                        perkButton.appendChild(crownIcon);
-                        
-                        // Override click handler to show premium message
-                        const originalOnclick = perkButton.onclick;
-                        perkButton.onclick = function() {
-                            showNotification("Premium feature only!", "error");
-                        };
-                    }
-                    
-                    // Disable button for non-premium users
-                    perkButton.disabled = true;
-                    perkButton.classList.add("disabled");
-                    const perkCount = perkButton.querySelector(".perk-count");
-                    if (perkCount) perkCount.textContent = "0";
-                    return;
-                } else {
-                    // Remove crown if present (e.g., user upgraded)
-                    if (crownIcon) {
-                        perkButton.removeChild(crownIcon);
-                    }
-                    
-                    // Reset click handler to default perk function
-                    perkButton.onclick = function() { buyPerk(perkId); };
-                }
-            }
-        }
-        
-        // Regular perk display logic
-        const coinCount = Math.floor(gameState.coins / perkConfig.cost);
-        const canAfford = coinCount > 0;
-        perkButton.disabled = !canAfford;
-        perkButton.classList.toggle("disabled", !canAfford);
-        const perkCount = perkButton.querySelector(".perk-count");
-        if (perkCount) {
-            perkCount.textContent = canAfford ? coinCount.toString() : "0";
-        }
-    });
+    PerkManager.updateAllPerkButtons();
 }
-                    
 
-  
-updatePerkButtons();
+
+// Initialize the PerkManager when the DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the PerkManager after the DOM is ready
+    PerkManager.init();
+    
+    // Update all perk buttons initially
+    PerkManager.updateAllPerkButtons();
+    
+    console.log("PerkManager initialized");
+});
 
 let currentGame = {
     words: [],
@@ -2564,86 +2427,6 @@ function revealCorrectAnswer() {
         }
     });
 }
-
-function buyPerk(perkType) {
-    const perkConfig = PERK_CONFIG[perkType];
-    if (!perkConfig) return;
-
-    if (gameState.coins < perkConfig.cost) {
-        showNotification(`Need ${perkConfig.cost} coins!`, 'error');
-        return;
-    }
-
-    // Use CoinsManager instead of direct modification
-    CoinsManager.updateCoins(-perkConfig.cost).then(() => {
-        switch(perkType) {
-            case 'timeFreeze':
-                isFrozen = true;
-                setTimeout(() => {
-                    isFrozen = false;
-                }, perkConfig.duration);
-                break;
-
-            case 'skip':
-                handleAnswer(true, true);
-                break;
-
-            case 'clue':
-                const buttons = document.querySelectorAll('.buttons button');
-                const correctAnswer = currentGame.isHebrewToEnglish ? 
-                    currentGame.words[currentGame.currentIndex] : 
-                    currentGame.translations[currentGame.currentIndex];
-                
-                const wrongButtons = Array.from(buttons).filter(btn => 
-                    btn.textContent !== correctAnswer);
-                
-                if (wrongButtons.length > 0) {
-                    const buttonToDisable = wrongButtons[Math.floor(Math.random() * wrongButtons.length)];
-                    buttonToDisable.disabled = true;
-                    buttonToDisable.style.opacity = '0.5';
-                }
-                break;
-
-            case 'reveal':
-                const correctAns = currentGame.isHebrewToEnglish ? 
-                    currentGame.words[currentGame.currentIndex] : 
-                    currentGame.translations[currentGame.currentIndex];
-                
-                document.querySelectorAll('.buttons button').forEach(btn => {
-                    if (btn.textContent === correctAns) {
-                        btn.classList.add('correct');
-                        // Store original background
-                        const originalBackground = btn.style.background;
-                        btn.style.background = 'var(--success)';
-                        
-                        // Reset after 5 seconds
-                        setTimeout(() => {
-                            btn.classList.remove('correct');
-                            btn.style.background = originalBackground;
-                        }, 5000);
-                    }
-                });
-                break;
-
-            case 'rewind':
-                // Add time to the timer
-                timeRemaining = Math.min(currentGame.totalTime, timeRemaining + 5);
-                
-                // Update visuals immediately
-                updateTimerDisplay();
-                updateTimerCircle(timeRemaining, currentGame.totalTime);
-                
-                showNotification("Time rewind! +5 seconds", "success");
-                break;
-        }
-    }).catch(error => {
-        console.error("Error in buying perk:", error);
-    });
-
-    saveProgress();
-}
-
-
 
 function checkSetCompletion(stage, set) {
   // Get total number of levels in the set
@@ -14296,3 +14079,636 @@ function initializeArcadeUI() {
         }
     }, 0);
 }
+
+// PerkManager - centralized perk system
+const PerkManager = {
+    // Track active perks and their states
+    activePerks: {},
+    
+    // Initialize the perk system
+    init() {
+        // Add necessary styles for perk effects
+        this.addPerkStyles();
+        this.updateAllPerkButtons();
+    },
+    
+    // Update all perk buttons based on available coins
+    updateAllPerkButtons() {
+        Object.keys(PERK_CONFIG).forEach(perkId => {
+            this.updatePerkButton(perkId);
+        });
+    },
+    
+    // Update a specific perk button
+    updatePerkButton(perkId) {
+        const perkButton = document.getElementById(`${perkId}Perk`);
+        if (!perkButton) return;
+        
+        const perkConfig = PERK_CONFIG[perkId];
+        if (!perkConfig) return;
+        
+        const coins = gameState.coins || 0;
+        const purchaseCount = Math.floor(coins / perkConfig.cost);
+        const canAfford = purchaseCount > 0;
+        
+        // Update button state
+        perkButton.disabled = !canAfford;
+        perkButton.classList.toggle("disabled", !canAfford);
+        
+        // Update counter display
+        const perkCount = perkButton.querySelector(".perk-count");
+        if (perkCount) {
+            perkCount.textContent = canAfford ? purchaseCount.toString() : "0";
+        }
+    },
+    
+    // Buy and activate a perk
+    buyPerk(perkId) {
+        const perkConfig = PERK_CONFIG[perkId];
+        if (!perkConfig) {
+            console.error(`Perk not found: ${perkId}`);
+            return;
+        }
+        
+        // Check if player can afford the perk
+        if (gameState.coins < perkConfig.cost) {
+            showNotification(`Need ${perkConfig.cost} coins!`, 'error');
+            return;
+        }
+        
+        // Use CoinsManager to handle coin deduction
+        CoinsManager.updateCoins(-perkConfig.cost).then(() => {
+            // Activate the perk
+            this.activatePerk(perkId);
+            
+            // Update the UI
+            this.updateAllPerkButtons();
+            saveProgress();
+        }).catch(err => {
+            console.error("Error updating coins:", err);
+        });
+    },
+    
+    // Activate a specific perk
+    activatePerk(perkId) {
+        const perkConfig = PERK_CONFIG[perkId];
+        if (!perkConfig) return;
+        
+        console.log(`Activating perk: ${perkConfig.name}`);
+        
+        // Call the appropriate handler based on perk type
+        switch(perkId) {
+            case 'timeFreeze':
+                this.handleTimeFreezeEffect(perkConfig);
+                break;
+            case 'skip':
+                this.handleSkipEffect(perkConfig, 1);
+                break;
+            case 'clue':
+                this.handleClueEffect(perkConfig);
+                break;
+            case 'reveal':
+                this.handleRevealEffect(perkConfig);
+                break;
+            case 'doubleFreeze':
+                this.handleDoubleFreezeEffect(perkConfig);
+                break;
+            case 'doubleSkip':
+                this.handleSkipEffect(perkConfig, 2);
+                break;
+            case 'goldenEgg':
+                this.handleGoldenEggEffect(perkConfig);
+                break;
+            case 'randomPerk':
+                this.handleRandomPerkEffect(perkConfig);
+                break;
+            default:
+                console.warn(`No handler found for perk: ${perkId}`);
+        }
+        
+        // Show notification
+        showNotification(`Used ${perkConfig.name}!`, 'success');
+    },
+    
+    // Individual perk effect handlers
+    handleTimeFreezeEffect(perkConfig) {
+        isFrozen = true;
+        
+        // Add visual feedback
+        const timerElement = document.querySelector('.timer-value');
+        if (timerElement) {
+            timerElement.classList.add('frozen');
+        }
+        
+        // Show freezing effect
+        this.showFreezeEffect();
+        
+        // Unfreeze after duration
+        setTimeout(() => {
+            isFrozen = false;
+            if (timerElement) {
+                timerElement.classList.remove('frozen');
+            }
+        }, perkConfig.duration);
+    },
+    
+    handleDoubleFreezeEffect(perkConfig) {
+        isFrozen = true;
+        
+        // Add visual feedback
+        const timerElement = document.querySelector('.timer-value');
+        if (timerElement) {
+            timerElement.classList.add('frozen');
+            timerElement.classList.add('double-frozen');
+        }
+        
+        // Show stronger freezing effect
+        this.showFreezeEffect(true);
+        
+        // Unfreeze after double duration
+        setTimeout(() => {
+            isFrozen = false;
+            if (timerElement) {
+                timerElement.classList.remove('frozen');
+                timerElement.classList.remove('double-frozen');
+            }
+        }, perkConfig.duration * 2);
+    },
+    
+    handleSkipEffect(perkConfig, skipCount = 1) {
+        // Add visual effect before skipping
+        this.showSkipEffect(skipCount > 1);
+        
+        // Wait a moment for the effect to be visible
+        setTimeout(() => {
+            // Process the skip based on game mode
+            for (let i = 0; i < skipCount; i++) {
+                if (currentGame.currentIndex < currentGame.words.length) {
+                    if (currentGame.isArcadeMode) {
+                        handleArcadeAnswer(true, true); // true=correct, true=perkMode
+                    } else if (currentGame.isCustomPractice) {
+                        handleCustomPracticeAnswer(true, true); // true=correct, true=skipAnimation
+                    } else {
+                        handleAnswer(true, true); // true=correct, true=skipMode
+                    }
+                    
+                    // Small delay between multiple skips if needed
+                    if (skipCount > 1 && i < skipCount - 1) {
+                        // Wait a moment before the next skip
+                        // This is handled by setTimeout enclosing this function
+                    }
+                }
+            }
+        }, 300);
+    },
+    
+    handleClueEffect(perkConfig) {
+        const buttons = document.querySelectorAll('.buttons button');
+        const correctAnswer = currentGame.isHebrewToEnglish ? 
+            currentGame.words[currentGame.currentIndex] : 
+            currentGame.translations[currentGame.currentIndex];
+        
+        // Find buttons with wrong answers
+        const wrongButtons = Array.from(buttons).filter(btn => 
+            btn.textContent !== correctAnswer
+        );
+        
+        if (wrongButtons.length > 0) {
+            // Find which wrong answers already have an X
+            const unmarkedButtons = wrongButtons.filter(btn => 
+                !btn.querySelector('.wrong-answer-x')
+            );
+            
+            // If there are unmarked wrong buttons, mark one
+            if (unmarkedButtons.length > 0) {
+                const buttonToMark = unmarkedButtons[Math.floor(Math.random() * unmarkedButtons.length)];
+                
+                // Make sure button has position relative
+                buttonToMark.style.position = 'relative';
+                
+                // Create X overlay
+                const xOverlay = document.createElement('div');
+                xOverlay.className = 'wrong-answer-x';
+                xOverlay.innerHTML = '❌';
+                xOverlay.style.cssText = `
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 2rem;
+                    color: red;
+                    pointer-events: none;
+                    z-index: 5;
+                    animation: popIn 0.3s forwards;
+                `;
+                
+                // Add X to button
+                buttonToMark.appendChild(xOverlay);
+                
+                // Disable the button
+                buttonToMark.disabled = true;
+                
+                // Add flash effect
+                this.showClueEffect();
+            }
+        }
+    },
+    
+    handleRevealEffect(perkConfig) {
+        const correctAnswer = currentGame.isHebrewToEnglish ? 
+            currentGame.words[currentGame.currentIndex] : 
+            currentGame.translations[currentGame.currentIndex];
+        
+        document.querySelectorAll('.buttons button').forEach(btn => {
+            if (btn.textContent === correctAnswer) {
+                // Remove any existing classes that might interfere
+                btn.classList.remove('wrong');
+                
+                // Add reveal highlight
+                btn.classList.add('reveal-highlight');
+                
+                // Auto-click the correct answer after a delay
+                setTimeout(() => {
+                    // Clean up highlight first
+                    btn.classList.remove('reveal-highlight');
+                    
+                    // Then simulate click
+                    if (currentGame.isArcadeMode) {
+                        handleArcadeAnswer(true, true);
+                    } else if (currentGame.isCustomPractice) {
+                        handleCustomPracticeAnswer(true, true);
+                    } else {
+                        handleAnswer(true, true);
+                    }
+                }, 2000);
+            }
+        });
+    },
+    
+    handleGoldenEggEffect(perkConfig) {
+        // Show dramatic egg effect
+        this.showGoldenEggEffect();
+        
+        // Skip entire level after the effect
+        setTimeout(() => {
+            // Handle level completion based on current game mode
+            if (currentGame.isBossLevel) {
+                currentGame.bossDefeated = true;
+                showBossDefeatEffect();
+            } else if (currentGame.isCustomPractice) {
+                // Mark level as completed
+                customGameState.wordsCompleted += currentGame.words.length;
+                customGameState.completedLevels.add(customGameState.currentLevel);
+                handleCustomLevelCompletion();
+            } else {
+                // Complete normal level
+                currentGame.currentIndex = currentGame.words.length;
+                handleLevelCompletion();
+            }
+        }, 2000);
+    },
+    
+    handleRandomPerkEffect(perkConfig) {
+        // Show mystery box effect
+        this.showMysteryEffect();
+        
+        // Wait for effect then determine reward
+        setTimeout(() => {
+            // Get all perk IDs except goldenEgg and randomPerk itself
+            const eligiblePerks = Object.keys(PERK_CONFIG).filter(id => 
+                id !== 'goldenEgg' && id !== 'randomPerk'
+            );
+            
+            // Random coin amounts
+            const coinOptions = [30, 70, 100, 150, 300];
+            
+            // 50% chance for perk, 50% for coins
+            if (Math.random() < 0.5 && eligiblePerks.length > 0) {
+                // Get random perk
+                const randomPerkId = eligiblePerks[Math.floor(Math.random() * eligiblePerks.length)];
+                const randomPerkConfig = PERK_CONFIG[randomPerkId];
+                
+                // Show what was selected
+                showNotification(`Mystery Box: ${randomPerkConfig.name}!`, 'success');
+                
+                // Activate the random perk with a small delay
+                setTimeout(() => {
+                    this.activatePerk(randomPerkId);
+                }, 500);
+            } else {
+                // Award random coins
+                const randomCoins = coinOptions[Math.floor(Math.random() * coinOptions.length)];
+                
+                CoinsManager.updateCoins(randomCoins).then(() => {
+                    showNotification(`Mystery Box: ${randomCoins} coins!`, 'success');
+                    pulseCoins(randomCoins);
+                });
+            }
+        }, 1500);
+    },
+    
+    // Visual effects for perks
+    showFreezeEffect(isDouble = false) {
+        // Create freeze overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'freeze-effect-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(135, 206, 250, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
+            pointer-events: none;
+            z-index: 9999;
+            animation: freezePulse ${isDouble ? '2s' : '1s'} forwards;
+        `;
+        
+        // Add snowflake to center of screen
+        const snowflake = document.createElement('div');
+        snowflake.className = 'freezing-snowflake';
+        snowflake.innerHTML = '❄️';
+        snowflake.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: ${isDouble ? '8rem' : '6rem'};
+            filter: drop-shadow(0 0 10px #87CEFA);
+            animation: snowflakeGrow ${isDouble ? '2s' : '1s'} forwards;
+        `;
+        
+        overlay.appendChild(snowflake);
+        document.body.appendChild(overlay);
+        
+        // Remove after animation
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, isDouble ? 2000 : 1000);
+    },
+    
+    showSkipEffect(isDouble = false) {
+        // Create skip effect overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'skip-effect-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.1);
+            pointer-events: none;
+            z-index: 9999;
+        `;
+        
+        // Add fast-forward symbol
+        const symbol = document.createElement('div');
+        symbol.className = 'skip-symbol';
+        symbol.innerHTML = isDouble ? '⏭️' : '⏩';
+        symbol.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: ${isDouble ? '8rem' : '6rem'};
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.7));
+            animation: skipSymbolGrow 0.8s forwards;
+        `;
+        
+        overlay.appendChild(symbol);
+        document.body.appendChild(overlay);
+        
+        // Remove after animation
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 800);
+    },
+    
+    showClueEffect() {
+        // Add screen flash for clue
+        const flash = document.createElement('div');
+        flash.className = 'clue-flash';
+        flash.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 0, 0, 0.2);
+            z-index: 9998;
+            pointer-events: none;
+            animation: clueFlash 0.5s forwards;
+        `;
+        
+        document.body.appendChild(flash);
+        
+        // Remove after animation
+        setTimeout(() => {
+            if (flash.parentNode) {
+                flash.parentNode.removeChild(flash);
+            }
+        }, 500);
+    },
+    
+    showGoldenEggEffect() {
+        // Create golden egg overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'golden-egg-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 215, 0, 0.3) 0%, rgba(0, 0, 0, 0) 70%);
+            pointer-events: none;
+            z-index: 9999;
+            animation: goldenEggPulse 2s forwards;
+        `;
+        
+        // Add egg emoji to center of screen
+        const egg = document.createElement('div');
+        egg.className = 'golden-egg';
+        egg.innerHTML = '🥚';
+        egg.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 10rem;
+            filter: drop-shadow(0 0 20px gold);
+            animation: eggGrow 2s forwards;
+        `;
+        
+        overlay.appendChild(egg);
+        document.body.appendChild(overlay);
+        
+        // Remove after animation
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 2000);
+    },
+    
+    showMysteryEffect() {
+        // Create mystery box overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'mystery-box-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(128, 0, 128, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
+            pointer-events: none;
+            z-index: 9999;
+            animation: mysteryPulse 1.5s forwards;
+        `;
+        
+        // Add question mark to center of screen
+        const questionMark = document.createElement('div');
+        questionMark.className = 'question-mark';
+        questionMark.innerHTML = '❓';
+        questionMark.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 8rem;
+            filter: drop-shadow(0 0 15px purple);
+            animation: questionMarkGrow 1.5s forwards;
+        `;
+        
+        overlay.appendChild(questionMark);
+        document.body.appendChild(overlay);
+        
+        // Remove after animation
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 1500);
+    },
+    
+    // Add all necessary styles for perk effects
+    addPerkStyles() {
+        if (!document.getElementById('perk-effect-styles')) {
+            const styleElement = document.createElement('style');
+            styleElement.id = 'perk-effect-styles';
+            styleElement.textContent = `
+                /* Freeze Effect */
+                @keyframes freezePulse {
+                    0% { opacity: 0; }
+                    50% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes snowflakeGrow {
+                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+                    70% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+                    100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+                }
+                
+                .timer-value.frozen {
+                    color: #87CEFA !important;
+                    text-shadow: 0 0 5px #87CEFA !important;
+                }
+                
+                .timer-value.double-frozen {
+                    color: #00BFFF !important;
+                    text-shadow: 0 0 10px #00BFFF !important;
+                    animation: doubleFreezeGlow 2s infinite alternate !important;
+                }
+                
+                @keyframes doubleFreezeGlow {
+                    0% { color: #87CEFA; text-shadow: 0 0 5px #87CEFA; }
+                    100% { color: #00BFFF; text-shadow: 0 0 15px #00BFFF; }
+                }
+                
+                /* Skip Effect */
+                @keyframes skipSymbolGrow {
+                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+                    70% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+                    100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+                }
+                
+                /* Clue Effect */
+                @keyframes clueFlash {
+                    0% { opacity: 0.5; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes popIn {
+                    0% { transform: scale(0); opacity: 0; }
+                    50% { transform: scale(1.3); opacity: 1; }
+                    100% { transform: scale(1); opacity: 1; }
+                }
+                
+                /* Reveal Effect */
+                @keyframes revealFlicker {
+                    0% { box-shadow: 0 0 5px 2px rgba(255, 215, 0, 0.7), 0 0 10px 4px rgba(50, 205, 50, 0.5); }
+                    50% { box-shadow: 0 0 15px 5px rgba(255, 215, 0, 0.9), 0 0 20px 10px rgba(50, 205, 50, 0.7); }
+                    100% { box-shadow: 0 0 5px 2px rgba(255, 215, 0, 0.7), 0 0 10px 4px rgba(50, 205, 50, 0.5); }
+                }
+                
+                .reveal-highlight {
+                    animation: revealFlicker 1s infinite ease-in-out !important;
+                    border: 3px solid gold !important;
+                    position: relative !important;
+                    z-index: 5 !important;
+                    transform: scale(1.05) !important;
+                    transition: all 0.3s ease !important;
+                    background: linear-gradient(135deg, #4CAF50, #2E7D32) !important;
+                    color: white !important;
+                    font-weight: bold !important;
+                }
+                
+                /* Golden Egg Effect */
+                @keyframes goldenEggPulse {
+                    0% { opacity: 0; }
+                    30% { opacity: 1; }
+                    70% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes eggGrow {
+                    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                    40% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+                    60% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                    70% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+                    100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+                }
+                
+                /* Mystery Effect */
+                @keyframes mysteryPulse {
+                    0% { opacity: 0; }
+                    30% { opacity: 1; }
+                    70% { opacity: 1; }
+                    100% { opacity: 0; }
+                }
+                
+                @keyframes questionMarkGrow {
+                    0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
+                    40% { transform: translate(-50%, -50%) scale(1.2) rotate(20deg); opacity: 1; }
+                    60% { transform: translate(-50%, -50%) scale(1) rotate(-10deg); opacity: 1; }
+                    80% { transform: translate(-50%, -50%) scale(1.1) rotate(5deg); opacity: 1; }
+                    100% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
+                }
+            `;
+            document.head.appendChild(styleElement);
+        }
+    }
+};
