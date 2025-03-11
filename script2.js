@@ -1157,7 +1157,7 @@ function clearTimer() {
 }
 
 
-const LEADERBOARD_UPDATE_INTERVAL = 7000; // 10 seconds
+const LEADERBOARD_UPDATE_INTERVAL = 10000; // 10 seconds
 
 function updatePlayerProgress(e) {
   if (!e || !e.username) return false;
@@ -1282,10 +1282,10 @@ function updatePlayerProgress(e) {
   if (leaderboard && leaderboard.offsetParent !== null) {
       const timeSinceLastLeaderboardUpdate = timestamp - (window.lastLeaderboardUpdate || 0);
       
-      // Force update for premium users or update less frequently for normal updates
+      // Force update for premium users or update less frequently (7-10 seconds) for normal updates
       const forceUpdate = isPremiumUser && e.coins > 0;
       
-      if (forceUpdate || timeSinceLastLeaderboardUpdate > 300) {
+      if (forceUpdate || timeSinceLastLeaderboardUpdate > LEADERBOARD_UPDATE_INTERVAL) {
           window.lastLeaderboardUpdate = timestamp;
           updateAllPlayersProgress();
       }
@@ -3006,7 +3006,7 @@ function handleResetProgress() {
         localStorage.removeItem("preferredStage");
     }
     
-    // Go to welcome screen directly - NOT showing grade level selector
+    localStorage.setItem("showGradeSelector", "true");
     showScreen('welcome-screen');
     
     // Show notification
@@ -3226,7 +3226,17 @@ function findFurthestProgression() {
 
 function startGame() {
   // This function is called from the welcome screen play button
-  // It uses the current stage from gameState
+  
+  // Check if this is the first game start or after a reset
+  if (!hasExistingProgress() || localStorage.getItem("showGradeSelector") === "true") {
+    // Clear the flag if it exists
+    localStorage.removeItem("showGradeSelector");
+    
+    // Show grade level selector instead of starting game directly
+    showGradeLevelSelector();
+    return;
+  }
+  
   const stage = gameState.currentStage || 1;
   
   // Find the furthest unlocked set in the current stage
@@ -13612,21 +13622,137 @@ function showLevelCompletionModal(levelStats, callback) {
     </div>
     
     ${isPassed && !isGameComplete ? `
-    <!-- Next Level Information -->
-    <div class="next-level-info" style="margin: 1rem 0; padding: 0.75rem; background: rgba(255,255,255,0.1); border-radius: 8px; text-align: left;">
-      <h3 style="margin: 0 0 0.25rem 0; font-size: 1rem; color: var(--accent);">Next Level:</h3>
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <div style="font-size: 0.8rem; opacity: 0.8;">Stage ${nextStage}</div>
-          <div style="font-size: 0.8rem; opacity: 0.8;">Set ${nextSet}</div>
-          <div style="font-size: 1.1rem; font-weight: bold; color: var(--gold);">Level ${nextLevel}</div>
+      <!-- Next Level Information - CLEAN MINIMALIST REDESIGN -->
+      <div class="next-level-info" style="
+        margin: 1.25rem 0; 
+        background: linear-gradient(to right, rgba(20, 30, 80, 0.9), rgba(40, 60, 120, 0.9));
+        border-radius: 12px; 
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        position: relative;
+        border: 1px solid rgba(100, 150, 255, 0.2);
+      ">
+        <!-- Header section - WITHOUT ARROW -->
+        <div style="
+          padding: 0.6rem 1rem;
+          text-align: center;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        ">
+          <h3 style="
+            margin: 0;
+            font-size: 1.1rem;
+            color: var(--accent);
+            letter-spacing: 0.5px;
+            font-weight: 600;
+          ">Next Level</h3>
         </div>
-        ${nextLevel === 21 ? 
-          '<div style="font-size: 1.1rem; color: var(--error); font-weight: bold;">BOSS LEVEL</div>' : 
-          ''}
+      
+        <!-- Content area with centered details - NO CONTAINERS -->
+        <div style="
+          padding: 0.8rem 1rem;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        ">
+          <div style="
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+            justify-content: center;
+          ">
+            <!-- Stage -->
+            <div style="text-align: center;">
+              <div style="
+                font-size: 0.7rem;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.6);
+                letter-spacing: 1px;
+                margin-bottom: 0.2rem;
+              ">STAGE</div>
+              <div style="
+                font-size: 1.3rem;
+                font-weight: 600;
+                color: white;
+              ">${nextStage}</div>
+            </div>
+            
+            <!-- Set -->
+            <div style="text-align: center;">
+              <div style="
+                font-size: 0.7rem;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.6);
+                letter-spacing: 1px;
+                margin-bottom: 0.2rem;
+              ">SET</div>
+              <div style="
+                font-size: 1.3rem;
+                font-weight: 600;
+                color: white;
+              ">${nextSet}</div>
+            </div>
+            
+            <!-- Level -->
+            <div style="text-align: center;">
+              <div style="
+                font-size: 0.7rem;
+                text-transform: uppercase;
+                color: rgba(255, 255, 255, 0.6);
+                letter-spacing: 1px;
+                margin-bottom: 0.2rem;
+              ">LEVEL</div>
+              <div style="
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: var(--gold);
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+              ">${nextLevel}</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Decorative elements -->
+        <div style="
+          position: absolute;
+          bottom: 0;
+          right: 0;
+          width: 80px;
+          height: 80px;
+          background: radial-gradient(circle at bottom right, rgba(100, 150, 255, 0.15), transparent 70%);
+          pointer-events: none;
+        "></div>
+        
+        <div style="
+          position: absolute;
+          top: 0;
+          left: 20px;
+          width: 60%;
+          height: 2px;
+          background: linear-gradient(to right, rgba(100, 150, 255, 0.5), transparent);
+          pointer-events: none;
+        "></div>
+        
+        ${nextLevel === 21 ? `
+        <!-- Boss badge positioned at right side -->
+        <div style="
+          position: absolute;
+          top: 50%;
+          right: 1rem;
+          transform: translateY(-50%);
+          background: linear-gradient(135deg, #ff4136, #990000);
+          padding: 0.4rem 0.6rem;
+          border-radius: 6px;
+          font-size: 0.8rem;
+          font-weight: bold;
+          color: white;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+          box-shadow: 0 2px 8px rgba(255, 0, 0, 0.3);
+        ">
+          BOSS
+        </div>
+        ` : ''}
       </div>
-    </div>
-    ` : ''}
+      ` : ''}
     
     <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
       <button class="${isPassed ? 'continue-button' : 'retry-button'} start-button" style="background: var(--accent);">
@@ -13786,9 +13912,13 @@ const PerkManager = {
         this.addPerkStyles();
         
         // Initialize unlocked perks set if needed
-        if (!gameState.unlockedPerks) {
-            gameState.unlockedPerks = new Set();
-        }
+        if (conditionMet && !gameState.unlockedPerks.has(perkType)) {
+          // Call our specific unlock function that ensures saving
+          unlockPerk(perkType);
+          
+          // Show unlock effect
+          showPerkUnlockEffect(perkType);
+      }
         
         // Load user stats and do a silent check of perks (no announcements at init)
         this.loadUserWordStats().then(() => {
@@ -15389,4 +15519,194 @@ function incrementWordsLearned() {
     }
   }
 
-  
+  function updateSetProgress(currentLevel) {
+    const progressContainer = document.querySelector('.set-progress-container');
+    if (!progressContainer) return;
+    
+    // Get the set configuration
+    const stageConfig = gameStructure.stages[gameState.currentStage - 1];
+    const totalLevels = stageConfig.levelsPerSet;
+    
+    // Clear existing content
+    progressContainer.innerHTML = '';
+    
+    // Create main element structure
+    progressContainer.innerHTML = `
+      <div class="set-progress-label">Set Progress (Level ${currentLevel}/${totalLevels})</div>
+      <div class="set-progress-track">
+        <div class="set-progress-bar"></div>
+        <div class="set-milestones"></div>
+      </div>
+    `;
+    
+    const progressBar = progressContainer.querySelector('.set-progress-bar');
+    const milestonesContainer = progressContainer.querySelector('.set-milestones');
+    
+    // Calculate progress percentage
+    const progressPercentage = (currentLevel - 1) / (totalLevels - 1) * 100;
+    progressBar.style.width = `${progressPercentage}%`;
+    
+    // Define milestone levels (test levels and boss)
+    const milestones = [3, 6, 9, 10, 13, 16, 19, 20, 21];
+    
+    // Add milestone markers
+    milestones.forEach(milestoneLevel => {
+      // Skip if milestone level is beyond total levels for this set
+      if (milestoneLevel > totalLevels) return;
+      
+      // Calculate position percentage
+      const position = (milestoneLevel - 1) / (totalLevels - 1) * 100;
+      
+      // Determine if milestone is completed
+      const isCompleted = currentLevel > milestoneLevel;
+      
+      // Determine milestone type (test or boss)
+      const isBoss = milestoneLevel === 21;
+      const milestoneType = isBoss ? 'boss' : 'test';
+      
+      // Create milestone marker
+      const milestone = document.createElement('div');
+      milestone.className = `set-milestone ${milestoneType}-milestone ${isCompleted ? 'completed' : 'upcoming'}`;
+      milestone.style.left = `${position}%`;
+      
+      // Add appropriate icon based on type
+      milestone.innerHTML = `
+        <div class="milestone-icon">
+          ${isBoss ? 
+            '<i class="fas fa-dragon"></i>' : 
+            '<i class="fas fa-graduation-cap"></i>'}
+        </div>
+        <div class="milestone-tooltip">
+          ${isBoss ? 'Boss Level' : 'Test Level'} ${milestoneLevel}
+        </div>
+      `;
+      
+      milestonesContainer.appendChild(milestone);
+    });
+  }
+
+  function addSetProgressStyles() {
+    const styles = `
+      .set-progress-container {
+        margin: 1.5rem 0;
+        padding: 0 10px;
+      }
+      
+      .set-progress-label {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+        text-align: left;
+      }
+      
+      .set-progress-track {
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        position: relative;
+        overflow: visible;
+      }
+      
+      .set-progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent) 0%, var(--gold) 100%);
+        border-radius: 10px;
+        transition: width 0.5s ease;
+        position: relative;
+        z-index: 1;
+      }
+      
+      .set-milestones {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+        pointer-events: none;
+      }
+      
+      .set-milestone {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--primary-dark);
+        transform: translate(-50%, -6px);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+        z-index: 3;
+        cursor: pointer;
+        pointer-events: auto;
+      }
+      
+      .test-milestone {
+        border: 2px solid var(--gold);
+      }
+      
+      .boss-milestone {
+        border: 2px solid #ff3333;
+      }
+      
+      .completed.test-milestone {
+        background: var(--gold);
+      }
+      
+      .completed.boss-milestone {
+        background: #ff3333;
+      }
+      
+      .milestone-icon {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.9);
+        z-index: 4;
+      }
+      
+      .upcoming .milestone-icon {
+        opacity: 0.6;
+      }
+      
+      .completed .milestone-icon {
+        opacity: 1;
+      }
+      
+      .milestone-tooltip {
+        position: absolute;
+        top: -35px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s ease, visibility 0.2s ease;
+        pointer-events: none;
+      }
+      
+      .set-milestone:hover .milestone-tooltip {
+        opacity: 1;
+        visibility: visible;
+      }
+      
+      .set-milestone:hover {
+        transform: translate(-50%, -6px) scale(1.2);
+      }
+    `;
+    
+    if (!document.getElementById('set-progress-styles')) {
+      const styleElement = document.createElement('style');
+      styleElement.id = 'set-progress-styles';
+      styleElement.textContent = styles;
+      document.head.appendChild(styleElement);
+    }
+    
+    // Call this function when needed
+    addSetProgressStyles();
+  }
