@@ -218,11 +218,14 @@ function handleArcadeAnswer(isCorrect) {
               }
           }
           
-          // Calculate coin reward
           let coinReward = 5;
-          if (currentGame.correctStreak >= 3) {
-              coinReward += 5;
-          }
+if (currentGame.correctStreak >= 3) {
+    coinReward += 1;
+} else if (currentGame.correctStreak >= 6) {
+    coinReward += 2;
+} else if (currentGame.correctStreak > 6) {
+    coinReward += 3;
+}
           
           // Premium users get extra coins in arcade mode
           if (currentUser && currentUser.status === 'premium') {
@@ -284,6 +287,27 @@ function handleArcadeAnswer(isCorrect) {
               coins: currentGame.coins
           });
           
+          if (rank > 0 && rank <= 3) {
+            const rankBonuses = {
+                1: 50,
+                2: 40,
+                3: 30
+            };
+            const bonus = rankBonuses[rank];
+            
+            // Update coins
+            if (currentGame) {
+                currentGame.coins += bonus;
+                // Update displays
+                document.querySelectorAll('.coin-count').forEach(el => {
+                    el.textContent = currentGame.coins.toString();
+                });
+            }
+            
+            // Show notification
+            showNotification(`Ranked #${rank}: +${bonus} coins bonus!`, 'success');
+        }
+
           // Broadcast progress
           broadcastCurrentParticipantData();
           
@@ -2551,16 +2575,16 @@ function addAdminTestingButton() {
 }
 
 function awardTimeBonus() {
-    // Time per question is now 5 seconds (or 4 for boss levels)
-    const maxTime = currentGame.isBossLevel ? 4 : 5;
-    
-    const timeSpent = (Date.now() - currentGame.questionStartTime) / 1000;
-    
-    if (timeSpent < maxTime) {
-        // No more time bonus coins - perfect level bonus is handled elsewhere
-        return 0;
-    }
-    return 0;
+  // Check if 60% of level time remains
+  const totalLevelTime = currentGame.totalTime || (currentGame.words.length * 5); // in seconds
+  const timeElapsed = (Date.now() - currentGame.levelStartTime) / 1000; // in seconds
+  const timeRemaining = totalLevelTime - timeElapsed;
+  const percentRemaining = timeRemaining / totalLevelTime;
+  
+  if (percentRemaining >= 0.6) {
+      return 5; // Award 5 coins if 60% or more time remains
+  }
+  return 0;
 }
 
 function eliminateWrongAnswer() {
@@ -6335,7 +6359,7 @@ function handleAnswer(isCorrect, skipMode = false) {
           currentGame.coinAwardedWords.add(currentWordKey);
           
           // Award exactly 10 coins for each correct answer
-          const coinsEarned = 10;
+          const coinsEarned = 5;
           
 // Check for double coins perk activation
 if (currentGame.doubleCoinsRemaining > 0 && isCorrect && !skipMode) {
@@ -6372,6 +6396,19 @@ if (currentGame.doubleCoinsRemaining > 0 && isCorrect && !skipMode) {
             console.error("Error updating total coins:", err);
           });
           
+          if (currentGame.correctStreak >= 3) {
+            let streakBonus = 1;
+            if (currentGame.correctStreak >= 6) {
+              streakBonus = 2;
+            }
+            if (currentGame.correctStreak > 6) {
+              streakBonus = 3;
+            }
+            CoinsManager.updateCoins(streakBonus).then(() => {
+              showNotification(`Streak bonus: +${streakBonus} coins!`, 'success');
+            });
+          }
+
           currentGame.correctAnswers++;
           
           // Track word for any registered user without status check
@@ -10095,365 +10132,380 @@ function closePersonalVictory() {
     }
 }
 
-  function handleCustomLevelCompletion() {
-    // Clear the timer
-    clearTimer();
-    
-    // Calculate if level was completed perfectly
-    // A perfect level has no mistakes AND was completed in less than 2/3 of the total time
-    const totalLevelTime = currentGame.totalTime || (currentGame.words.length * 5); // seconds
-    const actualTime = (Date.now() - currentGame.levelStartTime) / 1000; // convert to seconds
-    
-    const noMistakes = currentGame.mistakeRegisteredWords ? 
-                        currentGame.mistakeRegisteredWords.size === 0 : 
-                        currentGame.streakBonus;
-                        
-    const fastCompletion = actualTime < (totalLevelTime * 2/3);
-    const isPerfect = noMistakes && fastCompletion;
-    
-    console.log(`Custom level completion stats: No mistakes: ${noMistakes}, Fast completion: ${fastCompletion}, Perfect: ${isPerfect}`);
-    console.log(`Time stats: Total time: ${totalLevelTime}s, Actual time: ${actualTime}s, 2/3 threshold: ${totalLevelTime * 2/3}s`);
-    
-    // Calculate stats for completion modal
-    const completionStats = {
-      isPerfect: isPerfect,
-      mistakes: currentGame.mistakeRegisteredWords ? currentGame.mistakeRegisteredWords.size : (currentGame.progressLost || 0),
-      timeElapsed: Date.now() - currentGame.levelStartTime, // Time taken to complete level
-      coinsEarned: 0, // Don't award additional coins on level completion
-      correctAnswers: currentGame.correctAnswers || 0,
-      incorrectAnswers: currentGame.words.length - currentGame.correctAnswers || 0,
-      totalQuestions: currentGame.words.length || 0,
-      timeBonus: 0 // No more time bonus
-    };
-    
-    // Debug the stats 
-    debugLevelStats(completionStats, 'handleCustomLevelCompletion');
-    
-    if (isPerfect) {
-      // Mark level as completed
-      customGameState.wordsCompleted += currentGame.words.length;
-      customGameState.completedLevels.add(customGameState.currentLevel);
-      
-      // Create particle effect
-      const rect = document.getElementById("question-screen").getBoundingClientRect();
-      createParticles(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      
-      // Check if this was the final level or move to next level
-      const nextLevel = customGameState.currentLevel + 1;
-      const nextLevelData = customGameState.getWordsForLevel(nextLevel);
-      
-      if (!nextLevelData || nextLevelData.words.length === 0 || currentGame.isFinalLevel) {
-        setTimeout(() => showCustomCompletionScreen(), 1500);
-      } else {
-        setTimeout(() => startCustomLevel(nextLevel), 1500);
-      }
-    } else {
-      // If not perfect, retry the level
-      setTimeout(() => startCustomLevel(customGameState.currentLevel), 1500);
-    }
-    
-    // Save progress
-    saveProgress();
+function showCustomCompletionScreen() {
+  // Clear the timer
+  clearTimer();
+  
+  // Calculate statistics
+  const coinsEarned = gameState.coins - customGameState.startCoins;
+  const totalQuestions = currentGame.words.length; // Use actual number of words
+  const correctAnswers = currentGame.correctAnswers || 0;
+  const incorrectAnswers = currentGame.mistakeRegisteredWords ? 
+                         currentGame.mistakeRegisteredWords.size : 
+                         Math.max(0, totalQuestions - correctAnswers);
+  const scorePercentage = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+  
+  // Calculate average response time with better debug logs
+  let averageTime = "N/A";
+  console.log("Debug - responseTimes:", currentGame.responseTimes);
+  
+  if (currentGame.responseTimes && currentGame.responseTimes.length > 0) {
+    const totalTime = currentGame.responseTimes.reduce((sum, time) => sum + time, 0);
+    averageTime = (totalTime / currentGame.responseTimes.length).toFixed(1);
+    console.log("Debug - Total time:", totalTime, "divided by", currentGame.responseTimes.length, "= averageTime:", averageTime);
+  } else if (currentGame.levelStartTime) {
+    // Fallback: use overall level time divided by number of words
+    const totalElapsedTime = (Date.now() - currentGame.levelStartTime) / 1000;
+    averageTime = (totalElapsedTime / totalQuestions).toFixed(1);
+    console.log("Debug - Using fallback timing method. Total time:", totalElapsedTime, "per word:", averageTime);
   }
-
-  function showCustomCompletionScreen() {
-    // Clear the timer
-    clearTimer();
-    
-    // Calculate statistics
-    const coinsEarned = gameState.coins - customGameState.startCoins;
-    const totalQuestions = customGameState.wordsCompleted || 0;
-    const correctAnswers = currentGame.correctAnswers || 0;
-    const incorrectAnswers = Math.max(0, totalQuestions - correctAnswers);
-    const scorePercentage = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
-    const averageTime = currentGame.answerTimes && currentGame.answerTimes.length > 0 
-      ? (currentGame.answerTimes.reduce((sum, time) => sum + time, 0) / currentGame.answerTimes.length).toFixed(1)
-      : "N/A";
-    
-    // Calculate star rating criteria
-    const noMistakes = incorrectAnswers === 0;
-    const fastCompletion = averageTime !== "N/A" && parseFloat(averageTime) < 3.0; // Under 3 seconds per word is fast
-    const starsEarned = 1 + (noMistakes ? 1 : 0) + (fastCompletion ? 1 : 0); // 1-3 stars
-    
-    // Create overlay
-    const overlay = document.createElement("div");
-    overlay.className = "level-completion-overlay";
-    overlay.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(5px);
-      z-index: 1000;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      opacity: 0;
-      transition: opacity 0.5s ease;
-    `;
-    
-    // Create completion modal content
-    const completionContent = document.createElement('div');
-    completionContent.className = 'level-completion-modal';
-    completionContent.style.cssText = `
-      background: var(--glass);
-      backdrop-filter: blur(10px);
-      border-radius: 20px;
-      padding: 3rem;
-      width: 500px;
-      max-width: 90%;
-      text-align: center;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      transform: scale(0.9);
-      opacity: 0;
-      transition: transform 0.5s ease, opacity 0.5s ease;
-      margin: 0;
-    `;
-    
-    completionContent.innerHTML = `
-      <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
-        Practice Complete!
-      </h1>
-      <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${scorePercentage >= 70 ? 'var(--success)' : 'var(--error)'}">
-        ${scorePercentage >= 70 ? 'Great job!' : 'Try again to improve your score'}
-      </h2>
+  
+  // Debug logs to track calculations
+  console.log("Debug - totalQuestions:", totalQuestions, "correctAnswers:", correctAnswers, "incorrectAnswers:", incorrectAnswers);
+  
+  // Apply time bonus if 65% of level time remains
+  let timeBonus = 0;
+  if (currentGame.levelStartTime) {
+      const totalLevelTime = currentGame.totalTime || (totalQuestions * 5); // in seconds
+      const timeElapsed = (Date.now() - currentGame.levelStartTime) / 1000; // in seconds
+      const timeRemaining = totalLevelTime - timeElapsed;
+      const percentRemaining = timeRemaining / totalLevelTime;
       
-      <!-- Star Rating -->
-<div class="star-rating-container" style="margin-bottom: 2.5rem; position: relative;">
-  <div class="star-slots" style="display: flex; justify-content: center; gap: 1.5rem;">
-    <!-- Three star slots, each with empty and filled versions -->
-    <div class="star-slot" style="position: relative; width: 65px; height: 65px;">
-      <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3.5rem; line-height: 1; text-shadow: 0 0 5px rgba(0,0,0,0.3);">★</div>
-      <div class="star-filled star-1" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 3.5rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease; text-shadow: 0 0 10px rgba(255,215,0,0.7); filter: drop-shadow(0 0 5px gold);">★</div>
-    </div>
-    <div class="star-slot" style="position: relative; width: 65px; height: 65px;">
-      <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3.5rem; line-height: 1; text-shadow: 0 0 5px rgba(0,0,0,0.3);">★</div>
-      <div class="star-filled star-2" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 3.5rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease; text-shadow: 0 0 10px rgba(255,215,0,0.7); filter: drop-shadow(0 0 5px gold);">★</div>
-    </div>
-    <div class="star-slot" style="position: relative; width: 65px; height: 65px;">
-      <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3.5rem; line-height: 1; text-shadow: 0 0 5px rgba(0,0,0,0.3);">★</div>
-      <div class="star-filled star-3" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 3.5rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease; text-shadow: 0 0 10px rgba(255,215,0,0.7); filter: drop-shadow(0 0 5px gold);">★</div>
-    </div>
-  </div>
-  <div class="star-criteria" style="margin-top: 1rem; font-size: 0.8rem; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between; width: 100%; max-width: 330px; margin-left: auto; margin-right: auto;">
-    <div>Complete</div>
-    <div>No Mistakes</div>
-    <div>Quick Time</div>
-  </div>
-  <div class="star-glow" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 350px; height: 100px; background: radial-gradient(ellipse at center, rgba(255,215,0,0.1) 0%, rgba(255,215,0,0) 70%); z-index: -1; pointer-events: none;"></div>
-</div>
-      
-      <!-- Average response time section -->
-      <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
-        <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">Average Response Time</div>
-        <div style="font-size: 2.5rem; color: var(--accent); font-weight: bold;">
-          ${averageTime}s
-        </div>
-      </div>
-      
-      <!-- List name display with icon -->
-      <div class="custom-list-name" style="margin: 1.5rem 0; text-align: center; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 10px;">
-        <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8; display: flex; align-items: center; justify-content: center; gap: 8px;">
-          <i class="fas fa-list" style="color: var(--accent);"></i>
-          <span>List Name</span>
-        </div>
-        <div style="font-size: 1.5rem; color: var(--gold); font-weight: bold;">
-          ${customGameState.currentList?.name || "Custom List"}
-        </div>
-      </div>
-      
-      <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
-        ${scorePercentage >= 70 ? 
-          `<button class="continue-button start-button" style="background: var(--accent); min-width: 150px; padding: 0.8rem 1.5rem;">Continue</button>` : 
-          `<button class="retry-button start-button" style="background: var(--accent); min-width: 150px; padding: 0.8rem 1.5rem;">Try Again</button>`
-        }
-        <button class="exit-button start-button" style="background: rgba(255,255,255,0.1); border: 1px solid var(--accent); min-width: 150px; padding: 0.8rem 1.5rem;">Return Home</button>
-      </div>
-    `;
-    
-    // Append to the body
-    document.body.appendChild(overlay);
-    overlay.appendChild(completionContent);
-    
-    // Add event listeners to buttons
-    const continueOrRetryButton = completionContent.querySelector('.continue-button, .retry-button');
-    if (continueOrRetryButton) {
-      continueOrRetryButton.addEventListener('click', () => {
-        // Fade out
-        overlay.style.opacity = '0';
-        completionContent.style.transform = 'scale(0.9)';
-        completionContent.style.opacity = '0';
-        
-        // Remove after animation
-        setTimeout(() => {
-          overlay.remove();
-          
-          // If passed, continue to next level (if available), otherwise retry current level
-          if (scorePercentage >= 70) {
-            const nextLevel = customGameState.currentLevel + 1;
-            const nextLevelData = customGameState.getWordsForLevel(nextLevel);
-            
-            if (nextLevelData && nextLevelData.words && nextLevelData.words.length > 0) {
-              startCustomLevel(nextLevel);
-            } else {
-              // No more levels, return to custom practice screen
-              exitCustomPractice();
-            }
-          } else {
-            // Retry current level
-            startCustomLevel(customGameState.currentLevel);
-          }
-        }, 500);
+      if (percentRemaining >= 0.65) {
+          timeBonus = 7; // Award 7 coins if 65% or more time remains
+          CoinsManager.updateCoins(timeBonus).then(() => {
+              showNotification(`Fast completion bonus: +${timeBonus} coins!`, 'success');
+          });
+      }
+  }
+  
+  // Calculate star rating criteria
+  const noMistakes = incorrectAnswers === 0;
+  console.log("Debug - noMistakes calculation:", noMistakes);
+  
+  // More lenient fast completion threshold (5 seconds instead of 3)
+  const fastCompletionThreshold = 5.0;
+  const fastCompletion = averageTime !== "N/A" && parseFloat(averageTime) < fastCompletionThreshold;
+  console.log("Debug - fastCompletion:", fastCompletion, "averageTime:", averageTime, "threshold:", fastCompletionThreshold);
+  
+  const starsEarned = 1 + (noMistakes ? 1 : 0) + (fastCompletion ? 1 : 0); // 1-3 stars
+  console.log("Debug - Stars earned:", starsEarned);
+  
+  // Perfect score bonus (if all stars earned)
+  if (starsEarned === 3) {
+      const perfectBonus = 15;
+      CoinsManager.updateCoins(perfectBonus).then(() => {
+          showNotification(`Perfect practice bonus: +${perfectBonus} coins!`, 'success');
       });
-    }
+  }
+  
+  // Create overlay
+  const overlay = document.createElement("div");
+  overlay.className = "level-completion-overlay";
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+  `;
+  
+  // Create completion modal content
+  const completionContent = document.createElement('div');
+  completionContent.className = 'level-completion-modal';
+  completionContent.style.cssText = `
+    background: var(--glass);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 3rem;
+    width: 500px;
+    max-width: 90%;
+    text-align: center;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transform: scale(0.9);
+    opacity: 0;
+    transition: transform 0.5s ease, opacity 0.5s ease;
+    margin: 0;
+  `;
+  
+  completionContent.innerHTML = `
+    <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
+      Practice Complete!
+    </h1>
+    <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${scorePercentage >= 70 ? 'var(--success)' : 'var(--error)'}">
+      ${scorePercentage >= 70 ? 'Great job!' : 'Try again to improve your score'}
+    </h2>
     
-    const exitButton = completionContent.querySelector('.exit-button');
-    if (exitButton) {
-      exitButton.addEventListener('click', () => {
-        // Fade out
-        overlay.style.opacity = '0';
-        completionContent.style.transform = 'scale(0.9)';
-        completionContent.style.opacity = '0';
-        
-        // Remove after animation
-        setTimeout(() => {
-          overlay.remove();
-          exitCustomPractice();
-        }, 500);
-      });
-    }
+    <!-- Star Rating -->
+    <div class="star-rating-container" style="margin-bottom: 2.5rem; position: relative;">
+      <div class="star-slots" style="display: flex; justify-content: center; gap: 1.5rem;">
+        <!-- Three star slots, each with empty and filled versions -->
+        <div class="star-slot" style="position: relative; width: 65px; height: 65px;">
+          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3.5rem; line-height: 1; text-shadow: 0 0 5px rgba(0,0,0,0.3);">★</div>
+          <div class="star-filled star-1" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 3.5rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease; text-shadow: 0 0 10px rgba(255,215,0,0.7); filter: drop-shadow(0 0 5px gold);">★</div>
+        </div>
+        <div class="star-slot" style="position: relative; width: 65px; height: 65px;">
+          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3.5rem; line-height: 1; text-shadow: 0 0 5px rgba(0,0,0,0.3);">★</div>
+          <div class="star-filled star-2" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 3.5rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease; text-shadow: 0 0 10px rgba(255,215,0,0.7); filter: drop-shadow(0 0 5px gold);">★</div>
+        </div>
+        <div class="star-slot" style="position: relative; width: 65px; height: 65px;">
+          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3.5rem; line-height: 1; text-shadow: 0 0 5px rgba(0,0,0,0.3);">★</div>
+          <div class="star-filled star-3" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #FFD700, #FFA500); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 3.5rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease; text-shadow: 0 0 10px rgba(255,215,0,0.7); filter: drop-shadow(0 0 5px gold);">★</div>
+        </div>
+      </div>
+      <div class="star-criteria" style="margin-top: 1rem; font-size: 0.8rem; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between; width: 100%; max-width: 330px; margin-left: auto; margin-right: auto;">
+        <div>Complete</div>
+        <div>No Mistakes</div>
+        <div>Quick Time</div>
+      </div>
+      <div class="star-glow" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 350px; height: 100px; background: radial-gradient(ellipse at center, rgba(255,215,0,0.1) 0%, rgba(255,215,0,0) 70%); z-index: -1; pointer-events: none;"></div>
+    </div>
     
-    // Trigger animation
-    setTimeout(() => {
-      overlay.style.opacity = '1';
-      completionContent.style.transform = 'scale(1)';
-      completionContent.style.opacity = '1';
+    <!-- Average response time section -->
+    <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
+      <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">Average Response Time</div>
+      <div style="font-size: 2.5rem; color: var(--accent); font-weight: bold;">
+        ${averageTime}s
+      </div>
+    </div>
+    
+    <!-- List name display with icon -->
+    <div class="custom-list-name" style="margin: 1.5rem 0; text-align: center; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 10px;">
+      <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <i class="fas fa-list" style="color: var(--accent);"></i>
+        <span>List Name</span>
+      </div>
+      <div style="font-size: 1.5rem; color: var(--gold); font-weight: bold;">
+        ${customGameState.currentList?.name || "Custom List"}
+      </div>
+    </div>
+    
+    <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
+      ${scorePercentage >= 70 ? 
+        `<button class="continue-button start-button" style="background: var(--accent); min-width: 150px; padding: 0.8rem 1.5rem;">Continue</button>` : 
+        `<button class="retry-button start-button" style="background: var(--accent); min-width: 150px; padding: 0.8rem 1.5rem;">Try Again</button>`
+      }
+      <button class="exit-button start-button" style="background: rgba(255,255,255,0.1); border: 1px solid var(--accent); min-width: 150px; padding: 0.8rem 1.5rem;">Return Home</button>
+    </div>
+  `;
+  
+  // Append to the body
+  document.body.appendChild(overlay);
+  overlay.appendChild(completionContent);
+  
+  // Add event listeners to buttons
+  const continueOrRetryButton = completionContent.querySelector('.continue-button, .retry-button');
+  if (continueOrRetryButton) {
+    continueOrRetryButton.addEventListener('click', () => {
+      // Fade out
+      overlay.style.opacity = '0';
+      completionContent.style.transform = 'scale(0.9)';
+      completionContent.style.opacity = '0';
       
-      // Animate stars filling one by one
+      // Remove after animation
       setTimeout(() => {
-        // First star always shows (completion)
-        const star1 = completionContent.querySelector('.star-1');
-        if (star1) {
-          star1.style.opacity = '1';
-          star1.style.transform = 'scale(1)';
-        }
+        overlay.remove();
         
-        // Second star for no mistakes
-        if (noMistakes) {
-          setTimeout(() => {
-            const star2 = completionContent.querySelector('.star-2');
-            if (star2) {
-              star2.style.opacity = '1';
-              star2.style.transform = 'scale(1)';
-            }
-          }, 300);
-        }
-        
-        // Third star for fast completion
-        if (fastCompletion) {
-          setTimeout(() => {
-            const star3 = completionContent.querySelector('.star-3');
-            if (star3) {
-              star3.style.opacity = '1';
-              star3.style.transform = 'scale(1)';
-            }
-          }, 600);
+        // If passed, continue to next level (if available), otherwise retry current level
+        if (scorePercentage >= 70) {
+          const nextLevel = customGameState.currentLevel + 1;
+          const nextLevelData = customGameState.getWordsForLevel(nextLevel);
+          
+          if (nextLevelData && nextLevelData.words && nextLevelData.words.length > 0) {
+            startCustomLevel(nextLevel);
+          } else {
+            // No more levels, return to custom practice screen
+            exitCustomPractice();
+          }
+        } else {
+          // Retry current level
+          startCustomLevel(customGameState.currentLevel);
         }
       }, 500);
+    });
+  }
+  
+  const exitButton = completionContent.querySelector('.exit-button');
+  if (exitButton) {
+    exitButton.addEventListener('click', () => {
+      // Fade out
+      overlay.style.opacity = '0';
+      completionContent.style.transform = 'scale(0.9)';
+      completionContent.style.opacity = '0';
       
-      // Animate coin counter if there are earned coins
-      if (coinsEarned > 0) {
-        const coinValue = completionContent.querySelector('.coin-value');
-        if (coinValue) {
-          // Animate coin count increasing
-          let startValue = gameState.coins - coinsEarned;
-          const endValue = gameState.coins;
-          const duration = 1500; // 1.5 seconds
-          const stepTime = 50; // Update every 50ms
-          const totalSteps = duration / stepTime;
-          const stepValue = (endValue - startValue) / totalSteps;
-          
-          // Add a glowing effect to the coin icon
-          const coinIcon = completionContent.querySelector('.coin-icon');
-          if (coinIcon) {
-            coinIcon.style.filter = 'drop-shadow(0 0 5px var(--gold))';
-            coinIcon.style.transition = 'filter 0.5s ease';
-          }
-          
-          const counterInterval = setInterval(() => {
-            startValue += stepValue;
-            if (startValue >= endValue) {
-              startValue = endValue;
-              clearInterval(counterInterval);
-              
-              // Remove glow effect after animation completes
-              setTimeout(() => {
-                if (coinIcon) {
-                  coinIcon.style.filter = 'none';
-                }
-              }, 500);
-            }
-            coinValue.textContent = Math.round(startValue);
-          }, stepTime);
-        }
+      // Remove after animation
+      setTimeout(() => {
+        overlay.remove();
+        exitCustomPractice();
+      }, 500);
+    });
+  }
+  
+  // Add the necessary star animations to document if not already present
+  if (!document.getElementById('star-animations')) {
+    const styleElement = document.createElement('style');
+    styleElement.id = 'star-animations';
+    styleElement.textContent = `
+      @keyframes starPop {
+        0% { transform: scale(0); opacity: 0; }
+        50% { transform: scale(1.2); opacity: 1; }
+        75% { transform: scale(0.9); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
       }
-    }, 100);
+      @keyframes starShine {
+        0% { filter: drop-shadow(0 0 5px gold); }
+        50% { filter: drop-shadow(0 0 15px gold); }
+        100% { filter: drop-shadow(0 0 5px gold); }
+      }
+    `;
+    document.head.appendChild(styleElement);
+  }
+  
+  // Begin animations after a short delay
+  setTimeout(() => {
+    // Animate in the overlay and content
+    overlay.style.opacity = '1';
+    completionContent.style.transform = 'scale(1)';
+    completionContent.style.opacity = '1';
     
-    // Add a particle effect for visual flair
+    // Animate stars with debug logging
     setTimeout(() => {
-      try {
-        // Use the existing particle system if available
-        const rect = overlay.getBoundingClientRect();
-        if (typeof createParticles === 'function') {
-          createParticles(rect.width / 2, rect.height / 3);
-        }
-      } catch (e) {
-        console.log("Couldn't create particles effect", e);
+      // First star always shows (completion)
+      const star1 = completionContent.querySelector('.star-1');
+      if (star1) {
+        star1.style.opacity = '1';
+        star1.style.transform = 'scale(1)';
+        console.log("First star shown (completion)");
       }
-    }, 1000);
-  }
-
-  function addStarRatingStyles() {
-    if (!document.getElementById('star-rating-styles')) {
-      const styleElement = document.createElement('style');
-      styleElement.id = 'star-rating-styles';
-      styleElement.textContent = `
-        @keyframes starShine {
-          0% { filter: drop-shadow(0 0 5px gold); }
-          50% { filter: drop-shadow(0 0 12px gold); }
-          100% { filter: drop-shadow(0 0 5px gold); }
+      
+      // Second star for no mistakes
+      if (noMistakes) {
+        setTimeout(() => {
+          const star2 = completionContent.querySelector('.star-2');
+          if (star2) {
+            star2.style.opacity = '1';
+            star2.style.transform = 'scale(1)';
+            console.log("Second star shown (no mistakes)");
+          }
+        }, 300);
+      } else {
+        console.log("No second star shown - mistakes were made:", incorrectAnswers);
+      }
+      
+      // Third star for fast completion
+      if (fastCompletion) {
+        setTimeout(() => {
+          const star3 = completionContent.querySelector('.star-3');
+          if (star3) {
+            star3.style.opacity = '1';
+            star3.style.transform = 'scale(1)';
+            console.log("Third star shown (fast completion)");
+          }
+        }, 600);
+      } else {
+        console.log("No third star shown - completion not fast enough:", averageTime, "seconds vs threshold", fastCompletionThreshold);
+      }
+    }, 700);
+    
+    // Animate coin counter if there are earned coins
+    if (coinsEarned > 0) {
+      const coinValue = completionContent.querySelector('.coin-value');
+      if (coinValue) {
+        // Animate coin count increasing
+        let startValue = gameState.coins - coinsEarned;
+        const endValue = gameState.coins;
+        const duration = 1500; // 1.5 seconds
+        const stepTime = 50; // Update every 50ms
+        const totalSteps = duration / stepTime;
+        const stepValue = (endValue - startValue) / totalSteps;
+        
+        // Add a glowing effect to the coin icon
+        const coinIcon = completionContent.querySelector('.coin-icon');
+        if (coinIcon) {
+          coinIcon.style.filter = 'drop-shadow(0 0 5px var(--gold))';
+          coinIcon.style.transition = 'filter 0.5s ease';
         }
         
-        @keyframes starPop {
-          0% { transform: scale(0); opacity: 0; }
-          50% { transform: scale(1.3); opacity: 1; }
-          75% { transform: scale(0.9); opacity: 1; }
-          100% { transform: scale(1); opacity: 1; }
-        }
-        
-        .star-filled {
-          animation: starShine 2s infinite ease-in-out;
-        }
-        
-        .star-rating-container {
-          transform: perspective(800px) rotateX(10deg);
-        }
-        
-        .star-slot {
-          transform-style: preserve-3d;
-          transition: transform 0.3s ease;
-        }
-        
-        .star-slot:hover {
-          transform: translateY(-5px);
-        }
-      `;
-      document.head.appendChild(styleElement);
+        const counterInterval = setInterval(() => {
+          startValue += stepValue;
+          if (startValue >= endValue) {
+            startValue = endValue;
+            clearInterval(counterInterval);
+            
+            // Remove glow effect after animation completes
+            setTimeout(() => {
+              if (coinIcon) {
+                coinIcon.style.filter = 'none';
+              }
+            }, 500);
+          }
+          coinValue.textContent = Math.round(startValue);
+        }, stepTime);
+      }
     }
+  }, 100);
+  
+  // Add a particle effect for visual flair
+  setTimeout(() => {
+    try {
+      // Use the existing particle system if available
+      const rect = overlay.getBoundingClientRect();
+      if (typeof createParticles === 'function') {
+        createParticles(rect.width / 2, rect.height / 3);
+      }
+    } catch (e) {
+      console.log("Couldn't create particles effect", e);
+    }
+  }, 1000);
+}
+
+function addStarRatingStyles() {
+  if (!document.getElementById('star-rating-styles')) {
+    const styleElement = document.createElement('style');
+    styleElement.id = 'star-rating-styles';
+    styleElement.textContent = `
+      @keyframes starShine {
+        0% { filter: drop-shadow(0 0 5px gold); }
+        50% { filter: drop-shadow(0 0 12px gold); }
+        100% { filter: drop-shadow(0 0 5px gold); }
+      }
+      
+      @keyframes starPop {
+        0% { transform: scale(0); opacity: 0; }
+        50% { transform: scale(1.3); opacity: 1; }
+        75% { transform: scale(0.9); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      
+      .star-filled {
+        animation: starShine 2s infinite ease-in-out;
+      }
+      
+      .star-rating-container {
+        transform: perspective(800px) rotateX(10deg);
+      }
+      
+      .star-slot {
+        transform-style: preserve-3d;
+        transition: transform 0.3s ease;
+      }
+      
+      .star-slot:hover {
+        transform: translateY(-5px);
+      }
+    `;
+    document.head.appendChild(styleElement);
   }
+}
 
 function hasExistingProgress() {
     // Check if we have any completed levels or stage progress
@@ -11867,8 +11919,10 @@ function handleCustomLevelCompletion() {
   clearTimer();
   
   // Check if level was completed successfully
-  const isPerfect = currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length;
-  
+// Check if level was completed successfully
+const isPerfect = currentGame.mistakeRegisteredWords ? 
+                  currentGame.mistakeRegisteredWords.size === 0 : 
+                  (currentGame.streakBonus && currentGame.correctAnswers === currentGame.words.length);  
   if (isPerfect) {
     // Award bonus coins for perfect completion
     const coinsToAward = currentGame.firstAttempt ? 5 : 3;
@@ -11956,6 +12010,19 @@ function handleCustomPracticeAnswer(correct, skipAnimation = false) {
           updateAllCoinDisplays();
           updatePerkButtons();
         }
+
+        if (currentGame.correctStreak >= 3) {
+          let streakBonus = 1;
+          if (currentGame.correctStreak >= 6) {
+            streakBonus = 2;
+          }
+          if (currentGame.correctStreak > 6) {
+            streakBonus = 3;
+          }
+          CoinsManager.updateCoins(streakBonus).then(() => {
+            showNotification(`Streak bonus: +${streakBonus} coins!`, 'success');
+          });
+        }
         
         // Update correct answers count
         currentGame.correctAnswers++;
@@ -11991,7 +12058,7 @@ function handleCustomPracticeAnswer(correct, skipAnimation = false) {
         
         // Penalty for wrong answer
         if (typeof CoinsManager !== 'undefined' && CoinsManager.updateCoins) {
-          CoinsManager.updateCoins(-3).then(() => {
+          CoinsManager.updateCoins(-2).then(() => {
             updatePerkButtons();
           }).catch(error => {
             console.error("Error updating coins:", error);

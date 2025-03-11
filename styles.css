@@ -4628,124 +4628,193 @@
       50% { box-shadow: 0 0 30px var(--accent); }
   }
   
-  /* Resurrection Animation Styles */
-  .resurrection-animation {
-      position: relative;
-      width: 240px;
-      height: 240px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+  /* Resurrection related styles */
+.resurrection-ready {
+  transition: all 0.5s ease;
+}
+
+.resurrection-active .progress {
+  stroke: #FFD700 !important;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+}
+
+.coins-container.resurrection-mode {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60px;
+}
+
+.ankh-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ankh-symbol {
+  color: #FFD700;
+  font-size: 3.5rem; /* Increased size */
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+  animation: pulse 1.5s infinite alternate;
+}
+
+.resurrection-ankh {
+  font-size: 4rem; /* Increased size */
+  animation: glowPulse 1.5s infinite alternate;
+}
+
+.revive-timer {
+  font-size: 1.5rem;
+  color: white;
+  margin-top: 5px;
+  font-weight: bold;
+}
+
+.revive-question {
+  color: #FFD700 !important;
+  text-shadow: 0 0 15px rgba(255, 215, 0, 0.6) !important;
+  font-size: 2.5rem !important;
+}
+
+.revive-title {
+  animation: pulseFade 1.5s infinite alternate;
+}
+
+.buttons .revive-button, 
+.buttons .resurrection-home-button {
+  background: linear-gradient(135deg, #FFD700, #FFA500) !important;
+  color: #000 !important;
+  font-weight: bold !important;
+  border: 2px solid #FFD700 !important;
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.6) !important;
+  transition: transform 0.3s ease, box-shadow 0.3s ease !important;
+  min-height: 50px; /* Ensure touchable height */
+}
+
+.buttons .revive-button:hover, 
+.buttons .resurrection-home-button:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.8) !important;
+}
+
+@keyframes glowPulse {
+  0% {
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+      transform: scale(1);
   }
-  
-  .resurrection-circle {
-      width: 200px;
-      height: 200px;
+  100% {
+      text-shadow: 0 0 20px rgba(255, 215, 0, 1);
+      transform: scale(1.1);
   }
-  
-  .resurrection-progress {
-      stroke: var(--gold);
-      stroke-linecap: round;
-      transform-origin: center;
-      transform: rotate(-90deg);
-      stroke-dashoffset: 339.29;
-      filter: drop-shadow(0 0 10px var(--gold));
+}
+
+@keyframes pulseFade {
+  0% {
+      opacity: 0.7;
+  }
+  100% {
+      opacity: 1;
+  }
+}
+
+/* Mobile optimization */
+@media (max-width: 768px) {
+  .ankh-symbol {
+      font-size: 3rem;
   }
   
   .resurrection-ankh {
-      position: absolute;
-      font-size: 5rem;
-      color: var(--gold);
-      animation: resurrectGlow 2s infinite;
+      font-size: 3.5rem;
   }
   
-  @keyframes resurrectGlow {
-      0%, 100% { text-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
-      50% { text-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
+  .revive-timer {
+      font-size: 1.3rem;
   }
   
-  @keyframes particleFlow {
-      0% {
-          transform: translate(-50%, -50%) scale(0);
-          opacity: 0;
-      }
-      20% {
-          opacity: 1;
-      }
-      100% {
-          transform: translate(calc(-50% + var(--end-x)), calc(-50% + var(--end-y))) scale(1);
-          opacity: 0;
-      }
+  .revive-question {
+      font-size: 2rem !important;
   }
   
-  /* Mobile Responsive Adjustments */
-  @media (max-width: 768px) {
-      .ankh-symbol {
-          font-size: 6rem;
-      }
-      
-      .revive-title {
-          font-size: 2rem;
-      }
-      
-      .revive-timer {
-          font-size: 4rem;
-      }
-      
-      .revive-button {
-          padding: 0.75rem 2rem;
-          font-size: 1.2rem;
-      }
-      
-      .resurrection-animation {
-          width: 180px;
-          height: 180px;
-      }
-      
-      .resurrection-circle {
-          width: 150px;
-          height: 150px;
-      }
-      
-      .resurrection-ankh {
-          font-size: 3.5rem;
-      }
+  .buttons .revive-button, 
+  .buttons .resurrection-home-button {
+      padding: 12px !important;
+      margin: 8px !important;
+      min-height: 60px !important; /* Extra height for mobile touch */
   }
   
-  @media (max-width: 480px) {
-      .ankh-symbol {
-          font-size: 5rem;
-      }
-      
-      .revive-title {
-          font-size: 1.8rem;
-      }
-      
-      .revive-timer {
-          font-size: 3.5rem;
-      }
-      
-      .revive-button {
-          padding: 0.5rem 1.5rem;
-          font-size: 1rem;
-      }
-      
-      .resurrection-animation {
-          width: 150px;
-          height: 150px;
-      }
-      
-      .resurrection-circle {
-          width: 120px;
-          height: 120px;
-      }
-      
-      .resurrection-ankh {
-          font-size: 3rem;
-      }
+  /* Ensure buttons are touching the bottom of the screen on mobile */
+  .buttons {
+      position: relative !important;
+      bottom: 0 !important;
+      width: 100% !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: center !important;
+      align-items: center !important;
+      padding-bottom: 15px !important;
   }
-  
+}
 
+/* Small mobile optimization */
+@media (max-width: 480px) {
+  .ankh-symbol {
+      font-size: 2.8rem;
+  }
+  
+  .resurrection-ankh {
+      font-size: 3.2rem;
+  }
+  
+  .revive-question {
+      font-size: 1.8rem !important;
+  }
+  
+  .buttons .revive-button, 
+  .buttons .resurrection-home-button {
+      width: 90% !important;
+      margin: 6px !important;
+  }
+}
+
+/* Perks disabled during resurrection */
+.perks-disabled {
+  position: relative;
+}
+
+.perks-disabled-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.perks-disabled-overlay span {
+  color: #FFD700;
+  font-size: 0.9rem;
+  font-weight: bold;
+  text-shadow: 0 0 5px rgba(0, 0, 0, 0.8);
+}
+
+/* Make sure perks appear disabled visually */
+.perks-disabled .perk-item {
+  filter: grayscale(80%);
+}
+
+/* Mobile adjustments for disabled perks */
+@media (max-width: 768px) {
+  .perks-disabled-overlay span {
+      font-size: 0.8rem;
+  }
+}
   
   .accessibility-modal {
       position: fixed;

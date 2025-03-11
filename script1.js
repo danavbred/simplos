@@ -638,379 +638,414 @@ const shineColors = [
 
 // REPLACE: CoinsManager - Complete replacement
 const CoinsManager = {
-    initialized: false,
-    updateLock: false,
-    pendingUpdates: [],
-    animationTimers: new Map(),
-    lastUpdateTimestamp: 0,
-    
-    // Initialize the coins manager
-    initialize: async function() {
-        if (this.initialized) return;
-        
-        console.log("Initializing CoinsManager");
-        this.initialized = true;
-        
-        // Load initial coin values
-        await this.loadUserCoins();
-        
-        // Watch for DOM changes that might add new coin displays
-        this.observeCoinsDisplay();
-        
-        // Initial update
-        this.updateDisplays();
-    },
-    
-    // Load user's coins from database or localStorage
-    loadUserCoins: async function() {
-        try {
-            // For logged in users, load from database
-            if (currentUser?.id) {
-                const { data, error } = await supabaseClient
-                    .from("game_progress")
-                    .select("coins")
-                    .eq("user_id", currentUser.id)
-                    .single();
-                    
-                if (!error && data && typeof data.coins === 'number') {
-                    gameState.coins = data.coins;
-                    console.log("Loaded coins from database:", gameState.coins);
-                    return gameState.coins;
-                }
-            }
-            
-            // Fall back to localStorage
-            const savedProgress = localStorage.getItem("simploxProgress");
-            if (savedProgress) {
-                try {
-                    const progress = JSON.parse(savedProgress);
-                    if (typeof progress.coins === 'number') {
-                        gameState.coins = progress.coins;
-                        console.log("Loaded coins from localStorage:", gameState.coins);
-                        return gameState.coins;
-                    }
-                } catch (e) {
-                    console.error("Error parsing saved progress:", e);
-                }
-            }
-            
-            // Default to 0 if no saved coins found
-            gameState.coins = 0;
-            return 0;
-        } catch (error) {
-            console.error("Error loading user coins:", error);
-            gameState.coins = 0;
-            return 0;
-        }
-    },
-    
-    // Update coin amount and all displays
-    updateCoins: async function(amount) {
-        if (this.updateLock) {
-            this.pendingUpdates.push(amount);
-            console.log("Coin update queued:", amount);
-            return gameState.coins;
-        }
-        
-        try {
-            this.updateLock = true;
-            this.lastUpdateTimestamp = Date.now();
-            
-            const previousCoins = gameState.coins;
-            gameState.coins += amount;
-            
-            console.log(`Updating coins: ${previousCoins} + (${amount}) = ${gameState.coins}`);
-            
-            // Update all displays
-            this.updateDisplays(previousCoins);
-            
-            // Also update currentGame.coins for arcade mode
-            if (currentGame) {
-                currentGame.coins = gameState.coins;
-            }
-            
-            // Store the updated value
-            await this.saveUserCoins();
-            
-            // Update arcade participant data if applicable
-            this.updateArcadeParticipant();
-            
-            // Broadcast in arcade mode
-            this.broadcastArcadeUpdate();
-            
-            return gameState.coins;
-        } catch (error) {
-            console.error("Error updating coins:", error);
-            return gameState.coins;
-        } finally {
-            // Process any pending updates after a short delay
-            setTimeout(() => {
-                this.updateLock = false;
-                
-                if (this.pendingUpdates.length > 0) {
-                    const nextAmount = this.pendingUpdates.shift();
-                    this.updateCoins(nextAmount);
-                }
-            }, 300);
-        }
-    },
-    
-    // Set coin amount directly (overwrite instead of add)
-    setCoins: async function(newValue) {
-        if (this.updateLock) {
-            this.pendingUpdates.push(newValue - gameState.coins);
-            return gameState.coins;
-        }
-        
-        try {
-            this.updateLock = true;
-            this.lastUpdateTimestamp = Date.now();
-            
-            const previousCoins = gameState.coins;
-            gameState.coins = newValue;
-            
-            console.log(`Setting coins: ${previousCoins} => ${newValue}`);
-            
-            // Update all displays
-            this.updateDisplays(previousCoins);
-            
-            // Also update currentGame.coins for arcade mode
-            if (currentGame) {
-                currentGame.coins = gameState.coins;
-            }
-            
-            // Store the updated value
-            await this.saveUserCoins();
-            
-            // Update arcade participant data if applicable
-            this.updateArcadeParticipant();
-            
-            // Broadcast in arcade mode
-            this.broadcastArcadeUpdate();
-            
-            return gameState.coins;
-        } catch (error) {
-            console.error("Error setting coins:", error);
-            return gameState.coins;
-        } finally {
-            setTimeout(() => {
-                this.updateLock = false;
-                
-                if (this.pendingUpdates.length > 0) {
-                    const nextAmount = this.pendingUpdates.shift();
-                    this.updateCoins(nextAmount);
-                }
-            }, 300);
-        }
-    },
-    
-    // Save coins to database and localStorage
-    saveUserCoins: async function() {
-        // Save to database for logged in users
-        if (currentUser?.id) {
-            try {
-                const { error } = await supabaseClient
-                    .from("game_progress")
-                    .update({ coins: gameState.coins })
-                    .eq("user_id", currentUser.id);
-                    
-                if (error) {
-                    console.error("Error saving coins to database:", error);
-                }
-            } catch (error) {
-                console.error("Error saving coins to database:", error);
-            }
-        }
-        
-        // Always save to localStorage as backup
-        try {
-            const savedProgress = localStorage.getItem("simploxProgress");
-            let progress = {};
-            
-            if (savedProgress) {
-                progress = JSON.parse(savedProgress);
-            }
-            
-            progress.coins = gameState.coins;
-            localStorage.setItem("simploxProgress", JSON.stringify(progress));
-        } catch (error) {
-            console.error("Error saving coins to localStorage:", error);
-        }
-    },
-    
-    // Update coin displays with animation
-    updateDisplays: function(previousValue = null) {
-        if (previousValue === null) {
-            previousValue = gameState.coins;
-        }
-        
-        document.querySelectorAll('.coin-count').forEach(display => {
-            this.animateCoinDisplay(display, previousValue, gameState.coins);
-        });
-        
-        // Update perk buttons based on new coin amount
-        if (typeof updatePerkButtons === 'function') {
-            updatePerkButtons();
-        }
-    },
-    
-    // Animate a single coin display
-    // Animate a single coin display
-animateCoinDisplay: function(element, startValue, endValue) {
-    if (!element) return;
-    
-    // Cancel any ongoing animation for this element
-    const existingTimerId = this.animationTimers.get(element);
-    if (existingTimerId) {
-        cancelAnimationFrame(existingTimerId);
-        this.animationTimers.delete(element);
-    }
-    
-    startValue = parseFloat(startValue) || 0;
-    endValue = parseFloat(endValue) || 0;
-    
-    // Skip animation if values are the same
-    if (startValue === endValue) {
-        element.textContent = endValue;
-        return;
-    }
-    
-    // Duration in ms, shorter for more responsiveness
-    const duration = 600; 
-    const frameRate = 1000 / 60; // 60fps
-    const totalFrames = duration / frameRate;
-    const changePerFrame = (endValue - startValue) / totalFrames;
-    
-    let currentFrame = 0;
-    let currentValue = startValue;
-    
-    element.classList.add('animating');
-    
-    const animate = () => {
-        currentFrame++;
-        currentValue += changePerFrame;
-        
-        // Handle end conditions properly
-        if (currentFrame <= totalFrames && 
-            ((changePerFrame > 0 && currentValue < endValue) || 
-             (changePerFrame < 0 && currentValue > endValue))) {
-            
-            element.textContent = Math.round(currentValue);
-            
-            if (changePerFrame > 0) {
-                element.style.color = 'var(--success)';
-            } else if (changePerFrame < 0) {
-                element.style.color = 'var(--error)';
-            }
-            
-            // Schedule next frame and store the timer ID
-            const newTimerId = requestAnimationFrame(animate);
-            this.animationTimers.set(element, newTimerId);
-        } else {
-            // Ensure final value is exactly right
-            element.textContent = endValue;
-            this.animationTimers.delete(element);
-            
-            setTimeout(() => {
-                element.style.color = '';
-                element.classList.remove('animating');
-            }, 300);
-        }
-    };
-    
-    // Start animation and store the timer ID
-    const initialTimerId = requestAnimationFrame(animate);
-    this.animationTimers.set(element, initialTimerId);
-},
-    
-    // Observe DOM for new coin displays
-    observeCoinsDisplay: function() {
-        const observer = new MutationObserver(mutations => {
-            let shouldUpdate = false;
-            
-            mutations.forEach(mutation => {
-                if (mutation.addedNodes.length > 0) {
-                    // Check if any added nodes contain coin displays
-                    mutation.addedNodes.forEach(node => {
-                        if (node.nodeType === 1) { // Element node
-                            if (node.classList?.contains('coin-count') || 
-                                node.querySelector?.('.coin-count')) {
-                                shouldUpdate = true;
-                            }
-                        }
-                    });
-                }
-            });
-            
-            if (shouldUpdate) {
-                this.updateDisplays();
-            }
-        });
-        
-        // Observe the entire document for changes
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-    },
-    
-    // Update arcade participant data
-    updateArcadeParticipant: function() {
-        if (!currentArcadeSession?.playerName) return;
-        
-        const index = currentArcadeSession.participants.findIndex(
-            p => p.username === currentArcadeSession.playerName
-        );
-        
-        if (index !== -1) {
-            currentArcadeSession.participants[index].coins = gameState.coins;
-        }
-    },
-    
-    // Broadcast coin update in arcade mode
-    broadcastArcadeUpdate: function() {
-        if (!window.arcadeChannel || 
-            !currentArcadeSession?.playerName || 
-            window.arcadeChannel.subscription?.state !== "SUBSCRIBED") {
-            return;
-        }
-        
-        window.arcadeChannel.send({
-            type: 'broadcast',
-            event: 'progress_update',
-            payload: {
-                username: currentArcadeSession.playerName,
-                wordsCompleted: currentGame?.wordsCompleted || 0,
-                coins: gameState.coins,
-                timestamp: Date.now(),
-                source: 'coinsManager',
-                isTrusted: true
-            }
-        });
-    },
-    
-    // Add visual pulse effect to coins
-    pulseCoins: function(times = 1) {
-        const coinIcons = document.querySelectorAll('.coin-icon');
-        
-        coinIcons.forEach(coinIcon => {
-            if (!coinIcon) return;
-            
-            let pulseCount = 0;
-            const doPulse = () => {
-                coinIcon.classList.add('coin-pulse');
-                setTimeout(() => {
-                    coinIcon.classList.remove('coin-pulse');
-                    pulseCount++;
-                    if (pulseCount < times) {
-                        setTimeout(doPulse, 100);
-                    }
-                }, 500);
-            };
-            
-            doPulse();
-        });
-    }
+  initialized: false,
+  updateLock: false,
+  pendingUpdates: [],
+  animationTimers: new Map(),
+  lastUpdateTimestamp: 0,
+  
+  // Initialize the coins manager
+  initialize: async function() {
+      if (this.initialized) return;
+      
+      console.log("Initializing CoinsManager");
+      this.initialized = true;
+      
+      // Load initial coin values
+      await this.loadUserCoins();
+      
+      // Watch for DOM changes that might add new coin displays
+      this.observeCoinsDisplay();
+      
+      // Initial update
+      this.updateDisplays();
+  },
+  
+  // Load user's coins from database or localStorage
+  loadUserCoins: async function() {
+      try {
+          // For logged in users, load from database
+          if (currentUser?.id) {
+              const { data, error } = await supabaseClient
+                  .from("game_progress")
+                  .select("coins")
+                  .eq("user_id", currentUser.id)
+                  .single();
+                  
+              if (!error && data && typeof data.coins === 'number') {
+                  gameState.coins = data.coins;
+                  console.log("Loaded coins from database:", gameState.coins);
+                  return gameState.coins;
+              }
+          }
+          
+          // Fall back to localStorage
+          const savedProgress = localStorage.getItem("simploxProgress");
+          if (savedProgress) {
+              try {
+                  const progress = JSON.parse(savedProgress);
+                  if (typeof progress.coins === 'number') {
+                      gameState.coins = progress.coins;
+                      console.log("Loaded coins from localStorage:", gameState.coins);
+                      return gameState.coins;
+                  }
+              } catch (e) {
+                  console.error("Error parsing saved progress:", e);
+              }
+          }
+          
+          // Default to 0 if no saved coins found
+          gameState.coins = 0;
+          return 0;
+      } catch (error) {
+          console.error("Error loading user coins:", error);
+          gameState.coins = 0;
+          return 0;
+      }
+  },
+  
+  // Update coin amount and all displays
+  updateCoins: async function(amount, animationOrigin = null) {
+      if (this.updateLock) {
+          this.pendingUpdates.push({amount, animationOrigin});
+          console.log("Coin update queued:", amount);
+          return gameState.coins;
+      }
+      
+      try {
+          this.updateLock = true;
+          this.lastUpdateTimestamp = Date.now();
+          
+          const previousCoins = gameState.coins;
+          gameState.coins += amount;
+          
+          console.log(`Updating coins: ${previousCoins} + (${amount}) = ${gameState.coins}`);
+          
+          // Update all displays
+          this.updateDisplays(previousCoins);
+          
+          // Show animation if positive amount and origin coordinates provided
+          if (amount > 0 && animationOrigin) {
+              showCoinAnimation(animationOrigin.x, animationOrigin.y, amount);
+          }
+          
+          // Also update currentGame.coins for arcade mode
+          if (currentGame) {
+              currentGame.coins = gameState.coins;
+          }
+          
+          // Store the updated value
+          await this.saveUserCoins();
+          
+          // Update arcade participant data if applicable
+          this.updateArcadeParticipant();
+          
+          // Broadcast in arcade mode
+          this.broadcastArcadeUpdate();
+          
+          return gameState.coins;
+      } catch (error) {
+          console.error("Error updating coins:", error);
+          return gameState.coins;
+      } finally {
+          // Process any pending updates after a short delay
+          setTimeout(() => {
+              this.updateLock = false;
+              
+              if (this.pendingUpdates.length > 0) {
+                  const nextUpdate = this.pendingUpdates.shift();
+                  this.updateCoins(nextUpdate.amount, nextUpdate.animationOrigin);
+              }
+          }, 300);
+      }
+  },
+  
+  // Award coins with animation at mouse/touch position
+  awardCoins: function(amount) {
+      if (amount <= 0) return gameState.coins;
+      
+      // Get animation origin (center of screen if event not available)
+      let origin = {
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2
+      };
+      
+      // Try to get last mouse/touch position
+      if (window.lastInteractionPos) {
+          origin = window.lastInteractionPos;
+      }
+      
+      // Apply the update with animation
+      return this.updateCoins(amount, origin);
+  },
+  
+  // Deduct coins with audio/visual feedback
+  deductCoins: function(amount) {
+      if (amount <= 0) return gameState.coins;
+      
+      // Apply negative value
+      this.updateCoins(-amount);
+      
+      // Future: Add sound effect or visual feedback for coin loss
+      
+      return gameState.coins;
+  },
+  
+  // Set coin amount directly (overwrite instead of add)
+  setCoins: async function(newValue) {
+      if (this.updateLock) {
+          this.pendingUpdates.push(newValue - gameState.coins);
+          return gameState.coins;
+      }
+      
+      try {
+          this.updateLock = true;
+          this.lastUpdateTimestamp = Date.now();
+          
+          const previousCoins = gameState.coins;
+          gameState.coins = newValue;
+          
+          console.log(`Setting coins: ${previousCoins} => ${newValue}`);
+          
+          // Update all displays
+          this.updateDisplays(previousCoins);
+          
+          // Also update currentGame.coins for arcade mode
+          if (currentGame) {
+              currentGame.coins = gameState.coins;
+          }
+          
+          // Store the updated value
+          await this.saveUserCoins();
+          
+          // Update arcade participant data if applicable
+          this.updateArcadeParticipant();
+          
+          // Broadcast in arcade mode
+          this.broadcastArcadeUpdate();
+          
+          return gameState.coins;
+      } catch (error) {
+          console.error("Error setting coins:", error);
+          return gameState.coins;
+      } finally {
+          setTimeout(() => {
+              this.updateLock = false;
+              
+              if (this.pendingUpdates.length > 0) {
+                  const nextAmount = this.pendingUpdates.shift();
+                  this.updateCoins(nextAmount);
+              }
+          }, 300);
+      }
+  },
+  
+  // Save coins to database and localStorage
+  saveUserCoins: async function() {
+      // Save to database for logged in users
+      if (currentUser?.id) {
+          try {
+              const { error } = await supabaseClient
+                  .from("game_progress")
+                  .update({ coins: gameState.coins })
+                  .eq("user_id", currentUser.id);
+                  
+              if (error) {
+                  console.error("Error saving coins to database:", error);
+              }
+          } catch (error) {
+              console.error("Error saving coins to database:", error);
+          }
+      }
+      
+      // Always save to localStorage as backup
+      try {
+          const savedProgress = localStorage.getItem("simploxProgress");
+          let progress = {};
+          
+          if (savedProgress) {
+              progress = JSON.parse(savedProgress);
+          }
+          
+          progress.coins = gameState.coins;
+          localStorage.setItem("simploxProgress", JSON.stringify(progress));
+      } catch (error) {
+          console.error("Error saving coins to localStorage:", error);
+      }
+  },
+  
+  // Update coin displays with animation
+  updateDisplays: function(previousValue = null) {
+      if (previousValue === null) {
+          previousValue = gameState.coins;
+      }
+      
+      document.querySelectorAll('.coin-count').forEach(display => {
+          this.animateCoinDisplay(display, previousValue, gameState.coins);
+      });
+      
+      // Update perk buttons based on new coin amount
+      if (typeof updatePerkButtons === 'function') {
+          updatePerkButtons();
+      }
+  },
+  
+  // Animate a single coin display
+  animateCoinDisplay: function(element, startValue, endValue) {
+      if (!element) return;
+      
+      // Cancel any ongoing animation for this element
+      const existingTimerId = this.animationTimers.get(element);
+      if (existingTimerId) {
+          cancelAnimationFrame(existingTimerId);
+          this.animationTimers.delete(element);
+      }
+      
+      startValue = parseFloat(startValue) || 0;
+      endValue = parseFloat(endValue) || 0;
+      
+      // Skip animation if values are the same
+      if (startValue === endValue) {
+          element.textContent = endValue;
+          return;
+      }
+      
+      // Duration in ms, shorter for more responsiveness
+      const duration = 600; 
+      const frameRate = 1000 / 60; // 60fps
+      const totalFrames = duration / frameRate;
+      const changePerFrame = (endValue - startValue) / totalFrames;
+      
+      let currentFrame = 0;
+      let currentValue = startValue;
+      
+      element.classList.add('animating');
+      
+      const animate = () => {
+          currentFrame++;
+          currentValue += changePerFrame;
+          
+          // Handle end conditions properly
+          if (currentFrame <= totalFrames && 
+              ((changePerFrame > 0 && currentValue < endValue) || 
+               (changePerFrame < 0 && currentValue > endValue))) {
+              
+              element.textContent = Math.round(currentValue);
+              
+              if (changePerFrame > 0) {
+                  element.style.color = 'var(--success)';
+              } else if (changePerFrame < 0) {
+                  element.style.color = 'var(--error)';
+              }
+              
+              // Schedule next frame and store the timer ID
+              const newTimerId = requestAnimationFrame(animate);
+              this.animationTimers.set(element, newTimerId);
+          } else {
+              // Ensure final value is exactly right
+              element.textContent = endValue;
+              this.animationTimers.delete(element);
+              
+              setTimeout(() => {
+                  element.style.color = '';
+                  element.classList.remove('animating');
+              }, 300);
+          }
+      };
+      
+      // Start animation and store the timer ID
+      const initialTimerId = requestAnimationFrame(animate);
+      this.animationTimers.set(element, initialTimerId);
+  },
+  
+  // Observe DOM for new coin displays
+  observeCoinsDisplay: function() {
+      const observer = new MutationObserver(mutations => {
+          let shouldUpdate = false;
+          
+          mutations.forEach(mutation => {
+              if (mutation.addedNodes.length > 0) {
+                  // Check if any added nodes contain coin displays
+                  mutation.addedNodes.forEach(node => {
+                      if (node.nodeType === 1) { // Element node
+                          if (node.classList?.contains('coin-count') || 
+                              node.querySelector?.('.coin-count')) {
+                              shouldUpdate = true;
+                          }
+                      }
+                  });
+              }
+          });
+          
+          if (shouldUpdate) {
+              this.updateDisplays();
+          }
+      });
+      
+      // Observe the entire document for changes
+      observer.observe(document.body, {
+          childList: true,
+          subtree: true
+      });
+  },
+  
+  // Update arcade participant data
+  updateArcadeParticipant: function() {
+      if (!currentArcadeSession?.playerName) return;
+      
+      const index = currentArcadeSession.participants.findIndex(
+          p => p.username === currentArcadeSession.playerName
+      );
+      
+      if (index !== -1) {
+          currentArcadeSession.participants[index].coins = gameState.coins;
+      }
+  },
+  
+  // Broadcast coin update in arcade mode
+  broadcastArcadeUpdate: function() {
+      if (!window.arcadeChannel || 
+          !currentArcadeSession?.playerName || 
+          window.arcadeChannel.subscription?.state !== "SUBSCRIBED") {
+          return;
+      }
+      
+      window.arcadeChannel.send({
+          type: 'broadcast',
+          event: 'progress_update',
+          payload: {
+              username: currentArcadeSession.playerName,
+              wordsCompleted: currentGame?.wordsCompleted || 0,
+              coins: gameState.coins,
+              timestamp: Date.now(),
+              source: 'coinsManager',
+              isTrusted: true
+          }
+      });
+  },
+  
+  // Add visual pulse effect to coins
+  pulseCoins: function(times = 1) {
+      const coinIcons = document.querySelectorAll('.coin-icon');
+      
+      coinIcons.forEach(coinIcon => {
+          if (!coinIcon) return;
+          
+          let pulseCount = 0;
+          const doPulse = () => {
+              coinIcon.classList.add('coin-pulse');
+              setTimeout(() => {
+                  coinIcon.classList.remove('coin-pulse');
+                  pulseCount++;
+                  if (pulseCount < times) {
+                      setTimeout(doPulse, 100);
+                  }
+              }, 500);
+          };
+          
+          doPulse();
+      });
+  }
 };
 
 const WordsManager = {
@@ -4470,11 +4505,11 @@ async function trackWordEncounter(word, gameMode = 'standard') {
   }
 
   function createResurrectionParticles() {
-    const container = document.querySelector('.resurrection-animation');
-    if (!container) return;
+    const progressCircle = document.querySelector('.progress-circle');
+    if (!progressCircle) return;
     
-    // Get center of container
-    const rect = container.getBoundingClientRect();
+    // Get center of progress circle for particle origin
+    const rect = progressCircle.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     
@@ -4538,168 +4573,356 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function showReviveOverlay() {
-    const overlay = document.createElement('div');
-    overlay.className = 'revive-overlay';
-    overlay.innerHTML = `
-        <div class="revive-content">
-            <div class="ankh-symbol">☥</div>
-            <h2 class="revive-title">Revive?</h2>
-            <div class="revive-timer">5</div>
-            <button class="revive-button">Revive</button>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    
-    // Fade in animation
-    requestAnimationFrame(() => {
-        overlay.classList.add('show');
-    });
-    
-    // Set up countdown
-    let seconds = 5;
-    const timerDisplay = overlay.querySelector('.revive-timer');
-    
-    const countdownInterval = setInterval(() => {
-        seconds--;
-        timerDisplay.textContent = seconds;
-        
-        if (seconds <= 0) {
-            clearInterval(countdownInterval);
-            handleReviveTimeout();
-        }
-    }, 1000);
-    
-    // Handle revive button click
-    const reviveButton = overlay.querySelector('.revive-button');
-    reviveButton.onclick = () => {
-        clearInterval(countdownInterval);
-        handleRevive();
-    };
-    
-    // Store interval for cleanup
-    overlay.dataset.intervalId = countdownInterval;
+  // Clear timer and store game state
+  clearTimer();
+  
+  // Store original coin container HTML for later restoration
+  const coinsContainer = document.querySelector('.coins-container');
+  if (coinsContainer) {
+      window.originalCoinsHTML = coinsContainer.innerHTML;
+      
+      // Replace with ankh symbol
+      coinsContainer.innerHTML = `
+          <div class="ankh-container">
+              <div class="ankh-symbol">☥</div>
+              <div class="revive-timer">5</div>
+          </div>
+      `;
+      coinsContainer.classList.add('resurrection-mode');
+  }
+  
+  // Get question screen and change background to black with transition
+  const questionScreen = document.getElementById('question-screen');
+  if (questionScreen) {
+      // Store original background
+      window.originalQuestionBackground = questionScreen.style.background;
+      
+      // Add transition property before changing background
+      questionScreen.style.transition = 'background 2s ease';
+      
+      // Force reflow to ensure transition applies
+      void questionScreen.offsetWidth;
+      
+      // Apply black background
+      questionScreen.style.background = '#000000';
+  }
+  
+  // Replace question word with "Revive?"
+  const questionWord = document.getElementById('question-word');
+  if (questionWord) {
+      window.originalQuestionWord = questionWord.innerHTML;
+      questionWord.innerHTML = `<span class="revive-title">Revive?</span>`;
+      questionWord.classList.add('revive-question');
+  }
+  
+  // Get the buttons container
+  const buttonsContainer = document.querySelector('.buttons');
+  if (buttonsContainer) {
+      // Store original buttons HTML
+      window.originalButtonsHTML = buttonsContainer.innerHTML;
+      
+      // Replace with revive and home buttons (both with same styling)
+      buttonsContainer.innerHTML = `
+          <button class="game-btn revive-button">
+              <span>Continue Playing</span>
+          </button>
+          <button class="game-btn home-button resurrection-home-button">
+              <span>Return to Menu</span>
+          </button>
+      `;
+  }
+  
+  // Get the progress circle and add resurrection class
+  const progressCircle = document.querySelector('.progress-circle');
+  if (progressCircle) {
+      progressCircle.classList.add('resurrection-ready');
+  }
+  
+  // Set up countdown
+  let seconds = 5;
+  const timerDisplay = document.querySelector('.revive-timer');
+  
+  const countdownInterval = setInterval(() => {
+      seconds--;
+      if (timerDisplay) {
+          timerDisplay.textContent = seconds;
+      }
+      
+      if (seconds <= 0) {
+          clearInterval(countdownInterval);
+          handleReviveTimeout();
+      }
+  }, 1000);
+  
+  // Handle revive button click
+  const reviveButton = document.querySelector('.revive-button');
+  if (reviveButton) {
+      reviveButton.onclick = () => {
+          clearInterval(countdownInterval);
+          handleRevive();
+      };
+  }
+  
+  // Handle home button click
+  const homeButton = document.querySelector('.resurrection-home-button');
+  if (homeButton) {
+      homeButton.onclick = () => {
+          clearInterval(countdownInterval);
+          handleReviveTimeout();
+      };
+  }
+  
+  // Store interval for cleanup
+  window.reviveCountdownInterval = countdownInterval;
 }
 
+// Add this code to enhance mobile experience for the resurrection UI
+document.addEventListener('DOMContentLoaded', function() {
+  // Listen for resurrection mode to activate
+  const observer = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+          if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+              const target = mutation.target;
+              
+              // Check if we're entering resurrection mode
+              if (target.classList.contains('resurrection-ready') || 
+                  target.classList.contains('resurrection-mode')) {
+                  
+                  // On mobile, scroll to center the resurrection UI
+                  if (window.innerWidth <= 768) {
+                      // Scroll the question word into view
+                      const questionWord = document.getElementById('question-word');
+                      if (questionWord) {
+                          setTimeout(() => {
+                              questionWord.scrollIntoView({
+                                  behavior: 'smooth',
+                                  block: 'center'
+                              });
+                          }, 300);
+                      }
+                      
+                      // Ensure buttons are visible and easily tappable
+                      const buttons = document.querySelectorAll('.revive-button, .resurrection-home-button');
+                      buttons.forEach(button => {
+                          button.style.touchAction = 'manipulation';
+                          button.style.webkitTapHighlightColor = 'rgba(0,0,0,0)';
+                      });
+                  }
+              }
+          }
+      });
+  });
+  
+  // Start observing the document for resurrection changes
+  observer.observe(document.body, { 
+      attributes: true,
+      subtree: true,
+      attributeFilter: ['class']
+  });
+});
+
 function handleReviveTimeout() {
-    const overlay = document.querySelector('.revive-overlay');
-    
-    if (overlay) {
-        overlay.classList.remove('show');
-        setTimeout(() => {
-            overlay.remove();
-            showScreen('welcome-screen');
-        }, 500);
-    }
+  console.log("Revive timeout - returning to welcome screen");
+  
+  // Clear countdown interval if it exists
+  if (window.reviveCountdownInterval) {
+      clearInterval(window.reviveCountdownInterval);
+      window.reviveCountdownInterval = null;
+  }
+  
+  // Force clear any game state that might try to resume
+  if (currentGame) {
+      currentGame.active = false;
+  }
+  
+  // Clear any stored game context
+  localStorage.removeItem("gameContext");
+  
+  // First reset the question screen background instantly (no transition needed for this case)
+  const questionScreen = document.getElementById('question-screen');
+  if (questionScreen) {
+      questionScreen.style.transition = 'none'; // Disable transition for immediate effect
+      questionScreen.style.background = window.originalQuestionBackground || '';
+  }
+  
+  // Reset UI elements
+  const coinsContainer = document.querySelector('.coins-container');
+  if (coinsContainer && window.originalCoinsHTML) {
+      coinsContainer.innerHTML = window.originalCoinsHTML;
+      coinsContainer.classList.remove('resurrection-mode');
+  }
+  
+  const progressCircle = document.querySelector('.progress-circle');
+  if (progressCircle) {
+      progressCircle.classList.remove('resurrection-ready', 'resurrection-active');
+  }
+  
+  const questionWord = document.getElementById('question-word');
+  if (questionWord && window.originalQuestionWord !== undefined) {
+      questionWord.innerHTML = window.originalQuestionWord;
+      questionWord.classList.remove('revive-question');
+  }
+  
+  // Reset any stored original values
+  window.originalQuestionBackground = undefined;
+  window.originalQuestionWord = undefined;
+  window.originalCoinsHTML = undefined;
+  window.originalButtonsHTML = undefined;
+  
+  // Make sure the welcome screen has proper background
+  const welcomeScreen = document.getElementById('welcome-screen');
+  if (welcomeScreen) {
+      // Ensure welcome screen has its default background (not black)
+      welcomeScreen.style.background = '';
+  }
+  
+  // Set a flag to prevent auto-resumption
+  window.preventAutoResume = true;
+  
+  // Force a small delay to ensure all resets are applied before showing welcome screen
+  setTimeout(() => {
+      showScreen('welcome-screen');
+      
+      // Re-enable transitions after screen change
+      if (questionScreen) {
+          setTimeout(() => {
+              questionScreen.style.transition = '';
+          }, 50);
+      }
+      
+      console.log("Navigation to welcome screen completed");
+  }, 50);
+}
+
+function restoreGameUI() {
+  // Restore question screen background with transition
+  const questionScreen = document.getElementById('question-screen');
+  if (questionScreen && window.originalQuestionBackground !== undefined) {
+      // Make sure transition property is set
+      questionScreen.style.transition = 'background 2s ease';
+      
+      // Apply original background
+      questionScreen.style.background = window.originalQuestionBackground;
+      
+      // Clean up after transition
+      setTimeout(() => {
+          questionScreen.style.transition = '';
+          window.originalQuestionBackground = undefined;
+      }, 2000);
+  }
+  
+  // Restore original question word
+  const questionWord = document.getElementById('question-word');
+  if (questionWord && window.originalQuestionWord !== undefined) {
+      questionWord.innerHTML = window.originalQuestionWord;
+      questionWord.classList.remove('revive-question');
+      window.originalQuestionWord = undefined;
+  }
+  
+  // Restore coins container
+  const coinsContainer = document.querySelector('.coins-container');
+  if (coinsContainer && window.originalCoinsHTML) {
+      coinsContainer.innerHTML = window.originalCoinsHTML;
+      coinsContainer.classList.remove('resurrection-mode');
+      window.originalCoinsHTML = undefined;
+  }
+  
+  // Restore buttons container
+  const buttonsContainer = document.querySelector('.buttons');
+  if (buttonsContainer && window.originalButtonsHTML) {
+      buttonsContainer.style.opacity = '1';
+      buttonsContainer.innerHTML = window.originalButtonsHTML;
+      window.originalButtonsHTML = undefined;
+  }
+  
+  // Reset progress circle styling
+  const progressCircle = document.querySelector('.progress-circle');
+  if (progressCircle) {
+      progressCircle.classList.remove('resurrection-ready', 'resurrection-active');
+      
+      const progress = progressCircle.querySelector('.progress');
+      if (progress) {
+          progress.style.transition = '';
+          progress.style.stroke = '';
+          progress.style.strokeDashoffset = '';
+          progress.style.zIndex = '';
+      }
+  }
 }
 
 function handleRevive() {
-    const overlay = document.querySelector('.revive-overlay');
-    
-    if (overlay) {
-        // First change content to show resurrection animation
-        const content = overlay.querySelector('.revive-content');
-        content.innerHTML = `
-            <div class="resurrection-animation">
-                <div class="progress-circle resurrection-circle">
-                    <svg width="100%" height="100%" viewBox="0 0 120 120">
-                        <circle class="bg" cx="60" cy="60" r="54" stroke-width="8"/>
-                        <circle class="resurrection-progress" cx="60" cy="60" r="54" stroke-width="8"/>
-                    </svg>
-                    <div class="ankh-symbol resurrection-ankh">☥</div>
-                </div>
-            </div>
-        `;
-        
-        // Start resurrection animation
-        const progressCircle = overlay.querySelector('.resurrection-progress');
-        const circumference = 2 * Math.PI * 54;
-        progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
-        progressCircle.style.strokeDashoffset = circumference;
-        
-        // Create light particles effect
-        createResurrectionParticles();
-        
-        // Animate progress circle filling
-        setTimeout(() => {
-            progressCircle.style.transition = 'stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1)';
-            progressCircle.style.strokeDashoffset = '0';
-        }, 100);
-        
-        // After animation completes, restart level
-        setTimeout(() => {
-            overlay.classList.remove('show');
-            setTimeout(() => {
-                overlay.remove();
-                
-                // Reset game state
-                currentGame.wrongStreak = 0;
-                timeRemaining = currentGame.initialTimeRemaining;
-                
-                // If in custom practice, handle specially
-                if (currentGame.isCustomPractice) {
-                    startCustomLevel(currentGame.customLevel);
-                } else {
-                    startLevel(gameState.currentLevel);
-                }
-            }, 500);
-        }, 2500);
-    }
+  // Get UI elements
+  const progressCircle = document.querySelector('.progress-circle');
+  const progress = progressCircle ? progressCircle.querySelector('.progress') : null;
+  const coinsContainer = document.querySelector('.coins-container');
+  const questionWord = document.getElementById('question-word');
+  const buttonsContainer = document.querySelector('.buttons');
+  
+  // Clear countdown interval if it exists
+  if (window.reviveCountdownInterval) {
+      clearInterval(window.reviveCountdownInterval);
+      window.reviveCountdownInterval = null;
+  }
+  
+  if (progressCircle && coinsContainer && questionWord) {
+      // Update question word to show "Reviving..."
+      questionWord.innerHTML = `<span class="revive-title">Reviving...</span>`;
+      
+      // Hide buttons during animation
+      if (buttonsContainer) {
+          buttonsContainer.style.opacity = '0';
+      }
+      
+      // Update ankh container to show resurrection animation
+      coinsContainer.innerHTML = `
+          <div class="ankh-container">
+              <div class="ankh-symbol resurrection-ankh">☥</div>
+          </div>
+      `;
+      
+      // Add resurrection classes to progress circle
+      progressCircle.classList.add('resurrection-active');
+      
+      // Store original progress styling
+      const originalStroke = progress.style.stroke;
+      const originalDashOffset = progress.style.strokeDashoffset;
+      
+      // Prepare progress circle for resurrection animation
+      const circumference = 2 * Math.PI * 54;
+      progress.style.strokeDasharray = `${circumference} ${circumference}`;
+      progress.style.strokeDashoffset = circumference; // Start empty
+      progress.style.stroke = '#FFD700'; // Gold color
+      progress.style.zIndex = '10'; // Ensure it's above other elements
+      
+      // Create light particles effect
+      createResurrectionParticles();
+      
+      // Animate progress circle filling
+      setTimeout(() => {
+          progress.style.transition = 'stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1)';
+          progress.style.strokeDashoffset = '0'; // Fill completely
+      }, 100);
+      
+      // After animation completes, restart level
+      setTimeout(() => {
+          // Restore UI elements
+          restoreGameUI();
+          
+          // Reset game state
+          currentGame.wrongStreak = 0;
+          timeRemaining = currentGame.initialTimeRemaining;
+          
+          // If in custom practice, handle specially
+          if (currentGame.isCustomPractice) {
+              startCustomLevel(currentGame.customLevel);
+          } else {
+              startLevel(gameState.currentLevel);
+          }
+      }, 2500);
+  }
 }
 
-function createResurrectionParticles() {
-    const container = document.querySelector('.resurrection-animation');
-    if (!container) return;
-    
-    // Get center of container
-    const rect = container.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    
-    // Create particles
-    for (let i = 0; i < 40; i++) {
-        const particle = document.createElement('div');
-        particle.className = 'resurrection-particle';
-        
-        // Random angle and distance
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 100 + Math.random() * 150;
-        const duration = 1 + Math.random() * 1.5;
-        const delay = Math.random() * 0.5;
-        const size = 3 + Math.random() * 7;
-        
-        // Calculate end position
-        const endX = Math.cos(angle) * distance;
-        const endY = Math.sin(angle) * distance;
-        
-        // Set particle style
-        particle.style.cssText = `
-            position: fixed;
-            left: ${centerX}px;
-            top: ${centerY}px;
-            width: ${size}px;
-            height: ${size}px;
-            background: #FFD700;
-            border-radius: 50%;
-            opacity: 0;
-            z-index: 1001;
-            box-shadow: 0 0 ${size}px #FFD700;
-            transform: translate(-50%, -50%);
-            animation: particleFlow ${duration}s ease-out ${delay}s forwards;
-        `;
-        
-        // Set custom properties for animation
-        particle.style.setProperty('--end-x', `${endX}px`);
-        particle.style.setProperty('--end-y', `${endY}px`);
-        
-        document.body.appendChild(particle);
-        
-        // Clean up after animation
-        setTimeout(() => {
-            particle.remove();
-        }, (duration + delay) * 1000);
-    }
-}
+
 
 function updateSidePanelLink() {
     const levelMapLink = document.querySelector('.nav-link[onclick*="stage-screen"]');
@@ -12487,3 +12710,315 @@ function changeCurrentStage(stageId) {
     }
   });
   
+  // ADD this to the top of script1.js after the initial imports
+const GameEconomy = {
+  // Base reward values
+  rewards: {
+      // Regular level rewards
+      correctAnswer: 10,         // Base reward for correct answer
+      wrongAnswer: -3,           // Penalty for wrong answer
+      perfectLevel: 25,          // Bonus for completing level with no mistakes
+      levelCompletion: 15,       // Bonus for completing any level
+      
+      // Word learning rewards
+      newWord: 5,                // First time seeing a word
+      wordMastery: 3,            // Subsequent correct answers for known words
+      
+      // Streak rewards
+      shortStreak: 5,            // 3 correct answers in a row
+      mediumStreak: 10,          // 5 correct answers in a row
+      longStreak: 20,            // 10 correct answers in a row
+      
+      // Special rewards
+      bossDefeat: 100,           // Defeating a boss level
+      setCompletion: 50,         // Completing a full set
+      dailyLogin: 25,            // Daily login bonus
+      
+      // Game mode specific
+      arcadeBase: 5,             // Base reward for arcade mode
+      customPracticeBase: 8      // Base reward for custom practice
+  },
+  
+  // Perk costs - progressive pricing
+  perkCosts: {
+      timeFreeze: [20, 30, 45, 65, 90],      // Cost increases with each purchase
+      skip: [30, 45, 65, 90, 120],           // Skipping is more valuable
+      clue: [15, 25, 40, 60, 85],            // Clues are helpful but not game-changing
+      reveal: [50, 75, 100, 150, 200]        // Revealing answers is most powerful
+  },
+  
+  // Max level for each perk
+  maxPerkLevel: 5,
+  
+  // Calculate current perk price based on owned amount
+  getPerkPrice: function(perkType, ownedAmount) {
+      if (!this.perkCosts[perkType]) return 999; // Invalid perk
+      
+      const level = Math.min(ownedAmount, this.perkCosts[perkType].length - 1);
+      return this.perkCosts[perkType][level];
+  },
+  
+  // Calculate streak bonus based on streak length
+  getStreakBonus: function(streak) {
+      if (streak >= 10) return this.rewards.longStreak;
+      if (streak >= 5) return this.rewards.mediumStreak;
+      if (streak >= 3) return this.rewards.shortStreak;
+      return 0;
+  },
+  
+  // Calculate word mastery reward
+  getWordReward: function(isNewWord, practiceCount) {
+      if (isNewWord) return this.rewards.newWord;
+      
+      // For practiced words, reduce reward over time but keep a minimum
+      const masteryReward = Math.max(
+          this.rewards.wordMastery, 
+          Math.floor(this.rewards.wordMastery * (5 / (practiceCount + 3)))
+      );
+      
+      return masteryReward;
+  }
+};
+
+// Add helper functions for displaying coin animations
+
+// Displays a floating coin animation at the specified position
+function showCoinAnimation(x, y, amount) {
+  // Skip animation for zero or negative values
+  if (amount <= 0) return;
+
+  const coinText = document.createElement('div');
+  coinText.className = 'coin-animation';
+  coinText.textContent = `+${amount}`;
+  
+  // Position relative to viewport
+  coinText.style.cssText = `
+      position: fixed;
+      left: ${x}px;
+      top: ${y}px;
+      color: var(--gold);
+      font-weight: bold;
+      font-size: 1.2rem;
+      text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      animation: floatUpAndFade 1.5s ease-out forwards;
+  `;
+  
+  document.body.appendChild(coinText);
+  
+  // Create coin particle effects
+  for (let i = 0; i < Math.min(amount, 8); i++) {
+      const particle = document.createElement('div');
+      const size = 5 + Math.random() * 10;
+      
+      particle.className = 'coin-particle';
+      particle.style.cssText = `
+          position: fixed;
+          left: ${x}px;
+          top: ${y}px;
+          width: ${size}px;
+          height: ${size}px;
+          background: var(--gold);
+          border-radius: 50%;
+          pointer-events: none;
+          z-index: 9998;
+          transform: translate(-50%, -50%);
+          animation: coinParticleAnim 1s ease-out forwards;
+      `;
+      
+      // Set random animation properties
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 30 + Math.random() * 50;
+      particle.style.setProperty('--angle', angle);
+      particle.style.setProperty('--distance', distance + 'px');
+      
+      document.body.appendChild(particle);
+      
+      // Remove particle after animation
+      setTimeout(() => {
+          if (particle.parentNode) {
+              particle.parentNode.removeChild(particle);
+          }
+      }, 1000);
+  }
+  
+  // Remove coin text after animation
+  setTimeout(() => {
+      if (coinText.parentNode) {
+          coinText.parentNode.removeChild(coinText);
+      }
+  }, 1500);
+}
+
+// Add CSS for coin animations
+function addCoinAnimationStyles() {
+  if (document.getElementById('coin-animation-styles')) return;
+  
+  const styleElement = document.createElement('style');
+  styleElement.id = 'coin-animation-styles';
+  styleElement.textContent = `
+      @keyframes floatUpAndFade {
+          0% { transform: translate(-50%, -50%); opacity: 0; }
+          10% { transform: translate(-50%, -60%); opacity: 1; }
+          80% { opacity: 1; }
+          100% { transform: translate(-50%, -150%); opacity: 0; }
+      }
+      
+      @keyframes coinParticleAnim {
+          0% { transform: translate(-50%, -50%); opacity: 1; }
+          100% { 
+              transform: translate(
+                  calc(-50% + Math.cos(var(--angle)) * var(--distance)), 
+                  calc(-50% + Math.sin(var(--angle)) * var(--distance))
+              ); 
+              opacity: 0; 
+          }
+      }
+  `;
+  
+  document.head.appendChild(styleElement);
+}
+
+// Call this at initialization to ensure styles are loaded
+document.addEventListener('DOMContentLoaded', addCoinAnimationStyles);
+
+// ADD this at the end of script1.js for tracking interaction positions
+function setupInteractionTracking() {
+  // Store last interaction position for coin animations
+  window.lastInteractionPos = {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2
+  };
+  
+  // Track mouse movement
+  document.addEventListener('mousemove', function(e) {
+      window.lastInteractionPos = {
+          x: e.clientX,
+          y: e.clientY
+      };
+  }, {passive: true});
+  
+  // Track touch for mobile
+  document.addEventListener('touchmove', function(e) {
+      if (e.touches && e.touches[0]) {
+          window.lastInteractionPos = {
+              x: e.touches[0].clientX,
+              y: e.touches[0].clientY
+          };
+      }
+  }, {passive: true});
+  
+  // Track clicks
+  document.addEventListener('click', function(e) {
+      window.lastInteractionPos = {
+          x: e.clientX,
+          y: e.clientY
+      };
+  }, {passive: true});
+}
+
+// Initialize interaction tracking
+document.addEventListener('DOMContentLoaded', setupInteractionTracking);
+
+// These are the constants to adjust throughout the code
+const COIN_REWARDS = {
+  // Main game
+  CORRECT_ANSWER: 5,          // Base reward for correct answer (was 10)
+  WRONG_ANSWER: -2,           // Penalty for wrong answer (was -3)
+  PERFECT_LEVEL_BONUS: 10,    // Bonus for completing level with no mistakes
+  
+  // Streaks
+  STREAK_THRESHOLD: 3,        // Number of correct answers needed to start streak bonuses
+  STREAK_BONUS: 1,            // Additional coins per answer when on streak (max +5)
+  
+  // Word novelty
+  NEW_WORD: 3,                // Reward for first time seeing a word
+  REPEAT_WORD: 1,             // Reward for repeat words (up to 5 times)
+  
+  // Boss levels
+  BOSS_VICTORY: 100,          // Reward for defeating a boss (unchanged)
+  
+  // Level completion
+  SET_COMPLETION: 25,         // Bonus for completing a set
+  
+  // Perks costs (currently all set to 1)
+  PERK_COSTS: {
+      timeFreeze: 15,         // Cost for time freeze perk
+      skip: 10,               // Cost for skip perk
+      clue: 5,                // Cost for clue perk
+      reveal: 20              // Cost for reveal perk
+  }
+};
+
+// Add this function to update perk costs throughout the game
+function updatePerkCosts() {
+  // Update perk buttons costs display
+  document.querySelectorAll('.perk-button').forEach(button => {
+      const perkType = button.getAttribute('data-perk-type');
+      if (perkType && COIN_REWARDS.PERK_COSTS[perkType]) {
+          const costDisplay = button.querySelector('.perk-cost');
+          if (costDisplay) {
+              costDisplay.textContent = COIN_REWARDS.PERK_COSTS[perkType];
+          }
+      }
+  });
+  
+  // Update actual perk costs in game logic
+  if (typeof updatePerkButtons === 'function') {
+      updatePerkButtons();
+  }
+}
+
+// Call this function after DOM content is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Wait a bit to ensure the game is initialized
+  setTimeout(updatePerkCosts, 1000);
+});
+
+function restorePerksAfterResurrection() {
+  const perksContainer = document.querySelector('.perks-container');
+  if (perksContainer) {
+      // Remove disabled class and overlay
+      perksContainer.classList.remove('perks-disabled');
+      const overlay = perksContainer.querySelector('.perks-disabled-overlay');
+      if (overlay) {
+          overlay.remove();
+      }
+      
+      // Restore original state if available
+      if (window.originalPerksState) {
+          perksContainer.style.pointerEvents = window.originalPerksState.pointerEvents || '';
+          perksContainer.style.opacity = window.originalPerksState.opacity || '';
+          window.originalPerksState = null;
+      } else {
+          // Default values if original state isn't available
+          perksContainer.style.pointerEvents = '';
+          perksContainer.style.opacity = '';
+      }
+  }
+}
+
+function restorePerksAfterResurrection() {
+  const perksContainer = document.querySelector('.perks-container');
+  if (perksContainer) {
+      // Remove disabled class and overlay
+      perksContainer.classList.remove('perks-disabled');
+      const overlay = perksContainer.querySelector('.perks-disabled-overlay');
+      if (overlay) {
+          overlay.remove();
+      }
+      
+      // Restore original state if available
+      if (window.originalPerksState) {
+          perksContainer.style.pointerEvents = window.originalPerksState.pointerEvents || '';
+          perksContainer.style.opacity = window.originalPerksState.opacity || '';
+          window.originalPerksState = null;
+      } else {
+          // Default values if original state isn't available
+          perksContainer.style.pointerEvents = '';
+          perksContainer.style.opacity = '';
+      }
+  }
+}
