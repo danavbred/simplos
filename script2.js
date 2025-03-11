@@ -13912,13 +13912,9 @@ const PerkManager = {
         this.addPerkStyles();
         
         // Initialize unlocked perks set if needed
-        if (conditionMet && !gameState.unlockedPerks.has(perkType)) {
-          // Call our specific unlock function that ensures saving
-          unlockPerk(perkType);
-          
-          // Show unlock effect
-          showPerkUnlockEffect(perkType);
-      }
+        if (!gameState.unlockedPerks) {
+            gameState.unlockedPerks = new Set();
+        }
         
         // Load user stats and do a silent check of perks (no announcements at init)
         this.loadUserWordStats().then(() => {
