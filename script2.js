@@ -1065,6 +1065,31 @@ function updateTimerDisplay() {
     }
 }
 
+function updateTimerCircle(timeRemaining, totalTime) {
+  const timerProgress = document.querySelector('.timer-progress');
+  if (!timerProgress) return;
+
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+  
+  timerProgress.style.strokeDasharray = `${circumference} ${circumference}`;
+  
+  const percentage = timeRemaining / totalTime;
+  const dashoffset = circumference * (1 - percentage);
+  timerProgress.style.strokeDashoffset = dashoffset;
+
+  // Reset classes first
+  timerProgress.classList.remove('warning', 'caution');
+  
+  // Add appropriate color class based on percentage
+  if (percentage <= 0.25) {
+      timerProgress.classList.add('warning'); // Red for <= 25%
+  } else if (percentage <= 0.5) {
+      timerProgress.classList.add('caution'); // Yellow for <= 50%
+  }
+  // > 50% remains default (white)
+}
+
 function clearTimer() {
     if (timer) {
       clearInterval(timer);
@@ -2217,62 +2242,64 @@ function handleLevelProgression() {
 
 // REPLACE the updateProgressCircle function
 function updateProgressCircle() {
-    const progressElement = document.querySelector('.progress-circle .progress');
-    if (!progressElement) return;
-    
-    // Tell browser to prepare for animation
-    progressElement.style.willChange = 'stroke-dashoffset, stroke';
-    
-    const circumference = 2 * Math.PI * 54;
-    const progress = currentGame.currentIndex / currentGame.words.length;
+  const progressElement = document.querySelector('.progress-circle .progress');
+  if (!progressElement) return;
   
-    // Add smooth transition only when needed
-    const transitionNeeded = !progressElement.dataset.lastProgress || 
-                            Math.abs(parseFloat(progressElement.dataset.lastProgress) - progress) > 0.01;
-                            
-    if (transitionNeeded) {
-        progressElement.style.transition = 'stroke-dashoffset 0.3s ease-out, stroke 0.3s ease-out';
-    } else {
-        progressElement.style.transition = 'none';
-    }
-    
-    // Store current progress for next comparison
-    progressElement.dataset.lastProgress = progress.toString();
+  // Tell browser to prepare for animation
+  progressElement.style.willChange = 'stroke-dashoffset, stroke';
   
-    progressElement.style.strokeDasharray = `${circumference} ${circumference}`;
-    progressElement.style.strokeDashoffset = circumference * (1 - progress);
-    
-    // Simplified color scheme - only 4 colors instead of continuous gradient
-    if (progress <= 0.25) {
-        progressElement.style.stroke = '#F44336'; // Red
-    } else if (progress <= 0.5) {
-        progressElement.style.stroke = '#FF9800'; // Orange
-    } else if (progress <= 0.75) {
-        progressElement.style.stroke = '#FFC107'; // Yellow
-    } else {
-        progressElement.style.stroke = '#4CAF50'; // Green
-    }
+  const circumference = 2 * Math.PI * 54;
+  const progress = currentGame.currentIndex / currentGame.words.length;
+
+  // Add smooth transition only when needed
+  const transitionNeeded = !progressElement.dataset.lastProgress || 
+                          Math.abs(parseFloat(progressElement.dataset.lastProgress) - progress) > 0.01;
+                          
+  if (transitionNeeded) {
+      progressElement.style.transition = 'stroke-dashoffset 0.3s ease-out, stroke 0.3s ease-out';
+  } else {
+      progressElement.style.transition = 'none';
+  }
   
-    // Optimize streak effects
-    if (currentGame.correctStreak >= 3) {
-        if (!progressElement.classList.contains('streaking')) {
-            progressElement.classList.add('streaking');
-            
-            // Show streak notification if not already shown for this streak count
-            if (!currentGame.lastNotifiedStreak || currentGame.lastNotifiedStreak !== currentGame.correctStreak) {
-                showNotification(`${currentGame.correctStreak} answer streak!`, 'success');
-                currentGame.lastNotifiedStreak = currentGame.correctStreak;
-            }
-        }
-    } else {
-        progressElement.classList.remove('streaking');
-        currentGame.lastNotifiedStreak = 0;
-    }
-    
-    // Clean up willChange after animation completes
-    setTimeout(() => {
-        progressElement.style.willChange = 'auto';
-    }, 1000);
+  // Store current progress for next comparison
+  progressElement.dataset.lastProgress = progress.toString();
+
+  progressElement.style.strokeDasharray = `${circumference} ${circumference}`;
+  progressElement.style.strokeDashoffset = `${circumference * (1 - progress)}`;
+  
+  // Enhanced color scheme with more visual interest
+  if (progress <= 0.25) {
+      progressElement.style.stroke = '#FF3D00'; // Vibrant red
+  } else if (progress <= 0.5) {
+      progressElement.style.stroke = '#FF9100'; // Bright orange
+  } else if (progress <= 0.75) {
+      progressElement.style.stroke = '#FFC400'; // Rich yellow
+  } else if (progress <= 0.85) {
+      progressElement.style.stroke = '#76FF03'; // Lime green
+  } else {
+      progressElement.style.stroke = '#00E676'; // Emerald green
+  }
+
+  // Optimize streak effects
+  if (currentGame.correctStreak >= 3) {
+      if (!progressElement.classList.contains('streaking')) {
+          progressElement.classList.add('streaking');
+          
+          // Show streak notification if not already shown for this streak count
+          if (!currentGame.lastNotifiedStreak || currentGame.lastNotifiedStreak !== currentGame.correctStreak) {
+              showNotification(`${currentGame.correctStreak} answer streak!`, 'success');
+              currentGame.lastNotifiedStreak = currentGame.correctStreak;
+          }
+      }
+  } else {
+      progressElement.classList.remove('streaking');
+      currentGame.lastNotifiedStreak = 0;
+  }
+  
+  // Clean up willChange after animation completes
+  setTimeout(() => {
+      progressElement.style.willChange = 'auto';
+  }, 1000);
 }
 
 // REPLACE the addProgressStreakStyles function

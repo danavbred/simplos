@@ -2032,27 +2032,6 @@ function showGameOverOverlay() {
     };
 }
 
-function updateTimerCircle(timeRemaining, totalTime) {
-    const timerProgress = document.querySelector('.timer-progress');
-    if (!timerProgress) return;
-
-    const radius = 40;
-    const circumference = 2 * Math.PI * radius;
-    
-    timerProgress.style.strokeDasharray = `${circumference} ${circumference}`;
-    
-    const percentage = timeRemaining / totalTime;
-    const dashoffset = circumference * (1 - percentage);
-    timerProgress.style.strokeDashoffset = dashoffset;
-
-    // Add warning state when time is low
-    if (timeRemaining <= 10) {
-        timerProgress.classList.add('warning');
-    } else {
-        timerProgress.classList.remove('warning');
-    }
-}
-
 
 
 async function handleLogin() {
