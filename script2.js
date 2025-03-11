@@ -1878,104 +1878,107 @@ function generateAnswerChoices(correctAnswer, vocabulary) {
 }
 
 function startLevel(level) {
-    gameState.currentLevel = level;
-    
-    // Save game context
-    const gameContext = {
-      stage: gameState.currentStage,
-      set: gameState.currentSet,
-      level: level,
-      timestamp: Date.now()
-    };
-    
-    console.log("Setting game context at level start:", gameContext);
-    localStorage.setItem("gameContext", JSON.stringify(gameContext));
-    
-    // Initialize session start time if not set
-    if (!gameState.sessionStartTime) {
-      gameState.sessionStartTime = Date.now();
-    }
-    
-    // Update the stage background based on current stage
-    updateStageBackground();
-    
-    // Reset game state
-    currentGame.wrongStreak = 0;
-    currentGame.correctAnswers = 0;
-    currentGame.levelStartTime = Date.now();
-    currentGame.firstAttempt = true;
-    currentGame.streakBonus = true;
-    currentGame.wordsLearned = 0;
-
-    // Initialize tracking for coin earning and mistakes
-    currentGame.coinAwardedWords = new Set();
-    currentGame.mistakeRegisteredWords = new Set();
-    updatePerkButtons();
-    
-    console.log("Current unlocked levels:", gameState.unlockedLevels);    
-    const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
-    console.log(`Current set key: ${setKey}, unlocked levels in set:`, 
-      gameState.unlockedLevels[setKey] ? Array.from(gameState.unlockedLevels[setKey]) : "none");
-    
-    // Show/hide UI elements
-    const perksContainer = document.querySelector('.perks-container');
-    const powerupsContainer = document.querySelector('.powerups-container');
-    
-    if (perksContainer) perksContainer.style.display = 'flex';
-    if (powerupsContainer) powerupsContainer.style.display = 'none';
-    
-    const coinCount = document.querySelector('.coin-count');
-    if (coinCount) coinCount.textContent = gameState.coins || 0;
-    
-    const coinsContainer = document.querySelector('.coins-container');
-    if (coinsContainer) coinsContainer.style.display = 'flex';
-    
-    gameState.currentStage = gameState.currentStage || 1;
-    gameState.currentSet = gameState.currentSet || 1;
-    gameState.currentLevel = level;
-    
-    console.log(`Starting level: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${level}`);
-    addAdminTestButton();
-    
-    // Check if premium is required
-    const userStatus = currentUser ? currentUser.status : 'unregistered';
-    if ([2, 5, 8, 11, 14, 18, 20].includes(level) && userStatus !== 'premium') {
-      const currentLevel = level;
-      
-      if (!currentUser) {
-        return showUnregisteredWarning(() => {
-          proceedWithLevel(currentLevel);
-        });
-      }
-      
-      if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
-        return showUpgradePrompt(() => {
-          proceedWithLevel(currentLevel);
-        });
-      }
-    }
-    
-    // Determine if this is a boss level
-    if (level === 21) {
-      currentGame.isBossLevel = true;
-      console.log("Boss level detected");
-      setTimeout(applyBossLevelStyles, 100);
-      setTimeout(applyBossLevelStyles, 500);
-    } else {
-      currentGame.isBossLevel = false;
-    }
-    
-    // Determine if we need to show the full intro
-    // Show intro if:
-    // 1. It's the first level of a session (sessionStartTime was just set)
-    // 2. It's a boss level
-    // 3. It's the first level of a set
-    const forceFullIntro = level === 21 || level === 1;
-    const isNewSession = Date.now() - gameState.sessionStartTime < 5000; // Within 5 seconds of session start
-    const shouldShowIntro = isNewSession || forceFullIntro;
-    
-    proceedWithLevel(level, shouldShowIntro);
+  gameState.currentLevel = level;
+  
+  // Save game context
+  const gameContext = {
+    stage: gameState.currentStage,
+    set: gameState.currentSet,
+    level: level,
+    timestamp: Date.now()
+  };
+  
+  console.log("Setting game context at level start:", gameContext);
+  localStorage.setItem("gameContext", JSON.stringify(gameContext));
+  
+  // Initialize session start time if not set
+  if (!gameState.sessionStartTime) {
+    gameState.sessionStartTime = Date.now();
   }
+  
+  // Update the stage background based on current stage
+  updateStageBackground();
+  
+  // Reset game state
+  currentGame.wrongStreak = 0;
+  currentGame.correctAnswers = 0;
+  currentGame.levelStartTime = Date.now();
+  currentGame.firstAttempt = true;
+  currentGame.streakBonus = true;
+  currentGame.wordsLearned = 0;
+
+  // Initialize tracking for coin earning and mistakes
+  currentGame.coinAwardedWords = new Set();
+  currentGame.mistakeRegisteredWords = new Set();
+  updatePerkButtons();
+  
+  console.log("Current unlocked levels:", gameState.unlockedLevels);    
+  const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
+  console.log(`Current set key: ${setKey}, unlocked levels in set:`, 
+    gameState.unlockedLevels[setKey] ? Array.from(gameState.unlockedLevels[setKey]) : "none");
+  
+  // Show/hide UI elements
+  const perksContainer = document.querySelector('.perks-container');
+  const powerupsContainer = document.querySelector('.powerups-container');
+  
+  if (perksContainer) perksContainer.style.display = 'flex';
+  if (powerupsContainer) powerupsContainer.style.display = 'none';
+  
+  const coinCount = document.querySelector('.coin-count');
+  if (coinCount) coinCount.textContent = gameState.coins || 0;
+  
+  const coinsContainer = document.querySelector('.coins-container');
+  if (coinsContainer) coinsContainer.style.display = 'flex';
+  
+  gameState.currentStage = gameState.currentStage || 1;
+  gameState.currentSet = gameState.currentSet || 1;
+  gameState.currentLevel = level;
+  
+  console.log(`Starting level: Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level ${level}`);
+  addAdminTestButton();
+  
+  // Check if premium is required
+  const userStatus = currentUser ? currentUser.status : 'unregistered';
+  if ([2, 5, 8, 11, 14, 18, 20].includes(level) && userStatus !== 'premium') {
+    const currentLevel = level;
+    
+    if (!currentUser) {
+      return showUnregisteredWarning(() => {
+        proceedWithLevel(currentLevel);
+      });
+    }
+    
+    if (!localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
+      return showUpgradePrompt(() => {
+        proceedWithLevel(currentLevel);
+      });
+    }
+  }
+  
+  // Determine if this is a boss level
+  if (level === 21) {
+    currentGame.isBossLevel = true;
+    console.log("Boss level detected");
+    setTimeout(applyBossLevelStyles, 100);
+    setTimeout(applyBossLevelStyles, 500);
+  } else {
+    currentGame.isBossLevel = false;
+  }
+  
+  // Determine if we need to show the full intro
+  // Show intro if:
+  // 1. Coming from welcome screen
+  // 2. It's a boss level
+  // 3. It's the first level of a set
+  const forceFullIntro = level === 21 || level === 1 || gameState.comingFromWelcome;
+  
+  // After using the comingFromWelcome flag, reset it
+  if (gameState.comingFromWelcome) {
+    gameState.comingFromWelcome = false;
+  }
+  
+  proceedWithLevel(level, forceFullIntro);
+}
 
 function findFurthestProgression() {
     console.log("Finding furthest progression");
@@ -2067,6 +2070,7 @@ function proceedWithLevel(level, forceFullIntro = false) {
     }, 200);
   }, forceFullIntro);
 }
+
 
 document.querySelector('.perks-container').innerHTML = `
     ${Object.entries(PERK_CONFIG).map(([type, config]) => `
@@ -3194,29 +3198,33 @@ function findFurthestProgression() {
 }
 
 function startGame() {
-    // This function is called from the welcome screen play button
-    // It uses the current stage from gameState
-    const stage = gameState.currentStage || 1;
-    
-    // Find the furthest unlocked set in the current stage
-    const unlockedSets = gameState.unlockedSets[stage] || new Set([1]);
-    const furthestSet = Math.max(...Array.from(unlockedSets));
-    
-    // Find the furthest unlocked level in the furthest set
-    const setKey = `${stage}_${furthestSet}`;
-    const unlockedLevels = gameState.unlockedLevels[setKey] || new Set([1]);
-    const furthestLevel = Math.max(...Array.from(unlockedLevels));
-    
-    console.log(`Starting game at Stage ${stage}, Set ${furthestSet}, Level ${furthestLevel}`);
-    
-    // Set the current set and level
-    gameState.currentSet = furthestSet;
-    gameState.currentLevel = furthestLevel;
-    
-    // Start the level
-    showScreen('question-screen');
-    startLevel(furthestLevel);
-  }
+  // This function is called from the welcome screen play button
+  // It uses the current stage from gameState
+  const stage = gameState.currentStage || 1;
+  
+  // Find the furthest unlocked set in the current stage
+  const unlockedSets = gameState.unlockedSets[stage] || new Set([1]);
+  const furthestSet = Math.max(...Array.from(unlockedSets));
+  
+  // Find the furthest unlocked level in the furthest set
+  const setKey = `${stage}_${furthestSet}`;
+  const unlockedLevels = gameState.unlockedLevels[setKey] || new Set([1]);
+  const furthestLevel = Math.max(...Array.from(unlockedLevels));
+  
+  console.log(`Starting game at Stage ${stage}, Set ${furthestSet}, Level ${furthestLevel}`);
+  
+  // Set the current set and level
+  gameState.currentSet = furthestSet;
+  gameState.currentLevel = furthestLevel;
+  
+  // Initialize session start time to ensure intro is shown when coming from welcome screen
+  gameState.sessionStartTime = Date.now();
+  gameState.comingFromWelcome = true;
+  
+  // Start the level
+  showScreen('question-screen');
+  startLevel(furthestLevel);
+}
 
 function updateLevelProgress(stage, set, level, completed, perfect) {
     // Create a key to reference this specific level
@@ -13372,7 +13380,6 @@ function saveInlineEdit(listId) {
   });
 }
 
-
 function showLevelCompletionModal(levelStats, callback) {
   // Ensure levelStats has valid values to prevent undefined/NaN
   levelStats = levelStats || {};
@@ -13423,6 +13430,31 @@ function showLevelCompletionModal(levelStats, callback) {
   // Clear any existing modals first
   document.querySelectorAll('.level-completion-overlay').forEach(el => el.remove());
   
+  // Determine next level information
+  const isLastLevelInSet = gameState.currentLevel === stageData.levelsPerSet;
+  const isLastSetInStage = gameState.currentSet === stageData.numSets;
+  
+  // Calculate next level information
+  let nextStage = gameState.currentStage;
+  let nextSet = gameState.currentSet;
+  let nextLevel = gameState.currentLevel + 1;
+  
+  if (isLastLevelInSet) {
+    if (isLastSetInStage) {
+      // Next stage, first set, first level
+      nextStage = gameState.currentStage + 1;
+      nextSet = 1;
+      nextLevel = 1;
+    } else {
+      // Next set, first level
+      nextSet = gameState.currentSet + 1;
+      nextLevel = 1;
+    }
+  }
+  
+  // Check if we're at the end of all stages
+  const isGameComplete = nextStage > 5;
+  
   // Create overlay that covers the entire screen
   const overlay = document.createElement('div');
   overlay.className = 'level-completion-overlay';
@@ -13442,15 +13474,15 @@ function showLevelCompletionModal(levelStats, callback) {
     transition: opacity 0.5s ease;
   `;
   
-  // Create completion modal content
+  // Create completion modal content - SMALLER VERSION (70%)
   const completionContent = document.createElement('div');
   completionContent.className = 'level-completion-modal';
   completionContent.style.cssText = `
     background: var(--glass);
     backdrop-filter: blur(10px);
-    border-radius: 20px;
-    padding: 3rem;
-    width: 500px;
+    border-radius: 16px;
+    padding: 1.5rem;
+    width: 350px;
     max-width: 90%;
     text-align: center;
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
@@ -13462,80 +13494,80 @@ function showLevelCompletionModal(levelStats, callback) {
   `;
   
   completionContent.innerHTML = `
-    <h1 style="color: var(--gold); margin-bottom: 0.5rem; font-size: 2.5rem;">
+    <h1 style="color: var(--gold); margin-bottom: 0.25rem; font-size: 1.8rem;">
       Level Complete!
     </h1>
-    <h2 style="margin-bottom: 1.5rem; opacity: 0.9; font-size: 1.5rem; color: ${isPassed ? 'var(--success)' : 'var(--error)'}">
+    <h2 style="margin-bottom: 1rem; opacity: 0.9; font-size: 1.1rem; color: ${isPassed ? 'var(--success)' : 'var(--error)'}">
       ${isPassed ? 'Great job!' : 'Try again to improve your score'}
     </h2>
     
     <!-- Star Rating -->
-    <div class="star-rating-container" style="margin-bottom: 2rem;">
-      <div class="star-slots" style="display: flex; justify-content: center; gap: 1rem;">
+    <div class="star-rating-container" style="margin-bottom: 1rem;">
+      <div class="star-slots" style="display: flex; justify-content: center; gap: 0.5rem;">
         <!-- Three star slots, each with empty and filled versions -->
-        <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
-          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
-          <div class="star-filled star-1" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+        <div class="star-slot" style="position: relative; width: 36px; height: 36px;">
+          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 2.2rem; line-height: 1;">★</div>
+          <div class="star-filled star-1" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 2.2rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
         </div>
-        <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
-          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
-          <div class="star-filled star-2" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+        <div class="star-slot" style="position: relative; width: 36px; height: 36px;">
+          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 2.2rem; line-height: 1;">★</div>
+          <div class="star-filled star-2" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 2.2rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
         </div>
-        <div class="star-slot" style="position: relative; width: 50px; height: 50px;">
-          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 3rem; line-height: 1;">★</div>
-          <div class="star-filled star-3" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 3rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
+        <div class="star-slot" style="position: relative; width: 36px; height: 36px;">
+          <div class="star-empty" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: #333; font-size: 2.2rem; line-height: 1;">★</div>
+          <div class="star-filled star-3" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; color: var(--gold); font-size: 2.2rem; line-height: 1; opacity: 0; transform: scale(0); transition: opacity 0.5s ease, transform 0.5s ease;">★</div>
         </div>
       </div>
-      <div class="star-criteria" style="margin-top: 0.5rem; font-size: 0.8rem; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between; width: 100%; max-width: 280px; margin-left: auto; margin-right: auto;">
+      <div class="star-criteria" style="margin-top: 0.25rem; font-size: 0.7rem; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between; width: 100%; max-width: 200px; margin-left: auto; margin-right: auto;">
         <div>Complete</div>
         <div>No Mistakes</div>
         <div>Quick Time</div>
       </div>
     </div>
     
-    <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 2rem;">
+    <div class="stats-container" style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
       <div class="stat-item" style="text-align: center; flex: 1;">
-        <div style="font-size: 2rem; color: var(--accent);">${levelStats.correctAnswers}/${levelStats.totalQuestions}</div>
-        <div style="opacity: 0.7;">Correct</div>
+        <div style="font-size: 1.5rem; color: var(--accent);">${levelStats.correctAnswers}/${levelStats.totalQuestions}</div>
+        <div style="opacity: 0.7; font-size: 0.8rem;">Correct</div>
       </div>
       <div class="stat-item" style="text-align: center; flex: 1;">
-        <div style="font-size: 2rem; color: #ff4136;">${levelStats.incorrectAnswers}</div>
-        <div style="opacity: 0.7;">Mistakes</div>
+        <div style="font-size: 1.5rem; color: #ff4136;">${levelStats.incorrectAnswers}</div>
+        <div style="opacity: 0.7; font-size: 0.8rem;">Mistakes</div>
       </div>
       <div class="stat-item coin-counter-container" style="text-align: center; flex: 1; position: relative;">
         <!-- Using the in-game coin counter style -->
         <div class="coins-display" style="display: inline-flex; align-items: center; justify-content: center;">
-          <span class="coin-value" style="font-size: 2rem; color: var(--gold); font-weight: bold;">${currentCoins}</span>
-          <span class="coin-icon" style="margin-left: 5px; display: inline-block;">
-            <svg width="24" height="24" viewBox="0 0 24 24" style="transform: translateY(2px);">
+          <span class="coin-value" style="font-size: 1.5rem; color: var(--gold); font-weight: bold;">${currentCoins}</span>
+          <span class="coin-icon" style="margin-left: 3px; display: inline-block;">
+            <svg width="16" height="16" viewBox="0 0 24 24" style="transform: translateY(2px);">
               <circle cx="12" cy="12" r="10" fill="var(--gold)" />
               <text x="12" y="16" text-anchor="middle" fill="black" style="font-size: 14px; font-weight: bold;">¢</text>
             </svg>
           </span>
         </div>
-        <div style="opacity: 0.7;">Coins</div>
-        ${totalBonusCoins > 0 ? `<div class="time-bonus-badge" style="position: absolute; top: -10px; right: -10px; background: var(--success); color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">+${totalBonusCoins}</div>` : ''}
+        <div style="opacity: 0.7; font-size: 0.8rem;">Coins</div>
+        ${totalBonusCoins > 0 ? `<div class="time-bonus-badge" style="position: absolute; top: -10px; right: -10px; background: var(--success); color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.8rem; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">+${totalBonusCoins}</div>` : ''}
       </div>
     </div>
     
     <!-- Average response time section -->
-    <div class="average-time-container" style="margin: 1.5rem 0; text-align: center;">
-      <div style="font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.8;">Average Response Time</div>
-      <div style="font-size: 2.5rem; color: var(--accent); font-weight: bold;">
+    <div class="average-time-container" style="margin: 0.75rem 0; text-align: center;">
+      <div style="font-size: 0.9rem; margin-bottom: 0.25rem; opacity: 0.8;">Average Response Time</div>
+      <div style="font-size: 1.8rem; color: var(--accent); font-weight: bold;">
         ${averageTime}s
       </div>
     </div>
     
     <!-- Progress bar for set completion -->
-    <div class="set-progress-container" style="width: 100%; margin: 2rem 0; padding: 0 1rem;">
-      <div style="text-align: left; margin-bottom: 0.5rem; opacity: 0.7; font-size: 0.9rem;">
+    <div class="set-progress-container" style="width: 100%; margin: 1rem 0; padding: 0 0.5rem;">
+      <div style="text-align: left; margin-bottom: 0.25rem; opacity: 0.7; font-size: 0.75rem;">
         Set Progress (Level ${gameState.currentLevel}/${totalLevelsInSet})
       </div>
       <div class="set-progress-bar" style="
         width: 100%;
-        height: 10px;
+        height: 8px;
         background: rgba(255, 255, 255, 0.1);
-        border-radius: 5px;
+        border-radius: 4px;
         overflow: hidden;
         position: relative;
       ">
@@ -13546,17 +13578,33 @@ function showLevelCompletionModal(levelStats, callback) {
           height: 100%;
           width: 0%; /* Start at 0, will be animated */
           background: linear-gradient(90deg, var(--accent), var(--gold));
-          border-radius: 5px;
+          border-radius: 4px;
           transition: width 1s ease-in-out;
         "></div>
       </div>
     </div>
     
-    <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
-      ${isPassed ? 
-        `<button class="continue-button start-button" style="background: var(--accent);">Continue</button>` : 
-        `<button class="retry-button start-button" style="background: var(--accent);">Try Again</button>`
-      }
+    ${isPassed && !isGameComplete ? `
+    <!-- Next Level Information -->
+    <div class="next-level-info" style="margin: 1rem 0; padding: 0.75rem; background: rgba(255,255,255,0.1); border-radius: 8px; text-align: left;">
+      <h3 style="margin: 0 0 0.25rem 0; font-size: 1rem; color: var(--accent);">Next Level:</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-size: 0.8rem; opacity: 0.8;">Stage ${nextStage}</div>
+          <div style="font-size: 0.8rem; opacity: 0.8;">Set ${nextSet}</div>
+          <div style="font-size: 1.1rem; font-weight: bold; color: var(--gold);">Level ${nextLevel}</div>
+        </div>
+        ${nextLevel === 21 ? 
+          '<div style="font-size: 1.1rem; color: var(--error); font-weight: bold;">BOSS LEVEL</div>' : 
+          ''}
+      </div>
+    </div>
+    ` : ''}
+    
+    <div class="button-container" style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
+      <button class="${isPassed ? 'continue-button' : 'retry-button'} start-button" style="background: var(--accent);">
+        ${isPassed ? (isGameComplete ? 'Back to Welcome' : 'Next Level') : 'Try Again'}
+      </button>
     </div>
   `;
   
@@ -13578,75 +13626,33 @@ function showLevelCompletionModal(levelStats, callback) {
       }
       
       // Animate star filling with sequential delays
-      // Add star styles before animating
-addStarRatingStyles();
-
-// Animate star filling with enhanced sequential delays and effects
-setTimeout(() => {
-  // Play star achievement sound if available
-  if (typeof playSound === 'function') {
-    playSound('star1');
-  }
-  
-  const star1 = completionContent.querySelector('.star-1');
-  if (star1) {
-    star1.style.opacity = '1';
-    star1.style.transform = 'scale(1)';
-    star1.style.animation = 'starPop 0.5s forwards, starShine 2s 0.5s infinite';
-  }
-  
-  // Second star (no mistakes)
-  if (noMistakes) {
-    setTimeout(() => {
-      if (typeof playSound === 'function') {
-        playSound('star2');
-      }
-      
-      const star2 = completionContent.querySelector('.star-2');
-      if (star2) {
-        star2.style.opacity = '1'; 
-        star2.style.transform = 'scale(1)';
-        star2.style.animation = 'starPop 0.5s forwards, starShine 2s 0.5s infinite';
-      }
-    }, 600); // Slightly longer delay for better pacing
-  }
-  
-  // Third star (fast completion)
-  if (fastCompletion) {
-    setTimeout(() => {
-      if (typeof playSound === 'function') {
-        playSound('star3');
-      }
-      
-      const star3 = completionContent.querySelector('.star-3');
-      if (star3) {
-        star3.style.opacity = '1';
-        star3.style.transform = 'scale(1)';
-        star3.style.animation = 'starPop 0.5s forwards, starShine 2s 0.5s infinite';
-      }
-      
-      // Add special effect for all 3 stars
-      if (noMistakes) {
-        setTimeout(() => {
-          const starGlow = completionContent.querySelector('.star-glow');
-          if (starGlow) {
-            starGlow.style.animation = 'pulseGlow 2s ease-in-out infinite';
-            starGlow.style.background = 'radial-gradient(ellipse at center, rgba(255,215,0,0.2) 0%, rgba(255,215,0,0) 70%)';
-          }
-          
-          // Create a small particle burst if available
-          if (typeof createParticles === 'function') {
-            const starContainer = completionContent.querySelector('.star-slots');
-            if (starContainer) {
-              const rect = starContainer.getBoundingClientRect();
-              createParticles(rect.left + rect.width/2, rect.top + rect.height/2, 10, ['gold', 'orange', 'yellow']);
+      setTimeout(() => {
+        const star1 = completionContent.querySelector('.star-1');
+        if (star1) {
+          star1.style.opacity = '1';
+          star1.style.transform = 'scale(1)';
+        }
+        
+        if (noMistakes) {
+          setTimeout(() => {
+            const star2 = completionContent.querySelector('.star-2');
+            if (star2) {
+              star2.style.opacity = '1';
+              star2.style.transform = 'scale(1)';
             }
-          }
-        }, 300);
-      }
-    }, 1200); // Even longer delay for third star for dramatic effect
-  }
-}, 700); // Longer initial delay for better impact
+          }, 300);
+        }
+        
+        if (fastCompletion) {
+          setTimeout(() => {
+            const star3 = completionContent.querySelector('.star-3');
+            if (star3) {
+              star3.style.opacity = '1';
+              star3.style.transform = 'scale(1)';
+            }
+          }, 600);
+        }
+      }, 500);
       
       // Animate coin counter if there's a bonus
       if (totalBonusCoins > 0) {
@@ -13930,20 +13936,62 @@ const PerkManager = {
     },
 
     announcePerkUnlocked(perkId) {
-        const perkConfig = PERK_CONFIG[perkId];
-        if (!perkConfig) return;
-        
-        // Double-check that perk is actually unlocked before announcing
-        if (!this.checkPerkConditionsMet(perkId)) {
-            console.warn(`Attempted to announce unlock for ${perkId} but conditions are not met`);
-            return;
-        }
-        
-        console.log(`Announcing unlock for perk: ${perkId}`);
-        
-        // Create an animated unlock notification
-        this.showPerkUnlockNotification(perkId, perkConfig);
-    },
+      const perkConfig = PERK_CONFIG[perkId];
+      if (!perkConfig) return;
+      
+      // Double-check that perk is actually unlocked before announcing
+      if (!this.checkPerkConditionsMet(perkId)) {
+          console.warn(`Attempted to announce unlock for ${perkId} but conditions are not met`);
+          return;
+      }
+      
+      console.log(`Announcing unlock for perk: ${perkId}`);
+      
+      // Show the same visual effect that's used when the perk is activated
+      switch(perkId) {
+          case 'timeFreeze':
+              this.showFreezeEffect(false);
+              break;
+          case 'skip':
+              this.showSkipEffect(false);
+              break;
+          case 'clue':
+              this.showClueEffect();
+              break;
+          case 'reveal':
+              this.showRevealEffect();
+              break;
+          case 'doubleFreeze':
+              this.showFreezeEffect(true);
+              break;
+          case 'doubleCoins':
+              this.showDoubleCoinsEffect();
+              break;
+          case 'goldenEgg':
+              this.showGoldenEggEffect();
+              break;
+          case 'randomPerk':
+              this.showMysteryEffect();
+              break;
+          default:
+              // No specific effect for this perk
+              break;
+      }
+      
+      // Show a simple notification
+      this.showNotification(`New Perk Unlocked: ${perkConfig.name}!`, 'success');
+      
+      // Highlight the perk button
+      const perkButton = document.getElementById(`${perkId}Perk`);
+      if (perkButton) {
+          perkButton.classList.add('perk-unlocked-pulse');
+          
+          // Remove the class after a while
+          setTimeout(() => {
+              perkButton.classList.remove('perk-unlocked-pulse');
+          }, 3000);
+      }
+  },
     
     // Show an animated perk unlock notification
     showPerkUnlockNotification(perkId, perkConfig) {
@@ -14768,30 +14816,45 @@ if (perkConfig.requiresWordCount && !meetsWordCount) {
     },
     
     showClueEffect() {
-        // Add screen flash for clue
-        const flash = document.createElement('div');
-        flash.className = 'clue-flash';
-        flash.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(255, 0, 0, 0.2);
-            z-index: 9998;
-            pointer-events: none;
-            animation: clueFlash 0.5s forwards;
-        `;
-        
-        document.body.appendChild(flash);
-        
-        // Remove after animation
-        setTimeout(() => {
-            if (flash.parentNode) {
-                flash.parentNode.removeChild(flash);
-            }
-        }, 500);
-    },
+    // Create clue effect overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'clue-effect-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(circle, rgba(255, 255, 0, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
+        pointer-events: none;
+        z-index: 9999;
+        animation: clueFlash 2s forwards;
+    `;
+    
+    // Add light bulb to center of screen
+    const lightBulb = document.createElement('div');
+    lightBulb.className = 'clue-light-bulb';
+    lightBulb.innerHTML = '💡'; // Light bulb emoji
+    lightBulb.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0);
+        font-size: 9rem;
+        filter: drop-shadow(0 0 10px rgba(255, 255, 1, 1));
+        animation: lightBulbGrow 3s forwards;
+    `;
+    
+    overlay.appendChild(lightBulb);
+    document.body.appendChild(overlay);
+    
+    // Remove after animation - increased from 1000 to 2000
+    setTimeout(() => {
+        if (overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
+        }
+    }, 2000);
+},
     
     showRevealEffect() {
         // Create reveal effect overlay
