@@ -248,61 +248,61 @@ const PERK_CONFIG = {
     timeFreeze: {
         name: "Time Freeze",
         description: "Pause the timer for 5 seconds",
-        cost: 1,
+        cost: 100,
         icon: "fa-clock",
         duration: 5000
     },
     skip: {
         name: "Skip Question",
         description: "Skip the current word without penalty",
-        cost: 1,
+        cost: 250,
         icon: "fa-forward"
     },
     clue: {
         name: "Eliminate Wrong Answer",
         description: "Mark one incorrect answer with an X",
-        cost: 1,
+        cost: 400,
         icon: "fa-lightbulb"
     },
     reveal: {
         name: "Reveal Correct Answer",
         description: "Show the correct translation",
-        cost: 1,
+        cost: 650,
         icon: "fa-eye"
     },
     doubleFreeze: {
         name: "Double Freeze",
         description: "Pause the timer for 10 seconds",
-        cost: 1,
+        cost: 750,
         icon: "fa-snowflake",
         duration: 10000,
         requiresPremium: true,
-        requiresWordCount: 2
+        requiresWordCount: 100
     },
     doubleCoins: {
         name: "Double Coins",
         description: "Next 5 correct answers earn double coins",
-        cost: 1,
+        cost: 500,
         icon: "fa-coins",
         effectDuration: 5,
         requiresPremium: true,
-        requiresWordCount: 3
-    },
-    goldenEgg: {
-        name: "Golden Egg",
-        description: "Skip the entire level",
-        cost: 1,
-        icon: "fa-egg",
-        requiresPremium: true,
-        requiresWordCount: 45
+        requiresWordCount: 300
     },
     randomPerk: {
         name: "Mystery Box",
         description: "Random perk or bonus coins",
-        cost: 1,
+        cost: 1200,
         icon: "fa-question",
         requiresPremium: true,
-        requiresWordCount: 5
+        requiresWordCount: 600
+    },
+    goldenEgg: {
+        name: "Golden Egg",
+        description: "Skip the entire level",
+        cost: 1500,
+        icon: "fa-egg",
+        requiresPremium: true,
+        requiresWordCount: 900
     }
 };
 
