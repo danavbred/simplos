@@ -1356,24 +1356,27 @@ function showScreen(screenId, forceRefresh = false) {
         }, 100);
         break;
              
-      case "welcome-screen":
-        // MODIFIED: Check if auto-resume should be prevented
-        if (window.preventAutoResume) {
-          console.log("Auto-resume prevented by explicit flag");
-          // Clear any saved game context to prevent future auto-resume
-          if (localStorage.getItem("gameContext")) {
-            console.log("Removing saved game context during prevented auto-resume");
-            localStorage.removeItem("gameContext");
-          }
-        } else if (typeof restoreGameContext === 'function' && restoreGameContext()) {
-          if (typeof startGame === 'function') {
-            console.log("Restoring saved game after welcome screen shown");
-            startGame();
-          }
-        } else {
-          console.log("No saved game to restore or auto-resume prevented");
-        }
-        break;
+// Find this section in showScreen function:
+case "welcome-screen":
+  // MODIFIED: Check if auto-resume should be prevented
+  if (window.preventAutoResume) {
+    console.log("Auto-resume prevented by explicit flag");
+    // Clear any saved game context to prevent future auto-resume
+    if (localStorage.getItem("gameContext")) {
+      console.log("Removing saved game context during prevented auto-resume");
+      localStorage.removeItem("gameContext");
+    }
+    // Reset the flag after using it (optional, depending on your needs)
+    // window.preventAutoResume = false;
+  } else if (typeof restoreGameContext === 'function' && restoreGameContext()) {
+    if (typeof startGame === 'function') {
+      console.log("Restoring saved game after welcome screen shown");
+      startGame();
+    }
+  } else {
+    console.log("No saved game to restore or auto-resume prevented");
+  }
+  break;
              
       case "stage-cascade-screen":
         // Handle the cascading stage screen specially
@@ -3651,68 +3654,6 @@ function toggleFullScreen() {
         }).catch(err => {
             console.log(`Error attempting to enable fullscreen: ${err.message}`);
         });
-    }
-}
-
-
-
-// Original handleLogout function (likely)
-async function handleLogout() {
-    try {
-        const { error } = await supabaseClient.auth.signOut();
-        
-        if (error) {
-            console.error('Supabase logout error:', error.message);
-        }
-
-        // Reset game state
-        gameState.coins = 0;
-        gameState.unlockedSets = {};
-        gameState.unlockedLevels = {};
-        gameState.perfectLevels = new Set();
-        gameState.completedLevels = new Set();
-
-        // Clear all input fields and UI state
-        if (typeof clearCustomPracticeUI === 'function') {
-            clearCustomPracticeUI();
-        }
-
-        // Reset current user and update UI
-        currentUser = null;
-        updateAuthUI();
-        
-        // Update additional UI elements if the functions exist
-        if (typeof updateUserStatusDisplay === 'function') {
-            updateUserStatusDisplay(null);
-        }
-        
-        if (typeof updateGuestPlayButton === 'function') {
-            updateGuestPlayButton();
-        }
-        
-        // Show welcome screen
-        showScreen('welcome-screen');
-        
-        // Reload game progress from localStorage
-        if (typeof initializeGame === 'function') {
-            initializeGame();
-        }
-
-    } catch (error) {
-        console.error('Unexpected error during logout:', error);
-        // Ensure UI is reset even if logout fails
-        currentUser = null;
-        updateAuthUI();
-        
-        if (typeof updateUserStatusDisplay === 'function') {
-            updateUserStatusDisplay(null);
-        }
-        
-        if (typeof updateGuestPlayButton === 'function') {
-            updateGuestPlayButton();
-        }
-        
-        showScreen('welcome-screen');
     }
 }
 
@@ -12919,4 +12860,133 @@ function handleUserLogout() {
   };
   
   console.log("Local game data cleared");
+}
+
+// Add this to script1.js
+function executeCompleteLogout() {
+  console.log("Executing complete logout process");
+  
+  // First call the PerkManager reset if available
+  if (PerkManager && typeof PerkManager.resetForUserChange === 'function') {
+      console.log("Resetting PerkManager for user change");
+      PerkManager.resetForUserChange();
+  }
+  
+  // Handle Supabase authentication logout
+  (async function() {
+      try {
+          const { error } = await supabaseClient.auth.signOut();
+          if (error) {
+              console.error('Supabase logout error:', error.message);
+          }
+      } catch (e) {
+          console.error("Error during Supabase logout:", e);
+      }
+      
+      // Continue with local cleanup regardless of Supabase result
+      completeLocalLogoutCleanup();
+  })();
+  
+  // Local cleanup function
+  function completeLocalLogoutCleanup() {
+      // Clear ALL localStorage items related to game state
+      localStorage.removeItem('simploxProgress');
+      localStorage.removeItem('simploxUnlockedPerks');
+      localStorage.removeItem('simploxCustomLists');
+      localStorage.removeItem('simploxWordStats');
+      localStorage.removeItem('gameContext');
+      localStorage.removeItem('arcadeSessionData');
+      localStorage.removeItem('customPracticeState');
+      localStorage.removeItem('lastPlayed');
+      
+      // Reset game state to default values
+      gameState = {
+          currentStage: 1,
+          currentSet: 1,
+          currentLevel: 1,
+          coins: 0,
+          perks: { timeFreeze: 0, skip: 0, clue: 0, reveal: 0 },
+          unlockedSets: {},
+          unlockedLevels: {},
+          perfectLevels: new Set(),
+          completedLevels: new Set(),
+          unlockedPerks: new Set(['timeFreeze', 'skip', 'clue', 'reveal']),
+          wordsLearned: 0
+      };
+      
+      // Cancel any ongoing games
+      if (currentGame) {
+          currentGame.active = false;
+      }
+      
+      // Set a flag to prevent auto-resume
+      window.preventAutoResume = true;
+      
+      // Reset current user
+      currentUser = null;
+      
+      // Update UI elements
+      if (typeof updateAuthUI === 'function') {
+          updateAuthUI();
+      }
+      
+      if (typeof updateUserStatusDisplay === 'function') {
+          updateUserStatusDisplay(null);
+      }
+      
+      if (typeof updateGuestPlayButton === 'function') {
+          updateGuestPlayButton();
+      }
+      
+      // Show welcome screen - passing true forces a refresh without restoring game
+      if (typeof showScreen === 'function') {
+          showScreen('welcome-screen', true);
+      }
+      
+      console.log("Logout completed successfully");
+  }
+}
+
+// Add this to document.ready or DOMContentLoaded event
+document.addEventListener('DOMContentLoaded', () => {
+  // Setup unified logout handling
+  setupUnifiedLogoutHandlers();
+});
+
+// Function to set up unified logout handlers
+function setupUnifiedLogoutHandlers() {
+  // Find all logout buttons to ensure consistent handling
+  const logoutButtons = document.querySelectorAll('.logout-button, .logout-link, button[onclick*="logout"], a[onclick*="logout"]');
+  
+  logoutButtons.forEach(button => {
+      // Remove any existing onclick attributes to prevent conflicts
+      if (button.hasAttribute('onclick')) {
+          const originalOnclick = button.getAttribute('onclick');
+          console.log(`Replacing onclick handler "${originalOnclick}" with unified logout handler`);
+          button.removeAttribute('onclick');
+      }
+      
+      // Remove any existing event listeners (as best as possible)
+      button.replaceWith(button.cloneNode(true));
+      
+      // Get the fresh reference after replacement
+      const freshButton = document.querySelector(`#${button.id}`) || 
+                         document.querySelector(`.${Array.from(button.classList).join('.')}`);
+      
+      if (freshButton) {
+          // Add our direct event listener
+          freshButton.addEventListener('click', function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log("Logout button clicked via unified handler");
+              
+              // Call our comprehensive logout function
+              executeCompleteLogout();
+              
+              return false;
+          });
+      }
+  });
+  
+  console.log(`Set up ${logoutButtons.length} unified logout button handlers`);
 }
