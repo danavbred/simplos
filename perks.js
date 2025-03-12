@@ -13,15 +13,13 @@ function saveProgress() {
         perfect_levels: Array.from(gameState.perfectLevels || []),
         completed_levels: Array.from(gameState.completedLevels || []),
         words_learned: gameState.wordsLearned || 0
-        // Note: unlocked_perks is still NOT included here (for database)
     };
     
-    // CRITICAL FIX: Always save unlocked perks to localStorage
+    // Save unlocked perks to localStorage
     if (gameState.unlockedPerks) {
         try {
             const perksArray = Array.from(gameState.unlockedPerks);
             localStorage.setItem("simploxUnlockedPerks", JSON.stringify(perksArray));
-            console.log("Saved unlocked perks to localStorage:", perksArray);
         } catch (e) {
             console.error("Error saving unlocked perks to localStorage:", e);
         }
@@ -30,11 +28,11 @@ function saveProgress() {
     // Save regular progress to localStorage
     localStorage.setItem("simploxProgress", JSON.stringify(gameProgress));
     
-    // Save to database (without unlocked_perks)
+    // Save to database
     if (currentUser && currentUser.id) {
         supabaseClient
             .from("game_progress")
-            .update(gameProgress)  // This doesn't include unlocked_perks
+            .update(gameProgress)
             .eq("user_id", currentUser.id)
             .then(({ error }) => {
                 if (error) console.error("Error saving progress:", error);
@@ -51,14 +49,12 @@ async function loadUserGameProgress() {
     
     // First, preserve any existing unlocked perks
     const existingUnlockedPerks = gameState.unlockedPerks ? new Set(Array.from(gameState.unlockedPerks)) : new Set();
-    console.log("Existing unlocked perks before loading:", Array.from(existingUnlockedPerks));
     
     // Load unlocked perks from localStorage FIRST
     try {
         const localPerks = localStorage.getItem("simploxUnlockedPerks");
         if (localPerks) {
             const loadedPerks = new Set(JSON.parse(localPerks));
-            console.log("Loaded perks from localStorage:", Array.from(loadedPerks));
             
             // Initialize or update gameState.unlockedPerks
             if (!gameState.unlockedPerks) {
@@ -67,12 +63,7 @@ async function loadUserGameProgress() {
                 // Combine existing and loaded perks
                 loadedPerks.forEach(perk => gameState.unlockedPerks.add(perk));
             }
-            
-            console.log("Combined unlocked perks after localStorage load:", 
-                        Array.from(gameState.unlockedPerks));
         } else {
-            console.log("No perks found in localStorage");
-            
             // Keep existing perks if they exist
             if (existingUnlockedPerks.size > 0) {
                 gameState.unlockedPerks = existingUnlockedPerks;
@@ -141,12 +132,7 @@ async function loadUserGameProgress() {
             });
         }
         
-        // NOTE: We already loaded unlockedPerks from localStorage above
-        // so we DON'T need to overwrite it with anything from the database
-        
-        // IMPORTANT: Update UI immediately with the merged perks
-        console.log("Final unlocked perks after loadUserGameProgress:", 
-                   Array.from(gameState.unlockedPerks));
+        // Update UI with the merged perks
         updatePerkButtons();
         
         return true;
@@ -166,7 +152,6 @@ function unlockPerk(perkType) {
     
     // Add the perk to the unlocked set
     gameState.unlockedPerks.add(perkType);
-    console.log(`Added ${perkType} to unlockedPerks:`, Array.from(gameState.unlockedPerks));
     
     // Update UI
     const button = document.getElementById(`${perkType}Perk`);
@@ -186,8 +171,6 @@ function unlockPerk(perkType) {
     try {
         localStorage.setItem("simploxUnlockedPerks", 
             JSON.stringify(Array.from(gameState.unlockedPerks)));
-        console.log(`Perk ${perkType} saved to localStorage, all perks:`, 
-                   Array.from(gameState.unlockedPerks));
     } catch (e) {
         console.error("Error saving unlocked perks to localStorage:", e);
     }
@@ -196,11 +179,9 @@ function unlockPerk(perkType) {
     if (typeof saveProgress === 'function') {
         saveProgress();
     }
-    
-    console.log(`Perk ${perkType} unlocked and saved`);
 }
 
-  const PERK_CONFIG = {
+const PERK_CONFIG = {
     timeFreeze: {
         name: "Time Freeze",
         description: "Pause the timer for 5 seconds",
@@ -289,52 +270,40 @@ const PerkManager = {
     },
     
     init() {
-        console.group("PerkManager Initialization");
-        console.log('Initializing PerkManager...');
-        
         // Add necessary styles for perk effects
         this.addPerkStyles();
         
         // Get current user ID (or 'guest' if not logged in)
         const userId = currentUser && currentUser.id ? currentUser.id : 'guest';
-        console.log(`Initializing perks for user: ${userId}`);
         
         // CRITICAL: ALWAYS start with a fresh unlockedPerks Set
         gameState.unlockedPerks = new Set();
-        console.log("Created fresh unlockedPerks Set");
         
         // Basic perks are always unlocked
         const basicPerks = ['timeFreeze', 'skip', 'clue', 'reveal'];
         basicPerks.forEach(perkId => {
             gameState.unlockedPerks.add(perkId);
         });
-        console.log("Added basic perks:", Array.from(gameState.unlockedPerks));
         
         // Check premium status
         let isPremium = false;
         if (currentUser && currentUser.status === 'premium') {
             isPremium = true;
-            console.log("User detected as premium");
         }
         
         // If user is premium, check if they should have premium perks unlocked
         // based on their progress metrics (not localStorage)
         if (isPremium) {
-            console.log("Premium user - checking unlock conditions for premium perks");
-            
             // Use either database stats or game state to check conditions
             let wordCount = 0;
             
             // Try to get word count from various sources
             if (window.userStats && typeof window.userStats.uniqueWords === 'number') {
                 wordCount = window.userStats.uniqueWords;
-                console.log("Using userStats.uniqueWords:", wordCount);
             } else if (gameState && typeof gameState.wordsLearned === 'number') {
                 wordCount = gameState.wordsLearned;
-                console.log("Using gameState.wordsLearned:", wordCount);
             } else if (currentGame && typeof currentGame.wordsLearned === 'number') {
                 wordCount = currentGame.wordsLearned;
-                console.log("Using currentGame.wordsLearned:", wordCount);
             }
             
             // Check each premium perk's conditions
@@ -345,70 +314,87 @@ const PerkManager = {
                 if (perkConfig.requiresPremium) {
                     // Check word count requirement if it exists
                     if (perkConfig.requiresWordCount && wordCount >= perkConfig.requiresWordCount) {
-                        console.log(`Unlocking premium perk ${perkId} based on word count ${wordCount}`);
                         gameState.unlockedPerks.add(perkId);
                     } else if (!perkConfig.requiresWordCount) {
                         // Premium perk with no word count requirement
-                        console.log(`Unlocking premium perk ${perkId} (no word count required)`);
                         gameState.unlockedPerks.add(perkId);
                     }
                 }
             });
         }
         
-        console.log("Final unlocked perks after initialization:", Array.from(gameState.unlockedPerks));
-        
         // Update UI
         this.updateAllPerkButtons();
         
         // Attach to game events
         this.attachToGameEvents();
-        console.groupEnd();
     },
 
-    
-// Add this to the PerkManager object
-resetForUserChange() {
-    console.log("Resetting perks for user change");
-    
-    // Clear any localStorage for perks to prevent cross-user contamination
-    try {
-        localStorage.removeItem("simploxUnlockedPerks");
-    } catch (e) {
-        console.error("Error removing perks from localStorage:", e);
-    }
-    
-    // Create fresh unlockedPerks with only basic perks
-    gameState.unlockedPerks = new Set(['timeFreeze', 'skip', 'clue', 'reveal']);
-    
-    // Re-initialize the PerkManager to set up perks for the current user
-    this.init();
-    
-    console.log("Perks reset completed for user change");
-},
+    resetForUserChange() {
+        // Clear any localStorage for perks to prevent cross-user contamination
+        try {
+            localStorage.removeItem("simploxUnlockedPerks");
+        } catch (e) {
+            console.error("Error removing perks from localStorage:", e);
+        }
+        
+        // Create fresh unlockedPerks with only basic perks
+        gameState.unlockedPerks = new Set(['timeFreeze', 'skip', 'clue', 'reveal']);
+        
+        // Re-initialize the PerkManager to set up perks for the current user
+        this.init();
+    },
 
     // Attach to game events to refresh perks when progress changes
     attachToGameEvents() {
-        // If you have custom events, use them
+        // Add a direct listener for clicks on the home button
+        document.querySelectorAll('.home-button').forEach(button => {
+            button.addEventListener('click', () => {
+                if (gameState && gameState.unlockedPerks) {
+                    // Force immediate save to localStorage
+                    localStorage.setItem("simploxUnlockedPerks", 
+                        JSON.stringify(Array.from(gameState.unlockedPerks)));
+                }
+            });
+        });
+        
+        // Listen for existing game events
         document.addEventListener('wordLearned', () => {
-            console.log('Word learned event detected');
             this.refreshPerks();
         });
         
         document.addEventListener('levelCompleted', () => {
-            console.log('Level completed event detected');
             this.refreshPerks();
         });
         
-        // If no custom events, manually call refreshPerks() after:
-        // - Answering correctly
-        // - Completing levels
-        // - Any place where gameState.wordsLearned changes
+        // Force reload unlocked perks when returning to visible state
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                try {
+                    const localPerks = localStorage.getItem("simploxUnlockedPerks");
+                    if (localPerks) {
+                        const parsedPerks = JSON.parse(localPerks);
+                        if (gameState && !gameState.unlockedPerks) {
+                            gameState.unlockedPerks = new Set();
+                        }
+                        
+                        parsedPerks.forEach(perkId => {
+                            if (gameState && gameState.unlockedPerks) {
+                                gameState.unlockedPerks.add(perkId);
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('Error reloading perks from localStorage:', e);
+                }
+                
+                // Update UI
+                this.updateAllPerkButtons();
+            }
+        });
     },
     
     refreshPerks() {
-        console.log('Refreshing perks availability...');
-        
         // Reload user stats if possible
         this.loadUserWordStats().then(() => {
             // Define the current unlocked state of all perks
@@ -425,7 +411,6 @@ resetForUserChange() {
                 
                 // If newly unlocked, announce it
                 if (currentUnlocked[perkId] && !gameState.unlockedPerks.has(perkId)) {
-                    console.log(`Perk ${perkId} newly unlocked during refresh!`);
                     gameState.unlockedPerks.add(perkId);
                     this.announcePerkUnlocked(perkId);
                 }
@@ -433,10 +418,6 @@ resetForUserChange() {
             
             // Force a refresh of all perk buttons
             this.updateAllPerkButtons();
-            
-            // Log the current state for debugging
-            console.log('Current user stats:', window.userStats);
-            console.log('Game state:', gameState);
         });
     },
     
@@ -449,15 +430,11 @@ resetForUserChange() {
         
         // If no logged in user, use local game state
         if (!currentUser || !currentUser.id) {
-            console.log('No user logged in, using local game state');
-            
             // Try to get word count from game state
             if (gameState && typeof gameState.wordsLearned === 'number') {
                 window.userStats.uniqueWords = gameState.wordsLearned;
-                console.log(`Using local game state word count: ${window.userStats.uniqueWords}`);
             } else if (currentGame && typeof currentGame.wordsLearned === 'number') {
                 window.userStats.uniqueWords = currentGame.wordsLearned;
-                console.log(`Using current game word count: ${window.userStats.uniqueWords}`);
             }
             
             return;
@@ -477,216 +454,146 @@ resetForUserChange() {
             if (data && typeof data.unique_words_practiced === 'number') {
                 window.userStats.uniqueWords = data.unique_words_practiced;
             }
-            
-            console.log('Loaded user word stats from DB:', window.userStats);
         } catch (error) {
             console.error('Error loading user word stats:', error);
             
             // If DB fetch fails, still try local game state
             if (gameState && typeof gameState.wordsLearned === 'number') {
                 window.userStats.uniqueWords = gameState.wordsLearned;
-                console.log(`Fallback to local game state: ${window.userStats.uniqueWords} words`);
             }
         }
     },
     
     // Helper to check if perk conditions are met
-    // REPLACE - Update the checkPerkConditionsMet method
-
-checkPerkConditionsMet(perkId) {
-    const perkConfig = PERK_CONFIG[perkId];
-    if (!perkConfig) return false;
-    
-    // If this perk is already in gameState.unlockedPerks, consider it unlocked
-    if (gameState.unlockedPerks && gameState.unlockedPerks.has(perkId)) {
-        return true;
-    }
-    
-    // For basic perks (no special requirements), always return true
-    if (!perkConfig.requiresPremium && !perkConfig.requiresWordCount) {
-        return true;
-    }
-    
-    let meetsRequirements = true;
-    
-    // Check premium status if required
-    if (perkConfig.requiresPremium) {
-        const isPremium = currentUser && currentUser.status === 'premium';
-        if (!isPremium) {
-            meetsRequirements = false;
-        }
-    }
-    
-    // Check word count if required and if still meeting other requirements
-    if (meetsRequirements && perkConfig.requiresWordCount) {
-        // Get word count from various possible sources
-        let userWordCount = 0;
+    checkPerkConditionsMet(perkId) {
+        const perkConfig = PERK_CONFIG[perkId];
+        if (!perkConfig) return false;
         
-        // First check window.userStats (set from database)
-        if (window.userStats && typeof window.userStats.uniqueWords === 'number') {
-            userWordCount = window.userStats.uniqueWords;
-        } 
-        // Then check player progress
-        else if (currentUser && gameState && gameState.wordsLearned) {
-            userWordCount = gameState.wordsLearned;
-        }
-        // Lastly check currentGame progress
-        else if (currentGame && currentGame.wordsLearned) {
-            userWordCount = currentGame.wordsLearned;
+        // If this perk is already in gameState.unlockedPerks, consider it unlocked
+        if (gameState.unlockedPerks && gameState.unlockedPerks.has(perkId)) {
+            return true;
         }
         
-        if (userWordCount < perkConfig.requiresWordCount) {
-            meetsRequirements = false;
+        // For basic perks (no special requirements), always return true
+        if (!perkConfig.requiresPremium && !perkConfig.requiresWordCount) {
+            return true;
         }
-    }
-    
-    return meetsRequirements;
-},
-
-announcePerkUnlocked(perkId) {
-    const perkConfig = PERK_CONFIG[perkId];
-    if (!perkConfig) return;
-    
-    // Double-check that perk is actually unlocked before announcing
-    if (!this.checkPerkConditionsMet(perkId)) {
-        console.warn(`Attempted to announce unlock for ${perkId} but conditions are not met`);
-        return;
-    }
-    
-    console.log(`Announcing unlock for perk: ${perkId}`);
-    
-    // CRITICAL ADDITION: Actually unlock the perk in gameState
-    if (!gameState.unlockedPerks) {
-        gameState.unlockedPerks = new Set();
-    }
-    gameState.unlockedPerks.add(perkId);
-    
-    // Save to localStorage immediately
-    try {
-        localStorage.setItem("simploxUnlockedPerks", 
-            JSON.stringify(Array.from(gameState.unlockedPerks)));
-        console.log(`Saved unlocked perk ${perkId} to localStorage, all unlocked perks:`, 
-            Array.from(gameState.unlockedPerks));
-    } catch (e) {
-        console.error("Error saving unlocked perks to localStorage:", e);
-    }
-    
-    // Show the visual effect based on perk type
-    switch(perkId) {
-        case 'timeFreeze':
-            this.showFreezeEffect(false);
-            break;
-        case 'skip':
-            this.showSkipEffect(false);
-            break;
-        case 'clue':
-            this.showClueEffect();
-            break;
-        case 'reveal':
-            this.showRevealEffect();
-            break;
-        case 'doubleFreeze':
-            this.showFreezeEffect(true);
-            break;
-        case 'doubleCoins':
-            this.showDoubleCoinsEffect();
-            break;
-        case 'goldenEgg':
-            this.showGoldenEggEffect();
-            break;
-        case 'randomPerk':
-            this.showMysteryEffect();
-            break;
-        default:
-            // No specific effect for this perk
-            break;
-    }
-    
-    // Show full unlock notification for premium perks
-    if (perkConfig.requiresPremium) {
-        this.showPerkUnlockNotification(perkId, perkConfig);
-    } else {
-        // Simple notification for non-premium perks
-        this.showNotification(`New Perk Unlocked: ${perkConfig.name || perkId}!`, 'success');
-    }
-    
-    // Highlight the perk button
-    const perkButton = document.getElementById(`${perkId}Perk`);
-    if (perkButton) {
-        perkButton.classList.add('perk-unlocked-pulse');
         
-        // Remove the class after a while
-        setTimeout(() => {
-            perkButton.classList.remove('perk-unlocked-pulse');
-        }, 3000);
-    }
-    
-    // Also call saveProgress to save to database if needed
-    if (typeof saveProgress === 'function') {
-        saveProgress();
-    }
-    
-    // Immediately update the UI to reflect the unlocked state
-    this.updatePerkButton(perkId);
-},
-
-// ADD - Add this after the announcePerkUnlocked method
-attachToGameEvents() {
-    // Add a direct listener for clicks on the home button
-    document.querySelectorAll('.home-button').forEach(button => {
-        button.addEventListener('click', () => {
-            console.log('Home button clicked, forcing save of unlocked perks');
-            if (gameState && gameState.unlockedPerks) {
-                // Force immediate save to localStorage
-                localStorage.setItem("simploxUnlockedPerks", 
-                    JSON.stringify(Array.from(gameState.unlockedPerks)));
-                console.log("Saved perks before home navigation:", 
-                    Array.from(gameState.unlockedPerks));
+        let meetsRequirements = true;
+        
+        // Check premium status if required
+        if (perkConfig.requiresPremium) {
+            const isPremium = currentUser && currentUser.status === 'premium';
+            if (!isPremium) {
+                meetsRequirements = false;
             }
-        });
-    });
-    
-    // Listen for existing game events
-    document.addEventListener('wordLearned', () => {
-        console.log('Word learned event detected');
-        this.refreshPerks();
-    });
-    
-    document.addEventListener('levelCompleted', () => {
-        console.log('Level completed event detected');
-        this.refreshPerks();
-    });
-    
-    // Force reload unlocked perks when returning to visible state
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-            console.log('Page visibility changed to visible, reloading perks');
-            try {
-                const localPerks = localStorage.getItem("simploxUnlockedPerks");
-                if (localPerks) {
-                    const parsedPerks = JSON.parse(localPerks);
-                    if (gameState && !gameState.unlockedPerks) {
-                        gameState.unlockedPerks = new Set();
-                    }
-                    
-                    parsedPerks.forEach(perkId => {
-                        if (gameState && gameState.unlockedPerks) {
-                            gameState.unlockedPerks.add(perkId);
-                        }
-                    });
-                    
-                    console.log('Reloaded perks from localStorage:', 
-                        gameState.unlockedPerks ? Array.from(gameState.unlockedPerks) : 'no gameState.unlockedPerks');
-                }
-            } catch (e) {
-                console.error('Error reloading perks from localStorage:', e);
+        }
+        
+        // Check word count if required and if still meeting other requirements
+        if (meetsRequirements && perkConfig.requiresWordCount) {
+            // Get word count from various possible sources
+            let userWordCount = 0;
+            
+            // First check window.userStats (set from database)
+            if (window.userStats && typeof window.userStats.uniqueWords === 'number') {
+                userWordCount = window.userStats.uniqueWords;
+            } 
+            // Then check player progress
+            else if (currentUser && gameState && gameState.wordsLearned) {
+                userWordCount = gameState.wordsLearned;
+            }
+            // Lastly check currentGame progress
+            else if (currentGame && currentGame.wordsLearned) {
+                userWordCount = currentGame.wordsLearned;
             }
             
-            // Update UI
-            this.updateAllPerkButtons();
+            if (userWordCount < perkConfig.requiresWordCount) {
+                meetsRequirements = false;
+            }
         }
-    });
-},
+        
+        return meetsRequirements;
+    },
+
+    announcePerkUnlocked(perkId) {
+        const perkConfig = PERK_CONFIG[perkId];
+        if (!perkConfig) return;
+        
+        // Double-check that perk is actually unlocked before announcing
+        if (!this.checkPerkConditionsMet(perkId)) {
+            console.warn(`Attempted to announce unlock for ${perkId} but conditions are not met`);
+            return;
+        }
+        
+        // CRITICAL ADDITION: Actually unlock the perk in gameState
+        if (!gameState.unlockedPerks) {
+            gameState.unlockedPerks = new Set();
+        }
+        gameState.unlockedPerks.add(perkId);
+        
+        // Save to localStorage immediately
+        try {
+            localStorage.setItem("simploxUnlockedPerks", 
+                JSON.stringify(Array.from(gameState.unlockedPerks)));
+        } catch (e) {
+            console.error("Error saving unlocked perks to localStorage:", e);
+        }
+        
+        // Show the visual effect based on perk type
+        switch(perkId) {
+            case 'timeFreeze':
+                this.showFreezeEffect(false);
+                break;
+            case 'skip':
+                this.showSkipEffect(false);
+                break;
+            case 'clue':
+                this.showClueEffect();
+                break;
+            case 'reveal':
+                this.showRevealEffect();
+                break;
+            case 'doubleFreeze':
+                this.showFreezeEffect(true);
+                break;
+            case 'doubleCoins':
+                this.showDoubleCoinsEffect();
+                break;
+            case 'goldenEgg':
+                this.showGoldenEggEffect();
+                break;
+            case 'randomPerk':
+                this.showMysteryEffect();
+                break;
+        }
+        
+        // Show full unlock notification for premium perks
+        if (perkConfig.requiresPremium) {
+            this.showPerkUnlockNotification(perkId, perkConfig);
+        } else {
+            // Simple notification for non-premium perks
+            this.showNotification(`New Perk Unlocked: ${perkConfig.name || perkId}!`, 'success');
+        }
+        
+        // Highlight the perk button
+        const perkButton = document.getElementById(`${perkId}Perk`);
+        if (perkButton) {
+            perkButton.classList.add('perk-unlocked-pulse');
+            
+            // Remove the class after a while
+            setTimeout(() => {
+                perkButton.classList.remove('perk-unlocked-pulse');
+            }, 3000);
+        }
+        
+        // Also call saveProgress to save to database if needed
+        if (typeof saveProgress === 'function') {
+            saveProgress();
+        }
+        
+        // Immediately update the UI to reflect the unlocked state
+        this.updatePerkButton(perkId);
+    },
     
     // Show an animated perk unlock notification
     showPerkUnlockNotification(perkId, perkConfig) {
@@ -861,9 +768,6 @@ attachToGameEvents() {
     },
     
     updateAllPerkButtons() {
-        console.log("Updating all perk buttons, current unlocked perks:", 
-                    gameState.unlockedPerks ? Array.from(gameState.unlockedPerks) : "none");
-        
         // Ensure unlockedPerks exists
         if (!gameState.unlockedPerks) {
             gameState.unlockedPerks = new Set();
@@ -906,88 +810,170 @@ attachToGameEvents() {
         });
     },
 
-updatePerkButton(perkId) {
-    const perkButton = document.getElementById(`${perkId}Perk`);
-    if (!perkButton) {
-        console.log(`Button for perk ${perkId} not found in DOM`);
-        return;
-    }
-    
-    const perkConfig = PERK_CONFIG[perkId];
-    if (!perkConfig) {
-        console.log(`Config for perk ${perkId} not found`);
-        return;
-    }
-    
-    // First, ensure all perk buttons are visible
-    perkButton.style.display = 'flex';
-    
-    // Check if player is premium
-    const isPremium = currentUser && currentUser.status === 'premium';
-    
-    // First check if the perk is actually unlocked in gameState.unlockedPerks
-    const isPerkUnlocked = gameState.unlockedPerks && gameState.unlockedPerks.has(perkId);
-    
-    // If this perk requires premium and player isn't premium, show locked state
-    if (perkConfig.requiresPremium && !isPremium) {
-        // Add or ensure premium lock indicator exists
-        let lockIndicator = perkButton.querySelector('.premium-lock');
-        if (!lockIndicator) {
-            lockIndicator = document.createElement('div');
-            lockIndicator.className = 'premium-lock';
-            lockIndicator.innerHTML = '👑';
-            lockIndicator.style.cssText = `
-                position: absolute;
-                top: -5px;
-                right: -5px;
-                font-size: 12px;
-                background: gold;
-                color: #333;
-                border-radius: 50%;
-                width: 18px;
-                height: 18px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-                z-index: 2;
-            `;
-            
-            // Make sure button has position relative
-            perkButton.style.position = 'relative';
-            perkButton.appendChild(lockIndicator);
+    updatePerkButton(perkId) {
+        const perkButton = document.getElementById(`${perkId}Perk`);
+        if (!perkButton) {
+            return;
         }
         
-        // Disable the button
-        perkButton.disabled = true;
-        perkButton.classList.add("disabled");
+        const perkConfig = PERK_CONFIG[perkId];
+        if (!perkConfig) {
+            return;
+        }
+        
+        // First, ensure all perk buttons are visible
+        perkButton.style.display = 'flex';
+        
+        // Check if player is premium
+        const isPremium = currentUser && currentUser.status === 'premium';
+        
+        // First check if the perk is actually unlocked in gameState.unlockedPerks
+        const isPerkUnlocked = gameState.unlockedPerks && gameState.unlockedPerks.has(perkId);
+        
+        // If this perk requires premium and player isn't premium, show locked state
+        if (perkConfig.requiresPremium && !isPremium) {
+            // Add or ensure premium lock indicator exists
+            let lockIndicator = perkButton.querySelector('.premium-lock');
+            if (!lockIndicator) {
+                lockIndicator = document.createElement('div');
+                lockIndicator.className = 'premium-lock';
+                lockIndicator.innerHTML = '👑';
+                lockIndicator.style.cssText = `
+                    position: absolute;
+                    top: -5px;
+                    right: -5px;
+                    font-size: 12px;
+                    background: gold;
+                    color: #333;
+                    border-radius: 50%;
+                    width: 18px;
+                    height: 18px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    z-index: 2;
+                `;
+                
+                // Make sure button has position relative
+                perkButton.style.position = 'relative';
+                perkButton.appendChild(lockIndicator);
+            }
+            
+            // Disable the button
+            perkButton.disabled = true;
+            perkButton.classList.add("disabled");
+            perkButton.classList.add("locked");
+            perkButton.classList.remove("unlocked");
+            perkButton.style.opacity = "0.6";
+            
+            // Set count to PRO instead of a number
+            const perkCount = perkButton.querySelector(".perk-count");
+            if (perkCount) {
+                perkCount.textContent = "PRO";
+                perkCount.style.fontSize = "8px";
+            }
+            
+            return;
+        }
+        
+        // If the perk is unlocked in gameState, update its visual state accordingly
+        if (isPerkUnlocked) {
+            // Remove any lock indicators
+            const lockIndicator = perkButton.querySelector('.premium-lock, .word-lock');
+            if (lockIndicator) {
+                lockIndicator.remove();
+            }
+            
+            // Update visual classes
+            perkButton.classList.remove("locked");
+            perkButton.classList.add("unlocked");
+            
+            // Check if player can afford it (for quantity display)
+            const coins = gameState.coins || 0;
+            const purchaseCount = Math.floor(coins / perkConfig.cost);
+            const canAfford = purchaseCount > 0;
+            
+            // Update button state based on affordability
+            perkButton.disabled = !canAfford;
+            perkButton.classList.toggle("disabled", !canAfford);
+            
+            // Restore normal opacity
+            perkButton.style.opacity = canAfford ? "1" : "0.5";
+            
+            // Update counter display
+            const perkCount = perkButton.querySelector(".perk-count");
+            if (perkCount) {
+                perkCount.textContent = canAfford ? purchaseCount.toString() : "0";
+                perkCount.style.fontSize = ""; // Reset font size
+                perkCount.style.display = "block"; // Make sure it's visible
+            }
+            
+            return;
+        }
+        
+        // Check if player meets word count requirement
+        const meetsWordCount = !perkConfig.requiresWordCount || 
+                    (window.userStats && window.userStats.uniqueWords >= perkConfig.requiresWordCount);
+
+        // If this perk requires specific word count and player doesn't meet it, show locked state
+        if (perkConfig.requiresWordCount && !meetsWordCount) {
+            // Add or ensure word count lock indicator
+            let lockIndicator = perkButton.querySelector('.word-lock');
+            if (!lockIndicator) {
+                lockIndicator = document.createElement('div');
+                lockIndicator.className = 'word-lock';
+                lockIndicator.innerHTML = perkConfig.requiresWordCount;
+                lockIndicator.style.cssText = `
+                    position: absolute;
+                    top: -5px;
+                    right: -5px;
+                    font-size: 10px;
+                    background: #4caf50;
+                    color: white;
+                    border-radius: 50%;
+                    width: 18px;
+                    height: 18px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    z-index: 2;
+                `;
+                
+                // Make sure button has position relative
+                perkButton.style.position = 'relative';
+                perkButton.appendChild(lockIndicator);
+            }
+            
+            // Disable the button and update visual state
+            perkButton.disabled = true;
+            perkButton.classList.add("disabled");
+            perkButton.classList.add("locked");
+            perkButton.classList.remove("unlocked");
+            perkButton.style.opacity = "0.6";
+            
+            // Set counter to lock icon instead of a number
+            const perkCount = perkButton.querySelector(".perk-count");
+            if (perkCount) {
+                perkCount.textContent = "🔒";
+                perkCount.style.fontSize = ""; // Reset font size
+            }
+            
+            return;
+        }
+        
+        // By default, if not explicitly handled above, show as locked
         perkButton.classList.add("locked");
         perkButton.classList.remove("unlocked");
-        perkButton.style.opacity = "0.6";
         
-        // Set count to PRO instead of a number
-        const perkCount = perkButton.querySelector(".perk-count");
-        if (perkCount) {
-            perkCount.textContent = "PRO";
-            perkCount.style.fontSize = "8px";
-        }
-        
-        return;
-    }
-    
-    // If the perk is unlocked in gameState, update its visual state accordingly
-    if (isPerkUnlocked) {
-        // Remove any lock indicators
+        // Remove any lock indicators if the perk is now available
         const lockIndicator = perkButton.querySelector('.premium-lock, .word-lock');
         if (lockIndicator) {
             lockIndicator.remove();
         }
         
-        // Update visual classes
-        perkButton.classList.remove("locked");
-        perkButton.classList.add("unlocked");
-        
-        // Check if player can afford it (for quantity display)
+        // Now check if player can afford it
         const coins = gameState.coins || 0;
         const purchaseCount = Math.floor(coins / perkConfig.cost);
         const canAfford = purchaseCount > 0;
@@ -1004,92 +990,8 @@ updatePerkButton(perkId) {
         if (perkCount) {
             perkCount.textContent = canAfford ? purchaseCount.toString() : "0";
             perkCount.style.fontSize = ""; // Reset font size
-            perkCount.style.display = "block"; // Make sure it's visible
         }
-        
-        return;
-    }
-    
-    // Check if player meets word count requirement
-    const meetsWordCount = !perkConfig.requiresWordCount || 
-                  (window.userStats && window.userStats.uniqueWords >= perkConfig.requiresWordCount);
-
-    // If this perk requires specific word count and player doesn't meet it, show locked state
-    if (perkConfig.requiresWordCount && !meetsWordCount) {
-        // Add or ensure word count lock indicator
-        let lockIndicator = perkButton.querySelector('.word-lock');
-        if (!lockIndicator) {
-            lockIndicator = document.createElement('div');
-            lockIndicator.className = 'word-lock';
-            lockIndicator.innerHTML = perkConfig.requiresWordCount;
-            lockIndicator.style.cssText = `
-                position: absolute;
-                top: -5px;
-                right: -5px;
-                font-size: 10px;
-                background: #4caf50;
-                color: white;
-                border-radius: 50%;
-                width: 18px;
-                height: 18px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-                z-index: 2;
-            `;
-            
-            // Make sure button has position relative
-            perkButton.style.position = 'relative';
-            perkButton.appendChild(lockIndicator);
-        }
-        
-        // Disable the button and update visual state
-        perkButton.disabled = true;
-        perkButton.classList.add("disabled");
-        perkButton.classList.add("locked");
-        perkButton.classList.remove("unlocked");
-        perkButton.style.opacity = "0.6";
-        
-        // Set counter to lock icon instead of a number
-        const perkCount = perkButton.querySelector(".perk-count");
-        if (perkCount) {
-            perkCount.textContent = "🔒";
-            perkCount.style.fontSize = ""; // Reset font size
-        }
-        
-        return;
-    }
-    
-    // By default, if not explicitly handled above, show as locked
-    perkButton.classList.add("locked");
-    perkButton.classList.remove("unlocked");
-    
-    // Remove any lock indicators if the perk is now available
-    const lockIndicator = perkButton.querySelector('.premium-lock, .word-lock');
-    if (lockIndicator) {
-        lockIndicator.remove();
-    }
-    
-    // Now check if player can afford it
-    const coins = gameState.coins || 0;
-    const purchaseCount = Math.floor(coins / perkConfig.cost);
-    const canAfford = purchaseCount > 0;
-    
-    // Update button state based on affordability
-    perkButton.disabled = !canAfford;
-    perkButton.classList.toggle("disabled", !canAfford);
-    
-    // Restore normal opacity
-    perkButton.style.opacity = canAfford ? "1" : "0.5";
-    
-    // Update counter display
-    const perkCount = perkButton.querySelector(".perk-count");
-    if (perkCount) {
-        perkCount.textContent = canAfford ? purchaseCount.toString() : "0";
-        perkCount.style.fontSize = ""; // Reset font size
-    }
-},
+    },
     
     // Buy and activate a perk
     buyPerk(perkId) {
@@ -1122,8 +1024,6 @@ updatePerkButton(perkId) {
     activatePerk(perkId) {
         const perkConfig = PERK_CONFIG[perkId];
         if (!perkConfig) return;
-        
-        console.log(`Activating perk: ${perkConfig.name}`);
         
         // Call the appropriate handler based on perk type
         switch(perkId) {
@@ -1167,13 +1067,11 @@ updatePerkButton(perkId) {
         // Prevent duplicate notifications within 1 second
         if (message === this.lastNotification.message && 
             now - this.lastNotification.timestamp < 1000) {
-            console.log('Preventing duplicate notification:', message);
             return;
         }
         
         // Check if this notification is already active
         if (this.lastNotification.activeNotifications.has(message)) {
-            console.log('Notification already active:', message);
             return;
         }
         
@@ -1583,45 +1481,45 @@ updatePerkButton(perkId) {
     },
     
     showClueEffect() {
-    // Create clue effect overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'clue-effect-overlay';
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: radial-gradient(circle, rgba(255, 255, 0, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
-        pointer-events: none;
-        z-index: 9999;
-        animation: clueFlash 2s forwards;
-    `;
-    
-    // Add light bulb to center of screen
-    const lightBulb = document.createElement('div');
-    lightBulb.className = 'clue-light-bulb';
-    lightBulb.innerHTML = '💡'; // Light bulb emoji
-    lightBulb.style.cssText = `
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%) scale(0);
-        font-size: 9rem;
-        filter: drop-shadow(0 0 10px rgba(255, 255, 1, 1));
-        animation: lightBulbGrow 3s forwards;
-    `;
-    
-    overlay.appendChild(lightBulb);
-    document.body.appendChild(overlay);
-    
-    // Remove after animation - increased from 1000 to 2000
-    setTimeout(() => {
-        if (overlay.parentNode) {
-            overlay.parentNode.removeChild(overlay);
-        }
-    }, 2000);
-},
+        // Create clue effect overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'clue-effect-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 255, 0, 0.2) 0%, rgba(0, 0, 0, 0) 70%);
+            pointer-events: none;
+            z-index: 9999;
+            animation: clueFlash 2s forwards;
+        `;
+        
+        // Add light bulb to center of screen
+        const lightBulb = document.createElement('div');
+        lightBulb.className = 'clue-light-bulb';
+        lightBulb.innerHTML = '💡'; // Light bulb emoji
+        lightBulb.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            font-size: 9rem;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 1, 1));
+            animation: lightBulbGrow 3s forwards;
+        `;
+        
+        overlay.appendChild(lightBulb);
+        document.body.appendChild(overlay);
+        
+        // Remove after animation
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 2000);
+    },
     
     showRevealEffect() {
         // Create reveal effect overlay
@@ -1972,9 +1870,9 @@ updatePerkButton(perkId) {
     }
 };
 
-// ADD to perks.js
 // Perk button initialization
-Object.entries(perkButtons).forEach(([perkType, button]) => {
+Object.entries(PERK_CONFIG).forEach(([perkType, config]) => {
+    const button = document.getElementById(`${perkType}Perk`);
     if (button) {
         button.onclick = () => buyPerk(perkType);
     }
@@ -1987,35 +1885,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update all perk buttons initially
     PerkManager.updateAllPerkButtons();
-    
-    console.log("PerkManager initialized");
 });
 
-// ADD to perks.js
-function addFadeInStyles() {
-    if (!document.getElementById("perk-fade-styles")) {
-      const styleElement = document.createElement("style");
-      styleElement.id = "perk-fade-styles";
-      styleElement.textContent = `
-        @keyframes perkFadeIn {
-          0% { opacity: 0; transform: scale(0.8); }
-          100% { opacity: 1; transform: scale(1); }
-        }
-        
-        .fade-in-perk {
-          animation: perkFadeIn 0.6s ease-out forwards;
-        }
-      `;
-      document.head.appendChild(styleElement);
-    }
-}
-
-// ADD to perks.js
 function updatePerkButtons() {
     PerkManager.updateAllPerkButtons();
 }
 
-// ADD to perks.js
 function activatePerk(perkType, cost) {
     const powerupCooldown = powerupCooldowns.get(perkType) || 0;
     const now = Date.now();
@@ -2048,7 +1923,6 @@ function activatePerk(perkType, cost) {
     });
 }
 
-// ADD to perks.js
 function eliminateWrongAnswer() {
     const buttons = document.querySelectorAll('.buttons button');
     const correctAnswer = currentGame.isHebrewToEnglish ? 
@@ -2064,73 +1938,31 @@ function eliminateWrongAnswer() {
         buttonToDisable.disabled = true;
         buttonToDisable.style.opacity = '0.5';
     }
- }
+}
  
- function revealCorrectAnswer() {
-     const correctAnswer = currentGame.isHebrewToEnglish ? 
-         currentGame.words[currentGame.currentIndex] : 
-         currentGame.translations[currentGame.currentIndex];
-     
-     document.querySelectorAll('.buttons button').forEach(button => {
-         if (button.textContent === correctAnswer) {
-             button.classList.add('correct');
-             // Simulate a click on the correct button after a short delay
-             setTimeout(() => {
-                 if (currentGame.isCustomPractice) {
-                     handleCustomPracticeAnswer(true);
-                 } else {
-                     handleAnswer(true);
-                 }
-             }, 1000);
-         } else {
-             button.disabled = true;
-             button.style.opacity = '0.5';
-         }
-     });
- }
-
-// ADD to perks.js
-function verifyPerkButtonsInDOM() {
-    // Verify all perk buttons exist in the DOM
-    Object.keys(PERK_CONFIG).forEach(perkId => {
-      const buttonId = `${perkId}Perk`;
-      const button = document.getElementById(buttonId);
-      if (!button) {
-        console.error(`Missing perk button in DOM: ${buttonId}`);
-        
-        // Create the button if it doesn't exist
-        const perksContainer = document.querySelector('.perks-container');
-        if (perksContainer) {
-          const newButton = document.createElement('button');
-          newButton.id = buttonId;
-          newButton.className = 'perk-button';
-          newButton.onclick = () => buyPerk(perkId);
-          
-          const config = PERK_CONFIG[perkId];
-          newButton.innerHTML = `
-            <i class="fas ${config.icon} perk-icon"></i>
-            <span class="perk-count">0</span>
-          `;
-          
-          perksContainer.appendChild(newButton);
-          console.log(`Created missing perk button: ${buttonId}`);
+function revealCorrectAnswer() {
+    const correctAnswer = currentGame.isHebrewToEnglish ? 
+        currentGame.words[currentGame.currentIndex] : 
+        currentGame.translations[currentGame.currentIndex];
+    
+    document.querySelectorAll('.buttons button').forEach(button => {
+        if (button.textContent === correctAnswer) {
+            button.classList.add('correct');
+            // Simulate a click on the correct button after a short delay
+            setTimeout(() => {
+                if (currentGame.isCustomPractice) {
+                    handleCustomPracticeAnswer(true);
+                } else {
+                    handleAnswer(true);
+                }
+            }, 1000);
+        } else {
+            button.disabled = true;
+            button.style.opacity = '0.5';
         }
-      }
     });
 }
 
-// Call on DOM ready
-document.addEventListener('DOMContentLoaded', function() {
-    verifyPerkButtonsInDOM();
-    
-    // Initialize the PerkManager
-    if (PerkManager && typeof PerkManager.init === 'function') {
-      PerkManager.init();
-      console.log('PerkManager initialized');
-    }
-});
-
-// ADD to perks.js
 function handleDoubleCoinsEffect(isCorrect, skipMode) {
     // Check for double coins perk activation
     if (currentGame.doubleCoinsRemaining > 0 && isCorrect && !skipMode) {
@@ -2161,246 +1993,179 @@ function handleDoubleCoinsEffect(isCorrect, skipMode) {
     }
 }
 
-function debugPerkState() {
-    console.group("=== PERK DEBUGGING ===");
-    
-    // Check if gameState and unlockedPerks exist
-    console.log("gameState exists:", !!gameState);
-    console.log("unlockedPerks exists:", !!(gameState && gameState.unlockedPerks));
-    
-    // Log what perks are unlocked according to gameState
-    if (gameState && gameState.unlockedPerks) {
-        console.log("Unlocked perks in gameState:", Array.from(gameState.unlockedPerks));
-    }
-    
-    // Check localStorage values
-    try {
-        const localPerks = localStorage.getItem("simploxUnlockedPerks");
-        console.log("Perks in localStorage:", localPerks ? JSON.parse(localPerks) : "none");
-    } catch (e) {
-        console.error("Error reading perks from localStorage:", e);
-    }
-    
-    // Check UI state for each perk
-    console.log("UI State of Perk Buttons:");
-    Object.keys(PERK_CONFIG).forEach(perkId => {
-        const button = document.getElementById(`${perkId}Perk`);
-        if (button) {
-            console.log(`${perkId}: isUnlocked=${button.classList.contains('unlocked')}, isLocked=${button.classList.contains('locked')}, isDisabled=${button.disabled}`);
-        } else {
-            console.log(`${perkId}: Button not found in DOM`);
-        }
-    });
-    
-    // Check if PerkManager exists and is functioning
-    console.log("PerkManager exists:", !!PerkManager);
-    if (PerkManager) {
-        if (typeof PerkManager.updateAllPerkButtons === 'function') {
-            console.log("updateAllPerkButtons is a function");
-        } else {
-            console.error("updateAllPerkButtons is not a function");
-        }
-    }
-    
-    console.groupEnd();
-    
-    // Return instructions to be printed
-    return "Debug data printed to console. Please check browser console and share the results.";
-}
 
-// ADD - Add this debugging function to check unlocked perks state
-function checkUnlockedPerksState() {
-    console.group("Unlocked Perks State Check");
+/**
+ * Safe logout function that doesn't try to reassign constant variables
+ * This bypasses the problematic perks.js handleLogout function entirely
+ */
+function safeLogout() {
+    console.log("Safe logout function called");
     
-    // Check gameState
-    console.log("gameState.unlockedPerks:", 
-      gameState.unlockedPerks ? Array.from(gameState.unlockedPerks) : "undefined");
+    // Set flag to prevent auto-resume
+    window.preventAutoResume = true;
     
-    // Check localStorage
-    try {
-      const storedPerks = localStorage.getItem("simploxUnlockedPerks");
-      console.log("localStorage perks:", storedPerks ? JSON.parse(storedPerks) : "none");
-    } catch (e) {
-      console.error("Error reading localStorage perks:", e);
+    // Clear localStorage items
+    localStorage.removeItem("simploxProgress");
+    localStorage.removeItem("simploxUnlockedPerks");
+    localStorage.removeItem("simploxCustomLists");
+    localStorage.removeItem("gameContext");
+    localStorage.removeItem("arcadeSessionData");
+    
+    // Call PerkManager reset if available
+    if (typeof PerkManager !== 'undefined' && PerkManager && 
+        typeof PerkManager.resetForUserChange === 'function') {
+        PerkManager.resetForUserChange();
     }
     
-    // Check visible state of buttons
-    Object.keys(PERK_CONFIG).forEach(perkId => {
-      const button = document.getElementById(`${perkId}Perk`);
-      if (button) {
-        console.log(`${perkId} button: unlocked=${button.classList.contains('unlocked')}, locked=${button.classList.contains('locked')}`);
-      }
-    });
-    
-    console.groupEnd();
-  }
-
-// ADD - Add this event listener at the end of perks.js to monitor navigation and restore perks
-
-// Listen for page transitions and restore perks state
-document.addEventListener('visibilitychange', function() {
-    if (!document.hidden) {
-        console.log("Page became visible again, restoring perks state");
-        // Force reload perks from localStorage
+    // Handle Supabase logout
+    (async function() {
         try {
-            const localPerks = localStorage.getItem("simploxUnlockedPerks");
-            if (localPerks) {
-                if (!gameState.unlockedPerks) {
-                    gameState.unlockedPerks = new Set();
+            if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+                const { error } = await supabaseClient.auth.signOut();
+                if (error) {
+                    console.error('Supabase logout error:', error.message);
                 }
-                const parsedPerks = JSON.parse(localPerks);
-                parsedPerks.forEach(perkId => {
-                    gameState.unlockedPerks.add(perkId);
-                });
-                console.log("Restored perks from localStorage:", Array.from(gameState.unlockedPerks));
             }
         } catch (e) {
-            console.error("Error restoring perks from localStorage:", e);
+            console.error("Error during Supabase logout:", e);
+        }
+        
+        // Reset state variables individually to avoid reassignment errors
+        if (typeof gameState !== 'undefined' && gameState) {
+            // Safely reset gameState properties
+            try {
+                // Reset numeric properties
+                gameState.currentStage = 1;
+                gameState.currentSet = 1;
+                gameState.currentLevel = 1;
+                gameState.coins = 0;
+                
+                // Replace perks object contents
+                if (gameState.perks) {
+                    Object.keys(gameState.perks).forEach(key => {
+                        gameState.perks[key] = 0;
+                    });
+                }
+                
+                // Reset collections safely
+                gameState.unlockedSets = {};
+                gameState.unlockedLevels = {};
+                
+                // Clear Set objects if they exist
+                if (gameState.perfectLevels && typeof gameState.perfectLevels.clear === 'function') {
+                    gameState.perfectLevels.clear();
+                }
+                
+                if (gameState.completedLevels && typeof gameState.completedLevels.clear === 'function') {
+                    gameState.completedLevels.clear();
+                }
+                
+                // Reset unlockedPerks if it exists
+                if (gameState.unlockedPerks && typeof gameState.unlockedPerks.clear === 'function') {
+                    gameState.unlockedPerks.clear();
+                    
+                    // Add default perks
+                    ['timeFreeze', 'skip', 'clue', 'reveal'].forEach(perk => {
+                        if (typeof gameState.unlockedPerks.add === 'function') {
+                            gameState.unlockedPerks.add(perk);
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("Error resetting gameState:", error);
+            }
+        }
+        
+        // Reset current user
+        if (typeof currentUser !== 'undefined') {
+            currentUser = null;
         }
         
         // Update UI
-        if (PerkManager && typeof PerkManager.updateAllPerkButtons === 'function') {
-            PerkManager.updateAllPerkButtons();
+        if (typeof updateAuthUI === 'function') {
+            updateAuthUI();
         }
-    }
-});
-
-// Make sure home button clicks preserve perks
-document.addEventListener('click', function(e) {
-    // Check if the clicked element is a home button (adjust selector as needed)
-    if (e.target.closest('.home-button') || e.target.matches('.home-button')) {
-        console.log("Home button clicked, ensuring perks are saved");
-        try {
-            if (gameState && gameState.unlockedPerks) {
-                localStorage.setItem("simploxUnlockedPerks", 
-                    JSON.stringify(Array.from(gameState.unlockedPerks)));
-                console.log("Saved perks before navigation:", Array.from(gameState.unlockedPerks));
-            }
-        } catch (e) {
-            console.error("Error saving perks before navigation:", e);
+        
+        if (typeof updateUserStatusDisplay === 'function') {
+            updateUserStatusDisplay(null);
         }
-    }
-});
-
-// When DOM is ready, ensure perks are properly loaded
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM loaded, ensuring perks are properly initialized");
-    
-    // Give a small delay to ensure everything is loaded
-    setTimeout(function() {
-        if (PerkManager && typeof PerkManager.updateAllPerkButtons === 'function') {
-            // Force reload perks from localStorage first
-            try {
-                const localPerks = localStorage.getItem("simploxUnlockedPerks");
-                if (localPerks) {
-                    if (!gameState.unlockedPerks) {
-                        gameState.unlockedPerks = new Set();
-                    }
-                    const parsedPerks = JSON.parse(localPerks);
-                    parsedPerks.forEach(perkId => {
-                        gameState.unlockedPerks.add(perkId);
-                    });
-                    console.log("DOMContentLoaded: Restored perks from localStorage:", Array.from(gameState.unlockedPerks));
-                }
-            } catch (e) {
-                console.error("DOMContentLoaded: Error restoring perks from localStorage:", e);
-            }
-            
-            // Update UI
-            PerkManager.updateAllPerkButtons();
+        
+        if (typeof updateGuestPlayButton === 'function') {
+            updateGuestPlayButton();
         }
-    }, 500);
-});
-
-// Before page unload, ensure perks are saved
-window.addEventListener('beforeunload', function() {
-    console.log("Page unloading, ensuring perks are saved");
-    try {
-        if (gameState && gameState.unlockedPerks) {
-            localStorage.setItem("simploxUnlockedPerks", 
-                JSON.stringify(Array.from(gameState.unlockedPerks)));
+        
+        // Show welcome screen with force reload flag
+        if (typeof showScreen === 'function') {
+            showScreen('welcome-screen', true);
         }
-    } catch (e) {
-        console.error("Error saving perks before page unload:", e);
-    }
-});
-
-// ADD - Add this small debugging function to the end of perks.js
-function checkPerksConsistency() {
-    console.group("=== PERK STATE CHECK ===");
-    
-    // 1. Check what's in localStorage
-    try {
-        const storedPerks = localStorage.getItem("simploxUnlockedPerks");
-        console.log("1. localStorage perks:", storedPerks ? JSON.parse(storedPerks) : "none");
-    } catch (e) {
-        console.error("Error reading localStorage perks:", e);
-    }
-    
-    // 2. Check what's in gameState
-    console.log("2. gameState.unlockedPerks:", 
-                gameState.unlockedPerks ? Array.from(gameState.unlockedPerks) : "undefined");
-    
-    // 3. Check UI state of buttons
-    console.log("3. UI buttons state:");
-    Object.keys(PERK_CONFIG).forEach(perkId => {
-        const button = document.getElementById(`${perkId}Perk`);
-        if (button) {
-            console.log(`  ${perkId}: isUnlocked=${button.classList.contains('unlocked')}, ` +
-                        `isLocked=${button.classList.contains('locked')}, ` +
-                        `isDisabled=${button.disabled}`);
-        } else {
-            console.log(`  ${perkId}: Button not found in DOM`);
-        }
-    });
-    
-    console.groupEnd();
-    
-    // Make this function available in the global scope
-    window.checkPerks = checkPerksConsistency;
-    return "Debug info printed to console. Check the browser console for results.";
+        
+        console.log("Safe logout completed successfully");
+    })();
 }
 
-// Make the function available globally
-window.checkPerks = checkPerksConsistency;
-
-// ADD - Add this to the end of perks.js
-
-// Add direct home button click handler with immediate effects
-document.addEventListener('DOMContentLoaded', function() {
-    // Look for home buttons once DOM is ready
-    setTimeout(function() {
-        const homeButtons = document.querySelectorAll('.home-button');
-        console.log(`Found ${homeButtons.length} home button(s)`);
-        
-        homeButtons.forEach(button => {
-            // Add a clear highlight to make sure our handler is attached
-            button.addEventListener('mouseenter', function() {
-                console.log('Home button hover detected');
-            });
+/**
+ * Updates all logout buttons to use the safe logout function
+ */
+function fixLogoutButtons() {
+    console.log("Fixing logout buttons");
+    
+    try {
+        // Find all logout buttons
+        document.querySelectorAll('.logout-button').forEach(button => {
+            // Remove any existing onclick attribute
+            if (button.hasAttribute('onclick')) {
+                console.log(`Removing onclick="${button.getAttribute('onclick')}" from logout button`);
+                button.removeAttribute('onclick');
+            }
             
-            // Add direct click handler
-            button.addEventListener('click', function(e) {
-                console.log('HOME BUTTON CLICKED - FORCING PERK SAVE');
-                
-                // Force immediate save to localStorage
-                if (gameState && gameState.unlockedPerks) {
-                    try {
-                        const perksArray = Array.from(gameState.unlockedPerks);
-                        localStorage.setItem("simploxUnlockedPerks", JSON.stringify(perksArray));
-                        console.log("HOME SAVED PERKS:", perksArray);
-                        
-                        // Call checkPerksConsistency if it exists
-                        if (typeof checkPerksConsistency === 'function') {
-                            checkPerksConsistency();
-                        }
-                    } catch (e) {
-                        console.error("Error saving perks on home click:", e);
-                    }
-                }
+            // Clear any existing event listeners by cloning the node
+            const newButton = button.cloneNode(true);
+            if (button.parentNode) {
+                button.parentNode.replaceChild(newButton, button);
+            }
+            
+            // Add our safe logout handler
+            newButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log("Logout button clicked with safe handler");
+                safeLogout();
+                return false;
             });
         });
-    }, 1000); // slight delay to ensure DOM is fully loaded
+        
+        // Also directly modify the button at index.html:182 if possible
+        // This is the one causing the error
+        const problematicButton = document.querySelector('button.logout-button');
+        if (problematicButton) {
+            console.log("Found problematic logout button, applying direct fix");
+            problematicButton.onclick = function(e) {
+                e.preventDefault();
+                console.log("Problematic logout button clicked, using safe handler");
+                safeLogout();
+                return false;
+            };
+        }
+    } catch (error) {
+        console.error("Error fixing logout buttons:", error);
+    }
+}
+
+// Call on DOMContentLoaded and after a short delay for good measure
+document.addEventListener('DOMContentLoaded', function() {
+    // Immediate fix attempt
+    fixLogoutButtons();
+    
+    // Second attempt after a delay in case the DOM is still being manipulated
+    setTimeout(fixLogoutButtons, 1000);
 });
 
-// Call this when user logs out
+/**
+ * Closes the options menu if it's open
+ */
+function closeOptionsMenu() {
+    const optionsMenu = document.getElementById('options-menu');
+    if (optionsMenu && optionsMenu.classList.contains('show')) {
+        optionsMenu.classList.remove('show');
+    }
+}
