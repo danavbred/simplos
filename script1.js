@@ -12894,3 +12894,29 @@ document.addEventListener('DOMContentLoaded', function() {
   }, 1000); // Delay to ensure DOM is fully loaded
 });
 
+function handleUserLogout() {
+  console.log("User logging out - clearing local game data");
+  
+  // Clear all game-related localStorage items
+  localStorage.removeItem("simploxProgress");
+  localStorage.removeItem("simploxUnlockedPerks");
+  localStorage.removeItem("simploxCustomLists");
+  localStorage.removeItem("simploxWordStats");
+  
+  // Reset the gameState to default values
+  gameState = {
+      currentStage: 1,
+      currentSet: 1,
+      currentLevel: 1,
+      coins: 0,
+      perks: { timeFreeze: 0, skip: 0, clue: 0, reveal: 0 },
+      unlockedSets: {},
+      unlockedLevels: {},
+      perfectLevels: new Set(),
+      completedLevels: new Set(),
+      unlockedPerks: new Set(['timeFreeze', 'skip', 'clue', 'reveal']),
+      wordsLearned: 0
+  };
+  
+  console.log("Local game data cleared");
+}

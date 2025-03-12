@@ -1,4 +1,3 @@
-// REPLACE - Update saveProgress to explicitly save unlocked perks to localStorage
 function saveProgress() {
     console.log("Saving game progress...");
     
@@ -12,7 +11,8 @@ function saveProgress() {
         unlocked_sets: serializeSetMap(gameState.unlockedSets),
         unlocked_levels: serializeSetMap(gameState.unlockedLevels),
         perfect_levels: Array.from(gameState.perfectLevels || []),
-        completed_levels: Array.from(gameState.completedLevels || [])
+        completed_levels: Array.from(gameState.completedLevels || []),
+        words_learned: gameState.wordsLearned || 0
         // Note: unlocked_perks is still NOT included here (for database)
     };
     
@@ -295,7 +295,11 @@ const PerkManager = {
         // Add necessary styles for perk effects
         this.addPerkStyles();
         
-        // ALWAYS start with a fresh unlockedPerks Set
+        // Get current user ID (or 'guest' if not logged in)
+        const userId = currentUser && currentUser.id ? currentUser.id : 'guest';
+        console.log(`Initializing perks for user: ${userId}`);
+        
+        // CRITICAL: ALWAYS start with a fresh unlockedPerks Set
         gameState.unlockedPerks = new Set();
         console.log("Created fresh unlockedPerks Set");
         
@@ -363,6 +367,26 @@ const PerkManager = {
     },
 
     
+// Add this to the PerkManager object
+resetForUserChange() {
+    console.log("Resetting perks for user change");
+    
+    // Clear any localStorage for perks to prevent cross-user contamination
+    try {
+        localStorage.removeItem("simploxUnlockedPerks");
+    } catch (e) {
+        console.error("Error removing perks from localStorage:", e);
+    }
+    
+    // Create fresh unlockedPerks with only basic perks
+    gameState.unlockedPerks = new Set(['timeFreeze', 'skip', 'clue', 'reveal']);
+    
+    // Re-initialize the PerkManager to set up perks for the current user
+    this.init();
+    
+    console.log("Perks reset completed for user change");
+},
+
     // Attach to game events to refresh perks when progress changes
     attachToGameEvents() {
         // If you have custom events, use them
@@ -2378,3 +2402,50 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, 1000); // slight delay to ensure DOM is fully loaded
 });
+
+// Call this when user logs out
+function handleLogout() {
+    // First reset perks to prevent cross-user contamination 
+    if (PerkManager && typeof PerkManager.resetForUserChange === 'function') {
+        PerkManager.resetForUserChange();
+    }
+    
+    // Clear all game-related localStorage to avoid data leakage
+    localStorage.removeItem("simploxProgress");
+    localStorage.removeItem("simploxUnlockedPerks");
+    
+    // Reset the gameState to default values
+    gameState = {
+        currentStage: 1,
+        currentSet: 1,
+        currentLevel: 1,
+        coins: 0,
+        perks: { timeFreeze: 0, skip: 0, clue: 0, reveal: 0 },
+        unlockedSets: {},
+        unlockedLevels: {},
+        perfectLevels: new Set(),
+        completedLevels: new Set(),
+        unlockedPerks: new Set(['timeFreeze', 'skip', 'clue', 'reveal']),
+        wordsLearned: 0
+    };
+    
+    // Then proceed with your existing logout logic
+    // ...
+}
+
+// Call this when a different user logs in
+function handleLogin(user) {
+    // First reset perks to prevent cross-user contamination
+    if (PerkManager && typeof PerkManager.resetForUserChange === 'function') {
+        PerkManager.resetForUserChange();
+    }
+    
+    // Set current user
+    currentUser = user;
+    
+    // Load user's game progress from database
+    loadUserGameProgress();
+    
+    // Then proceed with your existing login success logic
+    // ...
+}
