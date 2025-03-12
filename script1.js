@@ -462,7 +462,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   document.addEventListener('DOMContentLoaded', function() {
-    initializeCarousel();
+
 });
 
 
@@ -1570,15 +1570,7 @@ function updateNavigationContainer() {
         navContainer = document.createElement('div');
         navContainer.className = 'vertical-nav-container';
         document.body.appendChild(navContainer);
-        
-
-        const hamburgerBtn = document.createElement('button');
-        hamburgerBtn.className = 'hamburger-button';
-        hamburgerBtn.id = 'nav-hamburger-btn';
-        hamburgerBtn.innerHTML = '<i class="fas fa-bars"></i>';
-        hamburgerBtn.onclick = toggleSidePanel;
-        navContainer.appendChild(hamburgerBtn);
-        
+               
 
         const homeBtn = document.createElement('button');
         homeBtn.className = 'nav-button home-button';
@@ -1724,16 +1716,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
 
     navContainer.innerHTML = '';
-    
-
-
-    const hamburgerBtn = document.createElement('button');
-    hamburgerBtn.className = 'hamburger-button';
-    hamburgerBtn.id = 'nav-hamburger-btn';
-    hamburgerBtn.innerHTML = '<i class="fas fa-bars"></i>';
-    hamburgerBtn.onclick = toggleSidePanel;
-    navContainer.appendChild(hamburgerBtn);
-    
+      
 
     const homeBtn = document.createElement('button');
     homeBtn.className = 'nav-button home-button';
@@ -5343,33 +5326,6 @@ function skipUpgrade() {
     showScreen('welcome-screen');
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-
-    const skipButtons = document.querySelectorAll('#upgrade-screen .skip-button, #upgrade-screen button[onclick*="skip"], #upgrade-screen button:contains("Skip")');
-    
-    skipButtons.forEach(button => {
-
-        button.removeAttribute('onclick');
-        
-
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            console.log("Skip button clicked via direct handler");
-            skipUpgrade();
-        });
-    });
-    
-
-    const directSkipButton = document.querySelector('#upgrade-screen button.skip-signup-button, #upgrade-screen button:contains("Skip")');
-    if (directSkipButton) {
-        directSkipButton.onclick = function(e) {
-            e.preventDefault();
-            console.log("Skip button clicked via direct button selector");
-            skipUpgrade();
-        };
-    }
-});
-
 function handleUpgradeSubmit(event) {
     console.log("Upgrade form submitted");
     
@@ -6928,8 +6884,6 @@ function refreshOptionsMenu() {
                 existingMenu.parentNode.removeChild(existingMenu);
             }
             
-
-            initializeCarousel();
         }, 100);
     }
 }
@@ -10097,7 +10051,42 @@ function markBossLevelCompleted(isPerfect = false) {
     });
   }
   
+  function debugPremiumButtonClick() {
+    console.group("Premium Button Click Debug");
+    
 
+    const userStatus = currentUser ? currentUser.status : 'unregistered';
+    console.log("Current user status:", userStatus);
+    console.log("Is premium user:", userStatus === 'premium');
+    
+
+    const premiumButton = document.querySelector('#premium-menu-item');
+    console.log("Premium button exists:", premiumButton ? "YES" : "NO");
+    
+    if (premiumButton) {
+      console.log("Premium button visibility:", window.getComputedStyle(premiumButton).display);
+      console.log("Premium button click handler:", premiumButton.getAttribute('onclick'));
+      
+
+      console.log("Will call:", premiumButton.getAttribute('onclick') || "No onclick attribute");
+    } else {
+      console.log("Premium button NOT FOUND - this is expected for premium users");
+    }
+    
+    console.groupEnd();
+  }
+
+  window.debugPremium.simulatePremiumButtonClick();
+
+
+  window.debugPremium.setUserStatus('premium');
+  
+  
+  window.debugPremium.setUserStatus('free');
+  
+  
+  window.debugPremium.setUserStatus('unregistered');
+  
   
   const gameStructure = {
     stages: [
@@ -10112,62 +10101,6 @@ function markBossLevelCompleted(isPerfect = false) {
         boss: 'boss'
     }
 };
-
-
-function debugBossCompletion() {
-    const stage = gameStructure.stages[gameState.currentStage - 1];
-    if (!stage || !stage.bossLevel) {
-      console.error("Cannot find boss level for current stage");
-      return;
-    }
-    
-    const bossLevelKey = `${gameState.currentStage}_${gameState.currentSet}_${stage.bossLevel}`;
-    console.log(`Boss level key: ${bossLevelKey}`);
-    console.log(`Boss completed: ${gameState.completedLevels.has(bossLevelKey)}`);
-    console.log(`Boss perfect: ${gameState.perfectLevels.has(bossLevelKey)}`);
-    
-
-    console.log("All completed levels:", Array.from(gameState.completedLevels));
-  }
-  
-
-
-  debugBossCompletion();
-
-
-function troubleshootCompletion() {
-    console.group("Game State Troubleshooting");
-    console.log("Current Stage:", gameState.currentStage);
-    console.log("Current Set:", gameState.currentSet);
-    console.log("Current Level:", gameState.currentLevel);
-    
-
-    const stage = gameStructure.stages[gameState.currentStage - 1];
-    if (stage) {
-      console.log("Total levels in set:", stage.levelsPerSet);
-      console.log("Boss level:", stage.bossLevel);
-      
-
-      for (let i = 1; i <= stage.levelsPerSet; i++) {
-        const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${i}`;
-        const completed = gameState.completedLevels.has(levelKey);
-        const perfect = gameState.perfectLevels.has(levelKey);
-        console.log(`Level ${i}: ${completed ? "Completed" : "Not completed"} ${perfect ? "(Perfect)" : ""}`);
-      }
-    }
-    
-
-    const isComplete = isSetCompleted(gameState.currentStage, gameState.currentSet);
-    console.log(`Is current set completed? ${isComplete}`);
-    
-
-    console.log("All completed levels:", Array.from(gameState.completedLevels));
-    console.groupEnd();
-  }
-  
-
-
-  setTimeout(troubleshootCompletion, 5000);
 
   function showLevelScreen(setId) {
     gameState.currentSet = setId;
@@ -11164,71 +11097,12 @@ window.createOptionsMenu = function() {
       });
     }
   }
-
-
-function debugMenuOpen() {
-    console.group("Cogwheel Menu Debug");
-    
-
-    const userStatus = currentUser ? currentUser.status : 'unregistered';
-    console.log("Current user status:", userStatus);
-    console.log("Is premium user:", userStatus === 'premium');
-    
-
-    const premiumButton = document.querySelector('#options-menu #premium-menu-item');
-    console.log("Premium button in menu:", premiumButton ? "YES" : "NO");
-    
-    if (premiumButton) {
-      console.log("Premium button visibility:", window.getComputedStyle(premiumButton).display);
-      console.log("Premium button click handler:", premiumButton.getAttribute('onclick'));
-    }
-    
-
-    const menuItems = document.querySelectorAll('#options-menu .menu-item');
-    console.log("Total menu items:", menuItems.length);
-    console.log("Menu items:", Array.from(menuItems).map(item => {
-      const text = item.querySelector('span')?.textContent;
-      const visible = window.getComputedStyle(item).display !== 'none';
-      return `${text}: ${visible ? 'visible' : 'hidden'}`;
-    }));
-    
-    console.groupEnd();
-  }
-  
-
-  function debugPremiumButtonClick() {
-    console.group("Premium Button Click Debug");
-    
-
-    const userStatus = currentUser ? currentUser.status : 'unregistered';
-    console.log("Current user status:", userStatus);
-    console.log("Is premium user:", userStatus === 'premium');
-    
-
-    const premiumButton = document.querySelector('#premium-menu-item');
-    console.log("Premium button exists:", premiumButton ? "YES" : "NO");
-    
-    if (premiumButton) {
-      console.log("Premium button visibility:", window.getComputedStyle(premiumButton).display);
-      console.log("Premium button click handler:", premiumButton.getAttribute('onclick'));
-      
-
-      console.log("Will call:", premiumButton.getAttribute('onclick') || "No onclick attribute");
-    } else {
-      console.log("Premium button NOT FOUND - this is expected for premium users");
-    }
-    
-    console.groupEnd();
-  }
   
 
   function createOptionsMenuWithDebug() {
     console.log("Creating options menu with debug");
     const menu = createOptionsMenu();
-    
-
-    setTimeout(debugMenuOpen, 100);
-    
+        
 
     const premiumButton = document.querySelector('#premium-menu-item');
     if (premiumButton) {
@@ -11269,50 +11143,6 @@ function debugMenuOpen() {
       });
     }
   });
-  
-
-  window.debugPremium = {
-    checkMenuItems: function() {
-      debugMenuOpen();
-    },
-    simulatePremiumButtonClick: function() {
-      debugPremiumButtonClick();
-      
-
-      const premiumButton = document.querySelector('#premium-menu-item');
-      if (premiumButton) {
-        console.log("Simulating click on premium button");
-        premiumButton.click();
-      } else {
-        console.log("Premium button not found - cannot simulate click");
-      }
-    },
-    setUserStatus: function(status) {
-      console.log(`Setting simulated user status to: ${status}`);
-      
-
-      const oldStatus = currentUser ? currentUser.status : 'unregistered';
-      if (currentUser) {
-        currentUser.status = status;
-      } else {
-        currentUser = { status: status };
-      }
-      
-
-      updatePremiumButtonVisibility();
-      console.log(`User status changed from ${oldStatus} to ${status}`);
-      
-
-      const menu = document.getElementById('options-menu');
-      if (menu && menu.classList.contains('show')) {
-        menu.classList.remove('show');
-        setTimeout(() => {
-          createOptionsMenuWithDebug();
-          document.getElementById('options-menu').classList.add('show');
-        }, 100);
-      }
-    }
-  };
   
 
   document.addEventListener('DOMContentLoaded', function() {
@@ -11359,22 +11189,6 @@ function debugMenuOpen() {
       });
     }
   });
-
-
-  window.debugPremium.checkMenuItems();
-
-  window.debugPremium.simulatePremiumButtonClick();
-
-
-window.debugPremium.setUserStatus('premium');
-
-
-window.debugPremium.setUserStatus('free');
-
-
-window.debugPremium.setUserStatus('unregistered');
-
-
 
 function fixCrownButtonBehavior() {
 
