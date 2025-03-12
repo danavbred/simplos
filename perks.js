@@ -2194,9 +2194,6 @@ window.handleLogout = function() {
     return false;
 };
 
-/**
- * Also provide the closeOptionsMenu function if it doesn't exist
- */
 if (typeof closeOptionsMenu !== 'function') {
     window.closeOptionsMenu = function() {
         const optionsMenu = document.getElementById('options-menu');
@@ -2221,9 +2218,7 @@ if (typeof closeOptionsMenu !== 'function') {
         };
     }
 })();
-/**
- * Updates all logout buttons to use the safe logout function
- */
+
 function fixLogoutButtons() {
     console.log("Fixing logout buttons");
     
@@ -2278,9 +2273,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(fixLogoutButtons, 1000);
 });
 
-/**
- * Closes the options menu if it's open
- */
+
 function closeOptionsMenu() {
     const optionsMenu = document.getElementById('options-menu');
     if (optionsMenu && optionsMenu.classList.contains('show')) {
