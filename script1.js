@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
     
-    // Also ensure the form has the submit handler directly attached
+
     const form = document.getElementById('upgradeForm');
     if (form) {
       form.addEventListener('submit', function(e) {
@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
   
-  // Replace window.onload with:
+
 document.addEventListener('DOMContentLoaded', () => {
     gameInit.init();
 });
@@ -40,7 +40,7 @@ const supabaseClient = createClient(
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Define CustomListsManager first before any functions try to use it
+
         if (!window.CustomListsManager) {
             window.CustomListsManager = {
                 lists: [],
@@ -287,18 +287,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
         }
         
-        // Next, check session and initialize the game
+
         await checkExistingSession();
         initializeGame();
         updatePerkButtons();
         updateGuestPlayButton();
         
-        // Initialize managers in correct order
+
         CoinsManager.initialize();
         WordsManager.initialize();
         await CustomListsManager.initialize();
  
-        // Load initial coins
+
         if (currentUser) {
             gameState.coins = await CoinsManager.loadUserCoins();
             CoinsManager.updateDisplays();
@@ -307,11 +307,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             WordsManager.updateDisplays(words);
         }
         
-        // Handle QR code joining
+
         window.addEventListener('hashchange', handleHashChange);
         window.addEventListener('load', handleHashChange);
         
-        // Check for join hash on initial load
+
         if (window.location.hash.startsWith('#join=')) {
             console.log('Initial join hash detected');
             const otp = window.location.hash.replace('#join=', '');
@@ -319,45 +319,45 @@ document.addEventListener('DOMContentLoaded', async () => {
             showJoinModal(otp);
         }
  
-        // Ensure particles on welcome screen
+
         const welcomeScreen = document.getElementById('welcome-screen');
         initializeParticles(welcomeScreen);
         
-        // Mobile fullscreen handling
+
         if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-            // Request on first touch
+
             document.addEventListener('touchstart', function onFirstTouch() {
                 document.removeEventListener('touchstart', onFirstTouch);
             }, { once: true });
             
-            // Request when clicking any button
+
             document.addEventListener('click', function(e) {
                 if (e.target.tagName === 'BUTTON') {
                 }
             });
             
-            // Screen orientation handling
+
             if (screen.orientation) {
                 screen.orientation.lock('portrait')
                     .catch(err => console.log('Failed to lock orientation:', err));
             }
         }
  
-        // OTP input handling
+
         const otpInput = document.getElementById('otpInput');
         if (otpInput) {
             otpInput.addEventListener('input', function(e) {
-                // Remove any non-numeric characters
+
                 this.value = this.value.replace(/[^0-9]/g, '');
                 
-                // Limit to 4 digits
+
                 if (this.value.length > 4) {
                     this.value = this.value.slice(0, 4);
                 }
             });
         }
  
-        // Initialize real-time channels if user is logged in
+
         if (currentUser) {
             setupUserStatusSubscription();
             initializeStatusCheck();
@@ -377,7 +377,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Immediately invoke an async function
+
     (async () => {
         await checkExistingSession();
         initializeGame();
@@ -387,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
         CoinsManager.initialize();
         WordsManager.initialize();
         
-        // Load initial values if user is logged in
+
         if (currentUser) {
             const [coins, words] = await Promise.all([
                 CoinsManager.loadUserCoins(),
@@ -399,7 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
             WordsManager.updateDisplays(words);
         }
         
-        // Check for join hash on initial load
+
         if (window.location.hash.startsWith('#join=')) {
             console.log('Initial join hash detected');
             const otp = window.location.hash.replace('#join=', '');
@@ -407,33 +407,33 @@ document.addEventListener('DOMContentLoaded', () => {
             showJoinModal(otp);
         }
 
-        // Ensure particles on welcome screen
+
         const welcomeScreen = document.getElementById('welcome-screen');
         initializeParticles(welcomeScreen);
         
         await loadCustomLists();
 
-        // Mobile fullscreen handling
+
         if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-            // Request on first touch
+
             document.addEventListener('touchstart', function onFirstTouch() {
                 document.removeEventListener('touchstart', onFirstTouch);
             }, { once: true });
             
-            // Request when clicking any button
+
             document.addEventListener('click', function(e) {
                 if (e.target.tagName === 'BUTTON') {
                 }
             });
             
-            // Screen orientation handling
+
             if (screen.orientation) {
                 screen.orientation.lock('portrait')
                     .catch(err => console.log('Failed to lock orientation:', err));
             }
         }
 
-        // Initialize real-time channels if user is logged in
+
         if (currentUser) {
             setupUserStatusSubscription();
             initializeStatusCheck();
@@ -444,21 +444,21 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Existing code...
+
     
-    // Check for admin user and add test button if we're on the question screen
+
     if (document.getElementById('question-screen').classList.contains('visible')) {
       console.log("Question screen is visible on load, adding admin button");
       addAdminTestButton();
     }
     
-    // Also add a direct check just to be safe
+
     setTimeout(() => {
       if (currentUser && currentUser.email === 'admin123@gmail.com') {
         console.log("Admin user detected on page load");
         addAdminTestButton();
       }
-    }, 2000); // Give time for user to be loaded
+    }, 2000);
   });
 
   document.addEventListener('DOMContentLoaded', function() {
@@ -470,10 +470,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const otpInput = document.getElementById('otpInput');
     if (otpInput) {
         otpInput.addEventListener('input', function(e) {
-            // Remove any non-numeric characters
+
             this.value = this.value.replace(/[^0-9]/g, '');
             
-            // Limit to 4 digits
+
             if (this.value.length > 4) {
                 this.value = this.value.slice(0, 4);
             }
@@ -482,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('progressSaved', (event) => {
-    // If the stage-cascade screen is currently visible, refresh it
+
     const stageCascadeScreen = document.getElementById("stage-cascade-screen");
     if (stageCascadeScreen && stageCascadeScreen.classList.contains("visible")) {
       console.log("Refreshing stage cascade screen after progress save");
@@ -510,9 +510,9 @@ document.addEventListener('progressSaved', (event) => {
 
     document.addEventListener('DOMContentLoaded', () => {
     const gameAssets = {
-        stages: {}, // Cache stage data
-        currentWords: [], // Cache current level words
-        particles: new Set() // Reuse particle elements
+        stages: {},
+        currentWords: [],
+        particles: new Set()
     };
 });
 
@@ -533,14 +533,14 @@ document.addEventListener('click', (e) => {
     const arcadeModal = document.getElementById('arcade-modal');
     const arcadeContent = arcadeModal?.querySelector('.modal-content');
     
-    // Handle auth modal
+
     if (authModal?.classList.contains('show') && 
         !authContent.contains(e.target) && 
         !e.target.matches('.main-button')) {
         hideAuthModal();
     }
     
-    // Handle arcade modal
+
     if (arcadeModal?.style.display === 'block' && 
         !arcadeContent.contains(e.target) && 
         !e.target.matches('.arcade-button')) {
@@ -550,21 +550,21 @@ document.addEventListener('click', (e) => {
 
 const ParticleSystem = {
     particlePool: [],
-    maxParticles: 20, // Reduced from 50
+    maxParticles: 20,
     
     init() {
-        // Pre-create fewer particles
+
         for(let i = 0; i < this.maxParticles; i++) {
             const particle = document.createElement('div');
-            particle.className = 'particle mobile-particle'; // Add mobile class
+            particle.className = 'particle mobile-particle';
             this.particlePool.push(particle);
         }
     },
     
     createParticle(x, y) {
-        // Check if mobile before creating
+
         if (window.innerWidth <= 768) {
-            return; // Skip particle creation on mobile
+            return;
         }
         
         const particle = this.particlePool.pop();
@@ -575,7 +575,7 @@ const ParticleSystem = {
         
         setTimeout(() => {
             this.particlePool.push(particle);
-        }, 500); // Reduced timeout
+        }, 500);
     }
 };
 
@@ -623,20 +623,20 @@ const readyPhrases = [
 ];
 
 const shineColors = [
-    '#1E90FF',  // Blue
-    '#FF1493',  // Deep Pink
-    '#00CED1',  // Dark Turquoise
-    '#9370DB',  // Medium Purple
-    '#FFD700',  // Gold
-    '#FF4500',  // Orange Red
-    '#32CD32',  // Lime Green
-    '#FF69B4',  // Hot Pink
-    '#4169E1',  // Royal Blue
-    '#8A2BE2'   // Blue Violet
+    '#1E90FF',
+    '#FF1493',
+    '#00CED1',
+    '#9370DB',
+    '#FFD700',
+    '#FF4500',
+    '#32CD32',
+    '#FF69B4',
+    '#4169E1',
+    '#8A2BE2'
 ];
 
 
-// REPLACE: CoinsManager - Complete replacement
+
 const CoinsManager = {
   initialized: false,
   updateLock: false,
@@ -644,27 +644,27 @@ const CoinsManager = {
   animationTimers: new Map(),
   lastUpdateTimestamp: 0,
   
-  // Initialize the coins manager
+
   initialize: async function() {
       if (this.initialized) return;
       
       console.log("Initializing CoinsManager");
       this.initialized = true;
       
-      // Load initial coin values
+
       await this.loadUserCoins();
       
-      // Watch for DOM changes that might add new coin displays
+
       this.observeCoinsDisplay();
       
-      // Initial update
+
       this.updateDisplays();
   },
   
-  // Load user's coins from database or localStorage
+
   loadUserCoins: async function() {
       try {
-          // For logged in users, load from database
+
           if (currentUser?.id) {
               const { data, error } = await supabaseClient
                   .from("game_progress")
@@ -679,7 +679,7 @@ const CoinsManager = {
               }
           }
           
-          // Fall back to localStorage
+
           const savedProgress = localStorage.getItem("simploxProgress");
           if (savedProgress) {
               try {
@@ -694,7 +694,7 @@ const CoinsManager = {
               }
           }
           
-          // Default to 0 if no saved coins found
+
           gameState.coins = 0;
           return 0;
       } catch (error) {
@@ -704,7 +704,7 @@ const CoinsManager = {
       }
   },
   
-  // Update coin amount and all displays
+
   updateCoins: async function(amount, animationOrigin = null) {
       if (this.updateLock) {
           this.pendingUpdates.push({amount, animationOrigin});
@@ -721,26 +721,26 @@ const CoinsManager = {
           
           console.log(`Updating coins: ${previousCoins} + (${amount}) = ${gameState.coins}`);
           
-          // Update all displays
+
           this.updateDisplays(previousCoins);
           
-          // Show animation if positive amount and origin coordinates provided
+
           if (amount > 0 && animationOrigin) {
               showCoinAnimation(animationOrigin.x, animationOrigin.y, amount);
           }
           
-          // Also update currentGame.coins for arcade mode
+
           if (currentGame) {
               currentGame.coins = gameState.coins;
           }
           
-          // Store the updated value
+
           await this.saveUserCoins();
           
-          // Update arcade participant data if applicable
+
           this.updateArcadeParticipant();
           
-          // Broadcast in arcade mode
+
           this.broadcastArcadeUpdate();
           
           return gameState.coins;
@@ -748,7 +748,7 @@ const CoinsManager = {
           console.error("Error updating coins:", error);
           return gameState.coins;
       } finally {
-          // Process any pending updates after a short delay
+
           setTimeout(() => {
               this.updateLock = false;
               
@@ -760,38 +760,38 @@ const CoinsManager = {
       }
   },
   
-  // Award coins with animation at mouse/touch position
+
   awardCoins: function(amount) {
       if (amount <= 0) return gameState.coins;
       
-      // Get animation origin (center of screen if event not available)
+
       let origin = {
           x: window.innerWidth / 2,
           y: window.innerHeight / 2
       };
       
-      // Try to get last mouse/touch position
+
       if (window.lastInteractionPos) {
           origin = window.lastInteractionPos;
       }
       
-      // Apply the update with animation
+
       return this.updateCoins(amount, origin);
   },
   
-  // Deduct coins with audio/visual feedback
+
   deductCoins: function(amount) {
       if (amount <= 0) return gameState.coins;
       
-      // Apply negative value
+
       this.updateCoins(-amount);
       
-      // Future: Add sound effect or visual feedback for coin loss
+
       
       return gameState.coins;
   },
   
-  // Set coin amount directly (overwrite instead of add)
+
   setCoins: async function(newValue) {
       if (this.updateLock) {
           this.pendingUpdates.push(newValue - gameState.coins);
@@ -807,21 +807,21 @@ const CoinsManager = {
           
           console.log(`Setting coins: ${previousCoins} => ${newValue}`);
           
-          // Update all displays
+
           this.updateDisplays(previousCoins);
           
-          // Also update currentGame.coins for arcade mode
+
           if (currentGame) {
               currentGame.coins = gameState.coins;
           }
           
-          // Store the updated value
+
           await this.saveUserCoins();
           
-          // Update arcade participant data if applicable
+
           this.updateArcadeParticipant();
           
-          // Broadcast in arcade mode
+
           this.broadcastArcadeUpdate();
           
           return gameState.coins;
@@ -840,9 +840,9 @@ const CoinsManager = {
       }
   },
   
-  // Save coins to database and localStorage
+
   saveUserCoins: async function() {
-      // Save to database for logged in users
+
       if (currentUser?.id) {
           try {
               const { error } = await supabaseClient
@@ -858,7 +858,7 @@ const CoinsManager = {
           }
       }
       
-      // Always save to localStorage as backup
+
       try {
           const savedProgress = localStorage.getItem("simploxProgress");
           let progress = {};
@@ -874,7 +874,7 @@ const CoinsManager = {
       }
   },
   
-  // Update coin displays with animation
+
   updateDisplays: function(previousValue = null) {
       if (previousValue === null) {
           previousValue = gameState.coins;
@@ -884,17 +884,17 @@ const CoinsManager = {
           this.animateCoinDisplay(display, previousValue, gameState.coins);
       });
       
-      // Update perk buttons based on new coin amount
+
       if (typeof updatePerkButtons === 'function') {
           updatePerkButtons();
       }
   },
   
-  // Animate a single coin display
+
   animateCoinDisplay: function(element, startValue, endValue) {
       if (!element) return;
       
-      // Cancel any ongoing animation for this element
+
       const existingTimerId = this.animationTimers.get(element);
       if (existingTimerId) {
           cancelAnimationFrame(existingTimerId);
@@ -904,15 +904,15 @@ const CoinsManager = {
       startValue = parseFloat(startValue) || 0;
       endValue = parseFloat(endValue) || 0;
       
-      // Skip animation if values are the same
+
       if (startValue === endValue) {
           element.textContent = endValue;
           return;
       }
       
-      // Duration in ms, shorter for more responsiveness
+
       const duration = 600; 
-      const frameRate = 1000 / 60; // 60fps
+      const frameRate = 1000 / 60;
       const totalFrames = duration / frameRate;
       const changePerFrame = (endValue - startValue) / totalFrames;
       
@@ -925,7 +925,7 @@ const CoinsManager = {
           currentFrame++;
           currentValue += changePerFrame;
           
-          // Handle end conditions properly
+
           if (currentFrame <= totalFrames && 
               ((changePerFrame > 0 && currentValue < endValue) || 
                (changePerFrame < 0 && currentValue > endValue))) {
@@ -938,11 +938,11 @@ const CoinsManager = {
                   element.style.color = 'var(--error)';
               }
               
-              // Schedule next frame and store the timer ID
+
               const newTimerId = requestAnimationFrame(animate);
               this.animationTimers.set(element, newTimerId);
           } else {
-              // Ensure final value is exactly right
+
               element.textContent = endValue;
               this.animationTimers.delete(element);
               
@@ -953,21 +953,21 @@ const CoinsManager = {
           }
       };
       
-      // Start animation and store the timer ID
+
       const initialTimerId = requestAnimationFrame(animate);
       this.animationTimers.set(element, initialTimerId);
   },
   
-  // Observe DOM for new coin displays
+
   observeCoinsDisplay: function() {
       const observer = new MutationObserver(mutations => {
           let shouldUpdate = false;
           
           mutations.forEach(mutation => {
               if (mutation.addedNodes.length > 0) {
-                  // Check if any added nodes contain coin displays
+
                   mutation.addedNodes.forEach(node => {
-                      if (node.nodeType === 1) { // Element node
+                      if (node.nodeType === 1) {
                           if (node.classList?.contains('coin-count') || 
                               node.querySelector?.('.coin-count')) {
                               shouldUpdate = true;
@@ -982,14 +982,14 @@ const CoinsManager = {
           }
       });
       
-      // Observe the entire document for changes
+
       observer.observe(document.body, {
           childList: true,
           subtree: true
       });
   },
   
-  // Update arcade participant data
+
   updateArcadeParticipant: function() {
       if (!currentArcadeSession?.playerName) return;
       
@@ -1002,7 +1002,7 @@ const CoinsManager = {
       }
   },
   
-  // Broadcast coin update in arcade mode
+
   broadcastArcadeUpdate: function() {
       if (!window.arcadeChannel || 
           !currentArcadeSession?.playerName || 
@@ -1024,7 +1024,7 @@ const CoinsManager = {
       });
   },
   
-  // Add visual pulse effect to coins
+
   pulseCoins: function(times = 1) {
       const coinIcons = document.querySelectorAll('.coin-icon');
       
@@ -1057,7 +1057,7 @@ const WordsManager = {
       this.displayElements.add(el);
     });
     
-    // Initialize word counts for logged-in users
+
     if (currentUser) {
       this.loadUserWords().then(wordCount => {
         this.updateDisplays(wordCount);
@@ -1161,7 +1161,7 @@ class RateLimiter {
 
 
 
-// Utility debounce function
+
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -1185,16 +1185,16 @@ function escapeHTML(str) {
 
 function sanitizeInput(input) {
     return input
-        .replace(/[<>]/g, '') // Remove potential HTML
+        .replace(/[<>]/g, '')
         .trim()
-        .slice(0, 500); // Reasonable length limit
+        .slice(0, 500);
 }
 
-// New helper function for smooth number transition
+
 function animateNumberChange(element, startValue, endValue) {
     if (!element) return;
     
-    const duration = 300; // Shorter animation for quick updates
+    const duration = 300;
     const frames = 20;
     const increment = (endValue - startValue) / frames;
     
@@ -1206,11 +1206,11 @@ function animateNumberChange(element, startValue, endValue) {
         currentValue += increment;
         
         if (currentFrame <= frames) {
-            // Round to nearest integer
+
             element.textContent = Math.round(currentValue);
             requestAnimationFrame(updateFrame);
         } else {
-            // Ensure final value is exact
+
             element.textContent = endValue;
         }
     }
@@ -1243,10 +1243,10 @@ function showSuccessToast(message) {
 }
 
 function showScreen(screenId, forceRefresh = false) {
-  // Debug statement to help track screen navigation
+
   console.log(`Attempting to show screen: ${screenId}`);
   
-  // Special handling for stage-cascade-screen
+
   if (screenId === "stage-cascade-screen") {
     return renderStageCascadeScreen();
   }
@@ -1258,17 +1258,17 @@ function showScreen(screenId, forceRefresh = false) {
     preventAutoResume: window.preventAutoResume || false
   });
   
-  // Check if screen exists before proceeding
+
   const targetScreen = document.getElementById(screenId);
   if (!targetScreen) {
       console.error(`ERROR: Screen with id "${screenId}" not found in the DOM!`);
-      // List all available screens for debugging
+
       const availableScreens = Array.from(document.querySelectorAll('.screen')).map(s => s.id);
       console.log("Available screens:", availableScreens);
       return;
   }
    
-  // Special handling for leaderboard screen cleanup
+
   if (document.querySelector('.screen.visible')?.id === 'leaderboard-screen') {
     cleanupLeaderboard();
   }
@@ -1278,10 +1278,10 @@ function showScreen(screenId, forceRefresh = false) {
   });
   document.dispatchEvent(event);
 
-  // Get currently visible screen
+
   const currentScreen = document.querySelector('.screen.visible');
    
-  // Cleanup if leaving question screen
+
   if (currentScreen && currentScreen.id === 'question-screen') {
     if (typeof clearTimer === 'function') {
       clearTimer();
@@ -1289,7 +1289,7 @@ function showScreen(screenId, forceRefresh = false) {
     window.isFrozen = false;
   }
    
-  // Handle force refresh
+
   if (forceRefresh && screenId === "welcome-screen") {
     console.log("Initiating full page reload");
     if (typeof saveProgress === 'function') {
@@ -1305,22 +1305,22 @@ function showScreen(screenId, forceRefresh = false) {
     }
   }
    
-  // Hide all screens
+
   document.querySelectorAll('.screen').forEach(screen => {
     screen.classList.remove('visible');
     
-    // Don't remove particles automatically, just let them be replaced
-    // This avoids errors when the element doesn't exist
+
+
   });
    
-  // Show requested screen
+
   if (targetScreen) {
-    // Make screen visible
+
     targetScreen.classList.add('visible');
        
-    // Initialize particles for the screen if function exists
+
     if (typeof initializeParticles === 'function') {
-      // Only create new particle container if none exists
+
       let particleContainer = targetScreen.querySelector('.particle-container');
       if (!particleContainer) {
         particleContainer = document.createElement('div');
@@ -1335,19 +1335,19 @@ function showScreen(screenId, forceRefresh = false) {
       }
     }
        
-    // Update UI elements if function exists
+
     if (typeof updateAllCoinDisplays === 'function') {
       updateAllCoinDisplays();
     }
        
-    // Special handling for different screens
+
     switch (screenId) {
       case "question-screen":
         if (typeof updatePerkButtons === 'function') {
           updatePerkButtons();
         }
                
-        // Check for admin user and add test button
+
         console.log("Question screen shown, checking for admin button");
         setTimeout(() => {
           if (typeof addAdminTestButton === 'function') {
@@ -1357,10 +1357,10 @@ function showScreen(screenId, forceRefresh = false) {
         break;
              
       case "welcome-screen":
-        // MODIFIED: Check if auto-resume should be prevented
+
         if (window.preventAutoResume) {
           console.log("Auto-resume prevented by explicit flag");
-          // Clear any saved game context to prevent future auto-resume
+
           if (localStorage.getItem("gameContext")) {
             console.log("Removing saved game context during prevented auto-resume");
             localStorage.removeItem("gameContext");
@@ -1376,7 +1376,7 @@ function showScreen(screenId, forceRefresh = false) {
         break;
              
       case "stage-cascade-screen":
-        // Handle the cascading stage screen specially
+
         if (typeof renderStageCascadeScreen === 'function') {
           return renderStageCascadeScreen();
         }
@@ -1391,13 +1391,13 @@ function showScreen(screenId, forceRefresh = false) {
   }
 }
 
-// Call this before showScreen
+
 function safeShowScreen(screenId, forceRefresh = false) {
   ensureScreenExists(screenId);
   showScreen(screenId, forceRefresh);
 }
 
-// Call this before showScreen
+
 function safeShowScreen(screenId, forceRefresh = false) {
     ensureScreenExists(screenId);
     showScreen(screenId, forceRefresh);
@@ -1417,7 +1417,7 @@ function ensureScreenExists(screenId) {
 
 
 function createOptionsMenu() {
-    // Remove existing menu if it exists
+
     const existingMenu = document.getElementById('options-menu');
     if (existingMenu) {
         existingMenu.remove();
@@ -1427,70 +1427,70 @@ function createOptionsMenu() {
     optionsMenu.id = 'options-menu';
     optionsMenu.className = 'floating-menu';
     
-    // Define all possible menu items
+
     const menuItems = [
         {
             id: 'profile-item',
             icon: 'fa-user',
             text: 'Profile',
             onClick: 'openProfileModal()',
-            visibleTo: ['all'] // visible to all users
+            visibleTo: ['all']
         },
         {
             id: 'custom-practice-item',
             icon: 'fa-pen',
             text: 'Custom Practice',
             onClick: 'showScreen(\'custom-practice-screen\')',
-            visibleTo: ['all'] // visible to all users
+            visibleTo: ['all']
         },
         {
             id: 'leaderboard-item',
             icon: 'fa-trophy',
             text: 'Leaderboard',
             onClick: 'showLeaderboard()',
-            visibleTo: ['all'] // visible to all users
+            visibleTo: ['all']
         },
         {
             id: 'premium-item',
             icon: 'fa-crown premium-crown',
             text: 'Premium',
-            onClick: 'showUpgradeScreen()', // This now shows upgrade screen for all non-premium users
-            visibleTo: ['free', 'pending', 'unregistered'] // visible only to non-premium users
+            onClick: 'showUpgradeScreen()',
+            visibleTo: ['free', 'pending', 'unregistered']
         },
         {
             id: 'about-item',
             icon: 'fa-info-circle',
             text: 'About',
             onClick: 'showAboutScreen()',
-            visibleTo: ['all'] // visible to all users
+            visibleTo: ['all']
         },
         {
             id: 'shop-item',
             icon: 'fa-store',
             text: 'Shop',
             onClick: 'showScreen(\'shop-screen\')',
-            visibleTo: ['all'] // visible to all users
+            visibleTo: ['all']
         },
         {
             id: 'accessibility-item',
             icon: 'fa-universal-access',
             text: 'Accessibility',
             onClick: 'openAccessibilitySettings()',
-            visibleTo: ['all'] // visible to all users
+            visibleTo: ['all']
         }
     ];
     
-    // Add menu grid container
+
     const menuGrid = document.createElement('div');
     menuGrid.className = 'menu-grid';
     optionsMenu.appendChild(menuGrid);
     
-    // Filter menu items based on user status
+
     const userStatus = currentUser ? (currentUser.status || 'free') : 'unregistered';
     
-    // Add filtered items to the menu
+
     menuItems.forEach(item => {
-        // Check if this item should be visible to the current user
+
         if (item.visibleTo.includes('all') || item.visibleTo.includes(userStatus)) {
             const menuItem = document.createElement('div');
             menuItem.className = 'menu-item';
@@ -1511,29 +1511,29 @@ function createOptionsMenu() {
 }
 
 function updateNavigationIcons(screenId) {
-    // Remove existing navigation containers
+
     
-    // Screens that should have navigation
+
     const screensWithNav = ['stage-screen', 'set-screen', 'level-screen', 'question-screen'];
     
     if (screensWithNav.includes(screenId)) {
         const navContainer = document.createElement('div');
         navContainer.className = 'screen-nav';
         
-        // Home button (always present)
+
         const homeButton = document.createElement('button');
         homeButton.className = 'home-button';
         homeButton.innerHTML = '<i class="fas fa-home"></i>';
         homeButton.onclick = () => showScreen('welcome-screen');
         navContainer.appendChild(homeButton);
         
-        // Back button (not for stage screen)
+
         if (screenId !== 'stage-screen') {
             const backButton = document.createElement('button');
             backButton.className = 'back-button';
             backButton.innerHTML = '<i class="fas fa-arrow-left"></i>';
             
-            // Determine back navigation based on current screen
+
             switch(screenId) {
                 case 'set-screen':
                     backButton.onclick = () => showScreen('stage-screen');
@@ -1549,29 +1549,29 @@ function updateNavigationIcons(screenId) {
             navContainer.appendChild(backButton);
         }
         
-        // Add navigation to the current screen
+
         const currentScreen = document.getElementById(screenId);
         currentScreen.appendChild(navContainer);
     }
 }
 
 function updateNavigationContainer() {
-    // Remove any existing navigation menu
+
     const existingMenu = document.querySelector('.navigation-menu');
     if (existingMenu) {
         existingMenu.remove();
     }
 
-    // Use our vertical navigation container instead
+
     let navContainer = document.querySelector('.vertical-nav-container');
     
-    // If container doesn't exist, create it
+
     if (!navContainer) {
         navContainer = document.createElement('div');
         navContainer.className = 'vertical-nav-container';
         document.body.appendChild(navContainer);
         
-        // Create hamburger button
+
         const hamburgerBtn = document.createElement('button');
         hamburgerBtn.className = 'hamburger-button';
         hamburgerBtn.id = 'nav-hamburger-btn';
@@ -1579,7 +1579,7 @@ function updateNavigationContainer() {
         hamburgerBtn.onclick = toggleSidePanel;
         navContainer.appendChild(hamburgerBtn);
         
-        // Create home button
+
         const homeBtn = document.createElement('button');
         homeBtn.className = 'nav-button home-button';
         homeBtn.id = 'nav-home-btn';
@@ -1587,7 +1587,7 @@ function updateNavigationContainer() {
         homeBtn.onclick = navigateHome || function() { showScreen('welcome-screen'); };
         navContainer.appendChild(homeBtn);
         
-        // Create fullscreen button
+
         const fullscreenBtn = document.createElement('button');
         fullscreenBtn.className = 'nav-button fullscreen-button';
         fullscreenBtn.id = 'nav-fullscreen-btn';
@@ -1595,7 +1595,7 @@ function updateNavigationContainer() {
         fullscreenBtn.onclick = toggleFullScreen;
         navContainer.appendChild(fullscreenBtn);
         
-        // Create reset button
+
         const resetBtn = document.createElement('button');
         resetBtn.className = 'nav-button reset-button';
         resetBtn.id = 'nav-reset-btn';
@@ -1603,7 +1603,7 @@ function updateNavigationContainer() {
         resetBtn.onclick = handleResetProgress;
         navContainer.appendChild(resetBtn);
         
-        // Create settings button
+
         const settingsBtn = document.createElement('button');
         settingsBtn.className = 'nav-button settings-button';
         settingsBtn.id = 'nav-settings-btn';
@@ -1616,7 +1616,7 @@ function updateNavigationContainer() {
         };
         navContainer.appendChild(settingsBtn);
         
-        // Create accessibility button
+
         const accessBtn = document.createElement('button');
         accessBtn.className = 'nav-button accessibility-button';
         accessBtn.id = 'nav-accessibility-btn';
@@ -1630,7 +1630,7 @@ function updateNavigationContainer() {
         navContainer.appendChild(accessBtn);
     }
     
-    // Remove any standalone buttons that might conflict
+
     const existingButtons = {
         hamburger: document.querySelector('.hamburger-button:not(.vertical-nav-container .hamburger-button)'),
         home: document.querySelector('.home-button:not(.vertical-nav-container .home-button)'),
@@ -1648,16 +1648,16 @@ function updateNavigationContainer() {
 }
 
 function optimizeMobileRendering() {
-    // Throttle particle generation
-    ParticleSystem.maxParticles = 20; // Reduce from 50
+
+    ParticleSystem.maxParticles = 20;
     
     const debouncedShowScreen = debounce(showScreen, 200);
     
-    // Limit complex animations on mobile
+
     if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
         document.body.classList.add('mobile-device');
         
-        // Reduce complex CSS animations
+
         document.head.insertAdjacentHTML('beforeend', `
             <style>
                 @media (max-width: 768px) {
@@ -1671,11 +1671,11 @@ function optimizeMobileRendering() {
 }
 
 function optimizeMobileEvents() {
-    // Use passive event listeners
+
     document.addEventListener('touchstart', () => {}, { passive: true });
     document.addEventListener('touchmove', () => {}, { passive: true });
     
-    // Remove unnecessary event listeners
+
     const cleanupEventListeners = () => {
         document.querySelectorAll('.screen').forEach(screen => {
             screen.removeEventListener('touchstart', () => {});
@@ -1684,9 +1684,9 @@ function optimizeMobileEvents() {
     };
 }
 
-// Call this when showing the question screen
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Run on existing showScreen function calls
+
     const originalShowScreen = window.showScreen;
     if (typeof originalShowScreen === 'function') {
       window.showScreen = function(screenId, forceRefresh) {
@@ -1697,14 +1697,14 @@ document.addEventListener('DOMContentLoaded', function() {
       };
     }
     
-    // Also apply when the question screen is already visible
+
     if (document.getElementById('question-screen')?.classList.contains('visible')) {
       optimizeQuestionScreenForMobile();
     }
   });
 
   function initVerticalNavigation() {
-    // Find existing buttons on the page
+
     const existingButtons = {
         hamburger: document.querySelector('.hamburger-button:not(.vertical-nav-container .hamburger-button)'),
         home: document.querySelector('.home-button:not(.vertical-nav-container .home-button)'),
@@ -1714,7 +1714,7 @@ document.addEventListener('DOMContentLoaded', function() {
         accessibility: document.querySelector('.accessibility-toggle')
     };
     
-    // Get or create the navigation container
+
     let navContainer = document.querySelector('.vertical-nav-container');
     if (!navContainer) {
         navContainer = document.createElement('div');
@@ -1722,11 +1722,11 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.appendChild(navContainer);
     }
     
-    // Clear container
+
     navContainer.innerHTML = '';
     
-    // Create new buttons in the container with the same functionality
-    // Hamburger button
+
+
     const hamburgerBtn = document.createElement('button');
     hamburgerBtn.className = 'hamburger-button';
     hamburgerBtn.id = 'nav-hamburger-btn';
@@ -1734,7 +1734,7 @@ document.addEventListener('DOMContentLoaded', function() {
     hamburgerBtn.onclick = toggleSidePanel;
     navContainer.appendChild(hamburgerBtn);
     
-    // Home button
+
     const homeBtn = document.createElement('button');
     homeBtn.className = 'nav-button home-button';
     homeBtn.id = 'nav-home-btn';
@@ -1742,7 +1742,7 @@ document.addEventListener('DOMContentLoaded', function() {
     homeBtn.onclick = navigateHome || function() { showScreen('welcome-screen'); };
     navContainer.appendChild(homeBtn);
     
-    // Fullscreen button
+
     const fullscreenBtn = document.createElement('button');
     fullscreenBtn.className = 'nav-button fullscreen-button';
     fullscreenBtn.id = 'nav-fullscreen-btn';
@@ -1750,7 +1750,7 @@ document.addEventListener('DOMContentLoaded', function() {
     fullscreenBtn.onclick = toggleFullScreen;
     navContainer.appendChild(fullscreenBtn);
     
-    // Reset button
+
     const resetBtn = document.createElement('button');
     resetBtn.className = 'nav-button reset-button';
     resetBtn.id = 'nav-reset-btn';
@@ -1758,19 +1758,19 @@ document.addEventListener('DOMContentLoaded', function() {
     resetBtn.onclick = handleResetProgress;
     navContainer.appendChild(resetBtn);
     
-    // Settings button
+
     const settingsBtn = document.createElement('button');
     settingsBtn.className = 'nav-button settings-button';
     settingsBtn.id = 'nav-settings-btn';
     settingsBtn.innerHTML = '<i class="fas fa-cog"></i>';
     settingsBtn.onclick = function() { 
-        // Replace with actual settings function if available
+
         const accessibilityModal = document.querySelector('.accessibility-modal');
         if (accessibilityModal) accessibilityModal.classList.add('show');
     };
     navContainer.appendChild(settingsBtn);
     
-    // Accessibility button
+
     const accessBtn = document.createElement('button');
     accessBtn.className = 'nav-button accessibility-button';
     accessBtn.id = 'nav-accessibility-btn';
@@ -1781,7 +1781,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     navContainer.appendChild(accessBtn);
     
-    // Remove original buttons
+
     Object.values(existingButtons).forEach(button => {
         if (button && button.parentNode) {
             button.parentNode.removeChild(button);
@@ -1789,7 +1789,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 }
 
-// Call this function when the DOM is loaded
+
 document.addEventListener('DOMContentLoaded', initVerticalNavigation);
 
 
@@ -1799,7 +1799,7 @@ function updateSidePanelLinks() {
         levelMapLink.setAttribute('onclick', "safeShowScreen('stage-cascade-screen'); return false;");
     }
     
-    // Update any other links that might go to this screen
+
     document.querySelectorAll('button[onclick*="stage-screen"]').forEach(button => {
         const onclick = button.getAttribute('onclick');
         if (onclick && onclick.includes('stage-screen')) {
@@ -1813,11 +1813,11 @@ function showStagesFromMenu() {
 }
 
 function showSetScreen(stageId) {
-    // This function now redirects to the cascade screen
+
     gameState.currentStage = stageId;
     showStageCascadeScreen();
     
-    // Automatically open the selected stage
+
     setTimeout(() => {
         const stageWrapper = document.querySelector(`.stage-wrapper[data-stage="${stageId}"]`);
         if (stageWrapper && !stageWrapper.classList.contains('open')) {
@@ -1827,47 +1827,47 @@ function showSetScreen(stageId) {
 }
 
 function showStageCascadeScreen() {
-    // First, hide all screens
+
     document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.remove('visible');
     });
     
-    // Then show the stage-cascade screen
+
     const stageCascadeScreen = document.getElementById('stage-cascade-screen');
     if (stageCascadeScreen) {
         stageCascadeScreen.classList.add('visible');
     }
     
-    // Now populate the content
+
     let stageCascadeContainer = document.querySelector('.stage-cascade-container');
     if (!stageCascadeContainer) {
-        // Create container if it doesn't exist
+
         const container = document.createElement('div');
         container.className = 'stage-cascade-container';
         stageCascadeScreen.appendChild(container);
-        stageCascadeContainer = container; // Now works with let instead of const
+        stageCascadeContainer = container;
     } else {
-        // Clear existing content
+
         stageCascadeContainer.innerHTML = '';
     }
     
-    // Create stage cards for each stage
+
     const totalStages = gameStructure.stages.length;
     for (let stageIndex = 0; stageIndex < totalStages; stageIndex++) {
         const stage = gameStructure.stages[stageIndex];
         const stageNumber = stageIndex + 1;
         
-        // Create stage card
+
         const stageCard = document.createElement('div');
         stageCard.className = 'stage-card';
         
-        // Determine if stage is unlocked
+
         const isUnlocked = gameState.unlockedSets[stageNumber] && gameState.unlockedSets[stageNumber].size > 0;
         if (!isUnlocked) {
             stageCard.classList.add('locked');
         }
         
-        // Add content to stage card
+
         stageCard.innerHTML = `
             <div class="stage-header">
                 <h2>Stage ${stageNumber}</h2>
@@ -1879,7 +1879,7 @@ function showStageCascadeScreen() {
             ${!isUnlocked ? '<div class="locked-overlay"><i class="fas fa-lock"></i></div>' : ''}
         `;
         
-        // Add click handler if unlocked
+
         if (isUnlocked) {
             stageCard.addEventListener('click', () => {
                 gameState.currentStage = stageNumber;
@@ -1890,7 +1890,7 @@ function showStageCascadeScreen() {
         stageCascadeContainer.appendChild(stageCard);
     }
     
-    // Add back button if it doesn't exist
+
     let backButton = stageCascadeScreen.querySelector('.back-button');
     if (!backButton) {
         backButton = document.createElement('button');
@@ -1908,7 +1908,7 @@ function showStageCascadeScreen() {
       
       document.getElementById('stage-cascade-screen').classList.add('visible');
       
-      // Update stage completion stats
+
       updateStageCompletionStats();
 }
 
@@ -1916,13 +1916,13 @@ function renderStageCascadeScreen() {
     const stagesContainer = document.querySelector(".stages-container");
     if (!stagesContainer) return;
     
-    // Clear the container
+
     stagesContainer.innerHTML = "";
     
-    // Debug: Log the current state of unlocked sets
+
     console.log("Current unlocked sets:", gameState.unlockedSets);
     
-    // Render stages and sets
+
     gameStructure.stages.forEach(stage => {
       const stageWrapper = document.createElement("div");
       stageWrapper.className = "stage-wrapper";
@@ -1935,7 +1935,7 @@ function renderStageCascadeScreen() {
       let completedSets = 0;
       if (unlockedSetCount > 0) {
         unlockedSets.forEach(setNum => {
-          // Check if this set is completed
+
           if (isSetCompleted(stage.id, setNum)) {
             completedSets++;
           }
@@ -1971,14 +1971,14 @@ function renderStageCascadeScreen() {
       
       stagesContainer.appendChild(stageWrapper);
       
-      // Populate the sets grid for this stage
+
       populateSetsGrid(stage.id);
     });
     
-    // Add toggle listeners for stage expansion
+
     addStageToggleListeners();
     
-    // Auto-expand the current stage
+
     if (gameState.currentStage) {
       const currentStageWrapper = document.querySelector(`.stage-wrapper[data-stage="${gameState.currentStage}"]`);
       if (currentStageWrapper) {
@@ -1986,7 +1986,7 @@ function renderStageCascadeScreen() {
       }
     }
     
-    // Show the stage cascade screen
+
     const stageCascadeScreen = document.getElementById("stage-cascade-screen");
     if (stageCascadeScreen) {
       document.querySelectorAll(".screen").forEach(screen => {
@@ -2009,7 +2009,7 @@ function showGameOverOverlay() {
         overlay.classList.add('show');
     }, 100);
     
-    // Set up restart button
+
     document.querySelector('.restart-button').onclick = () => {
         overlay.classList.remove('show');
         setTimeout(() => {
@@ -2022,7 +2022,7 @@ function showGameOverOverlay() {
         }, 1000);
     };
     
-    // Set up home button
+
     document.querySelector('.home-button').onclick = () => {
         overlay.classList.remove('show');
         setTimeout(() => {
@@ -2044,29 +2044,29 @@ async function handleLogin() {
     }
 
     try {
-        // First determine if the input looks like an email
+
         const isEmail = loginInput.includes('@');
         let userEmail = loginInput;
         
-        // If it's not an email, try to construct one
+
         if (!isEmail) {
-            // Try with common email domain
+
             userEmail = `${loginInput}@gmail.com`;
         }
         
-        // Attempt login with direct email
+
         const { data, error } = await supabaseClient.auth.signInWithPassword({
             email: userEmail,
             password: password
         });
 
-        // Handle errors
+
         if (error) {
-            // If direct login failed and we auto-generated the email, try other options
+
             if (!isEmail && error.message.includes('Invalid login')) {
-                // We could try to look up the username in user_profiles here,
-                // but since we know our database is not properly set up for that,
-                // we'll just alert the user
+
+
+
                 alert('Login failed. Please try using your full email address.');
             } else {
                 alert(error.message);
@@ -2074,14 +2074,14 @@ async function handleLogin() {
             return;
         }
 
-        // Handle successful login
+
         if (data && data.user) {
             currentUser = data.user;
             
-            // Hide auth modal first
+
             hideAuthModal();
             
-            // Then update UI and load data
+
             try {
                 const { data: profile } = await supabaseClient
                     .from('user_profiles')
@@ -2097,7 +2097,7 @@ async function handleLogin() {
                 console.warn('Could not load user profile:', profileError);
             }
 
-            // Load user data
+
             try {
                 await Promise.all([
                     loadCustomLists(),
@@ -2107,7 +2107,7 @@ async function handleLogin() {
                 console.warn('Error loading user data:', loadError);
             }
 
-            // Update UI elements
+
             updateAuthUI();
             updateGuestPlayButton();
             showScreen('welcome-screen');
@@ -2118,37 +2118,37 @@ async function handleLogin() {
     }
 }
 
-// Add this function to script1.js
+
 function setupFormKeyboardNavigation() {
-    // Find all forms in the document
+
     const forms = document.querySelectorAll('form');
     
     forms.forEach(form => {
-        // Get all focusable elements within the form
+
         const inputs = form.querySelectorAll('input, select, textarea, button');
         
-        // Add event listeners for each input
+
         inputs.forEach(input => {
-            // Handle Enter key presses
+
             input.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     
-                    // If it's a button, simulate a click
+
                     if (input.tagName === 'BUTTON') {
                         input.click();
                         return;
                     }
                     
-                    // Find the next focusable element
+
                     const currentIndex = Array.from(inputs).indexOf(input);
                     const nextElement = inputs[currentIndex + 1];
                     
-                    // If there's a next element, focus it
+
                     if (nextElement) {
                         nextElement.focus();
                     } else {
-                        // If we're at the last element, submit the form if possible
+
                         const submitButton = form.querySelector('button[type="submit"]') || 
                                           form.querySelector('input[type="submit"]') ||
                                           form.querySelector('button:not([type="button"])');
@@ -2162,7 +2162,7 @@ function setupFormKeyboardNavigation() {
         });
     });
     
-    // Also handle specific auth forms that may not be present initially
+
     const authForms = ['loginForm', 'signupForm', 'upgradeForm'];
     
     authForms.forEach(formId => {
@@ -2172,17 +2172,17 @@ function setupFormKeyboardNavigation() {
         }
     });
     
-    // Add mutation observer to detect when new forms are added
+
     const observer = new MutationObserver(mutations => {
         mutations.forEach(mutation => {
             mutation.addedNodes.forEach(node => {
-                if (node.nodeType === 1) { // Element node
+                if (node.nodeType === 1) {
                     const newForms = node.tagName === 'FORM' ? [node] : node.querySelectorAll('form');
                     newForms.forEach(form => {
                         setupFormSubmitOnEnter(form);
                     });
                     
-                    // Also check for our specific auth forms
+
                     authForms.forEach(formId => {
                         if (node.id === formId) {
                             setupFormSubmitOnEnter(node);
@@ -2193,11 +2193,11 @@ function setupFormKeyboardNavigation() {
         });
     });
     
-    // Start observing the document
+
     observer.observe(document.body, { childList: true, subtree: true });
 }
 
-// Helper function to set up form submission on Enter key
+
 function setupFormSubmitOnEnter(form) {
     if (!form) return;
     
@@ -2207,25 +2207,25 @@ function setupFormSubmitOnEnter(form) {
                         form.querySelector('button:not([type="button"])');
     
     inputs.forEach(input => {
-        // Check if it already has an enter key handler
+
         const hasHandler = input.getAttribute('data-enter-handler');
         if (hasHandler === 'true') return;
         
-        // Add enter key handler
+
         input.setAttribute('data-enter-handler', 'true');
         input.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 
-                // Find the next input
+
                 const currentIndex = Array.from(inputs).indexOf(input);
                 const nextInput = inputs[currentIndex + 1];
                 
-                // If there's a next input, focus it
+
                 if (nextInput) {
                     nextInput.focus();
                 } else if (submitButton) {
-                    // Otherwise, click the submit button
+
                     submitButton.click();
                 }
             }
@@ -2253,19 +2253,19 @@ async function checkUserAccess() {
         return {
             fullAccess: false,
             unlockedStages: {
-                1: [1],     // Only set 1 of stage 1
-                2: [1],     // Only set 1 of stage 2
-                3: [1],     // Only set 1 of stage 3
-                4: [1],     // Only set 1 of stage 4
-                5: [1]      // Only set 1 of stage 5
+                1: [1],
+                2: [1],
+                3: [1],
+                4: [1],
+                5: [1]
             },
             defaultUnlockedLevels: {
-                1: true,    // Level 1 always unlocked in set 1
+                1: true,
             }
         };
     }
 
-    // Check user access level
+
     const { data, error } = await supabaseClient
         .from('user_profiles')
         .select('status, payment_pending')
@@ -2274,36 +2274,36 @@ async function checkUserAccess() {
 
     if (error) return null;
 
-    // Free/Pending/Unregistered users
+
     if (data.payment_pending || data.status === 'free' || data.status === 'pending') {
         return {
             fullAccess: false,
             unlockedStages: {
-                1: [1],     // Only set 1 of stage 1
-                2: [1],     // Only set 1 of stage 2
-                3: [1],     // Only set 1 of stage 3
-                4: [1],     // Only set 1 of stage 4
-                5: [1]      // Only set 1 of stage 5
+                1: [1],
+                2: [1],
+                3: [1],
+                4: [1],
+                5: [1]
             },
             defaultUnlockedLevels: {
-                1: true,    // Level 1 always unlocked in set 1
+                1: true,
             }
         };
     }
 
-    // Premium users
+
     if (data.status === 'premium') {
         return {
             fullAccess: true,
             unlockedStages: {
-                1: [1],     // Only set 1 initially unlocked
-                2: [1],     // Only set 1 initially unlocked
-                3: [1],     // Only set 1 initially unlocked
-                4: [1],     // Only set 1 initially unlocked
-                5: [1]      // Only set 1 initially unlocked
+                1: [1],
+                2: [1],
+                3: [1],
+                4: [1],
+                5: [1]
             },
             defaultUnlockedLevels: {
-                1: true,    // Level 1 always unlocked in set 1
+                1: true,
             }
         };
     }
@@ -2340,7 +2340,7 @@ function showJoinModal(otp = "") {
       if (teacherView) teacherView.style.display = "none";
       if (playerView) playerView.style.display = "block";
       
-      // Clear previous inputs and displays
+
       if (otpInput) otpInput.value = "";
       const usernameInput = document.getElementById("arcadeUsername");
       if (usernameInput) {
@@ -2348,20 +2348,20 @@ function showJoinModal(otp = "") {
         usernameInput.readOnly = false;
         usernameInput.style.display = "block";
         
-        // Remove any previous username display element
+
         const usernameDisplay = usernameInput.closest(".input-group")?.querySelector(".username-display");
         if (usernameDisplay) {
           usernameDisplay.remove();
         }
         
-        // Set new OTP if provided
+
         if (otpInput && otp) {
           otpInput.value = otp;
           setTimeout(() => usernameInput.focus(), 300);
         }
       }
       
-      // Check if currentUser exists before using it
+
       if (typeof currentUser !== 'undefined' && currentUser) {
         try {
           const username = currentUser.user_metadata?.username || currentUser.email.split("@")[0];
@@ -2386,11 +2386,11 @@ function showJoinModal(otp = "") {
   }
 
   function generateQRCode(otp) {
-    // Get the base URL without any parameters or hash
+
     const baseUrl = window.location.origin + window.location.pathname;
     const joinUrl = `${baseUrl}#join=${otp}`;
     
-    // Add console logging for debugging
+
     console.log('Generating QR code with URL:', joinUrl);
     
     new QRious({
@@ -2433,7 +2433,7 @@ function updateUserStatusDisplay(status) {
         
         updateUserStats();
         
-        // Dispatch event for ad logic to respond to
+
         document.dispatchEvent(new CustomEvent('userStatusChanged', { 
           detail: { status: status } 
         }));
@@ -2442,7 +2442,7 @@ function updateUserStatusDisplay(status) {
         userTierText.textContent = 'Unregistered';
         userProfileSection.style.display = 'none';
         
-        // Also dispatch for unregistered users
+
         document.dispatchEvent(new CustomEvent('userStatusChanged', { 
           detail: { status: 'unregistered' } 
         }));
@@ -2456,7 +2456,7 @@ function updateUserStatusDisplay(status) {
     if (!currentUser) return;
 
     const subscription = supabaseClient
-        .channel('user-status-' + currentUser.id)  // Unique channel per user
+        .channel('user-status-' + currentUser.id)
         .on('postgres_changes', {
             event: 'UPDATE',
             schema: 'public',
@@ -2464,18 +2464,18 @@ function updateUserStatusDisplay(status) {
             filter: `id=eq.${currentUser.id}`
         }, 
         payload => {
-            console.log('Profile update received:', payload.new); // Debug log
+            console.log('Profile update received:', payload.new);
             if (payload.new && payload.new.status) {
                 updateUserStatusDisplay(payload.new.status);
                 
-                // If status changed to premium, trigger celebration
+
                 if (payload.new.status === 'premium') {
                     showPremiumCelebration();
                 }
             }
         })
         .subscribe(status => {
-            console.log('Subscription status:', status); // Debug log
+            console.log('Subscription status:', status);
         });
 
     return subscription;
@@ -2484,36 +2484,36 @@ function updateUserStatusDisplay(status) {
 function checkUpgradeStatus() {
     const userStatus = currentUser ? currentUser.status : "unregistered";
     
-    // If user is already premium, no need to check
+
     if (userStatus === "premium") return true;
     
-    // Get stored user identifier for upgrade tracking
+
     const userIdentifier = currentUser ? `upgradeRequested_${currentUser.id}` : 'upgradeRequested_guest';
     
-    // Check if upgrade has been requested before
+
     const upgradeRequested = localStorage.getItem(userIdentifier);
     
-    // If this is the first visit to the page in this session, reset the flag
-    // This ensures users see the prompt at least once per session
+
+
     if (!sessionStorage.getItem('upgradePromptShownThisSession')) {
       sessionStorage.setItem('upgradePromptShownThisSession', 'true');
       return false;
     }
     
-    // Return whether the user has already seen the upgrade prompt
+
     return !!upgradeRequested;
   }
 
   function showUpgradeScreen() {
-    // Check if user is already premium
+
     if (currentUser && currentUser.status === 'premium') {
         console.log("User is already premium, no need to show upgrade screen");
-        // Maybe show a notification or just do nothing
+
         showNotification("You already have premium access!", "info");
         return;
     }
     
-    // Check if user already submitted upgrade request
+
     if (currentUser && localStorage.getItem(`upgradeRequested_${currentUser.id}`)) {
         hideUpgradePromptAndContinue();
         return;
@@ -2521,22 +2521,22 @@ function checkUpgradeStatus() {
     
     console.log("Showing upgrade screen to", currentUser ? currentUser.status : "unregistered user");
     
-    // Show upgrade screen regardless of user status (registered or not)
+
     showScreen('upgrade-screen');
 }
 
 function showUpgradePrompt(callback) {
-    // Check if user is already premium - no need to show prompt
+
     if (currentUser && currentUser.status === 'premium') {
         console.log("User is premium, skipping upgrade prompt");
-        // Immediately execute callback if provided
+
         if (callback) callback();
-        return true; // Indicate we're skipping the prompt
+        return true;
     }
     
     console.log("Showing upgrade prompt");
     
-    // Store current game state for later
+
     const gameContext = {
       stage: gameState.currentStage,
       set: gameState.currentSet,
@@ -2545,10 +2545,10 @@ function showUpgradePrompt(callback) {
     };
     localStorage.setItem("gameContext", JSON.stringify(gameContext));
     
-    // Show the upgrade screen
+
     showScreen("upgrade-screen");
     
-    // If we have a callback, store it for later use
+
     if (typeof callback === 'function') {
       window.upgradeCallback = callback;
     }
@@ -2556,38 +2556,38 @@ function showUpgradePrompt(callback) {
     return false;
 }
 
-// Add this debug function to trace what's calling the upgrade functions
+
 function addUpgradeTracing() {
-    // Store original functions
+
     const originalShowUpgradeScreen = window.showUpgradeScreen;
     const originalShowUpgradePrompt = window.showUpgradePrompt;
     
-    // Replace showUpgradeScreen with traced version
+
     window.showUpgradeScreen = function() {
         console.group("Upgrade Screen Trace");
         console.log("showUpgradeScreen called with user status:", currentUser?.status || "unregistered");
         console.trace("Call stack for showUpgradeScreen");
         console.groupEnd();
         
-        // Call original with arguments
+
         return originalShowUpgradeScreen.apply(this, arguments);
     };
     
-    // Replace showUpgradePrompt with traced version
+
     window.showUpgradePrompt = function() {
         console.group("Upgrade Prompt Trace");
         console.log("showUpgradePrompt called with user status:", currentUser?.status || "unregistered");
         console.trace("Call stack for showUpgradePrompt");
         console.groupEnd();
         
-        // Call original with arguments
+
         return originalShowUpgradePrompt.apply(this, arguments);
     };
     
     console.log("Upgrade function tracing enabled");
 }
 
-// Call this on page load
+
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(addUpgradeTracing, 1000);
 });
@@ -2595,13 +2595,13 @@ document.addEventListener('DOMContentLoaded', function() {
 function handleUpgradeButtonClick(event) {
     console.log("Upgrade button clicked directly");
     
-    // Prevent the default form submission if this is a direct click
-    // so we can handle it manually
+
+
     if (event) {
       event.preventDefault();
     }
     
-    // Call the form submission handler manually
+
     handleUpgradeSubmit(event);
   }
 
@@ -2621,10 +2621,10 @@ function handleUpgradeButtonClick(event) {
   }
 
   function showUpgradeConfirmation() {
-    // First remove any existing popups
+
     document.querySelectorAll('.upgrade-confirmation-popup, .confirmation-popup').forEach(popup => popup.remove());
     
-    // Create a new container for the popup
+
     const popupOverlay = document.createElement('div');
     popupOverlay.className = 'upgrade-confirmation-overlay';
     popupOverlay.style.cssText = `
@@ -2640,7 +2640,7 @@ function handleUpgradeButtonClick(event) {
       z-index: 2002;
     `;
     
-    // Create the popup content
+
     const popupContent = document.createElement('div');
     popupContent.className = 'upgrade-confirmation-content';
     popupContent.style.cssText = `
@@ -2655,7 +2655,7 @@ function handleUpgradeButtonClick(event) {
       position: relative;
     `;
     
-    // Add the content
+
     popupContent.innerHTML = `
       <h2 style="color: var(--gold); margin-bottom: 1.5rem; font-size: 2rem;">Thank You!</h2>
       <p style="margin-bottom: 2.5rem; color: var(--text); font-size: 1.1rem; line-height: 1.6;">
@@ -2677,18 +2677,18 @@ function handleUpgradeButtonClick(event) {
       ">Continue Playing</button>
     `;
     
-    // Append to DOM
+
     popupOverlay.appendChild(popupContent);
     document.body.appendChild(popupOverlay);
     
-    // Add event listeners after the element is in the DOM
+
     setTimeout(() => {
       const continueButton = document.getElementById('upgrade-continue-button');
       
       if (continueButton) {
         console.log("Adding event listener to continue button");
         
-        // Use multiple event listeners to ensure it works
+
         continueButton.onclick = function(e) {
           e.preventDefault();
           e.stopPropagation();
@@ -2704,7 +2704,7 @@ function handleUpgradeButtonClick(event) {
           handleUpgradeContinue();
         }, true);
         
-        // Add hover effect
+
         continueButton.addEventListener('mouseover', function() {
           this.style.background = 'linear-gradient(to bottom, var(--gold), #ffa500)';
           this.style.transform = 'translateY(-2px)';
@@ -2720,7 +2720,7 @@ function handleUpgradeButtonClick(event) {
         console.error("Continue button not found in the DOM");
       }
       
-      // Add click handler to close when clicking outside
+
       popupOverlay.addEventListener('click', function(e) {
         if (e.target === this) {
           handleUpgradeContinue();
@@ -2761,10 +2761,10 @@ function handleUpgradeButtonClick(event) {
       upgradeForm.reset();
     }
     
-    // Remove game context to prevent auto-resume
+
     localStorage.removeItem("gameContext");
     
-    // Simply hide the upgrade prompt and go to welcome screen
+
     hideUpgradePromptAndContinue();
     showScreen("welcome-screen");
     
@@ -2772,7 +2772,7 @@ function handleUpgradeButtonClick(event) {
   }
 
   function showPremiumCelebration() {
-    // Create the celebration overlay
+
     const celebrationOverlay = document.createElement('div');
     celebrationOverlay.className = 'premium-celebration';
     
@@ -2786,10 +2786,10 @@ function handleUpgradeButtonClick(event) {
         </div>
     `;
     
-    // Add to body
+
     document.body.appendChild(celebrationOverlay);
     
-    // Trigger show animation
+
     setTimeout(() => {
         celebrationOverlay.classList.add('show');
     }, 100);
@@ -2797,7 +2797,7 @@ function handleUpgradeButtonClick(event) {
 
 async function safeUpsertRecord(table, data, keyField = 'user_id') {
     try {
-      // First check if the record exists
+
       const { data: existingData, error: checkError } = await supabaseClient
         .from(table)
         .select(keyField)
@@ -2805,13 +2805,13 @@ async function safeUpsertRecord(table, data, keyField = 'user_id') {
         .single();
       
       if (checkError && checkError.code === "PGRST116") {
-        // Record doesn't exist, try to insert it
+
         const { error: insertError } = await supabaseClient
           .from(table)
           .insert([data]);
         
         if (insertError) {
-          // If insert fails with a duplicate key error, try to update instead
+
           if (insertError.code === "23505") {
             const { error: updateError } = await supabaseClient
               .from(table)
@@ -2828,7 +2828,7 @@ async function safeUpsertRecord(table, data, keyField = 'user_id') {
           }
         }
       } else if (!checkError) {
-        // Record exists, update it
+
         const { error: updateError } = await supabaseClient
           .from(table)
           .update(data)
@@ -2854,7 +2854,7 @@ async function safeUpsertRecord(table, data, keyField = 'user_id') {
     if (!currentUser) return false;
     
     try {
-        // First check the schema
+
         const { data, error } = await supabaseClient
             .from("game_progress")
             .select("*")
@@ -2866,7 +2866,7 @@ async function safeUpsertRecord(table, data, keyField = 'user_id') {
             return false;
         }
         
-        // Check if we need to add the missing columns
+
         const missingCompletedLevels = !('completed_levels' in data);
         const missingPerfectLevels = !('perfect_levels' in data);
         
@@ -2877,7 +2877,7 @@ async function safeUpsertRecord(table, data, keyField = 'user_id') {
         
         console.log("Adding missing columns to database schema");
         
-        // Create a migration update with the minimal required fields
+
         const updateData = {
             user_id: currentUser.id,
             stage: data.stage || 1,
@@ -2885,16 +2885,16 @@ async function safeUpsertRecord(table, data, keyField = 'user_id') {
             level: data.level || 1
         };
         
-        // Try to preserve existing data
+
         if ('coins' in data) updateData.coins = data.coins || 0;
         if ('unlocked_sets' in data) updateData.unlocked_sets = data.unlocked_sets || {};
         if ('unlocked_levels' in data) updateData.unlocked_levels = data.unlocked_levels || {};
         
-        // Add the missing columns with default values
+
         if (missingCompletedLevels) updateData.completed_levels = [];
         if (missingPerfectLevels) updateData.perfect_levels = [];
         
-        // Update the record
+
         const { error: updateError } = await supabaseClient
             .from("game_progress")
             .update(updateData)
@@ -2918,7 +2918,7 @@ async function loadUserGameProgress() {
   
   let progress = null;
   
-  // First try to load from localStorage
+
   const localProgress = localStorage.getItem("simploxProgress");
   if (localProgress) {
       try {
@@ -2928,7 +2928,7 @@ async function loadUserGameProgress() {
       }
   }
   
-  // If user is logged in, load from Supabase
+
   if (currentUser && currentUser.id) {
       try {
           const { data, error } = await supabaseClient
@@ -2938,7 +2938,7 @@ async function loadUserGameProgress() {
               .single();
               
           if (!error && data) {
-              // Server data overrides local data
+
               progress = data;
           }
       } catch (e) {
@@ -2947,21 +2947,21 @@ async function loadUserGameProgress() {
   }
   
   if (progress) {
-      // Update game state with loaded progress
+
       gameState.currentStage = progress.stage || 1;
       gameState.currentSet = progress.set_number || 1;
       gameState.currentLevel = progress.level || 1;
       gameState.coins = progress.coins || 0;
       gameState.perks = progress.perks || { timeFreeze: 0, skip: 0, clue: 0, reveal: 0 };
       
-      // Convert Arrays back to Sets
+
       gameState.perfectLevels = new Set(progress.perfect_levels || []);
       gameState.completedLevels = new Set(progress.completed_levels || []);
       
-      // CRITICAL FIX: Properly restore unlockedPerks as a Set
+
       gameState.unlockedPerks = new Set(progress.unlocked_perks || []);
       
-      // Convert unlocked_sets and unlocked_levels back to Maps of Sets
+
       gameState.unlockedSets = {};
       if (progress.unlocked_sets) {
           Object.keys(progress.unlocked_sets).forEach(stage => {
@@ -2976,7 +2976,7 @@ async function loadUserGameProgress() {
           });
       }
       
-      // Update UI immediately
+
       updatePerkButtons();
       
       console.log("Game progress loaded successfully", {
@@ -3022,7 +3022,7 @@ async function ensureCorrectSchema() {
     console.log("Checking database schema for user:", currentUser.id);
     
     try {
-        // First check if the user has a game_progress record
+
         const { data, error } = await supabaseClient
             .from("game_progress")
             .select("*")
@@ -3031,7 +3031,7 @@ async function ensureCorrectSchema() {
             
         if (error) {
             if (error.code === "PGRST116") {
-                // Record doesn't exist, create it
+
                 console.log("Creating game progress record for user");
                 
                 const initialData = {
@@ -3063,11 +3063,11 @@ async function ensureCorrectSchema() {
             return false;
         }
         
-        // Check if we need to add missing data
+
         let needsUpdate = false;
         const updateData = { ...data };
         
-        // Check each required field
+
         const requiredFields = [
             { name: 'unlocked_sets', defaultValue: { "1": [1] } },
             { name: 'unlocked_levels', defaultValue: { "1_1": [1] } },
@@ -3106,7 +3106,7 @@ async function ensureCorrectSchema() {
 function updateGameStateFromProgress(progress) {
     console.log("Updating game state from saved progress");
     
-    // Update unlocked sets
+
     if (progress.unlocked_sets) {
         console.log("Updating unlocked sets from:", progress.unlocked_sets);
         gameState.unlockedSets = {};
@@ -3115,7 +3115,7 @@ function updateGameStateFromProgress(progress) {
         });
     }
     
-    // Update unlocked levels
+
     if (progress.unlocked_levels) {
         console.log("Updating unlocked levels from saved data");
         gameState.unlockedLevels = {};
@@ -3124,13 +3124,13 @@ function updateGameStateFromProgress(progress) {
         });
     }
     
-    // Update completed levels
+
     if (progress.completed_levels) {
         console.log("Updating completed levels from saved data");
         gameState.completedLevels = new Set(progress.completed_levels);
     }
     
-    // Update perfect levels
+
     if (progress.perfect_levels) {
         console.log("Updating perfect levels from saved data");
         gameState.perfectLevels = new Set(progress.perfect_levels);
@@ -3138,34 +3138,34 @@ function updateGameStateFromProgress(progress) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize accessibility menu
+
     initAccessibilityMenu();
     setupFormKeyboardNavigation();
 });
 
 function initAccessibilityMenu() {
-    // Set up toggle button
+
     const toggleButton = document.querySelector('.accessibility-toggle');
     const modal = document.querySelector('.accessibility-modal');
     const closeButton = document.querySelector('.close-accessibility');
     
-    // Load saved settings
+
     loadAccessibilitySettings();
     
-    // Toggle modal visibility
+
     if (toggleButton && modal) {
         toggleButton.addEventListener('click', function() {
             modal.classList.add('show');
         });
     }
     
-    // Close modal
+
     if (closeButton && modal) {
         closeButton.addEventListener('click', function() {
             modal.classList.remove('show');
         });
         
-        // Close when clicking outside the content
+
         modal.addEventListener('click', function(e) {
             if (e.target === modal) {
                 modal.classList.remove('show');
@@ -3173,7 +3173,7 @@ function initAccessibilityMenu() {
         });
     }
     
-    // Add event listeners to all accessibility buttons
+
     const accessibilityButtons = document.querySelectorAll('.accessibility-button');
     accessibilityButtons.forEach(button => {
         button.addEventListener('click', function() {
@@ -3182,7 +3182,7 @@ function initAccessibilityMenu() {
             
             applyAccessibilitySetting(action, value);
             
-            // Update active state on buttons
+
             if (action !== 'fontSize' && action !== 'reset') {
                 const siblings = document.querySelectorAll(`[data-action="${action}"]`);
                 siblings.forEach(sibling => sibling.classList.remove('active'));
@@ -3195,7 +3195,7 @@ function initAccessibilityMenu() {
 function applyAccessibilitySetting(action, value) {
     const body = document.body;
     
-    // Handle each setting type
+
     switch(action) {
         case 'contrast':
             body.classList.remove('high-contrast', 'inverted-colors');
@@ -3267,7 +3267,7 @@ function applyAccessibilitySetting(action, value) {
             break;
     }
     
-    // Save settings
+
     saveAccessibilitySettings();
 }
 
@@ -3288,22 +3288,22 @@ function loadAccessibilitySettings() {
         const settings = JSON.parse(savedSettings);
         const body = document.body;
         
-        // Apply saved class names
+
         if (settings.classNames) {
             body.className = settings.classNames;
         }
         
-        // Apply font size
+
         if (settings.fontSize) {
             body.style.fontSize = settings.fontSize;
         }
         
-        // Apply font scale
+
         if (settings.fontScale) {
             body.style.setProperty('--font-scale', settings.fontScale);
         }
         
-        // Mark active buttons
+
         updateActiveButtons();
     }
 }
@@ -3311,7 +3311,7 @@ function loadAccessibilitySettings() {
 function updateActiveButtons() {
     const body = document.body;
     
-    // Check classes and update button states
+
     const classesToCheck = {
         'high-contrast': { action: 'contrast', value: 'high' },
         'inverted-colors': { action: 'contrast', value: 'inverted' },
@@ -3327,7 +3327,7 @@ function updateActiveButtons() {
         'large-cursor': { action: 'cursorSize', value: 'large' }
     };
     
-    // Loop through possible classes and update buttons
+
     Object.entries(classesToCheck).forEach(([className, buttonData]) => {
         const hasClass = body.classList.contains(className);
         const button = document.querySelector(`[data-action="${buttonData.action}"][data-value="${buttonData.value}"]`);
@@ -3341,7 +3341,7 @@ function updateActiveButtons() {
         }
     });
     
-    // Set default buttons if no special settings
+
     if (!document.querySelector('[data-action="contrast"].active')) {
         document.querySelector('[data-action="contrast"][data-value="normal"]')?.classList.add('active');
     }
@@ -3382,7 +3382,7 @@ function updateActiveButtons() {
 function resetAllAccessibilitySettings() {
     const body = document.body;
     
-    // Remove all accessibility classes
+
     body.classList.remove(
         'high-contrast', 'inverted-colors', 'light-theme', 'dark-theme',
         'grayscale', 'dyslexic-font', 'increased-letter-spacing',
@@ -3390,16 +3390,16 @@ function resetAllAccessibilitySettings() {
         'large-buttons', 'large-cursor'
     );
     
-    // Reset inline styles
+
     body.style.fontSize = '';
     body.style.removeProperty('--font-scale');
     
-    // Reset active buttons
+
     document.querySelectorAll('.accessibility-button.active').forEach(button => {
         button.classList.remove('active');
     });
     
-    // Set default buttons as active
+
     document.querySelector('[data-action="contrast"][data-value="normal"]')?.classList.add('active');
     document.querySelector('[data-action="theme"][data-value="default"]')?.classList.add('active');
     document.querySelector('[data-action="saturation"][data-value="normal"]')?.classList.add('active');
@@ -3410,41 +3410,41 @@ function resetAllAccessibilitySettings() {
     document.querySelector('[data-action="buttonSize"][data-value="normal"]')?.classList.add('active');
     document.querySelector('[data-action="cursorSize"][data-value="normal"]')?.classList.add('active');
     
-    // Clear saved settings
+
     localStorage.removeItem('accessibilitySettings');
 }
 
 function animateNumber(element, start, end, duration = 500) {
-    // Ensure start and end are numbers
+
     start = Number(start);
     end = Number(end);
     
-    // If start and end are the same, just set the value
+
     if (start === end) {
         element.textContent = end;
         return;
     }
 
     const difference = end - start;
-    const frames = 30; // Increased for smoother animation
+    const frames = 30;
     const step = difference / frames;
     let current = start;
     let frameCount = 0;
     
-    // Add animating class if present in DOM
+
     element.classList.add("animating");
     
     function updateNumber() {
         current += step;
         frameCount++;
         
-        // Round to handle floating point imprecision
+
         if (frameCount >= frames || 
             (step > 0 && current >= end) || 
             (step < 0 && current <= end)) {
             element.textContent = Math.round(end);
             
-            // Reset color after animation completes
+
             setTimeout(() => {
                 element.style.color = "var(--text)";
                 element.classList.remove("animating");
@@ -3455,7 +3455,7 @@ function animateNumber(element, start, end, duration = 500) {
         
         element.textContent = Math.round(current);
         
-        // Set color based on increase/decrease
+
         if (step > 0) {
             element.style.color = "var(--success)";
         } else if (step < 0) {
@@ -3469,18 +3469,18 @@ function animateNumber(element, start, end, duration = 500) {
 }
 
 function createParticles(x, y, type) {
-    // Detect mobile device
+
     const isMobile = window.matchMedia("(max-width: 768px)").matches;
     
-    // Define particle parameters based on device type and type parameter
+
     let particleConfig;
     let colors;
     
     if (type) {
-        // Type-specific particles (blessing or curse type)
+
         particleConfig = {
             count: isMobile ? 8 : 15,
-            size: 8, // Random size will be added
+            size: 8,
             distance: isMobile ? 50 : 100,
             opacity: isMobile ? 0.7 : 1,
             duration: isMobile ? 800 : 1000
@@ -3490,21 +3490,21 @@ function createParticles(x, y, type) {
             ['#3498db', '#2980b9', '#1abc9c'] : 
             ['#e74c3c', '#c0392b', '#d35400'];
     } else {
-        // Default celebration particles
+
         particleConfig = isMobile 
             ? {
-                count: 10,      // Fewer particles on mobile
-                size: 6,        // Smaller particles
-                distance: 50,   // Shorter spread
-                opacity: 0.7,   // Lower opacity
-                duration: 1000  // Shorter animation
+                count: 10,
+                size: 6,
+                distance: 50,
+                opacity: 0.7,
+                duration: 1000
             }
             : {
-                count: 40,      // More particles on desktop
-                size: 10,       // Standard particle size
-                distance: 150,  // Wider spread
-                opacity: 1,     // Full opacity
-                duration: 1500  // Longer animation
+                count: 40,
+                size: 10,
+                distance: 150,
+                opacity: 1,
+                duration: 1500
             };
             
         colors = ['#ffd700', '#FFA500', '#4CAF50', '#FFD700'];
@@ -3516,12 +3516,12 @@ function createParticles(x, y, type) {
         const particle = document.createElement('div');
         particle.className = type ? `particle ${type}` : 'particle';
         
-        // Generate random size if type-specific
+
         const size = type ? Math.random() * 8 + 4 : particleConfig.size;
         const angle = (Math.random() * Math.PI * 2);
         const distance = particleConfig.distance + (Math.random() * 50);
         
-        // Position relative to click point
+
         particle.style.position = 'fixed';
         particle.style.left = `${x}px`;
         particle.style.top = `${y}px`;
@@ -3529,11 +3529,11 @@ function createParticles(x, y, type) {
         particle.style.height = `${size}px`;
         particle.style.opacity = `${particleConfig.opacity}`;
         
-        // Apply color
+
         particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
         
         if (type) {
-            // Use Web Animations API for type-specific particles
+
             particle.style.borderRadius = '50%';
             
             const destinationX = x + Math.cos(angle) * distance;
@@ -3547,16 +3547,16 @@ function createParticles(x, y, type) {
                 easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
             }).onfinish = () => particle.remove();
         } else {
-            // CSS variables for regular particles
+
             particle.style.setProperty('--x', `${Math.cos(angle) * distance}px`);
             particle.style.setProperty('--y', `${Math.sin(angle) * distance}px`);
             
-            // Apply animation
+
             particle.style.animation = `particleBurst ${particleConfig.duration / 1000}s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`;
             
             container.appendChild(particle);
             
-            // Remove particle after animation completes
+
             setTimeout(() => {
                 if (particle.parentNode === container) {
                     container.removeChild(particle);
@@ -3577,13 +3577,13 @@ function showNotification(message, type = 'info') {
     
     document.body.appendChild(notification);
     
-    // Small delay to ensure DOM update before adding show class
+
     setTimeout(() => notification.classList.add('show'), 10);
     
-    // Hide notification after delay
+
     setTimeout(() => {
         notification.classList.remove('show');
-        // Remove from DOM after transition completes
+
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
@@ -3599,13 +3599,13 @@ function showNotification(message, type = 'info') {
     
     document.body.appendChild(notification);
     
-    // Small delay to ensure DOM update before adding show class
+
     setTimeout(() => notification.classList.add('show'), 10);
     
-    // Hide notification after delay
+
     setTimeout(() => {
         notification.classList.remove('show');
-        // Remove from DOM after transition completes
+
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.remove();
@@ -3617,7 +3617,7 @@ function showNotification(message, type = 'info') {
 function toggleFullScreen() {
     const root = document.documentElement;
     
-    // Look for fullscreen icon in both possible locations
+
     const fullscreenIcon = document.querySelector('#nav-fullscreen-btn i') || 
                           document.querySelector('.vertical-nav-container .fullscreen-button i');
     
@@ -3625,7 +3625,7 @@ function toggleFullScreen() {
         if (document.exitFullscreen) {
             document.exitFullscreen().then(() => {
                 if (fullscreenIcon) {
-                    // Handle different icon class styles
+
                     if (fullscreenIcon.classList.contains('fa-compress')) {
                         fullscreenIcon.classList.remove('fa-compress');
                         fullscreenIcon.classList.add('fa-expand');
@@ -3640,7 +3640,7 @@ function toggleFullScreen() {
     } else if (root.requestFullscreen) {
         root.requestFullscreen().then(() => {
             if (fullscreenIcon) {
-                // Handle different icon class styles
+
                 if (fullscreenIcon.classList.contains('fa-expand')) {
                     fullscreenIcon.classList.remove('fa-expand');
                     fullscreenIcon.classList.add('fa-compress');
@@ -3657,7 +3657,7 @@ function toggleFullScreen() {
 function showAuthModal() {
     const modal = document.getElementById('authModal');
     if (modal) {
-        // Check which class is used by inspecting modal or defaulting to 'show'
+
         if (modal.classList.contains('open') || document.querySelector('.modal.open')) {
             modal.classList.add('open');
         } else {
@@ -3675,7 +3675,7 @@ function updateAuthUI() {
     const avatarButton = document.getElementById('login-avatar-btn');
 
     if (currentUser) {
-        // User is logged in
+
         if (authBox) {
             authBox.classList.add('hidden');
         }
@@ -3693,27 +3693,27 @@ function updateAuthUI() {
             userProfileSection.style.display = 'block';
         }
         
-        // Update avatar button to show logged-in state
+
         if (avatarButton) {
-            // Remove all status classes first
+
             avatarButton.classList.remove('status-unregistered', 'status-free', 'status-pending', 'status-premium');
             
-            // Add default free status
+
             avatarButton.classList.add('status-free');
             
-            // Change icon to indicate logged in
+
             const avatarIcon = avatarButton.querySelector('i');
             if (avatarIcon) {
                 avatarIcon.className = 'fas fa-user-check';
             }
         }
         
-        // Display username from metadata if available, fallback to email
+
         if (userEmailElement) {
             userEmailElement.textContent = currentUser.user_metadata?.username || currentUser.email;
         }
         
-        // Get and display user status
+
         if (currentUser.id) {
             supabaseClient
                 .from('user_profiles')
@@ -3722,12 +3722,12 @@ function updateAuthUI() {
                 .single()
                 .then(({ data }) => {
                     if (data) {
-                        // If we have a username in the profile, use it
+
                         if (data.username && userEmailElement) {
                             userEmailElement.textContent = data.username;
                         }
                         
-                        // Update avatar button status
+
                         if (avatarButton) {
                             avatarButton.classList.remove('status-unregistered', 'status-free', 'status-premium', 'status-pending');
                             avatarButton.classList.add(`status-${data.status || 'free'}`);
@@ -3741,12 +3741,12 @@ function updateAuthUI() {
                 .catch(error => console.error('Error fetching user status:', error));
         }
         
-        // Update stats if function exists
+
         if (typeof updateUserStats === 'function') {
             updateUserStats();
         }
     } else {
-        // User is not logged in
+
         if (authBox) {
             authBox.classList.remove('hidden');
         }
@@ -3764,19 +3764,19 @@ function updateAuthUI() {
             userProfileSection.style.display = 'none';
         }
         
-        // Update avatar button to show unregistered state
+
         if (avatarButton) {
             avatarButton.classList.remove('status-free', 'status-premium', 'status-pending');
             avatarButton.classList.add('status-unregistered');
             
-            // Reset icon to default user icon
+
             const avatarIcon = avatarButton.querySelector('i');
             if (avatarIcon) {
                 avatarIcon.className = 'fas fa-user';
             }
         }
         
-        // Clear user email display
+
         if (userEmailElement) {
             userEmailElement.textContent = '';
         }
@@ -3785,22 +3785,22 @@ function updateAuthUI() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Existing initialization code...
+
     
-    // Make avatar button more reliably clickable
+
     const avatarButton = document.getElementById('login-avatar-btn');
     if (avatarButton) {
-        // Set initial unregistered status
+
         avatarButton.classList.add('status-unregistered');
         
-        // Ensure the whole button area is clickable
+
         avatarButton.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             handleAvatarButtonClick();
         });
         
-        // Also ensure child elements pass clicks to the button
+
         const avatarContainer = avatarButton.querySelector('.avatar-container');
         if (avatarContainer) {
             avatarContainer.addEventListener('click', function(e) {
@@ -3819,19 +3819,19 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        // Update once we know the user's status
+
         if (typeof updateAuthUI === 'function') {
             updateAuthUI();
         }
     }
 });
 
-// REPLACE: Avatar button click handler
+
 function handleAvatarButtonClick() {
   console.log("Avatar button clicked");
   
-  // If user is logged in, show profile modal
-  // Otherwise, show auth modal
+
+
   if (currentUser) {
     openProfileModal();
   } else {
@@ -3839,7 +3839,7 @@ function handleAvatarButtonClick() {
   }
 }
 
-// Update the avatar button click handler when the DOM is loaded
+
 document.addEventListener('DOMContentLoaded', function() {
   const avatarButton = document.getElementById('login-avatar-btn');
   if (avatarButton) {
@@ -3869,7 +3869,7 @@ function hideUpgradePrompt() {
 function continueAfterUpgrade() {
     console.log("continueAfterUpgrade called");
     
-    // Handle popup cleanup
+
     const popup = document.querySelector(".confirmation-popup");
     if (popup) {
         popup.style.opacity = "0";
@@ -3881,37 +3881,37 @@ function continueAfterUpgrade() {
         }, 300);
     }
 
-    // Reset upgrade screen
+
     const upgradeScreen = document.getElementById("upgrade-screen");
     if (upgradeScreen) {
         upgradeScreen.classList.remove("visible");
     }
 
-    // Reset form
+
     const upgradeForm = document.getElementById("upgradeForm");
     if (upgradeForm) {
         upgradeForm.reset();
     }
 
-    // Store the current game level/state for possible resume
+
     const currentLevel = gameState.currentLevel;
     
-    // Prevent auto-resume in most cases
+
     localStorage.removeItem("gameContext");
     
-    // Call helper function to clean up additional elements
+
     if (typeof hideUpgradePromptAndContinue === 'function') {
         hideUpgradePromptAndContinue();
     }
     
-    // Default to welcome screen
+
     showScreen("welcome-screen");
     
-    // If the player was in the middle of a level and we want to resume
-    if (currentLevel && false) { // Set to false to disable auto-resume behavior
+
+    if (currentLevel && false) {
         console.log(`Resuming gameplay at level ${currentLevel}`);
         setTimeout(() => {
-            // Check if we're in a level and resume from there
+
             const gameContext = localStorage.getItem("gameContext");
             if (gameContext) {
                 try {
@@ -3935,39 +3935,39 @@ function handlePremiumCelebrationComplete() {
     if (overlay) {
         overlay.classList.remove('show');
         
-        // Check if we need to unlock a set for a previously completed stage
+
         const completedStage = localStorage.getItem("unlockNextSetForStage");
         if (completedStage) {
             const stageNum = parseInt(completedStage, 10);
             if (!isNaN(stageNum) && stageNum >= 2 && stageNum <= 5) {
                 console.log(`Unlocking set 2 for previously completed stage ${stageNum}`);
                 
-                // Make sure the stage exists in unlockedSets
+
                 gameState.unlockedSets[stageNum] = gameState.unlockedSets[stageNum] || new Set();
                 
-                // Add set 2 to the unlocked sets
+
                 gameState.unlockedSets[stageNum].add(2);
                 
-                // Make sure the set exists in unlockedLevels
+
                 const setKey = `${stageNum}_2`;
                 gameState.unlockedLevels[setKey] = gameState.unlockedLevels[setKey] || new Set();
                 
-                // Add level 1 to the set
+
                 gameState.unlockedLevels[setKey].add(1);
                 
-                // Save progress
+
                 if (typeof saveProgress === 'function') {
                     saveProgress();
                 }
                 
-                // Clear the flag
+
                 localStorage.removeItem("unlockNextSetForStage");
             }
         }
         
         setTimeout(() => {
             overlay.remove();
-            // Refresh game state with new premium access
+
             showScreen('welcome-screen');
         }, 500);
     }
@@ -3977,7 +3977,7 @@ function setupDefaultUnlocks() {
     console.log('Setting up default unlocks...');
     console.log('Before setup:', gameState.unlockedSets, gameState.unlockedLevels);
     
-    // Stage 1: Level 1 of all sets should be unlocked
+
     if (!gameState.unlockedSets[1]) {
         gameState.unlockedSets[1] = new Set();
     }
@@ -3990,7 +3990,7 @@ function setupDefaultUnlocks() {
         }
     }
 
-    // Stages 2-5: Level 1 of Set 1 should be unlocked
+
     for (let stage = 2; stage <= 5; stage++) {
         if (!gameState.unlockedSets[stage]) {
             gameState.unlockedSets[stage] = new Set([1]);
@@ -4001,8 +4001,8 @@ function setupDefaultUnlocks() {
         }
     }
     
-    // Handle progressed levels - ensure continuity
-    // If level 5 is unlocked, make sure 1-4 are also unlocked
+
+
     Object.entries(gameState.unlockedLevels).forEach(([setKey, levels]) => {
         const maxLevel = Math.max(...Array.from(levels));
         for (let i = 1; i < maxLevel; i++) {
@@ -4014,17 +4014,13 @@ function setupDefaultUnlocks() {
 }
 
 
-/**
- * ADD the optimizeQuestionScreenForMobile function
- * This function applies mobile-specific optimizations to the question screen
- */
 function optimizeQuestionScreenForMobile() {
     var questionScreen = document.getElementById("question-screen");
     if (questionScreen && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Add mobile-optimized class to enable mobile-specific CSS
+
         questionScreen.classList.add("mobile-optimized");
         
-        // Reduce animations and transitions for better performance
+
         if (!document.body.classList.contains("reduced-animations")) {
             let buttons = questionScreen.querySelectorAll(".buttons button");
             buttons.forEach(button => {
@@ -4032,7 +4028,7 @@ function optimizeQuestionScreenForMobile() {
             });
         }
         
-        // Adjust layout spacing for better mobile view
+
         let progressCircle = questionScreen.querySelector(".progress-circle");
         if (progressCircle) {
             progressCircle.style.margin = "0.5rem auto";
@@ -4052,7 +4048,7 @@ async function updateWordPracticeHistory(word, gameMode, coinsEarned = 0) {
     try {
         console.log(`Updating word practice history for word: ${word}, mode: ${gameMode}`);
         
-        // First check if the word exists in history
+
         const { data, error: fetchError } = await supabaseClient
             .from('word_practice_history')
             .select('*')
@@ -4066,7 +4062,7 @@ async function updateWordPracticeHistory(word, gameMode, coinsEarned = 0) {
         }
         
         if (data) {
-            // Word exists, update count and timestamp
+
             console.log("Word exists in history, updating record");
             const { error: updateError } = await supabaseClient
                 .from('word_practice_history')
@@ -4083,7 +4079,7 @@ async function updateWordPracticeHistory(word, gameMode, coinsEarned = 0) {
                 return false;
             }
         } else {
-            // Word doesn't exist, insert new record
+
             console.log("Word not found in history, creating new record");
             const { error: insertError } = await supabaseClient
                 .from('word_practice_history')
@@ -4110,32 +4106,26 @@ async function updateWordPracticeHistory(word, gameMode, coinsEarned = 0) {
     }
 }
 
-/**
- * Track when a user encounters a word
- * @param {string} word - The word being practiced
- * @param {string} gameMode - The game mode being played
- * @returns {Promise<Object|null>} - Result with isNewWord and coinReward
- */
 async function trackWordEncounter(word, gameMode = 'standard') {
-    // Only track for logged-in users
+
     if (!currentUser || !currentUser.id) {
       console.log('No user logged in, skipping word tracking');
       return null;
     }
   
     try {
-      // Ensure the word is properly trimmed and sanitized
+
       const trimmedWord = String(word).trim();
       const userId = currentUser.id;
       
-      // First ensure user initialization
+
       await ensureUserInitialization(userId);
       
-      // Track timing for debugging
+
       const startTime = performance.now();
       
       try {
-        // Try to get existing record
+
         const { data, error } = await supabaseClient
           .from("word_practice_history")
           .select("*")
@@ -4151,11 +4141,11 @@ async function trackWordEncounter(word, gameMode = 'standard') {
         let isNewWord = false;
         let coinReward = 0;
         
-        // Handle potential errors
+
         if (error && error.code !== "PGRST116") {
           console.error("Error fetching word history:", error);
           
-          // Try alternative approach if the regular one fails
+
           try {
             const result = await supabaseClient.rpc("get_word_history", {
               p_user_id: userId,
@@ -4171,7 +4161,7 @@ async function trackWordEncounter(word, gameMode = 'standard') {
         }
         
         if (data) {
-          // Word exists, increment practice count
+
           const newCount = (data.practice_count || 0) + 1;
           coinReward = newCount <= 5 ? 3 : 1;
           
@@ -4190,7 +4180,7 @@ async function trackWordEncounter(word, gameMode = 'standard') {
             console.error("Error updating word history:", error);
           }
         } else {
-          // New word, create record
+
           isNewWord = true;
           coinReward = 3;
           
@@ -4202,14 +4192,14 @@ async function trackWordEncounter(word, gameMode = 'standard') {
               practice_count: 1,
               game_mode: gameMode,
               coins_earned: coinReward,
-              // Remove first_practiced_at - it doesn't exist in schema
+
               last_practiced_at: new Date().toISOString()
             }]);
             
           if (error) {
             console.error("Error inserting word history:", error);
           } else {
-            // Update player stats with new unique word
+
             const { data, error } = await supabaseClient
               .from("player_stats")
               .select("unique_words_practiced")
@@ -4224,7 +4214,7 @@ async function trackWordEncounter(word, gameMode = 'standard') {
                 .eq("user_id", userId);
                 
               if (!updateResult.error) {
-                // Update UI word count immediately
+
                 document.querySelectorAll("#totalWords").forEach(el => {
                   if (typeof animateNumber === 'function') {
                     animateNumber(el, parseInt(el.textContent) || 0, newTotal);
@@ -4239,7 +4229,7 @@ async function trackWordEncounter(word, gameMode = 'standard') {
           }
         }
         
-        // Award coins
+
         if (coinReward > 0 && typeof CoinsManager !== 'undefined' && CoinsManager.updateCoins) {
           await CoinsManager.updateCoins(coinReward);
         }
@@ -4259,28 +4249,28 @@ async function trackWordEncounter(word, gameMode = 'standard') {
     const progressCircle = document.querySelector('.progress-circle');
     if (!progressCircle) return;
     
-    // Get center of progress circle for particle origin
+
     const rect = progressCircle.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     
-    // Create particles
+
     for (let i = 0; i < 40; i++) {
         const particle = document.createElement('div');
         particle.className = 'resurrection-particle';
         
-        // Random angle and distance
+
         const angle = Math.random() * Math.PI * 2;
         const distance = 100 + Math.random() * 150;
         const duration = 1 + Math.random() * 1.5;
         const delay = Math.random() * 0.5;
         const size = 3 + Math.random() * 7;
         
-        // Calculate end position
+
         const endX = Math.cos(angle) * distance;
         const endY = Math.sin(angle) * distance;
         
-        // Set particle style
+
         particle.style.cssText = `
             position: fixed;
             left: ${centerX}px;
@@ -4296,13 +4286,13 @@ async function trackWordEncounter(word, gameMode = 'standard') {
             animation: particleFlow ${duration}s ease-out ${delay}s forwards;
         `;
         
-        // Set custom properties for animation
+
         particle.style.setProperty('--end-x', `${endX}px`);
         particle.style.setProperty('--end-y', `${endY}px`);
         
         document.body.appendChild(particle);
         
-        // Clean up after animation
+
         setTimeout(() => {
             particle.remove();
         }, (duration + delay) * 1000);
@@ -4318,21 +4308,21 @@ function updateSidePanelLink() {
 
 updateSidePanelLink();
 
-// Also call it when DOM is loaded to ensure it works
+
 document.addEventListener('DOMContentLoaded', () => {
     updateSidePanelLink();
 });
 
 function showReviveOverlay() {
-  // Clear timer and store game state
+
   clearTimer();
   
-  // Store original coin container HTML for later restoration
+
   const coinsContainer = document.querySelector('.coins-container');
   if (coinsContainer) {
       window.originalCoinsHTML = coinsContainer.innerHTML;
       
-      // Replace with ankh symbol
+
       coinsContainer.innerHTML = `
           <div class="ankh-container">
               <div class="ankh-symbol">☥</div>
@@ -4342,23 +4332,23 @@ function showReviveOverlay() {
       coinsContainer.classList.add('resurrection-mode');
   }
   
-  // Get question screen and change background to black with transition
+
   const questionScreen = document.getElementById('question-screen');
   if (questionScreen) {
-      // Store original background
+
       window.originalQuestionBackground = questionScreen.style.background;
       
-      // Add transition property before changing background
+
       questionScreen.style.transition = 'background 2s ease';
       
-      // Force reflow to ensure transition applies
+
       void questionScreen.offsetWidth;
       
-      // Apply black background
+
       questionScreen.style.background = '#000000';
   }
   
-  // Replace question word with "Revive?"
+
   const questionWord = document.getElementById('question-word');
   if (questionWord) {
       window.originalQuestionWord = questionWord.innerHTML;
@@ -4366,13 +4356,13 @@ function showReviveOverlay() {
       questionWord.classList.add('revive-question');
   }
   
-  // Get the buttons container
+
   const buttonsContainer = document.querySelector('.buttons');
   if (buttonsContainer) {
-      // Store original buttons HTML
+
       window.originalButtonsHTML = buttonsContainer.innerHTML;
       
-      // Replace with revive and home buttons (both with same styling)
+
       buttonsContainer.innerHTML = `
           <button class="game-btn revive-button">
               <span>Continue Playing</span>
@@ -4383,13 +4373,13 @@ function showReviveOverlay() {
       `;
   }
   
-  // Get the progress circle and add resurrection class
+
   const progressCircle = document.querySelector('.progress-circle');
   if (progressCircle) {
       progressCircle.classList.add('resurrection-ready');
   }
   
-  // Set up countdown
+
   let seconds = 5;
   const timerDisplay = document.querySelector('.revive-timer');
   
@@ -4405,7 +4395,7 @@ function showReviveOverlay() {
       }
   }, 1000);
   
-  // Handle revive button click
+
   const reviveButton = document.querySelector('.revive-button');
   if (reviveButton) {
       reviveButton.onclick = () => {
@@ -4414,7 +4404,7 @@ function showReviveOverlay() {
       };
   }
   
-  // Handle home button click
+
   const homeButton = document.querySelector('.resurrection-home-button');
   if (homeButton) {
       homeButton.onclick = () => {
@@ -4423,25 +4413,25 @@ function showReviveOverlay() {
       };
   }
   
-  // Store interval for cleanup
+
   window.reviveCountdownInterval = countdownInterval;
 }
 
-// Add this code to enhance mobile experience for the resurrection UI
+
 document.addEventListener('DOMContentLoaded', function() {
-  // Listen for resurrection mode to activate
+
   const observer = new MutationObserver(function(mutations) {
       mutations.forEach(function(mutation) {
           if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
               const target = mutation.target;
               
-              // Check if we're entering resurrection mode
+
               if (target.classList.contains('resurrection-ready') || 
                   target.classList.contains('resurrection-mode')) {
                   
-                  // On mobile, scroll to center the resurrection UI
+
                   if (window.innerWidth <= 768) {
-                      // Scroll the question word into view
+
                       const questionWord = document.getElementById('question-word');
                       if (questionWord) {
                           setTimeout(() => {
@@ -4452,7 +4442,7 @@ document.addEventListener('DOMContentLoaded', function() {
                           }, 300);
                       }
                       
-                      // Ensure buttons are visible and easily tappable
+
                       const buttons = document.querySelectorAll('.revive-button, .resurrection-home-button');
                       buttons.forEach(button => {
                           button.style.touchAction = 'manipulation';
@@ -4464,7 +4454,7 @@ document.addEventListener('DOMContentLoaded', function() {
       });
   });
   
-  // Start observing the document for resurrection changes
+
   observer.observe(document.body, { 
       attributes: true,
       subtree: true,
@@ -4475,28 +4465,28 @@ document.addEventListener('DOMContentLoaded', function() {
 function handleReviveTimeout() {
   console.log("Revive timeout - returning to welcome screen");
   
-  // Clear countdown interval if it exists
+
   if (window.reviveCountdownInterval) {
       clearInterval(window.reviveCountdownInterval);
       window.reviveCountdownInterval = null;
   }
   
-  // Force clear any game state that might try to resume
+
   if (currentGame) {
       currentGame.active = false;
   }
   
-  // Clear any stored game context
+
   localStorage.removeItem("gameContext");
   
-  // First reset the question screen background instantly (no transition needed for this case)
+
   const questionScreen = document.getElementById('question-screen');
   if (questionScreen) {
-      questionScreen.style.transition = 'none'; // Disable transition for immediate effect
+      questionScreen.style.transition = 'none';
       questionScreen.style.background = window.originalQuestionBackground || '';
   }
   
-  // Reset UI elements
+
   const coinsContainer = document.querySelector('.coins-container');
   if (coinsContainer && window.originalCoinsHTML) {
       coinsContainer.innerHTML = window.originalCoinsHTML;
@@ -4514,27 +4504,27 @@ function handleReviveTimeout() {
       questionWord.classList.remove('revive-question');
   }
   
-  // Reset any stored original values
+
   window.originalQuestionBackground = undefined;
   window.originalQuestionWord = undefined;
   window.originalCoinsHTML = undefined;
   window.originalButtonsHTML = undefined;
   
-  // Make sure the welcome screen has proper background
+
   const welcomeScreen = document.getElementById('welcome-screen');
   if (welcomeScreen) {
-      // Ensure welcome screen has its default background (not black)
+
       welcomeScreen.style.background = '';
   }
   
-  // Set a flag to prevent auto-resumption
+
   window.preventAutoResume = true;
   
-  // Force a small delay to ensure all resets are applied before showing welcome screen
+
   setTimeout(() => {
       showScreen('welcome-screen');
       
-      // Re-enable transitions after screen change
+
       if (questionScreen) {
           setTimeout(() => {
               questionScreen.style.transition = '';
@@ -4546,23 +4536,23 @@ function handleReviveTimeout() {
 }
 
 function restoreGameUI() {
-  // Restore question screen background with transition
+
   const questionScreen = document.getElementById('question-screen');
   if (questionScreen && window.originalQuestionBackground !== undefined) {
-      // Make sure transition property is set
+
       questionScreen.style.transition = 'background 2s ease';
       
-      // Apply original background
+
       questionScreen.style.background = window.originalQuestionBackground;
       
-      // Clean up after transition
+
       setTimeout(() => {
           questionScreen.style.transition = '';
           window.originalQuestionBackground = undefined;
       }, 2000);
   }
   
-  // Restore original question word
+
   const questionWord = document.getElementById('question-word');
   if (questionWord && window.originalQuestionWord !== undefined) {
       questionWord.innerHTML = window.originalQuestionWord;
@@ -4570,7 +4560,7 @@ function restoreGameUI() {
       window.originalQuestionWord = undefined;
   }
   
-  // Restore coins container
+
   const coinsContainer = document.querySelector('.coins-container');
   if (coinsContainer && window.originalCoinsHTML) {
       coinsContainer.innerHTML = window.originalCoinsHTML;
@@ -4578,7 +4568,7 @@ function restoreGameUI() {
       window.originalCoinsHTML = undefined;
   }
   
-  // Restore buttons container
+
   const buttonsContainer = document.querySelector('.buttons');
   if (buttonsContainer && window.originalButtonsHTML) {
       buttonsContainer.style.opacity = '1';
@@ -4586,7 +4576,7 @@ function restoreGameUI() {
       window.originalButtonsHTML = undefined;
   }
   
-  // Reset progress circle styling
+
   const progressCircle = document.querySelector('.progress-circle');
   if (progressCircle) {
       progressCircle.classList.remove('resurrection-ready', 'resurrection-active');
@@ -4602,68 +4592,68 @@ function restoreGameUI() {
 }
 
 function handleRevive() {
-  // Get UI elements
+
   const progressCircle = document.querySelector('.progress-circle');
   const progress = progressCircle ? progressCircle.querySelector('.progress') : null;
   const coinsContainer = document.querySelector('.coins-container');
   const questionWord = document.getElementById('question-word');
   const buttonsContainer = document.querySelector('.buttons');
   
-  // Clear countdown interval if it exists
+
   if (window.reviveCountdownInterval) {
       clearInterval(window.reviveCountdownInterval);
       window.reviveCountdownInterval = null;
   }
   
   if (progressCircle && coinsContainer && questionWord) {
-      // Update question word to show "Reviving..."
+
       questionWord.innerHTML = `<span class="revive-title">Reviving...</span>`;
       
-      // Hide buttons during animation
+
       if (buttonsContainer) {
           buttonsContainer.style.opacity = '0';
       }
       
-      // Update ankh container to show resurrection animation
+
       coinsContainer.innerHTML = `
           <div class="ankh-container">
               <div class="ankh-symbol resurrection-ankh">☥</div>
           </div>
       `;
       
-      // Add resurrection classes to progress circle
+
       progressCircle.classList.add('resurrection-active');
       
-      // Store original progress styling
+
       const originalStroke = progress.style.stroke;
       const originalDashOffset = progress.style.strokeDashoffset;
       
-      // Prepare progress circle for resurrection animation
+
       const circumference = 2 * Math.PI * 54;
       progress.style.strokeDasharray = `${circumference} ${circumference}`;
-      progress.style.strokeDashoffset = circumference; // Start empty
-      progress.style.stroke = '#FFD700'; // Gold color
-      progress.style.zIndex = '10'; // Ensure it's above other elements
+      progress.style.strokeDashoffset = circumference;
+      progress.style.stroke = '#FFD700';
+      progress.style.zIndex = '10';
       
-      // Create light particles effect
+
       createResurrectionParticles();
       
-      // Animate progress circle filling
+
       setTimeout(() => {
           progress.style.transition = 'stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1)';
-          progress.style.strokeDashoffset = '0'; // Fill completely
+          progress.style.strokeDashoffset = '0';
       }, 100);
       
-      // After animation completes, restart level
+
       setTimeout(() => {
-          // Restore UI elements
+
           restoreGameUI();
           
-          // Reset game state
+
           currentGame.wrongStreak = 0;
           timeRemaining = currentGame.initialTimeRemaining;
           
-          // If in custom practice, handle specially
+
           if (currentGame.isCustomPractice) {
               startCustomLevel(currentGame.customLevel);
           } else {
@@ -4717,12 +4707,12 @@ function getStageDescription(stageId) {
 }
 
 function getStageStatus(stageId, completedSets, totalSets) {
-    // For premium stages, show premium status for non-premium users
+
     if (stageId > 2 && (!currentUser || currentUser.status !== 'premium')) {
         return 'Premium Feature';
     }
     
-    // For unlocked stages, show completion status
+
     return `${completedSets}/${totalSets} Sets Completed`;
 }
 
@@ -4734,11 +4724,11 @@ function showBossDefeatEffect() {
         return;
     }
     
-    // Set animation flag to block other coin updates
+
     window.bossVictoryAnimationInProgress = true;
     
-    // IMPORTANT ADDITION: Mark boss level as completed in the game state
-    // Get the stage configuration to find the boss level number
+
+
     const stage = gameStructure.stages[gameState.currentStage - 1];
     if (stage && stage.bossLevel) {
         const bossLevelId = stage.bossLevel;
@@ -4746,30 +4736,30 @@ function showBossDefeatEffect() {
         
         console.log(`Marking boss level as completed: ${levelKey}`);
         
-        // Add to completed levels set
+
         gameState.completedLevels.add(levelKey);
         
-        // Update stage completion stats
+
         updateStageCompletionStats();
         updateStageCompletionCounters();
         
-        // Save progress immediately
+
         saveProgress();
     } else {
         console.error("Could not find boss level configuration");
     }
     
-    // Set flag to prevent multiple executions
+
     currentGame.bossDefeatedEffectShown = true;
     
-    // Store current coin value for animation
+
     const originalCoins = gameState.coins;
     const targetCoins = originalCoins + 100;
     
-    // Flag that we've acknowledged the boss reward
+
     currentGame.bossRewardApplied = true;
     
-    // Background transition
+
     const questionScreen = document.querySelector('.question-screen');
     if (questionScreen) {
         console.log('Creating background transition overlay');
@@ -4791,7 +4781,7 @@ function showBossDefeatEffect() {
         questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
     }
     
-    // Boss orb disappearing animation
+
     setTimeout(() => {
         const bossOrb = document.querySelector('.boss-orb-inner');
         
@@ -4804,17 +4794,17 @@ function showBossDefeatEffect() {
             
             bossOrb.style.animation = 'boss-shrink 2.5s forwards';
             
-            // After boss orb starts disappearing, show coin animation
+
             setTimeout(() => {
                 console.log('Applying coin reward animation');
                 
                 const coinsContainer = document.querySelector('.coins-container');
                 
                 if (coinsContainer && window.originalCoinsHTML) {
-                    // Restore original coins HTML
+
                     coinsContainer.innerHTML = window.originalCoinsHTML;
                     
-                    // Protect ALL coin displays from other updates during animation
+
                     document.querySelectorAll('.coin-count').forEach(el => {
                         el.dataset.protectedValue = 'true';
                         el.textContent = originalCoins;
@@ -4824,11 +4814,11 @@ function showBossDefeatEffect() {
                     const coinCount = coinsContainer.querySelector('.coin-count');
                     
                     if (coinCount) {
-                        // Make it prominent
+
                         coinsContainer.style.transform = 'scale(1.2)';
                         coinsContainer.style.transition = 'transform 0.3s ease';
                         
-                        // Visual animation for the 100 coins
+
                         const steps = 60;
                         const stepDelay = 2000 / steps;
                         let currentStep = 0;
@@ -4838,7 +4828,7 @@ function showBossDefeatEffect() {
                                 const progress = currentStep / steps;
                                 const currentValue = Math.round(originalCoins + (targetCoins - originalCoins) * progress);
                                 
-                                // Update ALL coin displays
+
                                 document.querySelectorAll('.coin-count').forEach(el => {
                                     el.textContent = currentValue;
                                     el.style.color = 'var(--gold)';
@@ -4848,17 +4838,17 @@ function showBossDefeatEffect() {
                                 currentStep++;
                                 setTimeout(animateCoins, stepDelay);
                             } else {
-                                // Animation complete - update actual game state
+
                                 gameState.coins = targetCoins;
                                 saveProgress();
                                 
-                                // Ensure final value shown matches target on all displays
+
                                 document.querySelectorAll('.coin-count').forEach(el => {
                                     el.textContent = targetCoins;
                                     delete el.dataset.protectedValue;
                                 });
                                 
-                                // Maintain emphasis for a while
+
                                 setTimeout(() => {
                                     document.querySelectorAll('.coin-count').forEach(el => {
                                         el.style.color = '';
@@ -4869,10 +4859,10 @@ function showBossDefeatEffect() {
                             }
                         };
                         
-                        // Start animation
+
                         animateCoins();
                         
-                        // Pulse coin icon
+
                         if (coinIcon) {
                             coinIcon.classList.add('coin-pulse');
                             coinIcon.style.animation = 'coinPulse 0.5s ease-in-out 6';
@@ -4881,11 +4871,11 @@ function showBossDefeatEffect() {
                 }
             }, 500);
             
-            // Show victory notification after animations
+
             setTimeout(() => {
                 console.log('Showing victory notification');
                 
-                // Victory notification does NOT need to add coins again
+
                 showBossVictoryNotification(false);
             }, 5000);
         } else {
@@ -4895,7 +4885,7 @@ function showBossDefeatEffect() {
         }
     }, 1000);
 
-    // Add animation styles if needed
+
     if (!document.getElementById('boss-transition-style')) {
         const styleEl = document.createElement('style');
         styleEl.id = 'boss-transition-style';
@@ -4917,19 +4907,19 @@ function showBossDefeatEffect() {
     }
 }
 
-// ADD this global function to force refresh the sets display
+
 window.refreshSetsDisplay = function() {
     console.log("Forcing refresh of sets display");
     
-    // Re-add styles
+
     addGoldShineStyles();
     
-    // Force repopulation of all set grids
+
     gameStructure.stages.forEach(stage => {
         populateSetsGrid(stage.id);
     });
     
-    // Update stage completion stats
+
     updateStageCompletionStats();
     updateStageCompletionCounters();
     
@@ -4966,9 +4956,9 @@ function handleCrownClick(e) {
     e.stopPropagation();
     
     if (!currentUser) {
-      // Unregistered user - show signup form
+
       showAuthModal();
-      // Switch to signup form
+
       setTimeout(() => {
         const loginForm = document.getElementById('loginForm');
         const signupForm = document.getElementById('signupForm');
@@ -4978,34 +4968,34 @@ function handleCrownClick(e) {
         }
       }, 100);
     } else if (currentUser.status === 'premium') {
-      // Premium user - show friendly notification
+
       showNotification("You're already enjoying premium access! Thank you for your support!", "success");
     } else {
-      // Logged in non-premium user - show upgrade form
+
       localStorage.removeItem(`upgradeRequested_${currentUser.id}`);
       showUpgradePrompt();
     }
   }
 
-  // Function to hide crown icons for premium users
+
 function hideCrownIconsForPremiumUsers() {
-    // Only proceed if user is premium
+
     if (!currentUser || currentUser.status !== 'premium') return;
     
     console.log("Hiding crown icons for premium user");
     
-    // Find all crown icons in the UI (any element with fa-crown class)
+
     const crownIcons = document.querySelectorAll('.fa-crown');
     
     crownIcons.forEach(crown => {
-      // Find the nearest container element (could be a button, div, etc.)
+
       let container = crown;
       let depth = 0;
-      const maxDepth = 5; // Prevent infinite loop
+      const maxDepth = 5;
       
-      // Go up max 5 levels to find a suitable container
+
       while (depth < maxDepth && container && container.tagName !== 'BODY') {
-        // Look for containers that indicate premium features
+
         if (container.classList.contains('premium-item') || 
             container.classList.contains('premium-feature') ||
             container.id === 'premium-menu-item' ||
@@ -5013,54 +5003,54 @@ function hideCrownIconsForPremiumUsers() {
             container.getAttribute('onclick')?.includes('upgrade') ||
             container.getAttribute('data-feature') === 'premium') {
           
-          // Hide the container
+
           container.style.display = 'none';
           console.log("Hidden premium container:", container);
           break;
         }
         
-        // Move up to parent
+
         container = container.parentElement;
         depth++;
       }
       
-      // If we couldn't find a proper container, at least disable the crown icon
+
       if (depth >= maxDepth || !container || container.tagName === 'BODY') {
-        // Disable click events
+
         crown.style.pointerEvents = 'none';
-        // Make it less prominent
+
         crown.style.opacity = '0.5';
         console.log("Disabled individual crown icon");
       }
     });
   }
   
-  // Call this function when page loads and when user status changes
+
   document.addEventListener('DOMContentLoaded', function() {
     setTimeout(hideCrownIconsForPremiumUsers, 1000);
     
-    // Also call it periodically to catch new elements
+
     setInterval(hideCrownIconsForPremiumUsers, 5000);
   });
   
-  // Add event listener for user status change
+
   document.addEventListener('userStatusChanged', function(event) {
     setTimeout(hideCrownIconsForPremiumUsers, 100);
   });
 
-/* ADD this code to ensure crowns are clickable after DOM loads */
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Add click handlers to all crown icons
+
     document.querySelectorAll('.fa-crown').forEach(crown => {
         crown.addEventListener('click', handleCrownClick);
     });
     
-    // Set up a mutation observer to handle dynamically added crowns
+
     const observer = new MutationObserver(mutations => {
         mutations.forEach(mutation => {
             if (mutation.addedNodes.length) {
                 mutation.addedNodes.forEach(node => {
-                    if (node.nodeType === 1) { // Element node
+                    if (node.nodeType === 1) {
                         const crowns = node.querySelectorAll('.fa-crown');
                         crowns.forEach(crown => {
                             crown.addEventListener('click', handleCrownClick);
@@ -5081,25 +5071,25 @@ function addStageToggleListeners() {
         button.addEventListener('click', (e) => {
             const wrapper = button.closest('.stage-wrapper');
             wrapper.classList.toggle('open');
-            e.stopPropagation(); // Prevent event bubbling
+            e.stopPropagation();
         });
     });
 }
 
 
-// Add to document ready function
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Make sure all the necessary screens exist
+
     ensureScreenExists('stage-cascade-screen');
     
-    // Update navigation links
+
     updateSidePanelLinks();
     
-    // If any other initialization is needed for stage-cascade-screen
+
     initializeStageCascadeScreen();
 });
 
-// Simple initialization function for the stage cascade screen
+
 function initializeStageCascadeScreen() {
     const screen = document.getElementById('stage-cascade-screen');
     if (!screen.querySelector('.stages-container')) {
@@ -5110,7 +5100,7 @@ function initializeStageCascadeScreen() {
 }
 
 const SessionManager = {
-    maxInactiveTime: 30 * 60 * 1000, // 30 minutes
+    maxInactiveTime: 30 * 60 * 1000,
     lastActivity: Date.now(),
     
     init() {
@@ -5217,24 +5207,24 @@ function handleHashChange() {
         const otp = window.location.hash.replace('#join=', '');
         console.log('Join OTP detected:', otp);
         
-        // Show landing page on mobile
+
         if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
             const qrLanding = document.getElementById('qr-landing');
             const codeDisplay = qrLanding.querySelector('.game-code-display');
             
-            // Hide all other screens
+
             document.querySelectorAll('.screen').forEach(screen => {
                 screen.style.display = 'none';
             });
             
-            // Show and populate landing page
+
             qrLanding.style.display = 'flex';
             codeDisplay.textContent = otp;
             
-            // Store OTP for later use
+
             qrLanding.dataset.otp = otp;
         } else {
-            // Desktop behavior
+
             history.pushState("", document.title, window.location.pathname);
             showJoinModal(otp);
         }
@@ -5242,10 +5232,10 @@ function handleHashChange() {
 }
 
 function updateUI() {
-    // Batch DOM updates
+
     requestAnimationFrame(() => {
         const fragment = document.createDocumentFragment();
-        // Add elements to fragment
+
         document.body.appendChild(fragment);
     });
 }
@@ -5254,7 +5244,7 @@ function updateUI() {
 function updateGuestPlayButton() {
     const guestPlayButton = document.querySelector('.guest-play-button');
     
-    // Check if the button exists before trying to modify it
+
     if (guestPlayButton) {
         if (!currentUser || (currentUser && currentUser.status === 'unregistered')) {
             guestPlayButton.textContent = 'Play as Guest';
@@ -5276,7 +5266,7 @@ function toggleParentFields() {
     const parentSection = document.getElementById('parentInfoSection');
     const adultSection = document.getElementById('adultInfoSection');
     
-    // Get input elements
+
     const parentInputs = parentSection.querySelectorAll('input');
     const adultInputs = adultSection.querySelectorAll('input');
     
@@ -5284,21 +5274,21 @@ function toggleParentFields() {
         parentSection.style.display = 'none';
         adultSection.style.display = 'block';
         
-        // Toggle required attributes
+
         parentInputs.forEach(input => input.required = false);
         adultInputs.forEach(input => input.required = true);
     } else {
         parentSection.style.display = 'block';
         adultSection.style.display = 'none';
         
-        // Toggle required attributes
+
         parentInputs.forEach(input => input.required = true);
         adultInputs.forEach(input => input.required = false);
     }
 }
 
 
-// Add a debug helper function to check popup status
+
 function checkPopupStatus() {
   const popups = document.querySelectorAll('.confirmation-popup');
   if (popups.length === 0) {
@@ -5318,7 +5308,7 @@ function checkPopupStatus() {
   });
 }
 
-// Add a global debug function for the upgrade process
+
 window.debugUpgrade = function() {
   checkPopupStatus();
   console.log("Upgrade screen visible:", document.getElementById("upgrade-screen").classList.contains("visible"));
@@ -5330,38 +5320,38 @@ window.debugUpgrade = function() {
 function skipUpgrade() {
     console.log("Skip upgrade button clicked");
     
-    // Store that this user has seen the upgrade prompt to prevent repeated showings
+
     if (currentUser && currentUser.id) {
       localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
     } else {
       localStorage.setItem('upgradeRequested_guest', 'true');
     }
     
-    // Clear any stored game context to prevent level resumption
+
     localStorage.removeItem("gameContext");
     
-    // Hide the upgrade screen
+
     document.getElementById('upgrade-screen').classList.remove('visible');
     
-    // Reset upgrade form
+
     const upgradeForm = document.getElementById("upgradeForm");
     if (upgradeForm) {
       upgradeForm.reset();
     }
     
-    // Navigate back to welcome screen
+
     showScreen('welcome-screen');
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Find all skip buttons on the upgrade screen and ensure they call skipUpgrade()
+
     const skipButtons = document.querySelectorAll('#upgrade-screen .skip-button, #upgrade-screen button[onclick*="skip"], #upgrade-screen button:contains("Skip")');
     
     skipButtons.forEach(button => {
-        // Remove any existing onclick handlers
+
         button.removeAttribute('onclick');
         
-        // Add our direct event listener
+
         button.addEventListener('click', function(e) {
             e.preventDefault();
             console.log("Skip button clicked via direct handler");
@@ -5369,7 +5359,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Also check for the specific button shown in your screenshot
+
     const directSkipButton = document.querySelector('#upgrade-screen button.skip-signup-button, #upgrade-screen button:contains("Skip")');
     if (directSkipButton) {
         directSkipButton.onclick = function(e) {
@@ -5383,30 +5373,30 @@ document.addEventListener('DOMContentLoaded', function() {
 function handleUpgradeSubmit(event) {
     console.log("Upgrade form submitted");
     
-    // Prevent the default form submission if this is a direct click
+
     if (event) {
       event.preventDefault();
     }
     
-    // Mark that this user has requested an upgrade
+
     if (currentUser && currentUser.id) {
       localStorage.setItem(`upgradeRequested_${currentUser.id}`, 'true');
     } else {
       localStorage.setItem('upgradeRequested_guest', 'true');
     }
     
-    // Get form data
+
     const form = document.getElementById('upgradeForm');
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
     
-    // Log the request (you might want to send this to your backend)
+
     console.log("Upgrade request data:", data);
     
-    // Show a success message
+
     showNotification("Thanks for your interest! We'll contact you soon.", "success");
     
-    // Mark user as "pending" if they're logged in
+
     if (currentUser && currentUser.id) {
       updateUserStatus("pending").then(() => {
         console.log("User status updated to pending");
@@ -5415,24 +5405,24 @@ function handleUpgradeSubmit(event) {
       });
     }
     
-    // Hide the upgrade screen
+
     document.getElementById('upgrade-screen').classList.remove('visible');
     
-    // Show confirmation
+
     showUpgradeConfirmation();
     
-    // Do NOT initiate a level or execute callback
-    // Just return to allow user to continue from where they were
+
+
     console.log("Upgrade form closed, user can continue");
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Ensure toggle function is properly set up for the upgrade form
+
     const isAdultCheckbox = document.getElementById('isAdult');
     
     if (isAdultCheckbox) {
-      isAdultCheckbox.checked = true; // Default to adult checked
-      toggleParentFields(); // Call once to set initial state
+      isAdultCheckbox.checked = true;
+      toggleParentFields();
       
       isAdultCheckbox.addEventListener('change', toggleParentFields);
     }
@@ -5452,7 +5442,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
       if (error) throw error;
       
-      // Update local user object
+
       currentUser.status = status;
       
       return data;
@@ -5463,16 +5453,16 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function showUnregisteredWarning(callback) {
-    // Prevent multiple popups in the same page load
+
     if (window.unregisteredWarningShown) {
         if (callback) callback();
         return;
     }
 
-    // Mark that the warning has been shown
+
     window.unregisteredWarningShown = true;
 
-    // Create full-screen signup page
+
     const fullscreenPrompt = document.createElement('div');
     fullscreenPrompt.className = 'fullscreen-signup-page';
     fullscreenPrompt.style.cssText = `
@@ -5491,7 +5481,7 @@ document.addEventListener('DOMContentLoaded', function() {
         animation: fadeIn 0.3s ease-in-out;
     `;
 
-    // Create content container
+
     fullscreenPrompt.innerHTML = `
         <div class="signup-header" style="width: 100%; display: flex; justify-content: flex-start; margin-bottom: 2rem;">
             <button class="skip-signup-button" style="
@@ -5589,10 +5579,10 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
     `;
 
-    // Add to body
+
     document.body.appendChild(fullscreenPrompt);
     
-    // Add animations CSS
+
     const styleElement = document.createElement('style');
     styleElement.textContent = `
         @keyframes fadeIn {
@@ -5612,10 +5602,10 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
     document.head.appendChild(styleElement);
 
-    // Store that this user has seen the signup prompt
+
     localStorage.setItem('upgradeRequested_guest', 'true');
     
-    // Store current game context for later
+
     const gameContext = {
         stage: gameState.currentStage,
         set: gameState.currentSet,
@@ -5624,40 +5614,40 @@ document.addEventListener('DOMContentLoaded', function() {
     };
     localStorage.setItem("gameContext", JSON.stringify(gameContext));
 
-    // Add event listeners
+
     const skipButton = fullscreenPrompt.querySelector('.skip-signup-button');
     const signupButton = fullscreenPrompt.querySelector('.signup-now-button');
     
     skipButton.addEventListener('click', function() {
-        // Remove the prompt
+
         document.body.removeChild(fullscreenPrompt);
         if (styleElement.parentNode) {
             styleElement.parentNode.removeChild(styleElement);
         }
         
-        // Execute callback to continue game
+
         if (callback) {
             callback();
         }
     });
     
     signupButton.addEventListener('click', function() {
-        // Remove the prompt
+
         document.body.removeChild(fullscreenPrompt);
         if (styleElement.parentNode) {
             styleElement.parentNode.removeChild(styleElement);
         }
         
-        // First, make sure we're on welcome screen since auth modal works best there
+
         showScreen('welcome-screen');
         
-        // Show the auth modal with signup form
+
         setTimeout(function() {
             const authModal = document.getElementById('authModal');
             if (authModal) {
                 authModal.classList.add('show');
                 
-                // Switch to signup form
+
                 const signupForm = document.getElementById('signupForm');
                 const loginForm = document.getElementById('loginForm');
                 if (signupForm && loginForm) {
@@ -5665,7 +5655,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     loginForm.classList.add('hidden');
                 }
             }
-        }, 100); // Short delay to ensure welcome screen is visible first
+        }, 100);
     });
 }
 
@@ -5676,7 +5666,7 @@ async function handleSignup() {
   
     if (email && username && password) {
       try {
-        // 1. Sign up the user
+
         const { data: authData, error: authError } = await supabaseClient.auth.signUp({
           email: email,
           password: password,
@@ -5690,7 +5680,7 @@ async function handleSignup() {
         
         if (authError) throw authError;
         
-        // 2. Create the user profile
+
         const { error: profileError } = await supabaseClient
           .from("user_profiles")
           .upsert({
@@ -5705,14 +5695,14 @@ async function handleSignup() {
           console.error("Profile upsert error:", profileError);
         }
         
-        // 3. Check if game progress exists and create if needed
+
         const { data: existingProgress, error: progressCheckError } = await supabaseClient
           .from("game_progress")
           .select("user_id")
           .eq("user_id", authData.user.id)
           .single();
         
-        // Only insert if record doesn't exist
+
         if (progressCheckError && progressCheckError.code === "PGRST116") {
           const gameProgressData = {
             user_id: authData.user.id,
@@ -5732,19 +5722,19 @@ async function handleSignup() {
             .insert([gameProgressData]);
           
           if (insertProgressError && insertProgressError.code !== "23505") {
-            // Log error but continue if it's not a duplicate key error
+
             console.error("Game progress initialization error:", insertProgressError);
           }
         }
         
-        // 4. Check if player stats exists and create if needed
+
         const { data: existingStats, error: statsCheckError } = await supabaseClient
           .from("player_stats")
           .select("user_id")
           .eq("user_id", authData.user.id)
           .single();
         
-        // Only insert if record doesn't exist
+
         if (statsCheckError && statsCheckError.code === "PGRST116") {
           const playerStatsData = {
             user_id: authData.user.id,
@@ -5757,12 +5747,12 @@ async function handleSignup() {
             .insert([playerStatsData]);
           
           if (insertStatsError && insertStatsError.code !== "23505") {
-            // Log error but continue if it's not a duplicate key error
+
             console.error("Player stats initialization error:", insertStatsError);
           }
         }
         
-        // 5. Sign in the user
+
         const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
           email: email,
           password: password
@@ -5770,7 +5760,7 @@ async function handleSignup() {
         
         if (signInError) throw signInError;
         
-        // 6. Update the UI and game state
+
         hideAuthModal();
         currentUser = signInData.user;
         gameState.currentStage = 1;
@@ -5784,25 +5774,25 @@ async function handleSignup() {
         gameState.completedLevels = new Set;
         updateAuthUI();
         
-        // Get the stored game context
+
         const storedContext = localStorage.getItem("gameContext");
         if (storedContext) {
           try {
             const context = JSON.parse(storedContext);
-            // If we have stored context, restore and continue from where we left off
+
             if (context.stage && context.set && context.level) {
               gameState.currentStage = context.stage;
               gameState.currentSet = context.set;
               gameState.currentLevel = context.level;
               
-              // Execute any pending callbacks
+
               if (typeof window.signupCallback === 'function') {
                 setTimeout(() => {
                   window.signupCallback();
                   window.signupCallback = null;
                 }, 500);
               } else {
-                // Otherwise start the level directly
+
                 setTimeout(() => {
                   startLevel(gameState.currentLevel);
                 }, 500);
@@ -5814,7 +5804,7 @@ async function handleSignup() {
           }
         }
         
-        // Default fallback - show welcome screen
+
         showScreen("welcome-screen");
         
       } catch (error) {
@@ -5854,7 +5844,7 @@ async function updateUserStats() {
       document.getElementById("totalWords").textContent = statsData.unique_words_practiced || 0;
     }
     
-    // Add this to force UI refresh
+
     updateAllCoinDisplays();
     WordsManager.updateDisplays(statsData?.unique_words_practiced || 0);
   } catch (err) {
@@ -5873,7 +5863,7 @@ function restoreGameContext() {
         gameState.currentSet = context.set || 1;
         gameState.currentLevel = context.level;
         
-        // Clear the saved context
+
         localStorage.removeItem('gameContext');
         
         return true;
@@ -5885,27 +5875,27 @@ function restoreGameContext() {
 
 function navigateHome() {
     console.log('Navigating home with full refresh');
-    saveProgress();  // Ensure current state is saved
+    saveProgress();
     window.location.reload(true);
 }
 
 function forceReload() {
     console.log('Force Reload Initiated');
     
-    // Multiple reload strategies
+
     if (window.location) {
-        window.location.href = window.location.href;  // Reload current page
+        window.location.href = window.location.href;
     }
     
     if (window.location.reload) {
-        window.location.reload(true);  // Hard reload with cache bypass
+        window.location.reload(true);
     }
     
-    // Fallback reload method
+
     window.location.replace(window.location.pathname);
 }
 
-// Replace ALL home button onclick events with this
+
 document.querySelectorAll('.home-button').forEach(button => {
     button.onclick = function() {
         console.log('Home button clicked');
@@ -5926,7 +5916,7 @@ async function showLeaderboard() {
                 return;
             }
             
-            // Store current positions for animation
+
             const currentEntries = entriesContainer.children;
             const positions = {};
             
@@ -5935,7 +5925,7 @@ async function showLeaderboard() {
                 positions[username] = entry.getBoundingClientRect();
             });
             
-            // Update the leaderboard HTML
+
             entriesContainer.innerHTML = data.map((player, index) => `
                 <div class="leaderboard-entry ${player.username === currentUser?.user_metadata?.username ? "you" : ""} ${index < 3 ? `rank-${index+1}` : ""}"
                      data-rank="${index+1}">
@@ -5946,7 +5936,7 @@ async function showLeaderboard() {
                 </div>
             `).join("");
             
-            // Apply animations for position changes
+
             const newEntries = entriesContainer.children;
             
             Array.from(newEntries).forEach(entry => {
@@ -5970,13 +5960,13 @@ async function showLeaderboard() {
             });
         }
         
-        // Initial update
+
         await updateLeaderboard();
         
-        // Set interval for polling updates
+
         const pollInterval = setInterval(updateLeaderboard, 10000);
         
-        // Store interval ID so we can clear it when needed
+
         const leaderboardScreen = document.getElementById("leaderboard-screen");
         if (leaderboardScreen) {
             if (leaderboardScreen.dataset.pollInterval) {
@@ -5994,12 +5984,12 @@ async function showLeaderboard() {
 function cleanupLeaderboard() {
     const leaderboardScreen = document.getElementById('leaderboard-screen');
     if (leaderboardScreen) {
-        // Cleanup channel
+
         if (leaderboardScreen.dataset.channel) {
             supabaseClient.removeChannel(leaderboardScreen.dataset.channel);
             delete leaderboardScreen.dataset.channel;
         }
-        // Cleanup interval
+
         if (leaderboardScreen.dataset.pollInterval) {
             clearInterval(parseInt(leaderboardScreen.dataset.pollInterval));
             delete leaderboardScreen.dataset.pollInterval;
@@ -6010,7 +6000,7 @@ function cleanupLeaderboard() {
 async function updatePlayerStats(levelTime, mistakes, currentStreak) {
     if (currentUser && "premium" === currentUser.status) {
         try {
-            // Get current player stats
+
             const { data: currentStats, error: statsError } = 
                 await supabaseClient.from("player_stats")
                     .select("*")
@@ -6019,11 +6009,11 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
 
             if (statsError && statsError.code !== "PGRST116") throw statsError;
 
-            // Calculate unique words (remove duplicates)
+
             const uniqueWords = [...new Set(currentGame.words)];
             const wordsToAdd = uniqueWords.length;
 
-            // Prepare update object
+
             const statsUpdate = {
                 user_id: currentUser.id,
                 total_levels_completed: (currentStats?.total_levels_completed || 0) + 1,
@@ -6031,14 +6021,14 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
                 last_updated: new Date().toISOString()
             };
 
-            // Update database
+
             const { error: upsertError } = 
                 await supabaseClient.from("player_stats")
                     .upsert(statsUpdate, { onConflict: "user_id", returning: "minimal" });
 
             if (upsertError) throw upsertError;
 
-            // Immediately update UI
+
             await WordsManager.updateWords(wordsToAdd);
 
         } catch (error) {
@@ -6050,7 +6040,7 @@ async function updatePlayerStats(levelTime, mistakes, currentStreak) {
 function addAdminTestButton() {
     console.log("Checking for admin user...");
     
-    // Remove any existing button
+
     const existingButton = document.getElementById("admin-test-button");
     if (existingButton) {
       existingButton.remove();
@@ -6058,7 +6048,7 @@ function addAdminTestButton() {
     
     console.log("Current user:", currentUser ? currentUser.email : "No user");
     
-    // Check if the current user is admin
+
     if (!currentUser || (currentUser.email !== "admin123@gmail.com" && !currentUser.email?.includes("admin123"))) {
       console.log("Not admin user, not adding button");
       return;
@@ -6066,7 +6056,7 @@ function addAdminTestButton() {
     
     console.log("Admin user detected, adding test buttons");
     
-    // Add level 20 button
+
     const button = document.createElement("button");
     button.id = "admin-test-button";
     button.textContent = "Jump to Level 20";
@@ -6094,25 +6084,25 @@ function addAdminTestButton() {
     document.body.appendChild(button);
     console.log("Admin test button added to body");
     
-    // Now also add our skip button
+
     addAdminSkipButton();
   }
 
-  // ADD this function to check if the current user is the admin
+
 function isAdminUser() {
     return currentUser && currentUser.email === "admin123@gmail.com";
   }
   
-  // ADD this function to create the admin skip button
+
   function addAdminSkipButton() {
-    // Only add for admin user
+
     if (!isAdminUser()) return;
     
-    // Remove any existing admin skip button first
+
     const existingButton = document.getElementById("admin-skip-10-button");
     if (existingButton) existingButton.remove();
     
-    // Create the admin skip button
+
     const skipButton = document.createElement("button");
     skipButton.id = "admin-skip-10-button";
     skipButton.innerHTML = '<i class="fas fa-forward"></i> Skip 10';
@@ -6131,38 +6121,38 @@ function isAdminUser() {
       font-weight: bold;
     `;
     
-    // Add the click handler
+
     skipButton.onclick = function() {
       console.log("Admin skip-10 button clicked");
       handleAdminSkip10();
     };
     
-    // Add the button to the question screen
+
     const questionScreen = document.getElementById("question-screen");
     if (questionScreen) {
       questionScreen.appendChild(skipButton);
     }
   }
   
-  // ADD this function to handle the skip-10 action
+
   function handleAdminSkip10() {
-    // Only work for admin user
+
     if (!isAdminUser()) return;
     
-    // Check if we're in an active game
+
     if (!currentGame || !currentGame.words || !currentGame.words.length) {
       console.error("No active game found");
       return;
     }
     
-    // Skip 10 questions or all remaining if less than 10 left
+
     const skipCount = Math.min(10, currentGame.words.length - currentGame.currentIndex);
     console.log(`Skipping ${skipCount} questions`);
     
-    // If this is a boss level, handle it differently
+
     if (currentGame.isBossLevel) {
-      // For boss levels, we directly set the index near the end
-      // This will trigger the boss defeat sequence on the next answer
+
+
       currentGame.currentIndex = Math.max(0, currentGame.words.length - 1);
       updateBossHealthBar();
       loadNextBossQuestion();
@@ -6170,16 +6160,16 @@ function isAdminUser() {
       return;
     }
     
-    // For regular levels
+
     currentGame.currentIndex += skipCount;
     
-    // If we've reached the end of the level
+
     if (currentGame.currentIndex >= currentGame.words.length) {
       handleLevelCompletion();
       return;
     }
     
-    // Otherwise update progress and load the next question
+
     updateProgressCircle();
     loadNextQuestion();
     showNotification(`Skipped ${skipCount} questions!`, "success");
@@ -6192,14 +6182,14 @@ function isAdminUser() {
     const letters = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ",..."אבגדהוזחטיכלמנסעפצקרשת"];
     const containerWidth = questionScreen.clientWidth;
     
-    // Clear any existing interval
+
     if (window.rainingLettersInterval) {
       clearInterval(window.rainingLettersInterval);
     }
     
-    // Create raining letters
+
     window.rainingLettersInterval = setInterval(() => {
-      // Create between 1 and 3 letters each interval
+
       const count = Math.floor(Math.random() * 3) + 1;
       
       for (let i = 0; i < count; i++) {
@@ -6207,16 +6197,16 @@ function isAdminUser() {
         letter.className = 'raining-letter';
         letter.textContent = letters[Math.floor(Math.random() * letters.length)];
         
-        // Random position and speed
+
         const left = Math.random() * containerWidth;
-        const duration = 5 + Math.random() * 5; // 5-10 seconds
+        const duration = 5 + Math.random() * 5;
         
         letter.style.left = `${left}px`;
         letter.style.animationDuration = `${duration}s`;
         
         questionScreen.appendChild(letter);
         
-        // Remove letter after animation completes
+
         setTimeout(() => {
           if (letter.parentNode === questionScreen) {
             questionScreen.removeChild(letter);
@@ -6226,61 +6216,57 @@ function isAdminUser() {
     }, 300);
   }
   
-  /**
- * Hides the upgrade prompt and continues with the user flow
- * This function cleans up upgrade-related UI elements and continues gameplay
- */
-function hideUpgradePromptAndContinue() {
+  function hideUpgradePromptAndContinue() {
     console.log("Hiding upgrade prompt and continuing gameplay");
     
-    // Hide upgrade screen if visible
+
     const upgradeScreen = document.getElementById("upgrade-screen");
     if (upgradeScreen) {
       upgradeScreen.classList.remove("visible");
     }
     
-    // Reset upgrade form
+
     const upgradeForm = document.getElementById("upgradeForm");
     if (upgradeForm) {
       upgradeForm.reset();
     }
     
-    // Remove any upgrade confirmation overlays
+
     const confirmationOverlay = document.querySelector('.upgrade-confirmation-overlay');
     if (confirmationOverlay) {
       confirmationOverlay.remove();
     }
     
-    // Remove any confirmation popups
+
     document.querySelectorAll(".confirmation-popup").forEach(popup => {
       if (popup.parentNode) {
         popup.parentNode.removeChild(popup);
       }
     });
     
-    // Get stored game context for continuation
+
     const gameContext = localStorage.getItem("gameContext");
-    let destination = "welcome-screen"; // Default fallback
+    let destination = "welcome-screen";
     
     if (gameContext) {
       try {
         const context = JSON.parse(gameContext);
         console.log("Resuming from stored game context:", context);
         
-        // Check if we have a level to continue to
+
         if (context.level) {
-          // Handle level continuation
+
           if (typeof startLevel === 'function') {
             setTimeout(() => {
               startLevel(context.level);
-              return; // Skip showing welcome screen
+              return;
             }, 100);
           } else if (context.screen && typeof showScreen === 'function') {
-            // If we can't directly start the level, show the last screen
+
             destination = context.screen;
           }
         } else if (context.screen && typeof showScreen === 'function') {
-          // If no specific level but we have a screen, go there
+
           destination = context.screen;
         }
       } catch (e) {
@@ -6288,56 +6274,56 @@ function hideUpgradePromptAndContinue() {
       }
     }
     
-    // If we couldn't find a level to continue to, show the specified screen
+
     if (typeof showScreen === 'function') {
       showScreen(destination);
     }
     
-    // Don't clear the game context as it might be needed for resuming
-    // Only clear if we've successfully handled the continuation
+
+
     if (destination !== "welcome-screen") {
       localStorage.removeItem("gameContext");
     }
   }
 
-  // ADD: Function to handle unregistered user inactivity
+
 function setupUnregisteredUserInactivityWipe() {
     let inactivityTimer;
-    const inactivityTimeout = 15000; // 3 minutes in milliseconds
+    const inactivityTimeout = 15000;
     let lastActivityTime = Date.now();
     
-    // Function to reset the timer
+
     function resetInactivityTimer() {
-        // Update last activity time
+
         lastActivityTime = Date.now();
         
-        // Clear existing timer
+
         if (inactivityTimer) {
             clearTimeout(inactivityTimer);
         }
         
-        // Only set the timer if user is not logged in
+
         if (!currentUser) {
-            inactivityTimer = setTimeout(checkInactivity, 30000); // Check every 30 seconds
-        }
-    }
-    
-    // Function to check if we've been inactive long enough to wipe coins
-    function checkInactivity() {
-        const currentTime = Date.now();
-        const inactiveTime = currentTime - lastActivityTime;
-        
-        // If inactive for more than our threshold and still not logged in
-        if (inactiveTime >= inactivityTimeout && !currentUser) {
-            console.log(`Unregistered user inactive for ${Math.floor(inactiveTime/60000)} minutes - wiping coins`);
-            resetCoinsToZero();
-        } else {
-            // Not time to wipe yet, continue checking
             inactivityTimer = setTimeout(checkInactivity, 30000);
         }
     }
     
-    // Set up event listeners for user activity
+
+    function checkInactivity() {
+        const currentTime = Date.now();
+        const inactiveTime = currentTime - lastActivityTime;
+        
+
+        if (inactiveTime >= inactivityTimeout && !currentUser) {
+            console.log(`Unregistered user inactive for ${Math.floor(inactiveTime/60000)} minutes - wiping coins`);
+            resetCoinsToZero();
+        } else {
+
+            inactivityTimer = setTimeout(checkInactivity, 30000);
+        }
+    }
+    
+
     const activityEvents = [
         'mousedown', 'mousemove', 'keypress', 
         'scroll', 'touchstart', 'click', 'touchmove'
@@ -6347,33 +6333,33 @@ function setupUnregisteredUserInactivityWipe() {
         document.addEventListener(event, resetInactivityTimer, { passive: true });
     });
     
-    // Start the initial timer
+
     resetInactivityTimer();
     
-    // Also check on visibility change (user coming back to tab)
+
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
             const currentTime = Date.now();
             const inactiveTime = currentTime - lastActivityTime;
             
-            // If we've been away/hidden for over 3 minutes and not logged in
+
             if (inactiveTime >= inactivityTimeout && !currentUser) {
                 console.log(`Tab inactive for ${Math.floor(inactiveTime/60000)} minutes - wiping coins`);
                 resetCoinsToZero();
             }
             
-            // Reset the timer as we're now active
+
             resetInactivityTimer();
         }
     });
 }
 
-// ADD: Call this function during initialization
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Find the logout button in the side panel (as in previous solution)
-    // ...logout button code from previous solution...
+
+
     
-    // Setup inactivity wipe for unregistered users
+
     setupUnregisteredUserInactivityWipe();
     
     console.log("Unregistered user inactivity coin wipe setup complete (3 minute timeout)");
@@ -6384,17 +6370,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
   document.addEventListener('DOMContentLoaded', function() {
-    // Set up a mutation observer to handle dynamically added crowns
+
     const observer = new MutationObserver(mutations => {
         mutations.forEach(mutation => {
             if (mutation.addedNodes.length) {
                 mutation.addedNodes.forEach(node => {
-                    if (node.nodeType === 1) { // Element node
+                    if (node.nodeType === 1) {
                         const crowns = node.querySelectorAll('.fa-crown');
                         crowns.forEach(crown => {
                             crown.addEventListener('click', function(event) {
                                 event.stopPropagation();
-                                // Always force show the upgrade screen
+
                                 showScreen("upgrade-screen");
                             });
                         });
@@ -6409,23 +6395,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Set up carousel button clicks
+
     const carouselButtons = document.querySelectorAll('.carousel-button');
     const descriptionElement = document.getElementById('carousel-description');
     
     carouselButtons.forEach(button => {
       if (button.id !== 'settings-toggle') {
         button.addEventListener('click', function() {
-          // Update active state
+
           carouselButtons.forEach(btn => btn.classList.remove('active'));
           this.classList.add('active');
           
-          // Update description
+
           if (descriptionElement) {
             descriptionElement.textContent = this.getAttribute('data-description');
           }
           
-          // Execute the action
+
           const action = this.getAttribute('data-action');
           if (action) {
             try {
@@ -6435,7 +6421,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           }
           
-          // Hide floating menu if open
+
           const optionsMenu = document.getElementById('options-menu');
           if (optionsMenu && optionsMenu.classList.contains('show')) {
             optionsMenu.classList.remove('show');
@@ -6444,7 +6430,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
     
-    // Set up settings toggle for floating menu
+
     const settingsToggle = document.getElementById('settings-toggle');
     const optionsMenu = document.getElementById('options-menu');
     
@@ -6453,14 +6439,14 @@ document.addEventListener('DOMContentLoaded', function() {
         e.stopPropagation();
         optionsMenu.classList.toggle('show');
         
-        // Update active state for settings button
+
         if (optionsMenu.classList.contains('show')) {
           carouselButtons.forEach(btn => btn.classList.remove('active'));
           this.classList.add('active');
         }
       });
       
-      // Close menu when clicking elsewhere
+
       document.addEventListener('click', function(e) {
         if (optionsMenu.classList.contains('show') && 
             !optionsMenu.contains(e.target) && 
@@ -6472,11 +6458,11 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   document.addEventListener('DOMContentLoaded', function() {
-    // Add direct click handler for the premium menu item to ensure it works for unregistered users
+
     function setupPremiumButton() {
       const premiumItem = document.querySelector('#premium-item');
       if (premiumItem) {
-        // Remove the default onclick attribute and add direct listener
+
         const originalAction = premiumItem.getAttribute('onclick');
         premiumItem.removeAttribute('onclick');
         
@@ -6486,10 +6472,10 @@ document.addEventListener('DOMContentLoaded', function() {
           
           console.log('Premium menu item clicked by', currentUser ? currentUser.status : 'unregistered user');
           
-          // Always show the upgrade screen directly
+
           showScreen('upgrade-screen');
           
-          // Close the options menu
+
           const optionsMenu = document.getElementById('options-menu');
           if (optionsMenu) {
             optionsMenu.classList.remove('show');
@@ -6500,13 +6486,13 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
     
-    // Call setup initially
+
     setupPremiumButton();
     
-    // Also set up after the menu is refreshed
+
     document.addEventListener('menuRefreshed', setupPremiumButton);
     
-    // Re-check when menu is shown
+
     const settingsToggle = document.getElementById('settings-toggle');
     if (settingsToggle) {
       settingsToggle.addEventListener('click', function() {
@@ -6515,7 +6501,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // Profile Modal functions
+
 function openProfileModal() {
     const modal = document.getElementById('profile-modal');
     if (!modal) {
@@ -6523,7 +6509,7 @@ function openProfileModal() {
         return;
     }
     
-    // Update username
+
     const usernameEl = document.getElementById('modal-username');
     if (usernameEl) {
         usernameEl.textContent = currentUser?.user_metadata?.username || 
@@ -6531,18 +6517,18 @@ function openProfileModal() {
                                 'Guest';
     }
     
-    // Update status badge
+
     const statusEl = document.getElementById('modal-status');
     if (statusEl) {
         const status = currentUser?.status || 'free';
         
-        // Remove all status classes first
+
         statusEl.className = 'status-badge';
         
-        // Add appropriate status class
+
         statusEl.classList.add(status);
         
-        // Set appropriate text
+
         if (status === 'premium') {
             statusEl.textContent = 'PREMIUM';
         } else if (status === 'pending') {
@@ -6554,7 +6540,7 @@ function openProfileModal() {
         }
     }
     
-    // Update stats
+
     const wordCountEl = document.getElementById('modal-word-count');
     const coinCountEl = document.getElementById('modal-coin-count');
     
@@ -6566,10 +6552,10 @@ function openProfileModal() {
         coinCountEl.textContent = document.getElementById('totalCoins')?.textContent || '0';
     }
     
-    // Show the modal
+
     modal.classList.add('show');
     
-    // Close options menu if open
+
     closeOptionsMenu();
     
     console.log("Profile modal opened");
@@ -6583,9 +6569,9 @@ function closeProfileModal() {
     }
 }
 
-// Make sure this runs when the DOM is loaded
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Find profile button in the options menu and update it
+
     const profileButton = document.querySelector('.menu-item[onclick="showScreen(\'user-stats-screen\')"]');
     if (profileButton) {
         profileButton.setAttribute('onclick', 'openProfileModal()');
@@ -6594,12 +6580,12 @@ document.addEventListener('DOMContentLoaded', function() {
         console.warn("Profile button not found in the menu");
     }
     
-    // Also update the profile button in the avatar button if it exists
+
     const avatarButton = document.getElementById('login-avatar-btn');
     if (avatarButton) {
         avatarButton.onclick = function() {
-            // If user is logged in, show profile modal
-            // Otherwise, show auth modal
+
+
             if (currentUser) {
                 openProfileModal();
             } else {
@@ -6610,21 +6596,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Ultra simple about screen solution
+
 (function() {
-    // Execute when DOM is loaded
+
     document.addEventListener('DOMContentLoaded', function() {
-      // Create a standalone about screen function that doesn't depend on existing CSS
+
       window.showAboutScreen = function() {
         console.log("Showing about screen");
         
-        // First remove any existing about overlay
+
         const existingOverlay = document.getElementById('simple-about-overlay');
         if (existingOverlay) {
           existingOverlay.remove();
         }
         
-        // Create a full-page overlay with inline styles (no CSS dependencies)
+
         const overlay = document.createElement('div');
         overlay.id = 'simple-about-overlay';
         overlay.style.cssText = `
@@ -6642,7 +6628,7 @@ document.addEventListener('DOMContentLoaded', function() {
           font-family: 'Montserrat', sans-serif;
         `;
         
-        // Add content with inline styles
+
         overlay.innerHTML = `
           <div style="max-width: 800px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #FFD700; text-align: center; margin-bottom: 30px; font-size: 28px;">Simplos Game App</h1>
@@ -6693,15 +6679,15 @@ document.addEventListener('DOMContentLoaded', function() {
           </div>
         `;
         
-        // Add to body
+
         document.body.appendChild(overlay);
         
-        // Add event listener to close button
+
         document.getElementById('about-close-btn').addEventListener('click', function() {
           overlay.remove();
         });
         
-        // Also close when clicking escape key
+
         document.addEventListener('keydown', function(event) {
           if (event.key === 'Escape') {
             overlay.remove();
@@ -6709,16 +6695,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
       };
       
-      // Update the about button to use our new function
+
       function updateAboutButton() {
-        // Find the about button in the menu
+
         const aboutButton = document.querySelector('.menu-item i.fa-info-circle')?.closest('.menu-item');
         if (aboutButton) {
           aboutButton.onclick = function(e) {
             e.preventDefault();
             e.stopPropagation();
             
-            // Close the options menu if it's open
+
             const optionsMenu = document.getElementById('options-menu');
             if (optionsMenu && optionsMenu.classList.contains('show')) {
               optionsMenu.classList.remove('show');
@@ -6730,7 +6716,7 @@ document.addEventListener('DOMContentLoaded', function() {
           console.log("About button updated");
         }
         
-        // Also update the about link in the side panel
+
         const aboutLink = document.querySelector('a[href*="about.html"]');
         if (aboutLink) {
           aboutLink.href = '#';
@@ -6743,32 +6729,32 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
       
-      // Try to update immediately and after a delay
+
       updateAboutButton();
       setTimeout(updateAboutButton, 2000);
     });
   })();
 
   function setupStandaloneHomeButton() {
-    // Remove existing buttons if they exist
+
     const existingButtons = document.querySelectorAll('.standalone-home-button');
     existingButtons.forEach(button => button.remove());
     
-    // Create new standalone home button
+
     const homeButton = document.createElement('button');
     homeButton.className = 'standalone-home-button';
     homeButton.id = 'standalone-home-btn';
     homeButton.innerHTML = '<i class="fas fa-home"></i>';
     homeButton.onclick = navigateHome;
     
-    // Add to body to ensure it's available on all screens
+
     document.body.appendChild(homeButton);
   }
   
-  // Call this function when DOM is loaded and when screens change
+
   document.addEventListener('DOMContentLoaded', setupStandaloneHomeButton);
   
-  // Modify the showScreen function to ensure the home button is visible on all screens
+
   const originalShowScreen = window.showScreen;
   window.showScreen = function(screenId, forceRefresh) {
     originalShowScreen(screenId, forceRefresh);
@@ -6776,7 +6762,7 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 
   function updateAllCoinDisplays() {
-    // Skip if boss victory animation is in progress
+
     if (window.bossVictoryAnimationInProgress) {
         console.log('Boss victory animation in progress, skipping updateAllCoinDisplays');
         return;
@@ -6784,7 +6770,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const displays = document.querySelectorAll('.coin-count');
     displays.forEach(display => {
-        // Skip protected elements
+
         if (display.dataset.protectedValue === 'true') {
             console.log('Skipping protected element in updateAllCoinDisplays');
             return;
@@ -6793,14 +6779,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const currentValue = parseInt(display.textContent) || 0;
         let targetValue;
 
-        // Determine the target value based on the context
+
         if (window.location.pathname.includes('arcade')) {
             targetValue = currentGame.coins || 0;
         } else {
             targetValue = gameState.coins || 0;
         }
 
-        // Ensure we're using actual numeric values
+
         const startNum = Number(currentValue);
         const endNum = Number(targetValue);
 
@@ -6808,7 +6794,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 }
 function pulseCoins(times = 1) {
-    // Update both the header coin icon and the in-game coin icon
+
     const coinIcons = document.querySelectorAll('.coin-icon');
     
     coinIcons.forEach(coinIcon => {
@@ -6829,15 +6815,15 @@ function pulseCoins(times = 1) {
 }
 
 async function updateUserCoins(amount) {
-    // Update local game state
+
     const previousCoins = gameState.coins;
     gameState.coins += amount;
     
-    // Update UI
+
     updateAllCoinDisplays();
     updatePerkButtons();
     
-    // Save to database if logged in
+
     if (currentUser) {
         try {
             const { error } = await supabaseClient
@@ -6847,7 +6833,7 @@ async function updateUserCoins(amount) {
                 
             if (error) {
                 console.error("Failed to update coins in database:", error);
-                // Revert local change if database save fails
+
                 gameState.coins = previousCoins;
                 updateAllCoinDisplays();
                 updatePerkButtons();
@@ -6855,7 +6841,7 @@ async function updateUserCoins(amount) {
             }
         } catch (err) {
             console.error("Error updating coins:", err);
-            // Revert local change
+
             gameState.coins = previousCoins;
             updateAllCoinDisplays();
             updatePerkButtons();
@@ -6863,7 +6849,7 @@ async function updateUserCoins(amount) {
         }
     }
     
-    // Also save to localStorage
+
     const progressData = JSON.parse(localStorage.getItem("simploxProgress") || "{}");
     progressData.coins = gameState.coins;
     localStorage.setItem("simploxProgress", JSON.stringify(progressData));
@@ -6877,44 +6863,44 @@ function positionOptionsMenu() {
     
     if (!optionsMenu || !settingsToggle) return;
     
-    // Check if menu is shown
+
     if (!optionsMenu.classList.contains('show')) return;
     
-    // Get viewport dimensions
+
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     
-    // Get menu and toggle button dimensions and positions
+
     const menuRect = optionsMenu.getBoundingClientRect();
     const toggleRect = settingsToggle.getBoundingClientRect();
     
-    // Calculate menu position
+
     let left = toggleRect.left + (toggleRect.width / 2) - (menuRect.width / 2);
-    let top = toggleRect.bottom + 10; // 10px below toggle button
+    let top = toggleRect.bottom + 10;
     
-    // Check if menu would overflow right edge
+
     if (left + menuRect.width > viewportWidth - 10) {
         left = viewportWidth - menuRect.width - 10;
     }
     
-    // Check if menu would overflow left edge
+
     if (left < 10) {
         left = 10;
     }
     
-    // Check if menu would overflow bottom edge
+
     if (top + menuRect.height > viewportHeight - 10) {
-        // Position above toggle button instead
+
         top = toggleRect.top - menuRect.height - 10;
         
-        // If still overflowing (not enough space above either)
+
         if (top < 10) {
-            // Center in viewport as fallback
+
             top = Math.max(10, (viewportHeight - menuRect.height) / 2);
             
-            // Ensure menu is fully on screen by checking height
+
             if (top + menuRect.height > viewportHeight - 10) {
-                // Limit height if necessary and add scrolling
+
                 const maxHeight = viewportHeight - 20;
                 optionsMenu.style.maxHeight = `${maxHeight}px`;
                 optionsMenu.style.overflow = 'auto';
@@ -6922,42 +6908,42 @@ function positionOptionsMenu() {
         }
     }
     
-    // Apply calculated position
+
     optionsMenu.style.left = `${left}px`;
     optionsMenu.style.top = `${top}px`;
-    optionsMenu.style.transform = 'none'; // Remove default transform
+    optionsMenu.style.transform = 'none';
 }
 
 function refreshOptionsMenu() {
-    // Find the existing options menu
+
     const existingMenu = document.getElementById('options-menu');
     if (existingMenu) {
-        // Hide the menu before recreating it to avoid visual glitches
+
         existingMenu.classList.remove('show');
         
-        // Create a new menu
+
         setTimeout(() => {
-            // Remove the old menu
+
             if (existingMenu.parentNode) {
                 existingMenu.parentNode.removeChild(existingMenu);
             }
             
-            // Initialize the carousel which will recreate the menu
+
             initializeCarousel();
         }, 100);
     }
 }
 
-  // Find where the arcade button click is defined in the code
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Find the arcade button by its data-action attribute
+
     const arcadeButton = document.querySelector('.carousel-button[data-action="showArcadeModal()"]');
     
     if (arcadeButton) {
-      // Remove any existing click handlers
+
       arcadeButton.removeEventListener('click', window.showArcadeModal);
       
-      // Add our direct click handler
+
       arcadeButton.addEventListener('click', function(e) {
         e.preventDefault();
         console.log('Arcade button clicked - directly calling showArcadeModal');
@@ -6968,7 +6954,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // Simple debugging version of showArcadeModal
+
 function openArcadeModalSimple() {
     console.log('Simple arcade modal opener called');
     const modal = document.getElementById('arcade-modal');
@@ -6981,12 +6967,12 @@ function openArcadeModalSimple() {
     console.log('Found arcade modal, displaying it');
     modal.style.display = 'block';
     
-    // Get the player view and teacher view
+
     const teacherView = document.getElementById('teacher-view');
     const playerView = document.getElementById('player-view');
     
     if (teacherView && playerView) {
-      // Default to player view for everyone for testing
+
       teacherView.style.display = 'none';
       playerView.style.display = 'block';
       console.log('Showing player view');
@@ -6996,35 +6982,35 @@ function openArcadeModalSimple() {
   }
 
   document.addEventListener('DOMContentLoaded', function() {
-    // Add a direct click handler to the Arcade button in the carousel
+
     document.querySelectorAll('.carousel-button').forEach(button => {
       const buttonText = button.querySelector('span')?.textContent?.trim();
       if (buttonText === 'Arcade') {
         button.onclick = function() {
           console.log('Arcade button clicked through direct handler');
-          // Try the simplified function first for debugging
+
           openArcadeModalSimple();
-          // If that works, switch back to the full function
-          // showArcadeModal();
+
+
         };
       }
     });
     
-    // Also add a direct click handler to any element with showArcadeModal in onclick attribute
+
     document.querySelectorAll('[onclick*="showArcadeModal"]').forEach(element => {
       element.onclick = function(e) {
         e.preventDefault();
         console.log('Element with showArcadeModal onclick attribute clicked');
-        // Try the simplified function first for debugging
+
         openArcadeModalSimple();
-        // If that works, switch back to the full function
-        // showArcadeModal();
+
+
         return false;
       };
     });
   });
 
-  // Add this to help diagnose the modal structure
+
 function checkArcadeModalStructure() {
     console.log('Checking arcade modal structure...');
     
@@ -7054,12 +7040,12 @@ function checkArcadeModalStructure() {
     return true;
   }
   
-  // Call this on page load
+
   document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(checkArcadeModalStructure, 1000); // Give the page a second to fully load
+    setTimeout(checkArcadeModalStructure, 1000);
   });
 
-  // Function to ensure the arcade modal exists
+
 function ensureArcadeModalExists() {
     let modal = document.getElementById('arcade-modal');
     
@@ -7069,7 +7055,7 @@ function ensureArcadeModalExists() {
       modal.id = 'arcade-modal';
       modal.className = 'modal';
       
-      // Create basic structure
+
       modal.innerHTML = `
         <div class="modal-content">
           <div id="teacher-view" style="display: none;">
@@ -7104,22 +7090,22 @@ function ensureArcadeModalExists() {
     return false;
   }
   
-  // Call this on page load
+
   document.addEventListener('DOMContentLoaded', function() {
     ensureArcadeModalExists();
   });
 
-  // Direct fix for the arcade modal issue
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded - Setting up arcade button handlers');
     
-    // 1. Make sure the arcade modal exists
+
     const modalExists = ensureArcadeModalExists();
     if (modalExists) {
       console.log('Created arcade modal as it was missing');
     }
     
-    // 2. Add click handlers to all possible arcade buttons
+
     document.querySelectorAll('.carousel-button').forEach(button => {
       const buttonText = button.querySelector('span')?.textContent?.trim();
       if (buttonText === 'Arcade') {
@@ -7130,18 +7116,18 @@ document.addEventListener('DOMContentLoaded', function() {
           e.stopPropagation();
           console.log('Arcade button clicked');
           
-          // Show the modal directly first
+
           const modal = document.getElementById('arcade-modal');
           if (modal) {
             modal.style.display = 'block';
             
-            // Then try to configure it
+
             try {
               showArcadeModal();
             } catch (error) {
               console.error('Error in showArcadeModal:', error);
               
-              // Fallback to basic configuration
+
               const teacherView = document.getElementById('teacher-view');
               const playerView = document.getElementById('player-view');
               
@@ -7159,28 +7145,28 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
     
-    // 3. Also fix any elements with onclick="showArcadeModal()"
+
     document.querySelectorAll('[onclick*="showArcadeModal"]').forEach(element => {
       console.log('Found element with showArcadeModal onclick attribute, replacing handler');
       
-      element.setAttribute('onclick', ''); // Remove the attribute
+      element.setAttribute('onclick', ''); 
       element.onclick = function(e) {
         e.preventDefault();
         e.stopPropagation();
         console.log('Element with showArcadeModal onclick clicked');
         
-        // Show the modal directly first
+
         const modal = document.getElementById('arcade-modal');
         if (modal) {
           modal.style.display = 'block';
           
-          // Then try to configure it
+
           try {
             showArcadeModal();
           } catch (error) {
             console.error('Error in showArcadeModal:', error);
             
-            // Fallback to basic configuration
+
             const teacherView = document.getElementById('teacher-view');
             const playerView = document.getElementById('player-view');
             
@@ -7199,7 +7185,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   
 function initializeWaitingGame() {
-  // Add shuffle function if not already defined
+
   if (typeof shuffleArray !== 'function') {
     window.shuffleArray = function(array) {
       const shuffled = [...array];
@@ -7211,7 +7197,7 @@ function initializeWaitingGame() {
     };
   }
   
-  // Get DOM elements
+
   const gameContainer = document.getElementById('waiting-game-container');
   const playerElement = document.getElementById('waiting-game-player');
   const scoreElement = document.getElementById('waiting-game-score');
@@ -7232,7 +7218,7 @@ function initializeWaitingGame() {
     return;
   }
   
-  // Create lives display if it doesn't exist
+
   if (!livesElement) {
     const livesDiv = document.createElement('div');
     livesDiv.id = 'waiting-game-lives';
@@ -7241,10 +7227,10 @@ function initializeWaitingGame() {
     gameContainer.appendChild(livesDiv);
   }
   
-  // Show the game container
+
   gameContainer.style.display = 'block';
   
-  // Get appropriate vocabulary words from stage 1
+
   let wordPairs = [];
   try {
     for (const key in vocabularySets) {
@@ -7261,7 +7247,7 @@ function initializeWaitingGame() {
     }
   } catch (e) {
     console.error('Error loading vocabulary for waiting game:', e);
-    // Fallback words if vocabulary isn't available
+
     wordPairs = [
       { hebrew: 'כלב', english: 'dog' },
       { hebrew: 'חתול', english: 'cat' },
@@ -7276,10 +7262,10 @@ function initializeWaitingGame() {
     ];
   }
   
-  // Shuffle the word pairs
+
   wordPairs = window.shuffleArray([...wordPairs]);
   
-  // Game state
+
   let gameActive = true;
   let score = 0;
   let speed = 1;
@@ -7292,7 +7278,7 @@ function initializeWaitingGame() {
   let missedMatches = 0;
   const maxMissed = 3;
   
-  // Initialize player with random Hebrew word
+
   function setRandomHebrewWord() {
     const randomPair = wordPairs[Math.floor(Math.random() * wordPairs.length)];
     currentHebrewWord = randomPair.hebrew;
@@ -7302,20 +7288,20 @@ function initializeWaitingGame() {
   function createFallingWord() {
     if (!gameActive) return;
     
-    // Find English words that match our current Hebrew word and some that don't
+
     const matchingWord = wordPairs.find(pair => pair.hebrew === currentHebrewWord)?.english;
     const nonMatchingWords = wordPairs
       .filter(pair => pair.hebrew !== currentHebrewWord)
       .map(pair => pair.english);
     
-    // Decide whether to spawn a matching word (higher chance) or random word
-    const isMatching = Math.random() < 0.4; // 40% chance for matching word
+
+    const isMatching = Math.random() < 0.4;
     
-    // Create the falling word element
+
     const wordElement = document.createElement('div');
     wordElement.className = 'falling-word';
     
-    // Choose the word text
+
     if (isMatching && matchingWord) {
       wordElement.textContent = matchingWord;
       wordElement.dataset.matching = 'true';
@@ -7325,7 +7311,7 @@ function initializeWaitingGame() {
       wordElement.dataset.matching = 'false';
     }
     
-    // Style the falling word
+
     wordElement.style.cssText = `
       position: absolute;
       top: -30px;
@@ -7339,12 +7325,12 @@ function initializeWaitingGame() {
     
     gameContainer.appendChild(wordElement);
     
-    // Add to tracking array
+
     fallingWords.push({
       element: wordElement,
       y: -30,
       x: parseFloat(wordElement.style.left),
-      width: 0, // Will be set in the game loop after element is rendered
+      width: 0,
       isMatching: wordElement.dataset.matching === 'true'
     });
   }
@@ -7355,26 +7341,26 @@ function initializeWaitingGame() {
     const containerBottom = gameContainer.offsetHeight;
     const playerTop = containerBottom - 60;
     
-    // Update position and check collision for each falling word
+
     for (let i = fallingWords.length - 1; i >= 0; i--) {
       const word = fallingWords[i];
       
-      // Set width if not set yet
+
       if (word.width === 0) {
         word.width = word.element.offsetWidth;
       }
       
-      // Move the word down
+
       word.y += speed;
       word.element.style.top = `${word.y}px`;
       
-      // Check if word has reached the bottom
+
       if (word.y > containerBottom) {
-        // Check if we missed a matching word
+
         if (word.isMatching) {
           missedMatches++;
           
-          // Show a missed indicator
+
           const missIndicator = document.createElement('div');
           missIndicator.textContent = `Missed match! (${missedMatches}/${maxMissed})`;
           missIndicator.style.cssText = `
@@ -7391,25 +7377,25 @@ function initializeWaitingGame() {
             gameContainer.removeChild(missIndicator);
           }, 1000);
           
-          // Update lives display
+
           const livesDisplay = document.getElementById('waiting-game-lives');
           if (livesDisplay) {
             livesDisplay.textContent = '❤️'.repeat(Math.max(0, 3 - missedMatches));
           }
           
-          // Check for game over
+
           if (missedMatches >= maxMissed) {
             gameOver();
           }
         }
         
-        // Remove the word
+
         gameContainer.removeChild(word.element);
         fallingWords.splice(i, 1);
         continue;
       }
       
-      // Check for collision with player
+
       const playerRect = playerElement.getBoundingClientRect();
       const wordRect = word.element.getBoundingClientRect();
       
@@ -7417,13 +7403,13 @@ function initializeWaitingGame() {
           word.x + word.width >= playerPosition - playerElement.offsetWidth/2 &&
           word.x <= playerPosition + playerElement.offsetWidth/2) {
         
-        // Check if this is the correct word to match
+
         if (word.isMatching) {
-          // Matching word - add points
+
           score += 10;
           scoreElement.textContent = `Score: ${score}`;
           
-          // Create a +10 animation
+
           const pointAnimation = document.createElement('div');
           pointAnimation.textContent = '+10';
           pointAnimation.style.cssText = `
@@ -7440,25 +7426,25 @@ function initializeWaitingGame() {
             gameContainer.removeChild(pointAnimation);
           }, 1000);
           
-          // Increase difficulty slightly
+
           speed += 0.05;
           
-          // Change the Hebrew word
+
           setRandomHebrewWord();
         } else {
-          // Wrong word - subtract points and lose a life
+
           score = Math.max(0, score - 5);
           scoreElement.textContent = `Score: ${score}`;
           
           lives--;
           
-          // Update lives display
+
           const livesDisplay = document.getElementById('waiting-game-lives');
           if (livesDisplay) {
             livesDisplay.textContent = '❤️'.repeat(lives);
           }
           
-          // Create a -5 animation
+
           const pointAnimation = document.createElement('div');
           pointAnimation.textContent = '-5';
           pointAnimation.style.cssText = `
@@ -7475,19 +7461,19 @@ function initializeWaitingGame() {
             gameContainer.removeChild(pointAnimation);
           }, 1000);
           
-          // Check for game over
+
           if (lives <= 0) {
             gameOver();
           }
         }
         
-        // Remove the word
+
         gameContainer.removeChild(word.element);
         fallingWords.splice(i, 1);
       }
     }
     
-    // Request next frame
+
     gameLoopId = requestAnimationFrame(gameLoop);
   }
   
@@ -7495,7 +7481,7 @@ function initializeWaitingGame() {
     gameActive = false;
     clearInterval(spawnIntervalId);
     
-    // Create game over message
+
     const gameOverMsg = document.createElement('div');
     gameOverMsg.style.cssText = `
       position: absolute;
@@ -7516,14 +7502,14 @@ function initializeWaitingGame() {
     
     gameContainer.appendChild(gameOverMsg);
     
-    // Add restart button handler
+
     document.getElementById('game-restart-btn').addEventListener('click', () => {
       gameContainer.removeChild(gameOverMsg);
       startGame();
     });
   }
   
-  // Add event handlers for player movement
+
   let isDragging = false;
   
   function handleStart(e) {
@@ -7556,7 +7542,7 @@ function initializeWaitingGame() {
   }
   
   function updatePlayerPosition() {
-    // Ensure player stays within boundaries
+
     playerPosition = Math.max(playerElement.offsetWidth/2, 
                      Math.min(gameContainer.offsetWidth - playerElement.offsetWidth/2, 
                      playerPosition));
@@ -7564,7 +7550,7 @@ function initializeWaitingGame() {
     playerElement.style.left = `${playerPosition}px`;
   }
   
-  // Add CSS animation
+
   const styleId = 'waiting-game-styles';
   if (!document.getElementById(styleId)) {
     const style = document.createElement('style');
@@ -7587,31 +7573,31 @@ function initializeWaitingGame() {
     document.head.appendChild(style);
   }
   
-  // Add event listeners for player movement
+
   playerElement.addEventListener('mousedown', handleStart);
   document.addEventListener('mousemove', handleMove);
   document.addEventListener('mouseup', handleEnd);
   
-  // Touch events for mobile
+
   playerElement.addEventListener('touchstart', handleStart, { passive: false });
   document.addEventListener('touchmove', handleMove, { passive: false });
   document.addEventListener('touchend', handleEnd);
   
   function startGame() {
-    // Reset game
+
     gameActive = true;
     score = 0;
     speed = 1;
     lives = 3;
     missedMatches = 0;
     
-    // Update lives display
+
     const livesDisplay = document.getElementById('waiting-game-lives');
     if (livesDisplay) {
       livesDisplay.textContent = '❤️❤️❤️';
     }
     
-    // Clear existing words
+
     fallingWords.forEach(word => {
       if (word.element.parentNode) {
         gameContainer.removeChild(word.element);
@@ -7619,28 +7605,28 @@ function initializeWaitingGame() {
     });
     fallingWords = [];
     
-    // Reset score
+
     scoreElement.textContent = `Score: ${score}`;
     
-    // Set initial Hebrew word
+
     setRandomHebrewWord();
     
-    // Start game loop
+
     gameLoopId = requestAnimationFrame(gameLoop);
     
-    // Start spawning words
+
     spawnIntervalId = setInterval(createFallingWord, 2000);
   }
   
-  // Watch for game cancelation when arcade starts
+
   function checkArcadeStatus() {
     if (currentArcadeSession && currentArcadeSession.state === 'active') {
-      // Clean up game
+
       clearInterval(spawnIntervalId);
       cancelAnimationFrame(gameLoopId);
       gameContainer.style.display = 'none';
       
-      // Remove event listeners
+
       playerElement.removeEventListener('mousedown', handleStart);
       document.removeEventListener('mousemove', handleMove);
       document.removeEventListener('mouseup', handleEnd);
@@ -7648,14 +7634,14 @@ function initializeWaitingGame() {
       document.removeEventListener('touchmove', handleMove);
       document.removeEventListener('touchend', handleEnd);
       
-      // Clear interval for this check
+
       clearInterval(arcadeCheckId);
     }
   }
   
   const arcadeCheckId = setInterval(checkArcadeStatus, 1000);
   
-  // Start the game
+
   startGame();
   
   return {
@@ -7691,7 +7677,7 @@ function debugGameProgress() {
 
 
 function updateBossHealthBar() {
-  // Only update if we're in boss level
+
   if (!currentGame.isBossLevel) return;
   
   console.log("Updating boss health bar");
@@ -7708,7 +7694,7 @@ function updateBossHealthBar() {
     return;
   }
   
-  // Calculate health values
+
   const totalWords = currentGame.words.length;
   const currentIndex = currentGame.currentIndex || 0;
   const remainingWords = Math.max(0, totalWords - currentIndex);
@@ -7716,37 +7702,37 @@ function updateBossHealthBar() {
   
   console.log(`Boss health: ${remainingPercentage.toFixed(2) * 100}% (${remainingWords}/${totalWords})`);
   
-  // Calculate the circumference
+
   const circumference = 2 * Math.PI * 54;
   
-  // Update the stroke dash offset (reverse of normal progress)
+
   progress.style.strokeDashoffset = circumference * (1 - remainingPercentage);
   
-  // Add boss-health class if not already present
+
   if (!progress.classList.contains('boss-health')) {
     progress.classList.add('boss-health');
   }
   
-  // Change color based on health
+
   if (remainingPercentage > 0.66) {
-    // Full health - green
+
     progress.style.stroke = '#4CAF50';
     progress.classList.remove('warning');
   } else if (remainingPercentage > 0.33) {
-    // Medium health - yellow/orange
+
     progress.style.stroke = '#FFA500';
     progress.classList.remove('warning');
     
-    // Boss health restoration at 2/3 health (once)
+
     if (remainingPercentage <= 0.66 && !currentGame.bossFirstHealthRestored) {
       currentGame.bossFirstHealthRestored = true;
       console.log("First boss health restoration");
       
-      // Partially restore health (reduce current index)
-      const newIndex = Math.floor(totalWords * 0.25); // 75% health
+
+      const newIndex = Math.floor(totalWords * 0.25);
       currentGame.currentIndex = newIndex;
       
-      // Show visual effect
+
       const bossOrb = document.querySelector('.boss-orb-inner');
       if (bossOrb) {
         bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #FFEB3B, #FFA500)';
@@ -7755,24 +7741,24 @@ function updateBossHealthBar() {
         }, 1000);
       }
       
-      // Update health bar after restoring
+
       setTimeout(() => updateBossHealthBar(), 100);
     }
   } else {
-    // Low health - red
+
     progress.style.stroke = '#FF3333';
     progress.classList.add('warning');
     
-    // Boss health restoration at 1/3 health (once)
+
     if (remainingPercentage <= 0.33 && !currentGame.bossSecondHealthRestored) {
       currentGame.bossSecondHealthRestored = true;
       console.log("Second boss health restoration");
       
-      // Partially restore health (reduce current index)
-      const newIndex = Math.floor(totalWords * 0.5); // 50% health
+
+      const newIndex = Math.floor(totalWords * 0.5);
       currentGame.currentIndex = newIndex;
       
-      // Show visual effect
+
       const bossOrb = document.querySelector('.boss-orb-inner');
       if (bossOrb) {
         bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #4CAF50, #388E3C)';
@@ -7781,7 +7767,7 @@ function updateBossHealthBar() {
         }, 1000);
       }
       
-      // Update health bar after restoring
+
       setTimeout(() => updateBossHealthBar(), 100);
     }
   }
@@ -7794,29 +7780,29 @@ function healBoss(newHealthPercentage, flashColor) {
   
   if (!progress || !bossOrb) return;
   
-  // Flash the boss orb with the specified color
+
   const originalColor = bossOrb.style.background;
   bossOrb.style.background = flashColor;
   bossOrb.classList.add('boss-restore-health');
   
-  // Flash the screen
+
   const questionScreen = document.querySelector('.question-screen');
   if (questionScreen) {
     questionScreen.style.animation = 'none';
-    questionScreen.offsetHeight; // Trigger reflow
+    questionScreen.offsetHeight;
     questionScreen.style.animation = 'bossRestoreHealth 1s';
   }
   
-  // Calculate new offset
+
   const circumference = 2 * Math.PI * 54;
   const newOffset = circumference * (1 - newHealthPercentage);
   
-  // Animate health bar filling
+
   setTimeout(() => {
     progress.style.transition = 'stroke-dashoffset 1s ease-out';
     progress.style.strokeDashoffset = newOffset;
     
-    // Reset boss orb
+
     setTimeout(() => {
       bossOrb.style.background = originalColor;
       bossOrb.classList.remove('boss-restore-health');
@@ -7828,23 +7814,23 @@ function showBossHitEffect(randomColor = false) {
   const bossOrb = document.querySelector('.boss-orb-inner');
   if (!bossOrb) return;
   
-  // Store original background
+
   const originalBg = bossOrb.style.background;
   
-  // Apply random color if requested
+
   if (randomColor) {
     const colors = ['yellow', 'purple', 'turquoise', 'darkgreen', 'brown'];
     const randomColorChoice = colors[Math.floor(Math.random() * colors.length)];
     bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColorChoice}, #990000)`;
   }
   
-  // Add hit effect
+
   bossOrb.classList.add('boss-orb-hit');
   
-  // Reset after animation
+
   setTimeout(() => {
     bossOrb.classList.remove('boss-orb-hit');
-    // Reset background only if we changed it
+
     if (randomColor) {
       bossOrb.style.background = originalBg;
     }
@@ -7861,7 +7847,7 @@ function applyBossLevelStyles() {
     questionScreen.style.setProperty("animation", "pulseBg 4s infinite", "important");
   }
   
-  // Add boss animations stylesheet if not already present
+
   if (!document.getElementById("boss-animations")) {
     const styleElem = document.createElement("style");
     styleElem.id = "boss-animations";
@@ -7884,7 +7870,7 @@ function applyBossLevelStyles() {
     document.head.appendChild(styleElem);
   }
   
-  // Style the question word
+
   const questionWord = document.getElementById("question-word");
   if (questionWord) {
     questionWord.style.setProperty("color", "#ff3333", "important");
@@ -7892,7 +7878,7 @@ function applyBossLevelStyles() {
     questionWord.style.setProperty("animation", "pulseWord 2s infinite", "important");
   }
   
-  // Replace coins container with boss orb
+
   const coinsContainer = document.querySelector(".coins-container");
   if (coinsContainer) {
     if (!window.originalCoinsHTML) {
@@ -7926,22 +7912,22 @@ function applyBossLevelStyles() {
 
 function handleBossAnswer(correct) {
   if (correct) {
-    // Make progress bar flicker
+
     const progressCircle = document.querySelector(".progress-circle");
     const progressBar = progressCircle?.querySelector(".progress");
     
     if (progressBar) {
-      // Save original stroke color
+
       const originalColor = progressBar.style.stroke;
       
-      // Create and apply flicker animation
+
       const flickerColors = ["#ffffff", "#ffff00", "#800080", "#990000"];
       const randomColor = flickerColors[Math.floor(Math.random() * flickerColors.length)];
       
       progressBar.style.transition = "stroke 0.2s ease";
       progressBar.style.stroke = randomColor;
       
-      // Reset back to green after flicker
+
       setTimeout(() => {
         progressBar.style.stroke = originalColor;
       }, 200);
@@ -7949,7 +7935,7 @@ function handleBossAnswer(correct) {
   }
 }
 
-// Boss Level Visual and Interaction Enhancements
+
 
 function createBossTimer() {
     const timerContainer = document.createElement('div');
@@ -8025,7 +8011,7 @@ function createBossRainingLetters() {
     const questionScreen = document.getElementById('question-screen');
     if (!questionScreen) return;
 
-    // Clear any existing intervals
+
     if (window.rainingLettersInterval) {
         clearInterval(window.rainingLettersInterval);
     }
@@ -8054,7 +8040,7 @@ function createBossRainingLetters() {
 
             questionScreen.appendChild(letter);
 
-            // Remove letter after animation
+
             setTimeout(() => {
                 if (letter.parentNode === questionScreen) {
                     questionScreen.removeChild(letter);
@@ -8220,26 +8206,26 @@ function showModernBossVictoryScreen() {
     victoryOverlay.appendChild(victoryContent);
     document.body.appendChild(victoryOverlay);
 
-    // Trigger fade-in
+
     requestAnimationFrame(() => {
         victoryOverlay.style.opacity = '1';
     });
 }
 
-// ADD a function to update coins after boss victory
+
 function updateCoinsAfterBossVictory() {
     const currentCoins = gameState.coins;
     const newCoins = currentCoins;
     
-    // Update gameState.coins but don't use CoinsManager to avoid duplicate animations
+
     gameState.coins = newCoins;
     
-    // Update all coin displays with animation
+
     document.querySelectorAll('.coin-count').forEach(el => {
         animateCoinsChange(el, currentCoins, newCoins);
     });
     
-    // Pulse the coin icons
+
     document.querySelectorAll('.coin-icon').forEach(icon => {
         icon.classList.add('coin-pulse');
         setTimeout(() => {
@@ -8247,32 +8233,32 @@ function updateCoinsAfterBossVictory() {
         }, 1500);
     });
     
-    // Save progress
+
     saveProgress();
 }
 
 function updateStageCompletionCounters() {
-    // Get all stage wrappers
+
     const stageWrappers = document.querySelectorAll('.stage-wrapper');
     
     stageWrappers.forEach(stageWrapper => {
       const stageId = stageWrapper.getAttribute('data-stage');
       if (!stageId) return;
       
-      // Get stage structure for information about sets and levels
+
       const stageNum = parseInt(stageId);
       const stage = gameStructure.stages[stageNum - 1];
       if (!stage) return;
       
-      // Initialize counters
+
       let completedSets = 0;
       const totalSets = stage.numSets;
       
-      // Count completed sets by checking if all levels (including boss) are completed
+
       for (let setId = 1; setId <= totalSets; setId++) {
         let allLevelsComplete = true;
         
-        // Check each level in the set
+
         for (let levelId = 1; levelId <= stage.levelsPerSet; levelId++) {
           const levelKey = `${stageNum}_${setId}_${levelId}`;
           if (!gameState.completedLevels.has(levelKey) && !gameState.perfectLevels.has(levelKey)) {
@@ -8286,7 +8272,7 @@ function updateStageCompletionCounters() {
         }
       }
       
-      // Update the counter display
+
       const counterElement = stageWrapper.querySelector('.stage-status');
       if (counterElement) {
         counterElement.textContent = `${completedSets}/${totalSets} Sets Completed`;
@@ -8295,7 +8281,7 @@ function updateStageCompletionCounters() {
   }
 
   function showBossVictoryNotification(coinRewardNeeded = false) {
-    // CRITICAL ADDITION: Mark boss level as completed
+
     const stage = gameStructure.stages[gameState.currentStage - 1];
     if (stage && stage.bossLevel) {
         const bossLevelKey = `${gameState.currentStage}_${gameState.currentSet}_${stage.bossLevel}`;
@@ -8304,13 +8290,13 @@ function updateStageCompletionCounters() {
         saveProgress();
     }
     
-    // Apply coins only if needed (should not be needed anymore as it's done earlier)
+
     if (coinRewardNeeded) {
         console.log("Adding 100 coin bonus in showBossVictoryNotification");
         saveProgress();
     }
     
-    // Clear animation flag
+
     window.bossVictoryAnimationInProgress = false;
     
     const modal = document.createElement('div');
@@ -8405,7 +8391,7 @@ function updateStageCompletionCounters() {
 function handleBossVictoryContinue() {
     console.log("Boss victory continue button clicked");
     
-    // CRITICAL ADDITION: One last attempt to mark boss level complete
+
     const stage = gameStructure.stages[gameState.currentStage - 1];
     if (stage && stage.bossLevel) {
         const bossLevelKey = `${gameState.currentStage}_${gameState.currentSet}_${stage.bossLevel}`;
@@ -8416,7 +8402,7 @@ function handleBossVictoryContinue() {
     
     const modal = document.querySelector(".arcade-completion-modal");
     
-    // Now that everything is complete, we can safely update all displays
+
     updateAllCoinDisplays();
     
     if (modal) {
@@ -8436,7 +8422,7 @@ function handleBossVictoryContinue() {
             
             unlockNextSet();
             
-            // Get current stage configuration
+
             const currentStage = gameState.currentStage;
             const currentSet = gameState.currentSet;
             const stageStructure = gameStructure.stages[currentStage-1];
@@ -8449,15 +8435,15 @@ function handleBossVictoryContinue() {
             
             const userStatus = currentUser ? currentUser.status : "unregistered";
             
-            // Check if this is the last set in the stage
+
             const isLastSetInStage = currentSet >= stageStructure.numSets;
             
             if (isLastSetInStage) {
-                // This is the last set in the stage, should move to next stage
+
                 if (currentStage < 5) {
-                    // Move to first set of next stage
+
                     if (currentStage >= 2 && userStatus !== "premium") {
-                        // Non-premium users can't access beyond first set of stages 2-5
+
                         console.log("Non-premium user attempted to access next stage, showing upgrade prompt");
                         showScreen("welcome-screen");
                         setTimeout(() => {
@@ -8466,23 +8452,23 @@ function handleBossVictoryContinue() {
                         return;
                     }
                     
-                    // For premium users or stage 1 users, proceed to next stage
+
                     gameState.currentStage += 1;
                     gameState.currentSet = 1;
                     gameState.currentLevel = 1;
                     
                     console.log(`Moving to Stage ${gameState.currentStage}, Set 1, Level 1`);
                 } else {
-                    // This is the final stage (5), show stage selection screen
+
                     console.log("Final stage completed, showing stage selection");
                     showScreen("stage-screen");
                     return;
                 }
             } else {
-                // Not the last set, move to next set in current stage
+
                 const nextSet = currentSet + 1;
                 
-                // Premium check for stages 2-5
+
                 if (currentStage >= 2 && nextSet > 1 && userStatus !== "premium") {
                     console.log("Non-premium user attempted to access premium set, showing upgrade prompt");
                     showScreen("welcome-screen");
@@ -8497,7 +8483,7 @@ function handleBossVictoryContinue() {
                 console.log(`Moving to Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level 1`);
             }
             
-            // Save progress
+
             saveProgress();
             
             setTimeout(() => {
@@ -8510,23 +8496,23 @@ function handleBossVictoryContinue() {
         }, 300);
     }
     
-    // Ensure animation flag is cleared
+
     window.bossVictoryAnimationInProgress = false;
 }
 
 function resetBossStyles(e = false) {
   console.log("Resetting boss styles", e ? "(preserving overlay)" : "");
 
-  // Reset boss health bar styling
+
   const progressCircle = document.querySelector('.progress-circle');
   if (progressCircle) {
     const progress = progressCircle.querySelector('.progress');
     if (progress) {
       progress.classList.remove('warning', 'boss-health');
-      progress.style.stroke = '';  // Reset to default color
+      progress.style.stroke = '';
       progress.style.animation = 'none';
       
-      // Force reflow to make sure animation removal takes effect
+
       void progress.offsetWidth;
       progress.style.animation = '';
     }
@@ -8566,10 +8552,10 @@ function handleBossVictoryHome() {
         modal.remove();
         resetBossStyles();
         
-        // Unlock next set to record achievement
+
         unlockNextSet();
         
-        // Mark boss level as completed for current stage/set
+
         const currentStage = gameState.currentStage;
         const currentSet = gameState.currentSet;
         const stageStructure = gameStructure.stages[currentStage-1];
@@ -8579,10 +8565,10 @@ function handleBossVictoryHome() {
           gameState.completedLevels.add(bossLevelKey);
         }
         
-        // CRITICAL: Clear the stored game context to prevent auto-resuming the boss level
+
         localStorage.removeItem("gameContext");
         
-        // Also reset current game state to prevent auto-resumption
+
         if (currentGame) {
           currentGame.active = false;
           currentGame.bossDefeatedEffectShown = false;
@@ -8590,12 +8576,12 @@ function handleBossVictoryHome() {
           currentGame.bossRewardApplied = false;
         }
         
-        // Save progress
+
         saveProgress();
         
-        // Force a true return to welcome screen
-        window.location.hash = ''; // Clear any hash that might trigger resume
-        showScreen("welcome-screen", true); // Pass true to force refresh
+
+        window.location.hash = '';
+        showScreen("welcome-screen", true);
       }, 300);
     }
   }
@@ -8605,12 +8591,12 @@ function handleBossVictoryHome() {
 function showStageCascadeScreen() {
     console.log("Showing stage cascade screen");
     
-    // First, hide all screens
+
     document.querySelectorAll('.screen').forEach(screen => {
         screen.classList.remove('visible');
     });
     
-    // Then show the stage-cascade screen
+
     const stageCascadeScreen = document.getElementById('stage-cascade-screen');
     if (stageCascadeScreen) {
         stageCascadeScreen.classList.add('visible');
@@ -8619,44 +8605,44 @@ function showStageCascadeScreen() {
         return;
     }
     
-    // Now populate the content
+
     const stagesContainer = stageCascadeScreen.querySelector('.stages-container');
     if (!stagesContainer) {
-        // Create container if it doesn't exist
+
         const container = document.createElement('div');
         container.className = 'stages-container';
         stageCascadeScreen.appendChild(container);
     }
     
-    // Clear existing content
+
     stagesContainer.innerHTML = '';
     
-    // Create stage wrappers for each stage
+
     gameStructure.stages.forEach(stage => {
-        // Create stage wrapper
+
         const stageWrapper = document.createElement('div');
         stageWrapper.className = 'stage-wrapper';
         stageWrapper.dataset.stage = stage.id;
         
-        // Get stage completion data
+
         const totalSets = stage.numSets;
         const unlockedSets = gameState.unlockedSets[stage.id] || new Set();
         let completedSets = 0;
         
-        // Count completed sets
+
         unlockedSets.forEach(setId => {
             if (isSetCompleted(stage.id, setId)) {
                 completedSets++;
             }
         });
         
-        // Stage button content
+
         const stageIcon = getStageIcon(stage.id);
         const stageName = getStageHebrewName(stage.id);
         const stageDesc = getStageDescription(stage.id);
         const stageStatus = getStageStatus(stage.id, completedSets, totalSets);
         
-        // Create stage button
+
         stageWrapper.innerHTML = `
             <div class="stage-button">
                 <div class="stage-info">
@@ -8681,14 +8667,14 @@ function showStageCascadeScreen() {
         
         stagesContainer.appendChild(stageWrapper);
         
-        // Populate sets grid
+
         populateSetsGrid(stage.id);
     });
     
-    // Add event listeners to stage buttons
+
     addStageToggleListeners();
     
-    // Initial state: open the current stage
+
     if (gameState.currentStage) {
         const currentStageWrapper = document.querySelector(`.stage-wrapper[data-stage="${gameState.currentStage}"]`);
         if (currentStageWrapper) {
@@ -8709,7 +8695,7 @@ function updateStageCompletionStats() {
       const totalSets = stageStructure.numSets;
       let completedSets = 0;
       
-      // Count completed sets
+
       for (let setId = 1; setId <= totalSets; setId++) {
         let allLevelsInSetCompleted = true;
         
@@ -8726,7 +8712,7 @@ function updateStageCompletionStats() {
         }
       }
       
-      // Update the completion text
+
       const completionElement = stageBlock.querySelector('.stage-completion');
       if (completionElement) {
         completionElement.textContent = `${completedSets}/${totalSets} sets are completed`;
@@ -8736,14 +8722,14 @@ function updateStageCompletionStats() {
 
   function showLevelScreen(setId) {
     gameState.currentSet = setId;
-    debugUnlockState(); // Add debug call here
+    debugUnlockState();
     
-    // Clear existing screen
+
     const container = document.getElementById('level-container');
     if (!container) return;
     container.innerHTML = '';
     
-    // Add return arrow to go back to stage-cascade screen
+
     const returnArrow = document.createElement('div');
     returnArrow.className = 'return-arrow';
     returnArrow.innerHTML = '<i class="fas fa-arrow-left"></i>';
@@ -8758,18 +8744,18 @@ function updateStageCompletionStats() {
     `;
     returnArrow.onclick = function() {
         showScreen('stage-cascade-screen');
-        updateStageCompletionStats(); // Update stats when returning
+        updateStageCompletionStats();
     };
     container.appendChild(returnArrow);
     
     const stage = gameStructure.stages[gameState.currentStage - 1];
     if (!stage) return;
     
-    // Create level header
+
     const levelHeader = document.createElement('div');
     levelHeader.className = 'level-header';
     
-    // Calculate level completion stats
+
     const totalLevels = stage.levelsPerSet;
     let completedCount = 0;
     let perfectCount = 0;
@@ -8788,7 +8774,7 @@ function updateStageCompletionStats() {
     const setIcon = getSetIcon(gameState.currentStage, setId);
     const setDescription = getSetDescription(gameState.currentStage, setId);
     
-    // Populate header
+
     levelHeader.innerHTML = `
         <div class="level-title-area">
             <div class="set-icon">
@@ -8809,16 +8795,16 @@ function updateStageCompletionStats() {
     
     container.appendChild(levelHeader);
     
-    // Create level grid
+
     const levelGrid = document.createElement('div');
     levelGrid.className = 'level-grid';
     
     const testLevels = [3, 6, 9, 10, 13, 16, 19, 20];
     const setKey = `${gameState.currentStage}_${setId}`;
     
-    // Ensure unlockedLevels exists for this set
+
     if (!gameState.unlockedLevels[setKey]) {
-        gameState.unlockedLevels[setKey] = new Set([1]); // At minimum, level 1 should be unlocked
+        gameState.unlockedLevels[setKey] = new Set([1]);
     }
     
     console.log(`Rendering levels for ${setKey}. Unlocked levels:`, 
@@ -8828,7 +8814,7 @@ function updateStageCompletionStats() {
         const levelItem = document.createElement('div');
         const levelKey = `${gameState.currentStage}_${setId}_${i}`;
         
-        // Check if level is unlocked - use more direct access with fallback
+
         const isUnlocked = gameState.unlockedLevels[setKey]?.has(i);
         console.log(`Level ${i} unlocked:`, isUnlocked);
         
@@ -8837,7 +8823,7 @@ function updateStageCompletionStats() {
         const isBossLevel = i === stage.bossLevel;
         const isTestLevel = testLevels.includes(i);
         
-        // Set appropriate classes
+
         levelItem.className = 'level-item';
         if (isUnlocked) levelItem.classList.add('unlocked');
         if (isPerfect) levelItem.classList.add('perfect');
@@ -8857,7 +8843,7 @@ function updateStageCompletionStats() {
     
     container.appendChild(levelGrid);
     
-    // Add legend
+
     const legend = document.createElement('div');
     legend.className = 'level-type-legend';
     legend.innerHTML = `
@@ -8881,11 +8867,11 @@ function updateStageCompletionStats() {
     
     container.appendChild(legend);
     
-    // Show the screen
+
     showScreen('level-screen');
 }
 
-// Add this to the existing styles or in a style tag
+
 function addReturnArrowStyles() {
   const styleElement = document.createElement('style');
   styleElement.id = 'return-arrow-styles';
@@ -8901,13 +8887,13 @@ function addReturnArrowStyles() {
   document.head.appendChild(styleElement);
 }
 
-// Call this on DOMContentLoaded
+
 document.addEventListener('DOMContentLoaded', function() {
-  // Add other initializations
+
   addReturnArrowStyles();
 });
 
-// Helper functions for the level screen
+
 function getSetIcon(stageId, setId) {
     const baseIcons = {
         1: 'fas fa-book',
@@ -8917,7 +8903,7 @@ function getSetIcon(stageId, setId) {
         5: 'fas fa-brain'
     };
     
-    // Adjust icon based on set number
+
     const variations = [
         'fas fa-book-open', 
         'fas fa-book-reader', 
@@ -8926,7 +8912,7 @@ function getSetIcon(stageId, setId) {
         'fas fa-pen'
     ];
     
-    // Use base icon for first set, variations for others
+
     return setId === 1 ? baseIcons[stageId] || 'fas fa-star' : 
         variations[(setId - 2) % variations.length] || 'fas fa-star';
 }
@@ -8940,42 +8926,42 @@ function getSetDescription(stageId, setId) {
         5: 'Expert'
     };
     
-    // Generic descriptions that combine stage and set
+
     return `${stageNames[stageId] || 'Advanced'} vocabulary - Group ${setId}`;
 }
 
 function isSetCompleted(stageId, setId) {
-    // Get stage structure to know how many levels and if there's a boss
+
     const stage = gameStructure.stages[stageId - 1];
     if (!stage) return false;
     
-    // Console log for debugging
+
     console.log(`Checking if set ${stageId}-${setId} is completed...`);
     
-    // Check each level in the set
+
     for (let levelId = 1; levelId <= stage.levelsPerSet; levelId++) {
         const levelKey = `${stageId}_${setId}_${levelId}`;
         const isBossLevel = (levelId === stage.bossLevel);
         
-        // Debug log to see which levels are completed
+
         console.log(`Level ${levelKey}: Completed=${gameState.completedLevels.has(levelKey)}, Perfect=${gameState.perfectLevels.has(levelKey)}`);
         
-        // If any level (including boss) isn't completed, the set isn't complete
+
         if (!gameState.completedLevels.has(levelKey) && !gameState.perfectLevels.has(levelKey)) {
             console.log(`Set ${stageId}-${setId} is NOT completed because level ${levelId} is not completed`);
             return false;
         }
     }
     
-    // If we got here, all levels are completed
+
     console.log(`Set ${stageId}-${setId} is COMPLETED!`);
     return true;
 }
 
   function updateLevelAndSetCompletionStatus() {
-    // Update level indicators
+
     document.querySelectorAll('.level-item').forEach(levelItem => {
-      // Parse level details from custom attributes or data
+
       const levelId = parseInt(levelItem.textContent);
       const setId = gameState.currentSet;
       const stageId = gameState.currentStage;
@@ -8985,7 +8971,7 @@ function isSetCompleted(stageId, setId) {
       const levelKey = `${stageId}_${setId}_${levelId}`;
       const isBossLevel = levelItem.classList.contains('boss');
       
-      // Update visuals based on completion status
+
       if (gameState.perfectLevels.has(levelKey)) {
         levelItem.classList.add('perfect');
         levelItem.classList.add('completed');
@@ -8994,18 +8980,18 @@ function isSetCompleted(stageId, setId) {
       }
     });
     
-    // Update set completion status
+
     const currentSetId = gameState.currentSet;
     const currentStageId = gameState.currentStage;
     
     if (currentSetId && currentStageId) {
-      // Find the corresponding set button
+
       const setButton = document.querySelector(`.set-button[data-set-id="${currentSetId}"][data-stage-id="${currentStageId}"]`);
       
       if (setButton && isSetCompleted(currentStageId, currentSetId)) {
         setButton.classList.add('completed');
         
-        // Check if ALL levels are perfect to add gold effect
+
         const stage = gameStructure.stages[currentStageId - 1];
         if (!stage) return;
         
@@ -9024,16 +9010,11 @@ function isSetCompleted(stageId, setId) {
       }
     }
     
-    // Update stage completion counters
+
     updateStageCompletionStats();
   }
   
-  /**
-   * Mark a level as completed, including boss levels
-   * @param {number} levelId - The level ID to mark completed
-   * @param {boolean} isPerfect - Whether the level was completed perfectly
-   */
-  function markLevelCompleted(levelId, isPerfect = false) {
+    function markLevelCompleted(levelId, isPerfect = false) {
     const stageId = gameState.currentStage;
     const setId = gameState.currentSet;
     
@@ -9041,90 +9022,90 @@ function isSetCompleted(stageId, setId) {
     
     const levelKey = `${stageId}_${setId}_${levelId}`;
     
-    // Add to completed levels
+
     gameState.completedLevels.add(levelKey);
     
-    // If perfect, add to perfect levels too
+
     if (isPerfect) {
       gameState.perfectLevels.add(levelKey);
     }
     
-    // Unlock next level if there is one
+
     const stage = gameStructure.stages[stageId - 1];
     if (!stage) return;
     
-    // Set up set key
+
     const setKey = `${stageId}_${setId}`;
     
-    // Initialize if needed
+
     if (!gameState.unlockedLevels[setKey]) {
       gameState.unlockedLevels[setKey] = new Set([1]);
     }
     
-    // Unlock next level if not at max
+
     if (levelId < stage.levelsPerSet) {
       gameState.unlockedLevels[setKey].add(levelId + 1);
     }
     
-    // Check if set is complete
+
     if (isSetCompleted(stageId, setId)) {
-      // Unlock next set if there is one
+
       const nextSetId = setId + 1;
       if (nextSetId <= stage.numSets) {
         if (!gameState.unlockedSets[stageId]) {
-          gameState.unlockedSets[stageId] = new Set([1]); // At minimum, set 1 is unlocked
+          gameState.unlockedSets[stageId] = new Set([1]);
         }
         gameState.unlockedSets[stageId].add(nextSetId);
       }
     }
     
-    // Update UI
+
     updateLevelAndSetCompletionStatus();
     
-    // Trigger event for listeners
+
     const event = new CustomEvent('levelCompleted', { 
       detail: { levelId, stageId, setId, isPerfect } 
     });
     document.dispatchEvent(event);
     
-    // Save game state
+
     saveGameState();
   }
 
-// ADD this standalone function
+
 function markBossLevelCompleted(isPerfect = false) {
-    // Don't mark if already marked
+
     if (currentGame && currentGame.bossMadeComplete) {
       console.log("Boss already marked as complete, skipping");
       return;
     }
     
-    // Get stage config to find boss level number
+
     const stage = gameStructure.stages[gameState.currentStage - 1];
     if (!stage || !stage.bossLevel) {
       console.error("Cannot find boss level for current stage");
       return;
     }
     
-    // Create the level key using the same format used elsewhere
+
     const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${stage.bossLevel}`;
     
     console.log(`Marking boss level as completed: ${levelKey}`);
     
-    // Add to completed levels
+
     gameState.completedLevels.add(levelKey);
     
-    // If perfect, add to perfect levels too
+
     if (isPerfect) {
       gameState.perfectLevels.add(levelKey);
     }
     
-    // Flag to prevent adding multiple times
+
     if (currentGame) {
       currentGame.bossMadeComplete = true;
     }
     
-    // Save game progress - crucial for persistence
+
     if (typeof saveProgress === 'function') {
       saveProgress();
       console.log("Progress saved after boss completion");
@@ -9132,11 +9113,11 @@ function markBossLevelCompleted(isPerfect = false) {
       console.warn("saveProgress function not found!");
     }
     
-    // Log for verification
+
     console.log(`After marking - Boss completed: ${gameState.completedLevels.has(levelKey)}`);
     console.log(`All completed levels:`, Array.from(gameState.completedLevels));
     
-    // Force refresh UI
+
     if (typeof showLevelScreen === 'function') {
       console.log("Refreshing level screen");
       setTimeout(() => showLevelScreen(gameState.currentSet), 100);
@@ -9144,7 +9125,7 @@ function markBossLevelCompleted(isPerfect = false) {
   }
 
   function updateBossHealthBar() {
-    // Only update if we're in boss level
+
     if (!currentGame.isBossLevel) return;
     
     console.log("Updating boss health bar");
@@ -9161,7 +9142,7 @@ function markBossLevelCompleted(isPerfect = false) {
       return;
     }
     
-    // Calculate health values
+
     const totalWords = currentGame.words.length;
     const currentIndex = currentGame.currentIndex || 0;
     const remainingWords = Math.max(0, totalWords - currentIndex);
@@ -9169,37 +9150,37 @@ function markBossLevelCompleted(isPerfect = false) {
     
     console.log(`Boss health: ${remainingPercentage.toFixed(2) * 100}% (${remainingWords}/${totalWords})`);
     
-    // Calculate the circumference
+
     const circumference = 2 * Math.PI * 54;
     
-    // Update the stroke dash offset (reverse of normal progress)
+
     progress.style.strokeDashoffset = circumference * (1 - remainingPercentage);
     
-    // Add boss-health class if not already present
+
     if (!progress.classList.contains('boss-health')) {
       progress.classList.add('boss-health');
     }
     
-    // Change color based on health
+
     if (remainingPercentage > 0.66) {
-      // Full health - green
+
       progress.style.stroke = '#4CAF50';
       progress.classList.remove('warning');
     } else if (remainingPercentage > 0.33) {
-      // Medium health - yellow/orange
+
       progress.style.stroke = '#FFA500';
       progress.classList.remove('warning');
       
-      // Boss health restoration at 2/3 health (once)
+
       if (remainingPercentage <= 0.66 && !currentGame.bossFirstHealthRestored) {
         currentGame.bossFirstHealthRestored = true;
         console.log("First boss health restoration");
         
-        // Partially restore health (reduce current index)
-        const newIndex = Math.floor(totalWords * 0.25); // 75% health
+
+        const newIndex = Math.floor(totalWords * 0.25);
         currentGame.currentIndex = newIndex;
         
-        // Show visual effect
+
         const bossOrb = document.querySelector('.boss-orb-inner');
         if (bossOrb) {
           bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #FFEB3B, #FFA500)';
@@ -9208,24 +9189,24 @@ function markBossLevelCompleted(isPerfect = false) {
           }, 1000);
         }
         
-        // Update health bar after restoring
+
         setTimeout(() => updateBossHealthBar(), 100);
       }
     } else {
-      // Low health - red
+
       progress.style.stroke = '#FF3333';
       progress.classList.add('warning');
       
-      // Boss health restoration at 1/3 health (once)
+
       if (remainingPercentage <= 0.33 && !currentGame.bossSecondHealthRestored) {
         currentGame.bossSecondHealthRestored = true;
         console.log("Second boss health restoration");
         
-        // Partially restore health (reduce current index)
-        const newIndex = Math.floor(totalWords * 0.5); // 50% health
+
+        const newIndex = Math.floor(totalWords * 0.5);
         currentGame.currentIndex = newIndex;
         
-        // Show visual effect
+
         const bossOrb = document.querySelector('.boss-orb-inner');
         if (bossOrb) {
           bossOrb.style.background = 'radial-gradient(circle at 30% 30%, #4CAF50, #388E3C)';
@@ -9234,7 +9215,7 @@ function markBossLevelCompleted(isPerfect = false) {
           }, 1000);
         }
         
-        // Update health bar after restoring
+
         setTimeout(() => updateBossHealthBar(), 100);
       }
     }
@@ -9247,29 +9228,29 @@ function markBossLevelCompleted(isPerfect = false) {
     
     if (!progress || !bossOrb) return;
     
-    // Flash the boss orb with the specified color
+
     const originalColor = bossOrb.style.background;
     bossOrb.style.background = flashColor;
     bossOrb.classList.add('boss-restore-health');
     
-    // Flash the screen
+
     const questionScreen = document.querySelector('.question-screen');
     if (questionScreen) {
       questionScreen.style.animation = 'none';
-      questionScreen.offsetHeight; // Trigger reflow
+      questionScreen.offsetHeight;
       questionScreen.style.animation = 'bossRestoreHealth 1s';
     }
     
-    // Calculate new offset
+
     const circumference = 2 * Math.PI * 54;
     const newOffset = circumference * (1 - newHealthPercentage);
     
-    // Animate health bar filling
+
     setTimeout(() => {
       progress.style.transition = 'stroke-dashoffset 1s ease-out';
       progress.style.strokeDashoffset = newOffset;
       
-      // Reset boss orb
+
       setTimeout(() => {
         bossOrb.style.background = originalColor;
         bossOrb.classList.remove('boss-restore-health');
@@ -9281,23 +9262,23 @@ function markBossLevelCompleted(isPerfect = false) {
     const bossOrb = document.querySelector('.boss-orb-inner');
     if (!bossOrb) return;
     
-    // Store original background
+
     const originalBg = bossOrb.style.background;
     
-    // Apply random color if requested
+
     if (randomColor) {
       const colors = ['yellow', 'purple', 'turquoise', 'darkgreen', 'brown'];
       const randomColorChoice = colors[Math.floor(Math.random() * colors.length)];
       bossOrb.style.background = `radial-gradient(circle at 30% 30%, ${randomColorChoice}, #990000)`;
     }
     
-    // Add hit effect
+
     bossOrb.classList.add('boss-orb-hit');
     
-    // Reset after animation
+
     setTimeout(() => {
       bossOrb.classList.remove('boss-orb-hit');
-      // Reset background only if we changed it
+
       if (randomColor) {
         bossOrb.style.background = originalBg;
       }
@@ -9314,7 +9295,7 @@ function markBossLevelCompleted(isPerfect = false) {
       questionScreen.style.setProperty("animation", "pulseBg 4s infinite", "important");
     }
     
-    // Add boss animations stylesheet if not already present
+
     if (!document.getElementById("boss-animations")) {
       const styleElem = document.createElement("style");
       styleElem.id = "boss-animations";
@@ -9337,7 +9318,7 @@ function markBossLevelCompleted(isPerfect = false) {
       document.head.appendChild(styleElem);
     }
     
-    // Style the question word
+
     const questionWord = document.getElementById("question-word");
     if (questionWord) {
       questionWord.style.setProperty("color", "#ff3333", "important");
@@ -9345,7 +9326,7 @@ function markBossLevelCompleted(isPerfect = false) {
       questionWord.style.setProperty("animation", "pulseWord 2s infinite", "important");
     }
     
-    // Replace coins container with boss orb
+
     const coinsContainer = document.querySelector(".coins-container");
     if (coinsContainer) {
       if (!window.originalCoinsHTML) {
@@ -9379,22 +9360,22 @@ function markBossLevelCompleted(isPerfect = false) {
   
   function handleBossAnswer(correct) {
     if (correct) {
-      // Make progress bar flicker
+
       const progressCircle = document.querySelector(".progress-circle");
       const progressBar = progressCircle?.querySelector(".progress");
       
       if (progressBar) {
-        // Save original stroke color
+
         const originalColor = progressBar.style.stroke;
         
-        // Create and apply flicker animation
+
         const flickerColors = ["#ffffff", "#ffff00", "#800080", "#990000"];
         const randomColor = flickerColors[Math.floor(Math.random() * flickerColors.length)];
         
         progressBar.style.transition = "stroke 0.2s ease";
         progressBar.style.stroke = randomColor;
         
-        // Reset back to green after flicker
+
         setTimeout(() => {
           progressBar.style.stroke = originalColor;
         }, 200);
@@ -9402,7 +9383,7 @@ function markBossLevelCompleted(isPerfect = false) {
     }
   }
   
-  // Boss Level Visual and Interaction Enhancements
+
   
   function createBossTimer() {
       const timerContainer = document.createElement('div');
@@ -9478,7 +9459,7 @@ function markBossLevelCompleted(isPerfect = false) {
       const questionScreen = document.getElementById('question-screen');
       if (!questionScreen) return;
   
-      // Clear any existing intervals
+
       if (window.rainingLettersInterval) {
           clearInterval(window.rainingLettersInterval);
       }
@@ -9507,7 +9488,7 @@ function markBossLevelCompleted(isPerfect = false) {
   
               questionScreen.appendChild(letter);
   
-              // Remove letter after animation
+
               setTimeout(() => {
                   if (letter.parentNode === questionScreen) {
                       questionScreen.removeChild(letter);
@@ -9673,7 +9654,7 @@ function markBossLevelCompleted(isPerfect = false) {
       victoryOverlay.appendChild(victoryContent);
       document.body.appendChild(victoryOverlay);
   
-      // Trigger fade-in
+
       requestAnimationFrame(() => {
           victoryOverlay.style.opacity = '1';
       });
@@ -9687,20 +9668,20 @@ function markBossLevelCompleted(isPerfect = false) {
           return;
       }
       
-      // Set animation flag to block other coin updates
+
       window.bossVictoryAnimationInProgress = true;
       
-      // Set flag to prevent multiple executions
+
       currentGame.bossDefeatedEffectShown = true;
       
-      // Store current coin value for animation
+
       const originalCoins = gameState.coins;
       const targetCoins = originalCoins + 100;
       
-      // Flag that we've acknowledged the boss reward
+
       currentGame.bossRewardApplied = true;
       
-      // Background transition
+
       const questionScreen = document.querySelector('.question-screen');
       if (questionScreen) {
           console.log('Creating background transition overlay');
@@ -9720,10 +9701,10 @@ function markBossLevelCompleted(isPerfect = false) {
           `;
           
           questionScreen.insertBefore(transitionOverlay, questionScreen.firstChild);
-          markBossLevelCompleted(false); // Pass true if boss was defeated perfectly
+          markBossLevelCompleted(false);
         }
       
-      // Boss orb disappearing animation
+
       setTimeout(() => {
           const bossOrb = document.querySelector('.boss-orb-inner');
           
@@ -9736,17 +9717,17 @@ function markBossLevelCompleted(isPerfect = false) {
               
               bossOrb.style.animation = 'boss-shrink 2.5s forwards';
               
-              // After boss orb starts disappearing, show coin animation
+
               setTimeout(() => {
                   console.log('Applying coin reward animation');
                   
                   const coinsContainer = document.querySelector('.coins-container');
                   
                   if (coinsContainer && window.originalCoinsHTML) {
-                      // Restore original coins HTML
+
                       coinsContainer.innerHTML = window.originalCoinsHTML;
                       
-                      // Protect ALL coin displays from other updates during animation
+
                       document.querySelectorAll('.coin-count').forEach(el => {
                           el.dataset.protectedValue = 'true';
                           el.textContent = originalCoins;
@@ -9756,11 +9737,11 @@ function markBossLevelCompleted(isPerfect = false) {
                       const coinCount = coinsContainer.querySelector('.coin-count');
                       
                       if (coinCount) {
-                          // Make it prominent
+
                           coinsContainer.style.transform = 'scale(1.2)';
                           coinsContainer.style.transition = 'transform 0.3s ease';
                           
-                          // Visual animation for the 100 coins
+
                           const steps = 60;
                           const stepDelay = 2000 / steps;
                           let currentStep = 0;
@@ -9770,7 +9751,7 @@ function markBossLevelCompleted(isPerfect = false) {
                                   const progress = currentStep / steps;
                                   const currentValue = Math.round(originalCoins + (targetCoins - originalCoins) * progress);
                                   
-                                  // Update ALL coin displays
+
                                   document.querySelectorAll('.coin-count').forEach(el => {
                                       el.textContent = currentValue;
                                       el.style.color = 'var(--gold)';
@@ -9780,17 +9761,17 @@ function markBossLevelCompleted(isPerfect = false) {
                                   currentStep++;
                                   setTimeout(animateCoins, stepDelay);
                               } else {
-                                  // Animation complete - update actual game state
+
                                   gameState.coins = targetCoins;
                                   saveProgress();
                                   
-                                  // Ensure final value shown matches target on all displays
+
                                   document.querySelectorAll('.coin-count').forEach(el => {
                                       el.textContent = targetCoins;
                                       delete el.dataset.protectedValue;
                                   });
                                   
-                                  // Maintain emphasis for a while
+
                                   setTimeout(() => {
                                       document.querySelectorAll('.coin-count').forEach(el => {
                                           el.style.color = '';
@@ -9801,10 +9782,10 @@ function markBossLevelCompleted(isPerfect = false) {
                               }
                           };
                           
-                          // Start animation
+
                           animateCoins();
                           
-                          // Pulse coin icon
+
                           if (coinIcon) {
                               coinIcon.classList.add('coin-pulse');
                               coinIcon.style.animation = 'coinPulse 0.5s ease-in-out 6';
@@ -9813,11 +9794,11 @@ function markBossLevelCompleted(isPerfect = false) {
                   }
               }, 500);
               
-              // Show victory notification after animations
+
               setTimeout(() => {
                   console.log('Showing victory notification');
                   
-                  // Victory notification does NOT need to add coins again
+
                   showBossVictoryNotification(false);
               }, 5000);
           } else {
@@ -9827,7 +9808,7 @@ function markBossLevelCompleted(isPerfect = false) {
           }
       }, 1000);
   
-      // Add animation styles if needed
+
       if (!document.getElementById('boss-transition-style')) {
           const styleEl = document.createElement('style');
           styleEl.id = 'boss-transition-style';
@@ -9849,20 +9830,20 @@ function markBossLevelCompleted(isPerfect = false) {
       }
   }
   
-  // ADD a function to update coins after boss victory
+
   function updateCoinsAfterBossVictory() {
       const currentCoins = gameState.coins;
       const newCoins = currentCoins;
       
-      // Update gameState.coins but don't use CoinsManager to avoid duplicate animations
+
       gameState.coins = newCoins;
       
-      // Update all coin displays with animation
+
       document.querySelectorAll('.coin-count').forEach(el => {
           animateCoinsChange(el, currentCoins, newCoins);
       });
       
-      // Pulse the coin icons
+
       document.querySelectorAll('.coin-icon').forEach(icon => {
           icon.classList.add('coin-pulse');
           setTimeout(() => {
@@ -9870,18 +9851,18 @@ function markBossLevelCompleted(isPerfect = false) {
           }, 1500);
       });
       
-      // Save progress
+
       saveProgress();
   }
   
   function showBossVictoryNotification(coinRewardNeeded = false) {
-      // Apply coins only if needed (should not be needed anymore as it's done earlier)
+
       if (coinRewardNeeded) {
           console.log("Adding 100 coin bonus in showBossVictoryNotification");
           saveProgress();
       }
       
-      // Clear animation flag
+
       window.bossVictoryAnimationInProgress = false;
       
       const modal = document.createElement('div');
@@ -9977,7 +9958,7 @@ function markBossLevelCompleted(isPerfect = false) {
     console.log("Boss victory continue button clicked");
     const modal = document.querySelector(".arcade-completion-modal");
     
-    // Now that everything is complete, we can safely update all displays
+
     updateAllCoinDisplays();
     
     if (modal) {
@@ -9997,7 +9978,7 @@ function markBossLevelCompleted(isPerfect = false) {
         
         unlockNextSet();
         
-        // Get current stage configuration
+
         const currentStage = gameState.currentStage;
         const currentSet = gameState.currentSet;
         const stageStructure = gameStructure.stages[currentStage-1];
@@ -10010,15 +9991,15 @@ function markBossLevelCompleted(isPerfect = false) {
         
         const userStatus = currentUser ? currentUser.status : "unregistered";
         
-        // Check if this is the last set in the stage
+
         const isLastSetInStage = currentSet >= stageStructure.numSets;
         
         if (isLastSetInStage) {
-          // This is the last set in the stage, should move to next stage
+
           if (currentStage < 5) {
-            // Move to first set of next stage
+
             if (currentStage >= 2 && userStatus !== "premium") {
-              // Non-premium users can't access beyond first set of stages 2-5
+
               console.log("Non-premium user attempted to access next stage, showing upgrade prompt");
               showScreen("welcome-screen");
               setTimeout(() => {
@@ -10027,23 +10008,23 @@ function markBossLevelCompleted(isPerfect = false) {
               return;
             }
             
-            // For premium users or stage 1 users, proceed to next stage
+
             gameState.currentStage += 1;
             gameState.currentSet = 1;
             gameState.currentLevel = 1;
             
             console.log(`Moving to Stage ${gameState.currentStage}, Set 1, Level 1`);
           } else {
-            // This is the final stage (5), show stage selection screen
+
             console.log("Final stage completed, showing stage selection");
             showScreen("stage-screen");
             return;
           }
         } else {
-          // Not the last set, move to next set in current stage
+
           const nextSet = currentSet + 1;
           
-          // Premium check for stages 2-5
+
           if (currentStage >= 2 && nextSet > 1 && userStatus !== "premium") {
             console.log("Non-premium user attempted to access premium set, showing upgrade prompt");
             showScreen("welcome-screen");
@@ -10058,7 +10039,7 @@ function markBossLevelCompleted(isPerfect = false) {
           console.log(`Moving to Stage ${gameState.currentStage}, Set ${gameState.currentSet}, Level 1`);
         }
         
-        // Save progress
+
         saveProgress();
         
         setTimeout(() => {
@@ -10071,23 +10052,23 @@ function markBossLevelCompleted(isPerfect = false) {
       }, 300);
     }
     
-    // Ensure animation flag is cleared
+
     window.bossVictoryAnimationInProgress = false;
   }
   
   function resetBossStyles(e = false) {
     console.log("Resetting boss styles", e ? "(preserving overlay)" : "");
   
-    // Reset boss health bar styling
+
     const progressCircle = document.querySelector('.progress-circle');
     if (progressCircle) {
       const progress = progressCircle.querySelector('.progress');
       if (progress) {
         progress.classList.remove('warning', 'boss-health');
-        progress.style.stroke = '';  // Reset to default color
+        progress.style.stroke = '';
         progress.style.animation = 'none';
         
-        // Force reflow to make sure animation removal takes effect
+
         void progress.offsetWidth;
         progress.style.animation = '';
       }
@@ -10132,7 +10113,7 @@ function markBossLevelCompleted(isPerfect = false) {
     }
 };
 
-// ADD this debugging function to help diagnose issues
+
 function debugBossCompletion() {
     const stage = gameStructure.stages[gameState.currentStage - 1];
     if (!stage || !stage.bossLevel) {
@@ -10145,28 +10126,28 @@ function debugBossCompletion() {
     console.log(`Boss completed: ${gameState.completedLevels.has(bossLevelKey)}`);
     console.log(`Boss perfect: ${gameState.perfectLevels.has(bossLevelKey)}`);
     
-    // Check if level is in gameState
+
     console.log("All completed levels:", Array.from(gameState.completedLevels));
   }
   
-  // Call this function in the showBossDefeatEffect
-  // After marking the boss level as completed
+
+
   debugBossCompletion();
 
-  // ADD this debugging function at the root level of your script
+
 function troubleshootCompletion() {
     console.group("Game State Troubleshooting");
     console.log("Current Stage:", gameState.currentStage);
     console.log("Current Set:", gameState.currentSet);
     console.log("Current Level:", gameState.currentLevel);
     
-    // Check levels
+
     const stage = gameStructure.stages[gameState.currentStage - 1];
     if (stage) {
       console.log("Total levels in set:", stage.levelsPerSet);
       console.log("Boss level:", stage.bossLevel);
       
-      // Check specific levels
+
       for (let i = 1; i <= stage.levelsPerSet; i++) {
         const levelKey = `${gameState.currentStage}_${gameState.currentSet}_${i}`;
         const completed = gameState.completedLevels.has(levelKey);
@@ -10175,24 +10156,24 @@ function troubleshootCompletion() {
       }
     }
     
-    // Check if set is completed
+
     const isComplete = isSetCompleted(gameState.currentStage, gameState.currentSet);
     console.log(`Is current set completed? ${isComplete}`);
     
-    // Log all completed levels
+
     console.log("All completed levels:", Array.from(gameState.completedLevels));
     console.groupEnd();
   }
   
-  // Call this from the browser console after defeating a boss
-  // Or add to showBossDefeatEffect
+
+
   setTimeout(troubleshootCompletion, 5000);
 
   function showLevelScreen(setId) {
     gameState.currentSet = setId;
     console.log(`Opening set ${setId} in stage ${gameState.currentStage}`);
     
-    // Clear existing screen
+
     const container = document.getElementById('level-container');
     if (!container) {
         console.error("Level container not found");
@@ -10200,7 +10181,7 @@ function troubleshootCompletion() {
     }
     container.innerHTML = '';
     
-    // Add return arrow to go back to stage-cascade screen
+
     const returnArrow = document.createElement('div');
     returnArrow.className = 'return-arrow';
     returnArrow.innerHTML = '<i class="fas fa-arrow-left"></i>';
@@ -10215,7 +10196,7 @@ function troubleshootCompletion() {
     `;
     returnArrow.onclick = function() {
         showScreen('stage-cascade-screen');
-        updateStageCompletionStats(); // Update stats when returning
+        updateStageCompletionStats();
     };
     container.appendChild(returnArrow);
     
@@ -10225,11 +10206,11 @@ function troubleshootCompletion() {
         return;
     }
     
-    // Create level header
+
     const levelHeader = document.createElement('div');
     levelHeader.className = 'level-header';
     
-    // Calculate level completion stats with improved logging
+
     const totalLevels = stage.levelsPerSet;
     let completedCount = 0;
     let perfectCount = 0;
@@ -10261,7 +10242,7 @@ function troubleshootCompletion() {
     const setIcon = getSetIcon(gameState.currentStage, setId);
     const setDescription = getSetDescription(gameState.currentStage, setId);
     
-    // Populate header with level completion counter
+
     levelHeader.innerHTML = `
         <div class="level-title-area">
             <div class="set-icon">
@@ -10282,7 +10263,7 @@ function troubleshootCompletion() {
     
     container.appendChild(levelHeader);
     
-    // Create level grid
+
     const levelGrid = document.createElement('div');
     levelGrid.className = 'level-grid';
     levelGrid.dataset.setId = setId;
@@ -10291,9 +10272,9 @@ function troubleshootCompletion() {
     const testLevels = [3, 6, 9, 10, 13, 16, 19, 20];
     const setKey = `${gameState.currentStage}_${setId}`;
     
-    // Ensure unlockedLevels exists for this set
+
     if (!gameState.unlockedLevels[setKey]) {
-        gameState.unlockedLevels[setKey] = new Set([1]); // At minimum, level 1 should be unlocked
+        gameState.unlockedLevels[setKey] = new Set([1]);
     }
     
     console.log(`Rendering levels for ${setKey}. Unlocked levels:`, 
@@ -10303,11 +10284,11 @@ function troubleshootCompletion() {
         const levelItem = document.createElement('div');
         const levelKey = `${gameState.currentStage}_${setId}_${i}`;
         
-        // Add data attributes for easier selection
+
         levelItem.dataset.levelId = i;
         levelItem.dataset.levelKey = levelKey;
         
-        // Check if level is unlocked - use more direct access with fallback
+
         const isUnlocked = gameState.unlockedLevels[setKey]?.has(i);
         console.log(`Level ${i} unlocked:`, isUnlocked);
         
@@ -10316,7 +10297,7 @@ function troubleshootCompletion() {
         const isBossLevel = i === stage.bossLevel;
         const isTestLevel = testLevels.includes(i);
         
-        // Set appropriate classes
+
         levelItem.className = 'level-item';
         if (isUnlocked) levelItem.classList.add('unlocked');
         if (isPerfect) levelItem.classList.add('perfect');
@@ -10339,7 +10320,7 @@ function troubleshootCompletion() {
     
     container.appendChild(levelGrid);
     
-    // Add legend
+
     const legend = document.createElement('div');
     legend.className = 'level-type-legend';
     legend.innerHTML = `
@@ -10363,19 +10344,19 @@ function troubleshootCompletion() {
     
     container.appendChild(legend);
     
-    // Check if set is fully completed for debugging
+
     console.log(`Is set ${gameState.currentStage}-${setId} completed:`, 
                 isSetCompleted(gameState.currentStage, setId));
     
-    // Show the screen
+
     showScreen('level-screen');
     
-    // Check if all levels are complete (including boss) and update completion status
+
     const isComplete = isSetCompleted(gameState.currentStage, setId);
     if (isComplete) {
         console.log(`Set ${gameState.currentStage}-${setId} is complete!`);
         
-        // Check if all are perfect
+
         let allPerfect = true;
         for (let i = 1; i <= stage.levelsPerSet; i++) {
             const levelKey = `${gameState.currentStage}_${setId}_${i}`;
@@ -10398,7 +10379,7 @@ function unlockNextSet() {
     
     console.log(`Unlocking next set ${currentStage}-${nextSet}`);
     
-    // CRITICAL ADDITION: Mark the current boss level as completed
+
     const stage = gameStructure.stages[currentStage - 1];
     if (stage && stage.bossLevel) {
       const bossLevelKey = `${currentStage}_${currentSet}_${stage.bossLevel}`;
@@ -10406,31 +10387,31 @@ function unlockNextSet() {
       console.log(`Ensuring boss level ${bossLevelKey} is marked as completed`);
       gameState.completedLevels.add(bossLevelKey);
       
-      // Force counter updates
+
       updateStageCompletionStats();
       updateStageCompletionCounters();
     }
     
-    // Get stage structure to check max sets
+
     const stageStructure = gameStructure.stages[currentStage-1];
     if (!stageStructure) {
       console.error(`Invalid stage: ${currentStage}`);
       return;
     }
     
-    // Check if we're not already at the last set
+
     if (currentSet < stageStructure.numSets) {
       const nextSet = currentSet + 1;
       
-      // Ensure the stage is in unlockedSets
+
       if (!gameState.unlockedSets[currentStage]) {
         gameState.unlockedSets[currentStage] = new Set();
       }
       
-      // Add the next set
+
       gameState.unlockedSets[currentStage].add(nextSet);
       
-      // Also unlock the first level of the next set
+
       const nextSetKey = `${currentStage}_${nextSet}`;
       if (!gameState.unlockedLevels[nextSetKey]) {
         gameState.unlockedLevels[nextSetKey] = new Set();
@@ -10439,10 +10420,10 @@ function unlockNextSet() {
       
       console.log(`Unlocked set ${currentStage}-${nextSet} and its first level`);
       
-      // Save the updated progress
+
       saveProgress();
     } else if (currentStage < 5) {
-      // Unlock the first set of the next stage
+
       unlockNextStage();
     }
 }
@@ -10450,19 +10431,19 @@ function unlockNextSet() {
   function unlockNextStage() {
     const currentStage = gameState.currentStage;
     
-    // Make sure we're not at the last stage
+
     if (currentStage < 5) {
       const nextStage = currentStage + 1;
       
-      // Ensure the next stage exists in unlockedSets
+
       if (!gameState.unlockedSets[nextStage]) {
         gameState.unlockedSets[nextStage] = new Set();
       }
       
-      // Unlock the first set of the next stage
+
       gameState.unlockedSets[nextStage].add(1);
       
-      // Also unlock the first level of the first set
+
       const nextSetKey = `${nextStage}_1`;
       if (!gameState.unlockedLevels[nextSetKey]) {
         gameState.unlockedLevels[nextSetKey] = new Set();
@@ -10471,14 +10452,14 @@ function unlockNextSet() {
       
       console.log(`Unlocked stage ${nextStage}, set 1, level 1`);
       
-      // Save the updated progress
+
       saveProgress();
     }
   }
 
-  // ADD this global function for emergency repair
+
 window.fixBossCompletion = function(stageId = null, setId = null) {
-    // If no stage/set provided, use current one
+
     const stage = stageId || gameState.currentStage;
     const set = setId || gameState.currentSet;
     
@@ -10488,43 +10469,43 @@ window.fixBossCompletion = function(stageId = null, setId = null) {
         return false;
     }
     
-    // Mark boss level as completed
+
     const bossLevelKey = `${stage}_${set}_${stageConfig.bossLevel}`;
     console.log(`Marking boss level ${bossLevelKey} as completed via manual repair`);
     gameState.completedLevels.add(bossLevelKey);
     
-    // Save changes
+
     saveProgress();
     
-    // Force UI updates
+
     updateStageCompletionStats();
     updateStageCompletionCounters();
     
     return true;
 };
 
-// ADD this function to ensure gameState consistency during initialization
+
 function ensureGameStateStructure() {
-    // Ensure completedLevels is a Set
+
     if (!gameState.completedLevels || !(gameState.completedLevels instanceof Set)) {
         console.warn("completedLevels is not a Set, fixing...");
         gameState.completedLevels = new Set(Array.isArray(gameState.completedLevels) ? 
             gameState.completedLevels : []);
     }
     
-    // Ensure perfectLevels is a Set
+
     if (!gameState.perfectLevels || !(gameState.perfectLevels instanceof Set)) {
         console.warn("perfectLevels is not a Set, fixing...");
         gameState.perfectLevels = new Set(Array.isArray(gameState.perfectLevels) ? 
             gameState.perfectLevels : []);
     }
     
-    // Ensure unlockedSets structure
+
     if (!gameState.unlockedSets || typeof gameState.unlockedSets !== 'object') {
         console.warn("unlockedSets is not properly structured, fixing...");
         gameState.unlockedSets = { 1: new Set([1]) };
     } else {
-        // Convert any array values to Sets
+
         Object.keys(gameState.unlockedSets).forEach(key => {
             if (!(gameState.unlockedSets[key] instanceof Set)) {
                 gameState.unlockedSets[key] = new Set(Array.isArray(gameState.unlockedSets[key]) ? 
@@ -10533,12 +10514,12 @@ function ensureGameStateStructure() {
         });
     }
     
-    // Ensure unlockedLevels structure
+
     if (!gameState.unlockedLevels || typeof gameState.unlockedLevels !== 'object') {
         console.warn("unlockedLevels is not properly structured, fixing...");
         gameState.unlockedLevels = { "1_1": new Set([1]) };
     } else {
-        // Convert any array values to Sets
+
         Object.keys(gameState.unlockedLevels).forEach(key => {
             if (!(gameState.unlockedLevels[key] instanceof Set)) {
                 gameState.unlockedLevels[key] = new Set(Array.isArray(gameState.unlockedLevels[key]) ? 
@@ -10550,11 +10531,11 @@ function ensureGameStateStructure() {
     console.log("GameState structure verified and fixed if needed");
 }
 
-// ADD this to your initialization code
+
 document.addEventListener('DOMContentLoaded', function() {
-    // After loading user data but before using game state
+
     checkExistingSession().then(() => {
-        // Load progress and then ensure structure
+
         loadUserGameProgress(currentUser?.id).then(() => {
             ensureGameStateStructure();
             initializeGame();
@@ -10562,14 +10543,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// MODIFY loadProgress function to fix Set conversion
+
 function loadProgress() {
     const saved = localStorage.getItem('simploxProgress');
     if (saved) {
         try {
             const data = JSON.parse(saved);
             
-            // Create Sets from arrays for key game state properties
+
             gameState.unlockedSets = Object.fromEntries(
                 Object.entries(data.unlockedSets || {}).map(([k, v]) => [k, new Set(v)])
             );
@@ -10578,7 +10559,7 @@ function loadProgress() {
                 Object.entries(data.unlockedLevels || {}).map(([k, v]) => [k, new Set(v)])
             );
             
-            // Important: Convert arrays to Sets
+
             gameState.perfectLevels = new Set(data.perfectLevels || []);
             gameState.completedLevels = new Set(data.completedLevels || []);
             
@@ -10588,7 +10569,7 @@ function loadProgress() {
             console.log("Progress loaded with proper Set conversion");
         } catch (e) {
             console.error("Error loading game progress:", e);
-            // Initialize with defaults
+
             setupDefaultUnlocks();
         }
     }
@@ -10600,7 +10581,7 @@ function loadProgress() {
 }
 
 function addGoldShineStyles() {
-    // Remove any existing styles first
+
     const existingStyle = document.getElementById('gold-set-styles');
     if (existingStyle) {
         existingStyle.remove();
@@ -10609,7 +10590,7 @@ function addGoldShineStyles() {
     const styleEl = document.createElement('style');
     styleEl.id = 'gold-set-styles';
     styleEl.textContent = `
-        /* STRONGER Gold Styling for Completed Sets - Overrides all other styles */
+        
         .set-button.fully-completed {
             background: linear-gradient(135deg, var(--gold), #ffa500) !important;
             border: 2px solid var(--gold) !important;
@@ -10618,11 +10599,11 @@ function addGoldShineStyles() {
             overflow: hidden !important;
             animation: pulseGoldSet 2s infinite alternate !important;
             transform: scale(1.05) !important;
-            z-index: 5 !important; /* Higher z-index to ensure it's on top */
-            color: black !important; /* Ensures text is visible on gold background */
+            z-index: 5 !important; 
+            color: black !important; 
         }
         
-        /* Ensure the completed indicator remains visible against gold */
+        
         .set-button.fully-completed .completed-indicator {
             color: #000 !important;
             background-color: rgba(255, 255, 255, 0.3) !important;
@@ -10630,7 +10611,7 @@ function addGoldShineStyles() {
             padding: 3px !important;
         }
         
-        /* Ensure the span text is black for contrast */
+        
         .set-button.fully-completed span {
             color: #000 !important;
             font-weight: bold !important;
@@ -10639,7 +10620,7 @@ function addGoldShineStyles() {
             z-index: 10 !important;
         }
         
-        /* Create a moving shine effect across the button */
+        
         .set-button.fully-completed::before {
             content: '' !important;
             position: absolute !important;
@@ -10671,14 +10652,14 @@ function addGoldShineStyles() {
     console.log("Enhanced gold styles added with stronger specificity");
 }
 
-// ADD this function to manually fix buttons after page loads
+
 function forceRefreshGoldButtons() {
     console.log("Force-refreshing gold styling on set buttons");
     
-    // First ensure our styles are loaded
+
     addGoldShineStyles();
     
-    // Find all completed set buttons and check if they should be gold
+
     document.querySelectorAll('.set-button.completed').forEach(button => {
         const stageId = parseInt(button.dataset.stageId);
         const setId = parseInt(button.dataset.setId);
@@ -10688,7 +10669,7 @@ function forceRefreshGoldButtons() {
         const stage = gameStructure.stages[stageId - 1];
         if (!stage || !stage.levelsPerSet) return;
         
-        // Check if all levels are perfect
+
         let allPerfect = true;
         for (let levelId = 1; levelId <= stage.levelsPerSet; levelId++) {
             const levelKey = `${stageId}_${setId}_${levelId}`;
@@ -10698,12 +10679,12 @@ function forceRefreshGoldButtons() {
             }
         }
         
-        // Apply gold styling if perfect
+
         if (allPerfect) {
             console.log(`Force-applying gold styling to set ${stageId}-${setId}`);
             button.classList.add('fully-completed');
             
-            // Force style refresh by temporarily removing and adding class
+
             setTimeout(() => {
                 button.classList.remove('fully-completed');
                 setTimeout(() => button.classList.add('fully-completed'), 50);
@@ -10712,19 +10693,19 @@ function forceRefreshGoldButtons() {
     });
 }
 
-// Call this function after page loads and when stages are shown
+
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(forceRefreshGoldButtons, 500);
 });
 
-// Also call it whenever the stage cascade screen is shown
+
 document.addEventListener('screenChange', event => {
     if (event.detail && event.detail.screen === 'stage-cascade-screen') {
         setTimeout(forceRefreshGoldButtons, 200);
     }
 });
 
-// Call this on page load
+
 document.addEventListener('DOMContentLoaded', addGoldShineStyles);
 
 function populateSetsGrid(e) {
@@ -10737,37 +10718,37 @@ function populateSetsGrid(e) {
         o = currentUser ? currentUser.status : "unregistered";
     console.log(`Stage ${e} unlocked sets:`, Array.from(r));
     
-    // Clear existing content
+
     t.innerHTML = "";
     
-    // Create set buttons for each set in the stage
+
     for (let s = 1; s <= n.numSets; s++) {
         const setButton = document.createElement("div"),
             a = r.has(s);
         let i = !1;
         e >= 2 && s > 1 && "premium" !== o && (i = !0);
         
-        // Add data attributes for easier selection
+
         setButton.dataset.setId = s;
         setButton.dataset.stageId = e;
         
         setButton.className = "set-button";
         a && !i ? setButton.classList.add("active") : setButton.classList.add("locked");
         
-        // Check if set is completed
+
         const isCompleted = isSetCompleted(e, s);
         
-        // NEW: Check if all levels in the set are perfect
+
         let allLevelsPerfect = false;
         
         if (isCompleted && n.levelsPerSet) {
             allLevelsPerfect = true;
             
-            // Check each level in the set
+
             for (let levelId = 1; levelId <= n.levelsPerSet; levelId++) {
                 const levelKey = `${e}_${s}_${levelId}`;
                 
-                // If any level is not perfect, set allLevelsPerfect to false
+
                 if (!gameState.perfectLevels.has(levelKey)) {
                     allLevelsPerfect = false;
                     break;
@@ -10777,11 +10758,11 @@ function populateSetsGrid(e) {
             console.log(`Set ${e}-${s} all perfect levels check:`, allLevelsPerfect);
         }
         
-        // Apply completed class for tracking
+
         if (isCompleted) {
             setButton.classList.add("completed");
             
-            // Apply fully-completed class for gold shine if all levels are perfect
+
             if (allLevelsPerfect) {
                 setButton.classList.add("fully-completed");
                 console.log(`Set ${e}-${s} marked as FULLY COMPLETED with gold styling`);
@@ -10804,10 +10785,10 @@ function populateSetsGrid(e) {
                 showLevelScreen(s);
             };
         } else if (i) {
-            // Make the whole button show upgrade prompt
+
             setButton.onclick = () => showUpgradePrompt();
             
-            // Add specific handler for the crown icon
+
             setTimeout(() => {
                 const crownIcon = setButton.querySelector(".fa-crown");
                 if (crownIcon) {
@@ -10822,19 +10803,19 @@ function populateSetsGrid(e) {
         t.appendChild(setButton);
     }
     
-    // Force apply the gold shine styles
+
     ensureGoldShineStyles();
 }
 
-// ADD this function to ensure gold shine styles are applied
+
 function ensureGoldShineStyles() {
-    // Check if style already exists
+
     if (!document.getElementById('gold-set-styles')) {
-        // Create style element
+
         const styleEl = document.createElement('style');
         styleEl.id = 'gold-set-styles';
         styleEl.textContent = `
-            /* Enhanced Gold Shine for Completed Sets */
+            
             .set-button.fully-completed {
                 background: linear-gradient(135deg, var(--gold), #ffa500) !important;
                 border: 2px solid var(--gold) !important;
@@ -10842,7 +10823,7 @@ function ensureGoldShineStyles() {
                 position: relative;
                 overflow: hidden;
                 animation: pulseGoldSet 2s infinite alternate;
-                color: #000 !important; /* Dark text for better contrast */
+                color: #000 !important; 
                 transform: scale(1.05) !important;
                 z-index: 1;
             }
@@ -10885,26 +10866,26 @@ function ensureGoldShineStyles() {
             }
         `;
         
-        // Add to document head
+
         document.head.appendChild(styleEl);
         console.log("Enhanced gold shine styles added to page");
     }
 }
 
-// Make sure styles are applied on page load
+
 document.addEventListener('DOMContentLoaded', ensureGoldShineStyles);
 
 function updateStageBackground() {
     const currentStage = gameState.currentStage;
     
-    // Get the question screen element
+
     const questionScreen = document.getElementById('question-screen');
     if (!questionScreen) return;
     
-    // Remove any existing stage background classes
+
     questionScreen.classList.remove('stage-3-bg', 'stage-4-bg', 'stage-5-bg');
     
-    // Apply the appropriate background class based on stage
+
     if (currentStage >= 3 && currentStage <= 5) {
       questionScreen.classList.add(`stage-${currentStage}-bg`);
     }
@@ -10912,36 +10893,36 @@ function updateStageBackground() {
 
   
 
-// Function to update premium button visibility
+
 function updatePremiumButtonVisibility() {
-    // Get the premium button from the static HTML menu
+
     const premiumMenuItemStatic = document.getElementById('premium-menu-item');
     
-    // Check if user is premium
+
     const userStatus = currentUser ? currentUser.status : 'unregistered';
-    const shouldShowPremium = userStatus !== 'premium'; // Show for unregistered, free, and pending
+    const shouldShowPremium = userStatus !== 'premium';
     
-    // Update visibility of static premium button
+
     if (premiumMenuItemStatic) {
       premiumMenuItemStatic.style.display = shouldShowPremium ? 'flex' : 'none';
       console.log(`Premium button visibility: ${shouldShowPremium ? 'visible' : 'hidden'} for user status: ${userStatus}`);
     }
   }
   
-  // Call this function when DOM is loaded
+
   document.addEventListener('DOMContentLoaded', function() {
     updatePremiumButtonVisibility();
   });
   
-  // Also call this when user status changes
+
   document.addEventListener('userStatusChanged', function(event) {
     updatePremiumButtonVisibility();
   });
 
-  // Modify the createOptionsMenu function to remove profile and logout
+
   const originalCreateOptionsMenu = createOptionsMenu;
   createOptionsMenu = function() {
-    // Remove existing menu if it exists
+
     const existingMenu = document.getElementById('options-menu');
     if (existingMenu) {
       existingMenu.remove();
@@ -10951,7 +10932,7 @@ function updatePremiumButtonVisibility() {
     optionsMenu.id = 'options-menu';
     optionsMenu.className = 'floating-menu';
     
-    // Define all possible menu items - remove profile and logout
+
     const menuItems = [
       {
         id: 'custom-practice-item',
@@ -10972,7 +10953,7 @@ function updatePremiumButtonVisibility() {
         icon: 'fa-crown premium-crown',
         text: 'Premium',
         onClick: 'showUpgradeScreen()',
-        visibleTo: ['free', 'pending', 'unregistered'] // Only visible to non-premium users
+        visibleTo: ['free', 'pending', 'unregistered']
       },
       {
         id: 'about-item',
@@ -10997,18 +10978,18 @@ function updatePremiumButtonVisibility() {
       }
     ];
     
-    // Add menu grid container
+
     const menuGrid = document.createElement('div');
     menuGrid.className = 'menu-grid';
     optionsMenu.appendChild(menuGrid);
     
-    // Filter menu items based on user status
+
     const userStatus = currentUser ? (currentUser.status || 'free') : 'unregistered';
     console.log("Creating menu with user status:", userStatus);
     
-    // Add filtered items to the menu
+
     menuItems.forEach(item => {
-      // Check if this item should be visible to the current user
+
       const isVisible = item.visibleTo.includes('all') || 
                        (item.id === 'premium-item' && userStatus !== 'premium') ||
                        item.visibleTo.includes(userStatus);
@@ -11034,17 +11015,17 @@ function updatePremiumButtonVisibility() {
     
     document.body.appendChild(optionsMenu);
     
-    // Dispatch an event indicating the menu was refreshed
+
     document.dispatchEvent(new CustomEvent('menuRefreshed'));
     
     return optionsMenu;
   };
 
-// Replace the entire createOptionsMenu function
+
 window.createOptionsMenu = function() {
   console.log("Creating options menu with user status:", currentUser?.status || "unregistered");
   
-  // Remove existing menu if it exists
+
   const existingMenu = document.getElementById('options-menu');
   if (existingMenu) {
     existingMenu.remove();
@@ -11054,21 +11035,21 @@ window.createOptionsMenu = function() {
   optionsMenu.id = 'options-menu';
   optionsMenu.className = 'floating-menu';
   
-  // Add menu grid container
+
   const menuGrid = document.createElement('div');
   menuGrid.className = 'menu-grid';
   optionsMenu.appendChild(menuGrid);
   
-  // Check user status directly
+
   const userStatus = currentUser ? currentUser.status : 'unregistered';
   const isPremiumUser = userStatus === 'premium';
   
   console.log(`User is premium: ${isPremiumUser}`);
   
-  // Define menu items - Note: We'll skip Premium button for premium users
+
   const menuItems = [];
   
-  // Always add these buttons
+
   menuItems.push(
     {
       icon: 'fa-expand',
@@ -11082,7 +11063,7 @@ window.createOptionsMenu = function() {
     }
   );
   
-  // Add Premium button ONLY if user is NOT premium
+
   if (!isPremiumUser) {
     menuItems.push({
       icon: 'fa-crown',
@@ -11091,7 +11072,7 @@ window.createOptionsMenu = function() {
     });
   }
   
-  // Continue with other buttons
+
   menuItems.push(
     {
       icon: 'fa-map-marked-alt',
@@ -11130,22 +11111,22 @@ window.createOptionsMenu = function() {
     }
   );
   
-  // Create menu items
+
   menuItems.forEach(item => {
     const menuItem = document.createElement('div');
     menuItem.className = 'menu-item';
     
-    // For Premium button, add special ID
+
     if (item.text === 'Premium') {
       menuItem.id = 'premium-menu-item';
     }
     
-    // Set onClick handler
+
     if (item.onClick) {
       menuItem.setAttribute('onclick', item.onClick);
     }
     
-    // Add content
+
     menuItem.innerHTML = `
       <i class="fas ${item.icon}"></i>
       <span>${item.text}</span>
@@ -11160,24 +11141,20 @@ window.createOptionsMenu = function() {
   return optionsMenu;
 };
 
-  /**
- * Updates the visibility of premium menu items based on user status
- * This function handles both static and dynamic menu elements
- */
-function updatePremiumMenuItems() {
-    // Get user status - default to 'unregistered' if no user
+  function updatePremiumMenuItems() {
+
     const userStatus = currentUser ? currentUser.status : 'unregistered';
     const isPremium = userStatus === 'premium';
     
     console.log(`Updating premium button visibility - User status: ${userStatus}, Premium: ${isPremium}`);
     
-    // 1. Update static premium button in HTML
+
     const staticPremiumButton = document.getElementById('premium-menu-item');
     if (staticPremiumButton) {
       staticPremiumButton.style.display = isPremium ? 'none' : 'flex';
     }
     
-    // 2. Update dynamic premium items in the floating menu
+
     const optionsMenu = document.getElementById('options-menu');
     if (optionsMenu) {
       const premiumItems = optionsMenu.querySelectorAll('.menu-item[id="premium-item"], .menu-item i.fa-crown, .menu-item:has(i.fa-crown)');
@@ -11188,16 +11165,16 @@ function updatePremiumMenuItems() {
     }
   }
 
-  // Debug function to monitor cogwheel menu open behavior
+
 function debugMenuOpen() {
     console.group("Cogwheel Menu Debug");
     
-    // Log user status
+
     const userStatus = currentUser ? currentUser.status : 'unregistered';
     console.log("Current user status:", userStatus);
     console.log("Is premium user:", userStatus === 'premium');
     
-    // Check if premium button exists in menu
+
     const premiumButton = document.querySelector('#options-menu #premium-menu-item');
     console.log("Premium button in menu:", premiumButton ? "YES" : "NO");
     
@@ -11206,7 +11183,7 @@ function debugMenuOpen() {
       console.log("Premium button click handler:", premiumButton.getAttribute('onclick'));
     }
     
-    // Check all menu items and their visibility
+
     const menuItems = document.querySelectorAll('#options-menu .menu-item');
     console.log("Total menu items:", menuItems.length);
     console.log("Menu items:", Array.from(menuItems).map(item => {
@@ -11218,16 +11195,16 @@ function debugMenuOpen() {
     console.groupEnd();
   }
   
-  // Debug function to monitor premium button click
+
   function debugPremiumButtonClick() {
     console.group("Premium Button Click Debug");
     
-    // Log user status
+
     const userStatus = currentUser ? currentUser.status : 'unregistered';
     console.log("Current user status:", userStatus);
     console.log("Is premium user:", userStatus === 'premium');
     
-    // Check if premium button exists
+
     const premiumButton = document.querySelector('#premium-menu-item');
     console.log("Premium button exists:", premiumButton ? "YES" : "NO");
     
@@ -11235,7 +11212,7 @@ function debugMenuOpen() {
       console.log("Premium button visibility:", window.getComputedStyle(premiumButton).display);
       console.log("Premium button click handler:", premiumButton.getAttribute('onclick'));
       
-      // Log which function will be called
+
       console.log("Will call:", premiumButton.getAttribute('onclick') || "No onclick attribute");
     } else {
       console.log("Premium button NOT FOUND - this is expected for premium users");
@@ -11244,15 +11221,15 @@ function debugMenuOpen() {
     console.groupEnd();
   }
   
-  // Enhanced createOptionsMenu with debug
+
   function createOptionsMenuWithDebug() {
     console.log("Creating options menu with debug");
     const menu = createOptionsMenu();
     
-    // Run debug after menu is created
+
     setTimeout(debugMenuOpen, 100);
     
-    // Add click tracking to premium button
+
     const premiumButton = document.querySelector('#premium-menu-item');
     if (premiumButton) {
       const originalClick = premiumButton.onclick;
@@ -11260,11 +11237,11 @@ function debugMenuOpen() {
         console.log("Premium button clicked!");
         debugPremiumButtonClick();
         
-        // Call original handler
+
         if (originalClick) {
           originalClick.call(this, e);
         } else {
-          // Fallback to the attribute
+
           const onclickAttr = premiumButton.getAttribute('onclick');
           if (onclickAttr) {
             eval(onclickAttr);
@@ -11276,7 +11253,7 @@ function debugMenuOpen() {
     return menu;
   }
   
-  // Override settings toggle to use debug version
+
   document.addEventListener('DOMContentLoaded', function() {
     const settingsToggle = document.getElementById('settings-toggle');
     if (settingsToggle) {
@@ -11284,7 +11261,7 @@ function debugMenuOpen() {
         console.log("Settings toggle clicked!");
         createOptionsMenuWithDebug();
         
-        // Show menu
+
         const optionsMenu = document.getElementById('options-menu');
         if (optionsMenu) {
           optionsMenu.classList.add('show');
@@ -11293,7 +11270,7 @@ function debugMenuOpen() {
     }
   });
   
-  // Add direct debug commands for console use
+
   window.debugPremium = {
     checkMenuItems: function() {
       debugMenuOpen();
@@ -11301,7 +11278,7 @@ function debugMenuOpen() {
     simulatePremiumButtonClick: function() {
       debugPremiumButtonClick();
       
-      // Try to find and click premium button
+
       const premiumButton = document.querySelector('#premium-menu-item');
       if (premiumButton) {
         console.log("Simulating click on premium button");
@@ -11313,7 +11290,7 @@ function debugMenuOpen() {
     setUserStatus: function(status) {
       console.log(`Setting simulated user status to: ${status}`);
       
-      // This is just for simulation/debugging - doesn't affect the real user
+
       const oldStatus = currentUser ? currentUser.status : 'unregistered';
       if (currentUser) {
         currentUser.status = status;
@@ -11321,11 +11298,11 @@ function debugMenuOpen() {
         currentUser = { status: status };
       }
       
-      // Update UI
+
       updatePremiumButtonVisibility();
       console.log(`User status changed from ${oldStatus} to ${status}`);
       
-      // Refresh menu if open
+
       const menu = document.getElementById('options-menu');
       if (menu && menu.classList.contains('show')) {
         menu.classList.remove('show');
@@ -11337,13 +11314,13 @@ function debugMenuOpen() {
     }
   };
   
-  // Add direct debug for premium button click
+
   document.addEventListener('DOMContentLoaded', function() {
-    // Add direct click handler for the premium menu item to ensure it works for unregistered users
+
     function setupPremiumButton() {
       const premiumItem = document.querySelector('#premium-item');
       if (premiumItem) {
-        // Remove the default onclick attribute and add direct listener
+
         const originalAction = premiumItem.getAttribute('onclick');
         premiumItem.removeAttribute('onclick');
         
@@ -11354,10 +11331,10 @@ function debugMenuOpen() {
           console.log('Premium menu item clicked by', currentUser ? currentUser.status : 'unregistered user');
           debugPremiumButtonClick();
           
-          // Always show the upgrade screen directly
+
           showScreen('upgrade-screen');
           
-          // Close the options menu
+
           const optionsMenu = document.getElementById('options-menu');
           if (optionsMenu) {
             optionsMenu.classList.remove('show');
@@ -11368,13 +11345,13 @@ function debugMenuOpen() {
       }
     }
     
-    // Call setup initially
+
     setupPremiumButton();
     
-    // Also set up after the menu is refreshed
+
     document.addEventListener('menuRefreshed', setupPremiumButton);
     
-    // Re-check when menu is shown
+
     const settingsToggle = document.getElementById('settings-toggle');
     if (settingsToggle) {
       settingsToggle.addEventListener('click', function() {
@@ -11388,44 +11365,44 @@ function debugMenuOpen() {
 
   window.debugPremium.simulatePremiumButtonClick();
 
-// Test as premium user
+
 window.debugPremium.setUserStatus('premium');
 
-// Test as free user
+
 window.debugPremium.setUserStatus('free');
 
-// Test as unregistered user
+
 window.debugPremium.setUserStatus('unregistered');
 
 
-// ADD: Function to ensure crown button in floating menu opens upgrade screen
+
 function fixCrownButtonBehavior() {
-    // Find the premium menu item in the floating menu
+
     const premiumMenuItem = document.querySelector('#options-menu .menu-item[id="premium-menu-item"], #options-menu .menu-item i.fa-crown').closest('.menu-item');
     
     if (premiumMenuItem) {
       console.log("Found premium menu item, fixing click behavior");
       
-      // Remove any existing onclick attribute
+
       premiumMenuItem.removeAttribute('onclick');
       
-      // Add direct event listener with highest priority
+
       premiumMenuItem.addEventListener('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
         console.log("Premium menu item clicked - showing upgrade screen");
         
-        // Close the options menu first
+
         const optionsMenu = document.getElementById('options-menu');
         if (optionsMenu) {
           optionsMenu.classList.remove('show');
         }
         
-        // Show upgrade screen directly
+
         showScreen('upgrade-screen');
-      }, true); // Use capturing phase for highest priority
+      }, true);
       
-      // Also fix any crown icon inside the button
+
       const crownIcon = premiumMenuItem.querySelector('i.fa-crown');
       if (crownIcon) {
         crownIcon.addEventListener('click', function(e) {
@@ -11433,30 +11410,30 @@ function fixCrownButtonBehavior() {
           e.stopPropagation();
           console.log("Crown icon clicked - showing upgrade screen");
           
-          // Close the options menu
+
           const optionsMenu = document.getElementById('options-menu');
           if (optionsMenu) {
             optionsMenu.classList.remove('show');
           }
           
-          // Show upgrade screen directly
+
           showScreen('upgrade-screen');
-        }, true); // Use capturing phase for highest priority
+        }, true);
       }
     } else {
       console.warn("Premium menu item not found in the floating menu");
     }
   }
   
-  // Call this function after the menu is created and whenever it might be refreshed
+
   document.addEventListener('DOMContentLoaded', function() {
-    // Fix initially after page load
+
     setTimeout(fixCrownButtonBehavior, 500);
     
-    // Also fix after menu is refreshed
+
     document.addEventListener('menuRefreshed', fixCrownButtonBehavior);
     
-    // Fix when the settings/options menu is opened
+
     const settingsToggle = document.getElementById('settings-toggle');
     if (settingsToggle) {
       settingsToggle.addEventListener('click', function() {
@@ -11476,13 +11453,13 @@ function updateListsDisplay() {
     const container = document.getElementById("custom-lists-container");
     if (!container) return void console.error("Custom lists container not found");
 
-    // Comprehensive logging
+
     console.log("Current user:", currentUser);
     console.log("User status:", currentUser?.status);
     console.log("User metadata:", currentUser?.user_metadata);
     console.log("App metadata:", currentUser?.app_metadata);
     
-    // Log all properties of the user object for inspection
+
     if (currentUser) {
         console.log("All user properties:");
         for (const key in currentUser) {
@@ -11491,7 +11468,7 @@ function updateListsDisplay() {
             }
         }
         
-        // Check user_metadata properties
+
         if (currentUser.user_metadata) {
             console.log("All user_metadata properties:");
             for (const key in currentUser.user_metadata) {
@@ -11499,7 +11476,7 @@ function updateListsDisplay() {
             }
         }
         
-        // Check app_metadata properties
+
         if (currentUser.app_metadata) {
             console.log("All app_metadata properties:");
             for (const key in currentUser.app_metadata) {
@@ -11511,10 +11488,10 @@ function updateListsDisplay() {
     const limits = CustomListsManager.getListLimits();
     const userStatus = currentUser?.status || "unregistered";
     
-    // Debug message about premium status
+
     console.log("User premium status check:", userStatus === "premium");
     
-    // Various checks for teacher status
+
     let isTeacherFound = false;
     let teacherPropertyFound = "";
     
@@ -11543,7 +11520,7 @@ function updateListsDisplay() {
     
     console.log(`Is teacher found: ${isTeacherFound}, Property: ${teacherPropertyFound}`);
     
-    // TEMPORARY: Until we find the correct teacher attribute
+
     const isPremiumUser = userStatus === "premium";
     const isAdminEmail = currentUser && currentUser.email && 
                         (currentUser.email.includes("admin") || 
@@ -11569,7 +11546,7 @@ function updateListsDisplay() {
             listItem.className = "custom-list-item collapsed " + (list.isShared ? "shared-list" : "");
             listItem.dataset.listId = list.id;
             
-            // MODIFIED: Changed the word count display format
+
             listItem.innerHTML = `
                 <div class="list-actions">
                     <button class="main-button practice-button" ${hasSufficientWords ? "" : "disabled"}>
@@ -11595,11 +11572,11 @@ function updateListsDisplay() {
             
             container.appendChild(listItem);
             
-            // Double-check if share button exists after rendering
+
             const hasShareButton = !!listItem.querySelector('.share-button');
             console.log(`List ${list.id} - Share button exists: ${hasShareButton}, Premium user: ${userStatus === "premium"}`);
             
-            // Set up the button event handlers
+
             const practiceButton = listItem.querySelector(".practice-button");
             if (practiceButton) {
                 if (hasSufficientWords) {
@@ -11626,7 +11603,7 @@ function updateListsDisplay() {
                 };
             }
             
-            // Make sure the share button has the proper click handler
+
             const shareButton = listItem.querySelector(".share-button");
             if (shareButton) {
                 shareButton.onclick = function() {
@@ -11647,15 +11624,15 @@ function updateListsDisplay() {
     }
 }
 
-// Function to add a new word list
+
 function addCustomWordList(name = null) {
-    // Check if we've reached the maximum number of lists
+
     if (customPracticeLists.lists.length >= customPracticeLists.maxLists) {
         alert(`You can only create up to ${customPracticeLists.maxLists} custom lists.`);
         return null;
     }
 
-    // Generate a default name if not provided
+
     if (!name) {
         name = `List ${customPracticeLists.lists.length + 1}`;
     }
@@ -11673,14 +11650,14 @@ function addCustomWordList(name = null) {
 }
 
 
-// Function to translate a single word using MyMemory Translation API
+
 function translateWord(word) {
     const apiUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en|he`;
     
     return fetch(apiUrl)
         .then(response => response.json())
         .then(data => {
-            // Extract translation, fallback to original word if translation fails
+
             return data.responseData.translatedText || word;
         })
         .catch(() => word);
@@ -11695,7 +11672,7 @@ function trackListPlay(listId) {
     localStorage.setItem(playCountKey, plays);
 
     if (plays >= limits.maxPlays) {
-        // Remove list if max plays reached
+
         deleteCustomList(listId);
         return false;
     }
@@ -11711,7 +11688,7 @@ function trackListPlay(listId) {
 
 
 function updateLocalSharedLists(sharedList) {
-    // Add the shared list to the recipient's local lists
+
     if (currentUser) {
         customPracticeLists.lists.push({
             id: sharedList.local_id,
@@ -11723,24 +11700,24 @@ function updateLocalSharedLists(sharedList) {
             shared_by: sharedList.shared_by
         });
         
-        // Save to local storage or sync
+
         saveCustomLists();
     }
 }
 
-// ADD this fallback function to try alternative sharing approaches
+
 async function debugShareList(listId, recipientId) {
     try {
         console.log("Debug share function called with:", { listId, recipientId });
         
-        // Find the list
+
         const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
         if (!list) {
             console.error("List not found for debug sharing");
             return false;
         }
         
-        // Try direct table access with minimal fields
+
         const { data, error } = await supabaseClient
             .from('custom_lists')
             .insert({
@@ -11754,7 +11731,7 @@ async function debugShareList(listId, recipientId) {
         if (error) {
             console.error("Debug share error:", error);
             
-            // Check what tables are available
+
             const { data: tables, error: tablesError } = await supabaseClient
                 .from('information_schema.tables')
                 .select('table_name')
@@ -11786,7 +11763,7 @@ async function shareListWithUser(listId, recipientId) {
             return false;
         }
         
-        // Find the list in CustomListsManager
+
         const list = CustomListsManager.lists.find(l => String(l.id) === String(listId));
         
         if (!list) {
@@ -11796,7 +11773,7 @@ async function shareListWithUser(listId, recipientId) {
         
         console.log("Found list to share:", list.name);
         
-        // Direct insert into custom_lists table
+
         const { data, error } = await supabaseClient
             .from('custom_lists')
             .insert({
@@ -11851,7 +11828,7 @@ async function loadSharedLists() {
 function showShareModal(listId) {
     console.log("Opening share modal for list:", listId);
     
-    // Check if user can share
+
     const isPremiumUser = currentUser?.status === "premium";
     const isAdminEmail = currentUser && currentUser.email && 
                         (currentUser.email.includes("admin") || 
@@ -11870,14 +11847,14 @@ function showShareModal(listId) {
         return;
     }
     
-    // Remove any existing modals
+
     document.querySelectorAll(".share-modal-wrapper").forEach(el => el.remove());
     
-    // Create a completely new modal wrapper directly on the body
+
     const modalWrapper = document.createElement("div");
     modalWrapper.className = "share-modal-wrapper";
-    modalWrapper.setAttribute('data-list-id', listId); // Store the list ID in the modal    
-    // Apply fixed positioning to ensure it's centered
+    modalWrapper.setAttribute('data-list-id', listId);
+
     modalWrapper.style.cssText = `
         position: fixed !important;
         top: 0 !important;
@@ -11891,7 +11868,7 @@ function showShareModal(listId) {
         pointer-events: all !important;
     `;
     
-    // Create the modal HTML with backdrop, search field, and content
+
     modalWrapper.innerHTML = `
         <div class="modal-backdrop" style="
             position: absolute !important;
@@ -11987,36 +11964,36 @@ function showShareModal(listId) {
         </div>
     `;
     
-    // Append to body
+
     document.body.appendChild(modalWrapper);
     
-    // Add click handler for the cancel button
+
     modalWrapper.querySelector(".cancel-share-btn").addEventListener("click", () => {
         closeShareModal();
     });
     
-    // Store users data for search functionality
+
     modalWrapper.userData = [];
     
-    // Add search functionality
+
     const searchInput = modalWrapper.querySelector("#user-search");
     searchInput.addEventListener("input", () => {
         const searchTerm = searchInput.value.toLowerCase().trim();
         filterUsers(searchTerm, modalWrapper);
     });
     
-    // Fetch and display users
+
     fetchUsersForSharing(listId, modalWrapper.querySelector(".users-list"), modalWrapper);
     
-    // Add fade-in effect
+
     setTimeout(() => {
         modalWrapper.style.opacity = "0";
         modalWrapper.style.transition = "opacity 0.3s ease";
         
-        // Force reflow
+
         modalWrapper.offsetHeight;
         
-        // Fade in
+
         modalWrapper.style.opacity = "1";
     }, 10);
 }
@@ -12024,10 +12001,10 @@ function showShareModal(listId) {
 function closeShareModal() {
     const modal = document.querySelector(".share-modal-wrapper");
     if (modal) {
-        // Fade out effect
+
         modal.style.opacity = "0";
         
-        // Remove after animation
+
         setTimeout(() => {
             modal.remove();
         }, 300);
@@ -12058,12 +12035,12 @@ function fetchUsersForSharing(listId, container, modalWrapper) {
         return;
     }
     
-    // Store listId in modalWrapper if it exists
+
     if (modalWrapper && !modalWrapper.hasAttribute('data-list-id')) {
         modalWrapper.setAttribute('data-list-id', listId);
     }
     
-    // Fetch users from supabase
+
     supabaseClient.from("user_profiles")
         .select("id, username")
         .neq("id", currentUser.id)
@@ -12100,25 +12077,25 @@ function fetchUsersForSharing(listId, container, modalWrapper) {
                 return;
             }
             
-            // Store user data for search functionality
+
             if (modalWrapper) {
                 modalWrapper.userData = data;
             }
             
-            // Update the counter
+
             const resultsCount = modalWrapper ? modalWrapper.querySelector('.search-results-count') : null;
             if (resultsCount) {
                 resultsCount.textContent = `${data.length} users`;
                 resultsCount.style.display = 'block !important';
             }
             
-            // Render all users - make sure to pass the list ID
+
             renderUsersList(data, container, listId);
         });
 }
 
 function renderUsersList(users, container, listId) {
-    // Create HTML for each user
+
     let userItemsHtml = '';
     
     users.forEach(user => {
@@ -12152,7 +12129,7 @@ function renderUsersList(users, container, listId) {
         `;
     });
     
-    // If no users match the search
+
     if (userItemsHtml === '') {
         userItemsHtml = `
             <div style="
@@ -12169,11 +12146,11 @@ function renderUsersList(users, container, listId) {
     
     container.innerHTML = userItemsHtml;
     
-    // Add event listeners to share buttons
+
     container.querySelectorAll('.share-user-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             const userId = btn.getAttribute('data-user-id');
-            const listIdToShare = btn.getAttribute('data-list-id'); // Get the listId from the button
+            const listIdToShare = btn.getAttribute('data-list-id');
             
             if (!listIdToShare) {
                 console.error("Missing list ID for sharing");
@@ -12181,12 +12158,12 @@ function renderUsersList(users, container, listId) {
                 return;
             }
             
-            // Disable button and show loading state
+
             btn.disabled = true;
             const originalHtml = btn.innerHTML;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sharing...';
             
-            // Call sharing function with the correct listId
+
             console.log(`Attempting to share list ${listIdToShare} with user ${userId}`);
             const success = await shareListWithUser(listIdToShare, userId);
             
@@ -12194,7 +12171,7 @@ function renderUsersList(users, container, listId) {
                 showNotification("List shared successfully!", "success");
                 closeShareModal();
             } else {
-                // Reset button on failure
+
                 btn.disabled = false;
                 btn.innerHTML = originalHtml;
                 showNotification("Failed to share list", "error");
@@ -12208,11 +12185,11 @@ function filterUsers(searchTerm, modalWrapper) {
     
     const usersList = modalWrapper.querySelector('.users-list');
     const resultsCount = modalWrapper.querySelector('.search-results-count');
-    const listId = modalWrapper.getAttribute('data-list-id'); // Get the list ID from the modal
+    const listId = modalWrapper.getAttribute('data-list-id');
     
     if (!usersList) return;
     
-    // If search term is empty, show all users
+
     if (!searchTerm) {
         renderUsersList(modalWrapper.userData, usersList, listId);
         
@@ -12223,29 +12200,29 @@ function filterUsers(searchTerm, modalWrapper) {
         return;
     }
     
-    // Filter users based on search term
+
     const filteredUsers = modalWrapper.userData.filter(user => {
         const username = (user.username || "").toLowerCase();
         return username.includes(searchTerm);
     });
     
-    // Update results count
+
     if (resultsCount) {
         resultsCount.textContent = `${filteredUsers.length}/${modalWrapper.userData.length}`;
         resultsCount.style.display = 'block';
     }
     
-    // Update the users list - pass the listId
+
     renderUsersList(filteredUsers, usersList, listId);
 }
 
 function handleProgressionAfterCompletion(isLevelCompleted) {
     if (!isLevelCompleted && currentGame.streakBonus) {
-        // Award completion bonus
+
         gameState.coins += 5;
         pulseCoins(5);
         
-        // Handle level unlocks and progression
+
         const setKey = `${gameState.currentStage}_${gameState.currentSet}`;
         if (!gameState.unlockedLevels[setKey]) {
             gameState.unlockedLevels[setKey] = new Set();
@@ -12281,49 +12258,49 @@ function createListItem(list) {
 }
 
 
-// Function to change the current stage without starting the game
+
 function changeCurrentStage(stageId) {
     stageId = parseInt(stageId);
     
-    // Validate stage ID
+
     if (stageId < 1 || stageId > 5) {
       console.error("Invalid stage ID:", stageId);
       return;
     }
     
-    // Update game state with the new stage
+
     gameState.currentStage = stageId;
     
-    // Update stage description in the profile modal
+
     const stageDescription = document.getElementById('stage-description');
     if (stageDescription) {
       stageDescription.textContent = getStageDescription(stageId);
     }
     
-    // Save the updated game state
+
     saveProgress();
     
     console.log(`Stage changed to ${stageId}: ${getStageHebrewName(stageId)}`);
     showNotification(`Stage changed to ${getStageHebrewName(stageId)}`, "success");
   }
   
-  // Function to update the stage selector to show the current stage
+
   function updateStageSelector() {
     const stageSelector = document.getElementById('stage-selector');
     const stageDescription = document.getElementById('stage-description');
     
     if (stageSelector) {
-      // Set the current value
+
       stageSelector.value = gameState.currentStage || "1";
       
-      // Update the description
+
       if (stageDescription) {
         stageDescription.textContent = getStageDescription(gameState.currentStage || 1);
       }
     }
   }
   
-  // Modify the openProfileModal function to update the stage selector
+
   function openProfileModal() {
     const modal = document.getElementById('profile-modal');
     if (!modal) {
@@ -12331,7 +12308,7 @@ function changeCurrentStage(stageId) {
       return;
     }
     
-    // Update username
+
     const usernameEl = document.getElementById('modal-username');
     if (usernameEl) {
       usernameEl.textContent = currentUser?.user_metadata?.username || 
@@ -12339,18 +12316,18 @@ function changeCurrentStage(stageId) {
                               'Guest';
     }
     
-    // Update status badge
+
     const statusEl = document.getElementById('modal-status');
     if (statusEl) {
       const status = currentUser?.status || 'free';
       
-      // Remove all status classes first
+
       statusEl.className = 'status-badge';
       
-      // Add appropriate status class
+
       statusEl.classList.add(status);
       
-      // Set appropriate text
+
       if (status === 'premium') {
         statusEl.textContent = 'PREMIUM';
       } else if (status === 'pending') {
@@ -12362,7 +12339,7 @@ function changeCurrentStage(stageId) {
       }
     }
     
-    // Update stats
+
     const wordCountEl = document.getElementById('modal-word-count');
     const coinCountEl = document.getElementById('modal-coin-count');
     
@@ -12374,60 +12351,60 @@ function changeCurrentStage(stageId) {
       coinCountEl.textContent = document.getElementById('totalCoins')?.textContent || '0';
     }
     
-    // Update stage selector to reflect current stage
+
     updateStageSelector();
     
-    // Show the modal
+
     modal.classList.add('show');
     
-    // Close options menu if open
+
     closeOptionsMenu();
     
     console.log("Profile modal opened");
   }
   
-  // Add a start game function that respects the current stage
+
   function startGameFromStage() {
-    // Find the furthest unlocked set in the current stage
+
     const currentStage = gameState.currentStage || 1;
     const unlockedSets = gameState.unlockedSets[currentStage] || new Set([1]);
     const furthestSet = Math.max(...Array.from(unlockedSets));
     
-    // Find the furthest unlocked level in the furthest set
+
     const setKey = `${currentStage}_${furthestSet}`;
     const unlockedLevels = gameState.unlockedLevels[setKey] || new Set([1]);
     const furthestLevel = Math.max(...Array.from(unlockedLevels));
     
     console.log(`Starting game at Stage ${currentStage}, Set ${furthestSet}, Level ${furthestLevel}`);
     
-    // Set the current set and level
+
     gameState.currentSet = furthestSet;
     gameState.currentLevel = furthestLevel;
     
-    // Close the profile modal
+
     closeProfileModal();
     
-    // Start the level
+
     showScreen('question-screen');
     startLevel(furthestLevel);
   }
   
-  // Modify the profile modal to include a Play button
+
   document.addEventListener('DOMContentLoaded', function() {
-    // Find the profile actions div
+
     const profileActions = document.querySelector('#profile-modal .profile-actions');
     
     if (profileActions) {
-      // Add a Play button at the beginning of the actions
+
       const playButton = document.createElement('button');
       playButton.className = 'play-modal-btn';
       playButton.innerHTML = '<i class="fas fa-play"></i> Play Game';
       playButton.onclick = startGameFromStage;
       
-      // Insert at the beginning
+
       profileActions.insertBefore(playButton, profileActions.firstChild);
       
-      // Add CSS for the button
+
       const style = document.createElement('style');
       style.textContent = `
         .play-modal-btn {
@@ -12450,7 +12427,7 @@ function changeCurrentStage(stageId) {
           background-color: var(--accent-hover);
         }
         
-        /* Adjust the layout of profile actions */
+        
         .profile-actions {
           display: flex;
           justify-content: space-between;
@@ -12461,55 +12438,55 @@ function changeCurrentStage(stageId) {
     }
   });
   
-  // ADD this to the top of script1.js after the initial imports
+
 const GameEconomy = {
-  // Base reward values
+
   rewards: {
-      // Regular level rewards
-      correctAnswer: 10,         // Base reward for correct answer
-      wrongAnswer: -3,           // Penalty for wrong answer
-      perfectLevel: 25,          // Bonus for completing level with no mistakes
-      levelCompletion: 15,       // Bonus for completing any level
+
+      correctAnswer: 10,
+      wrongAnswer: -3,
+      perfectLevel: 25,
+      levelCompletion: 15,
       
-      // Word learning rewards
-      newWord: 5,                // First time seeing a word
-      wordMastery: 3,            // Subsequent correct answers for known words
+
+      newWord: 5,
+      wordMastery: 3,
       
-      // Streak rewards
-      shortStreak: 5,            // 3 correct answers in a row
-      mediumStreak: 10,          // 5 correct answers in a row
-      longStreak: 20,            // 10 correct answers in a row
+
+      shortStreak: 5,
+      mediumStreak: 10,
+      longStreak: 20,
       
-      // Special rewards
-      bossDefeat: 100,           // Defeating a boss level
-      setCompletion: 50,         // Completing a full set
-      dailyLogin: 25,            // Daily login bonus
+
+      bossDefeat: 100,
+      setCompletion: 50,
+      dailyLogin: 25,
       
-      // Game mode specific
-      arcadeBase: 5,             // Base reward for arcade mode
-      customPracticeBase: 8      // Base reward for custom practice
+
+      arcadeBase: 5,
+      customPracticeBase: 8
   },
   
-  // Perk costs - progressive pricing
+
   perkCosts: {
-      timeFreeze: [20, 30, 45, 65, 90],      // Cost increases with each purchase
-      skip: [30, 45, 65, 90, 120],           // Skipping is more valuable
-      clue: [15, 25, 40, 60, 85],            // Clues are helpful but not game-changing
-      reveal: [50, 75, 100, 150, 200]        // Revealing answers is most powerful
+      timeFreeze: [20, 30, 45, 65, 90],
+      skip: [30, 45, 65, 90, 120],
+      clue: [15, 25, 40, 60, 85],
+      reveal: [50, 75, 100, 150, 200]
   },
   
-  // Max level for each perk
+
   maxPerkLevel: 5,
   
-  // Calculate current perk price based on owned amount
+
   getPerkPrice: function(perkType, ownedAmount) {
-      if (!this.perkCosts[perkType]) return 999; // Invalid perk
+      if (!this.perkCosts[perkType]) return 999;
       
       const level = Math.min(ownedAmount, this.perkCosts[perkType].length - 1);
       return this.perkCosts[perkType][level];
   },
   
-  // Calculate streak bonus based on streak length
+
   getStreakBonus: function(streak) {
       if (streak >= 10) return this.rewards.longStreak;
       if (streak >= 5) return this.rewards.mediumStreak;
@@ -12517,11 +12494,11 @@ const GameEconomy = {
       return 0;
   },
   
-  // Calculate word mastery reward
+
   getWordReward: function(isNewWord, practiceCount) {
       if (isNewWord) return this.rewards.newWord;
       
-      // For practiced words, reduce reward over time but keep a minimum
+
       const masteryReward = Math.max(
           this.rewards.wordMastery, 
           Math.floor(this.rewards.wordMastery * (5 / (practiceCount + 3)))
@@ -12531,18 +12508,18 @@ const GameEconomy = {
   }
 };
 
-// Add helper functions for displaying coin animations
 
-// Displays a floating coin animation at the specified position
+
+
 function showCoinAnimation(x, y, amount) {
-  // Skip animation for zero or negative values
+
   if (amount <= 0) return;
 
   const coinText = document.createElement('div');
   coinText.className = 'coin-animation';
   coinText.textContent = `+${amount}`;
   
-  // Position relative to viewport
+
   coinText.style.cssText = `
       position: fixed;
       left: ${x}px;
@@ -12559,7 +12536,7 @@ function showCoinAnimation(x, y, amount) {
   
   document.body.appendChild(coinText);
   
-  // Create coin particle effects
+
   for (let i = 0; i < Math.min(amount, 8); i++) {
       const particle = document.createElement('div');
       const size = 5 + Math.random() * 10;
@@ -12579,7 +12556,7 @@ function showCoinAnimation(x, y, amount) {
           animation: coinParticleAnim 1s ease-out forwards;
       `;
       
-      // Set random animation properties
+
       const angle = Math.random() * Math.PI * 2;
       const distance = 30 + Math.random() * 50;
       particle.style.setProperty('--angle', angle);
@@ -12587,7 +12564,7 @@ function showCoinAnimation(x, y, amount) {
       
       document.body.appendChild(particle);
       
-      // Remove particle after animation
+
       setTimeout(() => {
           if (particle.parentNode) {
               particle.parentNode.removeChild(particle);
@@ -12595,7 +12572,7 @@ function showCoinAnimation(x, y, amount) {
       }, 1000);
   }
   
-  // Remove coin text after animation
+
   setTimeout(() => {
       if (coinText.parentNode) {
           coinText.parentNode.removeChild(coinText);
@@ -12603,7 +12580,7 @@ function showCoinAnimation(x, y, amount) {
   }, 1500);
 }
 
-// Add CSS for coin animations
+
 function addCoinAnimationStyles() {
   if (document.getElementById('coin-animation-styles')) return;
   
@@ -12632,18 +12609,18 @@ function addCoinAnimationStyles() {
   document.head.appendChild(styleElement);
 }
 
-// Call this at initialization to ensure styles are loaded
+
 document.addEventListener('DOMContentLoaded', addCoinAnimationStyles);
 
-// ADD this at the end of script1.js for tracking interaction positions
+
 function setupInteractionTracking() {
-  // Store last interaction position for coin animations
+
   window.lastInteractionPos = {
       x: window.innerWidth / 2,
       y: window.innerHeight / 2
   };
   
-  // Track mouse movement
+
   document.addEventListener('mousemove', function(e) {
       window.lastInteractionPos = {
           x: e.clientX,
@@ -12651,7 +12628,7 @@ function setupInteractionTracking() {
       };
   }, {passive: true});
   
-  // Track touch for mobile
+
   document.addEventListener('touchmove', function(e) {
       if (e.touches && e.touches[0]) {
           window.lastInteractionPos = {
@@ -12661,7 +12638,7 @@ function setupInteractionTracking() {
       }
   }, {passive: true});
   
-  // Track clicks
+
   document.addEventListener('click', function(e) {
       window.lastInteractionPos = {
           x: e.clientX,
@@ -12670,42 +12647,42 @@ function setupInteractionTracking() {
   }, {passive: true});
 }
 
-// Initialize interaction tracking
+
 document.addEventListener('DOMContentLoaded', setupInteractionTracking);
 
-// These are the constants to adjust throughout the code
+
 const COIN_REWARDS = {
-  // Main game
-  CORRECT_ANSWER: 5,          // Base reward for correct answer (was 10)
-  WRONG_ANSWER: -2,           // Penalty for wrong answer (was -3)
-  PERFECT_LEVEL_BONUS: 10,    // Bonus for completing level with no mistakes
+
+  CORRECT_ANSWER: 5,
+  WRONG_ANSWER: -2,
+  PERFECT_LEVEL_BONUS: 10,
   
-  // Streaks
-  STREAK_THRESHOLD: 3,        // Number of correct answers needed to start streak bonuses
-  STREAK_BONUS: 1,            // Additional coins per answer when on streak (max +5)
+
+  STREAK_THRESHOLD: 3,
+  STREAK_BONUS: 1,
   
-  // Word novelty
-  NEW_WORD: 3,                // Reward for first time seeing a word
-  REPEAT_WORD: 1,             // Reward for repeat words (up to 5 times)
+
+  NEW_WORD: 3,
+  REPEAT_WORD: 1,
   
-  // Boss levels
-  BOSS_VICTORY: 100,          // Reward for defeating a boss (unchanged)
+
+  BOSS_VICTORY: 100,
   
-  // Level completion
-  SET_COMPLETION: 25,         // Bonus for completing a set
+
+  SET_COMPLETION: 25,
   
-  // Perks costs (currently all set to 1)
+
   PERK_COSTS: {
-      timeFreeze: 15,         // Cost for time freeze perk
-      skip: 10,               // Cost for skip perk
-      clue: 5,                // Cost for clue perk
-      reveal: 20              // Cost for reveal perk
+      timeFreeze: 15,
+      skip: 10,
+      clue: 5,
+      reveal: 20
   }
 };
 
-// Add this function to update perk costs throughout the game
+
 function updatePerkCosts() {
-  // Update perk buttons costs display
+
   document.querySelectorAll('.perk-button').forEach(button => {
       const perkType = button.getAttribute('data-perk-type');
       if (perkType && COIN_REWARDS.PERK_COSTS[perkType]) {
@@ -12716,35 +12693,35 @@ function updatePerkCosts() {
       }
   });
   
-  // Update actual perk costs in game logic
+
   if (typeof updatePerkButtons === 'function') {
       updatePerkButtons();
   }
 }
 
-// Call this function after DOM content is loaded
+
 document.addEventListener('DOMContentLoaded', function() {
-  // Wait a bit to ensure the game is initialized
+
   setTimeout(updatePerkCosts, 1000);
 });
 
 function restorePerksAfterResurrection() {
   const perksContainer = document.querySelector('.perks-container');
   if (perksContainer) {
-      // Remove disabled class and overlay
+
       perksContainer.classList.remove('perks-disabled');
       const overlay = perksContainer.querySelector('.perks-disabled-overlay');
       if (overlay) {
           overlay.remove();
       }
       
-      // Restore original state if available
+
       if (window.originalPerksState) {
           perksContainer.style.pointerEvents = window.originalPerksState.pointerEvents || '';
           perksContainer.style.opacity = window.originalPerksState.opacity || '';
           window.originalPerksState = null;
       } else {
-          // Default values if original state isn't available
+
           perksContainer.style.pointerEvents = '';
           perksContainer.style.opacity = '';
       }
@@ -12754,68 +12731,68 @@ function restorePerksAfterResurrection() {
 function restorePerksAfterResurrection() {
   const perksContainer = document.querySelector('.perks-container');
   if (perksContainer) {
-      // Remove disabled class and overlay
+
       perksContainer.classList.remove('perks-disabled');
       const overlay = perksContainer.querySelector('.perks-disabled-overlay');
       if (overlay) {
           overlay.remove();
       }
       
-      // Restore original state if available
+
       if (window.originalPerksState) {
           perksContainer.style.pointerEvents = window.originalPerksState.pointerEvents || '';
           perksContainer.style.opacity = window.originalPerksState.opacity || '';
           window.originalPerksState = null;
       } else {
-          // Default values if original state isn't available
+
           perksContainer.style.pointerEvents = '';
           perksContainer.style.opacity = '';
       }
   }
 }
 
-// ADD - Add this code to handle home button clicks specially
+
 document.addEventListener('DOMContentLoaded', function() {
-  // Find all home buttons after DOM is fully loaded
+
   setTimeout(function() {
       const homeButtons = document.querySelectorAll('.home-button, .main-menu-button, [data-action="home"]');
       console.log(`Found ${homeButtons.length} home button(s)`);
       
       homeButtons.forEach(button => {
-          // Add direct click handler with high priority
+
           button.addEventListener('click', function(e) {
               console.log('HOME BUTTON CLICKED - PRESERVING PERKS STATE');
               
-              // Store current perks in a special backup location
+
               if (gameState && gameState.unlockedPerks) {
                   try {
                       const perksArray = Array.from(gameState.unlockedPerks);
                       
-                      // Save to separate backup key that won't be cleared by reset
+
                       localStorage.setItem("simploxPerksBackup", JSON.stringify(perksArray));
                       console.log("Backed up perks before home navigation:", perksArray);
                       
-                      // Set a flag with timestamp so we know this is a recent backup
+
                       localStorage.setItem("simploxPerksBackupTime", Date.now().toString());
                   } catch (e) {
                       console.error("Error backing up perks:", e);
                   }
               }
-          }, true); // true makes this run in capture phase (before other handlers)
+          }, true);
       });
-  }, 1000); // Delay to ensure DOM is fully loaded
+  }, 1000);
 });
 
 function handleUserLogout() {
   console.log("User logging out - clearing local game data");
   
-  // Clear all game-related localStorage items
+
   localStorage.removeItem("simploxProgress");
   localStorage.removeItem("simploxUnlockedPerks");
   localStorage.removeItem("simploxCustomLists");
   localStorage.removeItem("simploxWordStats");
   
-  // Reset the gameState to default values
+
   gameState = {
       currentStage: 1,
       currentSet: 1,
