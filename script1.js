@@ -12809,3 +12809,59 @@ function handleUserLogout() {
   
   console.log("Local game data cleared");
 }
+
+const LOG_ENABLED = false;  // Set to true to enable logging
+
+class ConsoleLogger {
+    static log(...args) {
+        if (LOG_ENABLED) {
+            console.log(...args);
+        }
+    }
+
+    static error(...args) {
+        if (LOG_ENABLED) {
+            console.error(...args);
+        }
+    }
+
+    static warn(...args) {
+        if (LOG_ENABLED) {
+            console.warn(...args);
+        }
+    }
+
+    static info(...args) {
+        if (LOG_ENABLED) {
+            console.info(...args);
+        }
+    }
+
+    static debug(...args) {
+        if (LOG_ENABLED) {
+            console.debug(...args);
+        }
+    }
+
+    // Optional: Capture and log errors to a tracking system
+    static trackError(error, context = {}) {
+        if (LOG_ENABLED) {
+            console.error('Tracked Error:', error, context);
+            // Here you could add integration with error tracking services
+        }
+    }
+
+    // Method to globally enable/disable logging
+    static setLoggingEnabled(enabled) {
+        LOG_ENABLED = enabled;
+    }
+}
+
+// Replace global console calls
+window.console = {
+    log: ConsoleLogger.log,
+    error: ConsoleLogger.error,
+    warn: ConsoleLogger.warn,
+    info: ConsoleLogger.info,
+    debug: ConsoleLogger.debug
+};
