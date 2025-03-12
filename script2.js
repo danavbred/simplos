@@ -157,6 +157,9 @@ async function trackWordEncounter(word, gameMode = 'standard') {
     }
 }
 
+
+
+
 function handleArcadeAnswer(isCorrect) {
   const now = Date.now();
   

@@ -4043,7 +4043,6 @@ function optimizeQuestionScreenForMobile() {
 }
 
 
-
 async function updateWordPracticeHistory(word, gameMode, coinsEarned = 0) {
     if (!currentUser || !word) {
         console.log("Missing user or word, skipping word history update");
