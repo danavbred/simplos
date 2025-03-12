@@ -4035,47 +4035,6 @@ function handlePremiumCelebrationComplete() {
     }
 }
 
-function saveProgress() {
-  console.log("Saving game progress...");
-  
-  // Ensure unlockedPerks is initialized as a Set
-  if (!gameState.unlockedPerks) {
-      gameState.unlockedPerks = new Set();
-  }
-  
-  // Convert all Sets to Arrays for storage
-  const gameProgress = {
-      stage: gameState.currentStage,
-      set_number: gameState.currentSet,
-      level: gameState.currentLevel,
-      coins: gameState.coins,
-      perks: gameState.perks || {},
-      unlocked_sets: serializeSetMap(gameState.unlockedSets),
-      unlocked_levels: serializeSetMap(gameState.unlockedLevels),
-      unlocked_perks: Array.from(gameState.unlockedPerks || []),
-      perfect_levels: Array.from(gameState.perfectLevels || []),
-      completed_levels: Array.from(gameState.completedLevels || [])
-  };
-  
-  // Save to localStorage
-  localStorage.setItem("simploxProgress", JSON.stringify(gameProgress));
-  
-  // If user is logged in, save to Supabase
-  if (currentUser && currentUser.id) {
-      supabaseClient
-          .from("game_progress")
-          .update(gameProgress)
-          .eq("user_id", currentUser.id)
-          .then(({ error }) => {
-              if (error) console.error("Error saving progress:", error);
-          });
-  }
-  
-  return gameProgress;
-}
-
-
-
 function setupDefaultUnlocks() {
     console.log('Setting up default unlocks...');
     console.log('Before setup:', gameState.unlockedSets, gameState.unlockedLevels);
@@ -12903,32 +12862,35 @@ function restorePerksAfterResurrection() {
   }
 }
 
-// ADD this function to your code
-function unlockPerk(perkType) {
-  // Make sure unlockedPerks is initialized as a Set
-  if (!gameState.unlockedPerks) {
-      gameState.unlockedPerks = new Set();
-  }
-  
-  // Add the perk to the unlocked set
-  gameState.unlockedPerks.add(perkType);
-  
-  // Update UI
-  const button = document.getElementById(`${perkType}Perk`);
-  if (button) {
-      button.classList.add('unlocked');
-      button.classList.remove('locked');
-      button.disabled = false;
+// ADD - Add this code to handle home button clicks specially
+document.addEventListener('DOMContentLoaded', function() {
+  // Find all home buttons after DOM is fully loaded
+  setTimeout(function() {
+      const homeButtons = document.querySelectorAll('.home-button, .main-menu-button, [data-action="home"]');
+      console.log(`Found ${homeButtons.length} home button(s)`);
       
-      // Show the count
-      const countElement = button.querySelector('.perk-count');
-      if (countElement) {
-          countElement.style.display = 'block';
-      }
-  }
-  
-  // Save progress immediately to ensure it persists
-  saveProgress();
-  
-  console.log(`Perk ${perkType} unlocked and saved`);
-}
+      homeButtons.forEach(button => {
+          // Add direct click handler with high priority
+          button.addEventListener('click', function(e) {
+              console.log('HOME BUTTON CLICKED - PRESERVING PERKS STATE');
+              
+              // Store current perks in a special backup location
+              if (gameState && gameState.unlockedPerks) {
+                  try {
+                      const perksArray = Array.from(gameState.unlockedPerks);
+                      
+                      // Save to separate backup key that won't be cleared by reset
+                      localStorage.setItem("simploxPerksBackup", JSON.stringify(perksArray));
+                      console.log("Backed up perks before home navigation:", perksArray);
+                      
+                      // Set a flag with timestamp so we know this is a recent backup
+                      localStorage.setItem("simploxPerksBackupTime", Date.now().toString());
+                  } catch (e) {
+                      console.error("Error backing up perks:", e);
+                  }
+              }
+          }, true); // true makes this run in capture phase (before other handlers)
+      });
+  }, 1000); // Delay to ensure DOM is fully loaded
+});
+
