@@ -4043,32 +4043,7 @@ function optimizeQuestionScreenForMobile() {
 }
 
 
-/**
- * Converts a map of Sets to a format suitable for storage in Supabase
- * @param {Object} setMap - Object with Set values
- * @returns {Object} - Object with array values
- */
-function serializeSetMap(setMap) {
-    if (!setMap) return {};
-    
-    const result = {};
-    Object.keys(setMap).forEach(key => {
-        if (setMap[key] instanceof Set) {
-            result[key] = Array.from(setMap[key]);
-        } else {
-            result[key] = setMap[key]; // Keep as is if not a Set
-        }
-    });
-    return result;
-}
 
-/**
- * Updates the word practice history for a user
- * @param {string} word - The word that was practiced
- * @param {string} gameMode - The game mode ('story', 'custom', 'arcade')
- * @param {number} coinsEarned - Number of coins earned (optional)
- * @returns {Promise<boolean>} - Success status
- */
 async function updateWordPracticeHistory(word, gameMode, coinsEarned = 0) {
     if (!currentUser || !word) {
         console.log("Missing user or word, skipping word history update");

@@ -1,45 +1,112 @@
-function saveProgress() {
+/**
+ * Saves the current game progress to both localStorage and Supabase
+ * Fixed to handle missing database columns
+ */
+async function saveProgress() {
     console.log("Saving game progress...");
     
-    // Create the main progress object for database
-    const gameProgress = {
-        stage: gameState.currentStage,
-        set_number: gameState.currentSet,
-        level: gameState.currentLevel,
-        coins: gameState.coins,
-        perks: gameState.perks || {},
-        unlocked_sets: serializeSetMap(gameState.unlockedSets),
-        unlocked_levels: serializeSetMap(gameState.unlockedLevels),
-        perfect_levels: Array.from(gameState.perfectLevels || []),
-        completed_levels: Array.from(gameState.completedLevels || []),
-        words_learned: gameState.wordsLearned || 0
-    };
-    
-    // Save unlocked perks to localStorage
-    if (gameState.unlockedPerks) {
-        try {
-            const perksArray = Array.from(gameState.unlockedPerks);
-            localStorage.setItem("simploxUnlockedPerks", JSON.stringify(perksArray));
-        } catch (e) {
-            console.error("Error saving unlocked perks to localStorage:", e);
+    try {
+        // First, create a safe copy of game state with allowed fields only
+        // This ensures we only save fields that exist in the database
+        const safeGameProgress = {
+            user_id: currentUser?.id,
+            stage: gameState.currentStage,
+            set_number: gameState.currentSet,
+            level: gameState.currentLevel,
+            coins: gameState.coins,
+            perks: gameState.perks || {},
+            unlocked_sets: serializeSetMap(gameState.unlockedSets),
+            unlocked_levels: serializeSetMap(gameState.unlockedLevels),
+            completed_levels: Array.from(gameState.completedLevels || []),
+            perfect_levels: Array.from(gameState.perfectLevels || [])
+            // Removed "words_learned" field that was causing the error
+        };
+        
+        // Always save to localStorage first
+        const progressData = {
+            currentStage: gameState.currentStage,
+            currentSet: gameState.currentSet,
+            currentLevel: gameState.currentLevel,
+            coins: gameState.coins,
+            perks: gameState.perks,
+            unlockedSets: serializeSetMap(gameState.unlockedSets),
+            unlockedLevels: serializeSetMap(gameState.unlockedLevels),
+            perfectLevels: Array.from(gameState.perfectLevels || []),
+            completedLevels: Array.from(gameState.completedLevels || [])
+        };
+        
+        localStorage.setItem("simploxProgress", JSON.stringify(progressData));
+        
+        // If user is logged in, save to Supabase
+        if (currentUser && currentUser.id) {
+            try {
+                // Check if record exists first
+                const { data, error: checkError } = await supabaseClient
+                    .from("game_progress")
+                    .select("user_id")
+                    .eq("user_id", currentUser.id)
+                    .maybeSingle();
+                
+                if (checkError) {
+                    console.error("Error checking if game progress exists:", checkError);
+                    return;
+                }
+                
+                if (data) {
+                    // Record exists, update it
+                    const { error: updateError } = await supabaseClient
+                        .from("game_progress")
+                        .update(safeGameProgress)
+                        .eq("user_id", currentUser.id);
+                    
+                    if (updateError) {
+                        console.error("Error saving progress:", updateError);
+                    } else {
+                        console.log("Progress saved to Supabase");
+                    }
+                } else {
+                    // Record doesn't exist, insert it
+                    const { error: insertError } = await supabaseClient
+                        .from("game_progress")
+                        .insert([safeGameProgress]);
+                    
+                    if (insertError) {
+                        console.error("Error creating game progress record:", insertError);
+                    } else {
+                        console.log("New progress record created in Supabase");
+                    }
+                }
+            } catch (error) {
+                console.error("Unexpected error saving to Supabase:", error);
+            }
         }
+        
+        // Dispatch an event to notify components about saved progress
+        const event = new CustomEvent('progressSaved', { detail: progressData });
+        document.dispatchEvent(event);
+        
+        return true;
+    } catch (e) {
+        console.error("Error in saveProgress:", e);
+        return false;
     }
+}
+
+/**
+ * Helper function to convert Set objects to arrays for storage
+ */
+function serializeSetMap(setMap) {
+    if (!setMap) return {};
     
-    // Save regular progress to localStorage
-    localStorage.setItem("simploxProgress", JSON.stringify(gameProgress));
-    
-    // Save to database
-    if (currentUser && currentUser.id) {
-        supabaseClient
-            .from("game_progress")
-            .update(gameProgress)
-            .eq("user_id", currentUser.id)
-            .then(({ error }) => {
-                if (error) console.error("Error saving progress:", error);
-            });
-    }
-    
-    return gameProgress;
+    const result = {};
+    Object.keys(setMap).forEach(key => {
+        if (setMap[key] instanceof Set) {
+            result[key] = Array.from(setMap[key]);
+        } else {
+            result[key] = setMap[key]; // Keep as is if not a Set
+        }
+    });
+    return result;
 }
 
 async function loadUserGameProgress() {
@@ -1993,13 +2060,12 @@ function handleDoubleCoinsEffect(isCorrect, skipMode) {
     }
 }
 
-
 /**
- * Safe logout function that doesn't try to reassign constant variables
- * This bypasses the problematic perks.js handleLogout function entirely
+ * Global handleLogout function to override any problematic implementations
+ * This ensures it's available when called from inline onclick attributes
  */
-function safeLogout() {
-    console.log("Safe logout function called");
+window.handleLogout = function() {
+    console.log("Global handleLogout called from HTML");
     
     // Set flag to prevent auto-resume
     window.preventAutoResume = true;
@@ -2014,13 +2080,17 @@ function safeLogout() {
     // Call PerkManager reset if available
     if (typeof PerkManager !== 'undefined' && PerkManager && 
         typeof PerkManager.resetForUserChange === 'function') {
-        PerkManager.resetForUserChange();
+        try {
+            PerkManager.resetForUserChange();
+        } catch (e) {
+            console.error("Error resetting PerkManager:", e);
+        }
     }
     
     // Handle Supabase logout
     (async function() {
         try {
-            if (typeof supabaseClient !== 'undefined' && supabaseClient) {
+            if (typeof supabaseClient !== 'undefined' && supabaseClient && supabaseClient.auth) {
                 const { error } = await supabaseClient.auth.signOut();
                 if (error) {
                     console.error('Supabase logout error:', error.message);
@@ -2030,26 +2100,38 @@ function safeLogout() {
             console.error("Error during Supabase logout:", e);
         }
         
-        // Reset state variables individually to avoid reassignment errors
+        // Safely reset game state variables individually
         if (typeof gameState !== 'undefined' && gameState) {
-            // Safely reset gameState properties
             try {
-                // Reset numeric properties
+                // Reset primitive properties
                 gameState.currentStage = 1;
                 gameState.currentSet = 1;
                 gameState.currentLevel = 1;
                 gameState.coins = 0;
                 
-                // Replace perks object contents
+                // Reset object properties by modifying existing objects
                 if (gameState.perks) {
                     Object.keys(gameState.perks).forEach(key => {
                         gameState.perks[key] = 0;
                     });
                 }
                 
-                // Reset collections safely
-                gameState.unlockedSets = {};
-                gameState.unlockedLevels = {};
+                // Empty objects without reassigning
+                if (gameState.unlockedSets) {
+                    for (const key in gameState.unlockedSets) {
+                        if (Object.prototype.hasOwnProperty.call(gameState.unlockedSets, key)) {
+                            delete gameState.unlockedSets[key];
+                        }
+                    }
+                }
+                
+                if (gameState.unlockedLevels) {
+                    for (const key in gameState.unlockedLevels) {
+                        if (Object.prototype.hasOwnProperty.call(gameState.unlockedLevels, key)) {
+                            delete gameState.unlockedLevels[key];
+                        }
+                    }
+                }
                 
                 // Clear Set objects if they exist
                 if (gameState.perfectLevels && typeof gameState.perfectLevels.clear === 'function') {
@@ -2060,7 +2142,7 @@ function safeLogout() {
                     gameState.completedLevels.clear();
                 }
                 
-                // Reset unlockedPerks if it exists
+                // Reset unlockedPerks
                 if (gameState.unlockedPerks && typeof gameState.unlockedPerks.clear === 'function') {
                     gameState.unlockedPerks.clear();
                     
@@ -2072,13 +2154,18 @@ function safeLogout() {
                     });
                 }
             } catch (error) {
-                console.error("Error resetting gameState:", error);
+                console.error("Error safely resetting gameState:", error);
             }
         }
         
-        // Reset current user
+        // Reset currentUser if it exists
         if (typeof currentUser !== 'undefined') {
             currentUser = null;
+        }
+        
+        // Cancel any ongoing games
+        if (typeof currentGame !== 'undefined' && currentGame) {
+            currentGame.active = false;
         }
         
         // Update UI
@@ -2094,15 +2181,53 @@ function safeLogout() {
             updateGuestPlayButton();
         }
         
-        // Show welcome screen with force reload flag
-        if (typeof showScreen === 'function') {
-            showScreen('welcome-screen', true);
+        // Close any open menus
+        if (typeof closeOptionsMenu === 'function') {
+            closeOptionsMenu();
         }
         
-        console.log("Safe logout completed successfully");
+        // Finally show welcome screen with force refresh
+        if (typeof showScreen === 'function') {
+            showScreen('welcome-screen', true);
+        } else {
+            // Fallback - hard redirect to homepage
+            window.location.href = window.location.pathname;
+        }
+        
+        console.log("Global handleLogout completed successfully");
     })();
+    
+    // Return false to prevent default action in onclick handler
+    return false;
+};
+
+/**
+ * Also provide the closeOptionsMenu function if it doesn't exist
+ */
+if (typeof closeOptionsMenu !== 'function') {
+    window.closeOptionsMenu = function() {
+        const optionsMenu = document.getElementById('options-menu');
+        if (optionsMenu && optionsMenu.classList.contains('show')) {
+            optionsMenu.classList.remove('show');
+        }
+    };
 }
 
+// Execute this code as early as possible
+(function() {
+    // Make sure our handleLogout is defined as soon as the script loads
+    console.log("Initializing safe handleLogout function");
+    
+    // Also initialize closeOptionsMenu function
+    if (typeof closeOptionsMenu !== 'function') {
+        window.closeOptionsMenu = function() {
+            const optionsMenu = document.getElementById('options-menu');
+            if (optionsMenu && optionsMenu.classList.contains('show')) {
+                optionsMenu.classList.remove('show');
+            }
+        };
+    }
+})();
 /**
  * Updates all logout buttons to use the safe logout function
  */
@@ -2169,3 +2294,4 @@ function closeOptionsMenu() {
         optionsMenu.classList.remove('show');
     }
 }
+
