@@ -1,4 +1,4 @@
-env.js// env.js - For local development only
+// env.js - For local development only
 if (typeof process === 'undefined') {
   window.process = { env: {} };
 }
